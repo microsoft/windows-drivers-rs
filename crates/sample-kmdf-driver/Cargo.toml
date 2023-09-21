@@ -1,0 +1,30 @@
+[package]
+edition.workspace = true
+name = "sample-kmdf-driver"
+version = "0.1.0"
+description = "A sample KMDF driver to demonstate KMDF drivers in RUST"
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+keywords = ["windows", "driver", "sample", "example", "wdf"]
+categories = ["hardware-support"]
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wdk.workspace = true
+wdk-alloc.workspace = true
+wdk-macros.workspace = true
+wdk-panic.workspace = true
+wdk-sys.workspace = true
+static_assertions = "1.1.0"
+thiserror = "1.0.48"
+
+[build-dependencies]
+wdk-build.workspace = true
+
+[features]
+default = []
+nightly = ["wdk-macros/nightly"]

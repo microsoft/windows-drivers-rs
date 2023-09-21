@@ -1,0 +1,10 @@
+[package]
+edition.workspace = true
+name = "wdk-panic"
+version = "0.1.0"
+description = "Default panic handler implementations for programs built with WDK"
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+keywords = ["panic-handler", "panic", "panic-impl", "wdk", "windows"]
+categories = ["no-std", "hardware-support"]

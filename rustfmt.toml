@@ -1,0 +1,43 @@
+# https://rust-lang.github.io/rustfmt/ outlines all configuration options
+
+# Required to enable unstable features: https://github.com/rust-lang/rustfmt/issues/3387
+unstable_features = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3384
+condense_wildcard_suffixes = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3348
+format_code_in_doc_comments = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3354
+format_macro_matchers = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3353
+format_strings = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/5081
+hex_literal_case = "Upper"
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3361
+imports_layout = "HorizontalVertical"
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/4991
+imports_granularity = "Crate"
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3350
+normalize_comments = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3351
+normalize_doc_attributes = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/5083
+group_imports = "StdExternalCrate"
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3363
+reorder_impl_items = true
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3383
+version = "Two"
+
+# Unstable: https://github.com/rust-lang/rustfmt/issues/3347
+wrap_comments = true

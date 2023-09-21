@@ -1,0 +1,5 @@
+exclude = ["target/**"]
+
+[formatting]
+# enable crlf endings since core.eol is CRLF by default on Windows
+crlf = true

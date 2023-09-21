@@ -1,0 +1,23 @@
+[package]
+edition.workspace = true
+name = "wdk-build"
+version = "0.1.0"
+description = "A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Developer Kit)"
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+keywords = ["wdk", "windows", "build-dependencies"]
+categories = ["development-tools::build-utils", "development-tools::ffi"]
+
+[dependencies]
+bindgen.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror = "1.0.48"
+windows = { version = "0.51.1", features = [
+  "Win32_Foundation",
+  "Win32_System_Registry",
+] }
+
+[build-dependencies]
+rustversion = "1.0.14"

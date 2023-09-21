@@ -1,0 +1,1 @@
+This files in this folder are generated via bindgen but are not actually used by anything. Their purpose is to be able to more easily track diffs in the generated bindings when changes are made to the settings provided to bindgen. The actual bindings used are generated in the target folder on build.

@@ -1,0 +1,33 @@
+[package]
+edition.workspace = true
+name = "wdk-sys"
+version = "0.1.0"
+# Since the WDK links against many different dlls (that vary based off configuration), this crate sets the system library name to be "wdk". This name is only used by downstream build.rs scripts to consume metadata
+links = "wdk"
+description = "Direct bindings to APIs available in the Windows Development Kit (WDK)"
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+keywords = ["wdk", "windows", "wdf", "wdm", "ffi", "winapi"]
+categories = [
+  "external-ffi-bindings",
+  "development-tools::ffi",
+  "os::windows-apis",
+  "os",
+]
+
+[build-dependencies]
+bindgen.workspace = true
+wdk-build.workspace = true
+thiserror = "1.0.48"
+tracing-subscriber = "0.3.17"
+
+[dependencies]
+wdk-macros.workspace = true
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+rustversion = "1.0.14"
+
+[features]
+default = []
+nightly = ["wdk-macros/nightly"]
+test-stubs = []
