@@ -8,7 +8,7 @@ description = "Direct bindings to APIs available in the Windows Development Kit 
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
-keywords = ["wdk", "windows", "wdf", "wdm", "ffi", "winapi"]
+keywords = ["wdk", "windows", "wdf", "wdm", "ffi"]
 categories = [
   "external-ffi-bindings",
   "development-tools::ffi",

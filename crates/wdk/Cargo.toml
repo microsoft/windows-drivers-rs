@@ -8,7 +8,7 @@ description = "Safe idiomatic bindings to APIs available in the Windows Developm
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
-keywords = ["wdk", "windows", "wdf", "wdm", "ffi", "winapi"]
+keywords = ["wdk", "windows", "wdf", "wdm", "ffi"]
 categories = [
   "api-bindings",
   "development-tools::build-utils",
