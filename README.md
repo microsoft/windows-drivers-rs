@@ -130,7 +130,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    load_script = """
    pwsh.exe -Command "\
    if ($env:CARGO_MAKE_CRATE_IS_WORKSPACE) { return };\
-   $cargoMakeURI = ' https://raw.githubusercontent.com/microsoft/windows-drivers-rs/master/rust-driver-makefile.toml;\
+   $cargoMakeURI = 'https://raw.githubusercontent.com/microsoft/windows-drivers-rs/main/rust-driver-makefile.toml';\
    New-Item -ItemType Directory .cargo-make-loadscripts -Force;\
    Invoke-RestMethod -Method GET -Uri $CargoMakeURI -OutFile $env:CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY/.cargo-make-loadscripts/rust-driver-makefile.toml\
    "
