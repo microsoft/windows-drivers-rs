@@ -16,7 +16,7 @@ Note: This project is still in early stages of development and is not yet recomm
 
 ## <a name="supported-configs">Supported Configurations
 
-This project was built with support of WDM, KMDF, and UMDF drivers in mind, as well as Win32 Services. This includes support for all versions of WDF included in WDK 22H2 and newer. Currently, the crates available on [`crates.io`](crates.io) only support KMDF v1.33, but bindings can be generated for everything else by cloning `windows-drivers-rs` and modifying the config specified in [`build.rs` of `wdk-sys`](./crates/wdk-sys/build.rs). Crates.io support for other WDK configurations is planned in the near future.
+This project was built with support of WDM, KMDF, and UMDF drivers in mind, as well as Win32 Services. This includes support for all versions of WDF included in WDK 22H2 and newer. Currently, the crates available on [`crates.io`](https://crates.io) only support KMDF v1.33, but bindings can be generated for everything else by cloning `windows-drivers-rs` and modifying the config specified in [`build.rs` of `wdk-sys`](./crates/wdk-sys/build.rs). Crates.io support for other WDK configurations is planned in the near future.
 
 ## Getting Started
 
@@ -31,7 +31,7 @@ This project was built with support of WDM, KMDF, and UMDF drivers in mind, as w
 
 ## Adding windows-drivers-rs to Your Driver Package
 
-The crates in this repository are available from [`crates.io`](crates.io), but take into not the current limitations outlined in [Supported Configurations](#supported-configs). If you need to support a different config, try cloning this repo and using [path dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-path-dependencies)
+The crates in this repository are available from [`crates.io`](https://crates.io), but take into account the current limitations outlined in [Supported Configurations](#supported-configs). If you need to support a different config, try cloning this repo and using [path dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-path-dependencies)
 
 1. Create a new Cargo package with a lib crate:
 
