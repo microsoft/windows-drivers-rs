@@ -41,13 +41,13 @@ copy %CARGO_MAKE_CRATE_FS_NAME%.pdb package\%CARGO_MAKE_CRATE_FS_NAME%.pdb
 [tasks.inf2cat]
 dependencies = ["stampinf"]
 script = '''
-inf2cat.exe /driver:%OUTPUT_DIR%\package /os:10_NI_X64,10_VB_X64 /uselocaltime /verbose
+inf2cat.exe /driver:"%OUTPUT_DIR%\package" /os:10_NI_X64,10_VB_X64 /uselocaltime /verbose
 '''
 
 [tasks.infverif]
 dependencies = ["stampinf"]
 script = '''
-"%WDKToolRoot%\%Platform%\infverif.exe" /v /w %OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.inf /msft
+"%WDKToolRoot%\%Platform%\infverif.exe" /v /w "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.inf" /msft
 '''
 
 [tasks.sign]
