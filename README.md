@@ -27,7 +27,7 @@ This project was built with support of WDM, KMDF, and UMDF drivers in mind, as w
 * To execute post-build tasks (ie. `inf2cat`, `infverif`, etc.), `cargo make` is used
   * `cargo install --locked cargo-make --no-default-features --features tls-native`
 
-* Building programs with the WDK also requires being in a valid WDK enviroment. The recommended way to do this is to [enter an eWDK developer prompt](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/using-the-enterprise-wdk#getting-started)
+* Building programs with the WDK also requires being in a valid WDK environment. The recommended way to do this is to [enter an eWDK developer prompt](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/using-the-enterprise-wdk#getting-started)
 
 ## Adding windows-drivers-rs to Your Driver Package
 
