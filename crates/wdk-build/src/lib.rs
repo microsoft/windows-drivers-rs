@@ -536,10 +536,15 @@ impl Config {
         .chain(
             match self.driver_config {
                 DriverConfig::Wdm => {
-                    vec![]
+                    vec![
+                        // This is normally defined by msvc via /kernel flag
+                        "_KERNEL_MODE".to_string(),
+                    ]
                 }
                 DriverConfig::Kmdf(kmdf_config) => {
                     let mut kmdf_definitions = vec![
+                        // This is normally defined by msvc via /kernel flag
+                        ("_KERNEL_MODE", None),
                         ("KMDF_VERSION_MAJOR", Some(kmdf_config.kmdf_version_major)),
                         (
                             "KMDF_VERSION_MINOR",
