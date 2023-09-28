@@ -23,11 +23,20 @@ pub use crate::{constants::*, types::*};
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub mod ntddk;
+
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
 
 #[cfg(driver_model__driver_type = "UMDF")]
 pub mod windows;
+
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+pub mod hid;
+
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;

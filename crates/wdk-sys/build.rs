@@ -220,18 +220,40 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .write_to_file(out_path.join("types.rs"))?)
 }
 
-fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    let outfile_name = match &config.driver_config {
-        DriverConfig::Wdm | DriverConfig::Kmdf(_) => "ntddk.rs",
-        DriverConfig::Umdf(_) => "windows.rs",
-    };
-    info!("Generating bindings to WDK: {outfile_name}.rs");
+fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    Ok(
+        bindgen::Builder::wdk_default(vec!["src/ntddk-input.h"], config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .generate()
+            .expect("Bindings should succeed to generate")
+            .write_to_file(out_path.join("ntddk.rs"))?,
+    )
+}
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
-        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+fn generate_hid(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    let mut builder = bindgen::Builder::wdk_default(vec!["src/hid-input.h"], config)?
+        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement());
+
+    // Only allowlist files in the hid-specific files declared in hid-input.h to
+    // avoid duplicate definitions
+    for header_file in [
+        "hidclass.h",
+        "hidpddi.h",
+        "hidpi.h",
+        "hidport.h",
+        "hidsdi.h",
+        "hidspicx.h",
+        "kbdmou.h",
+        "ntdd8042.h",
+        "vhf.h",
+    ] {
+        builder = builder.allowlist_file(format!(".*{header_file}.*"));
+    }
+
+    Ok(builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join(outfile_name))?)
+        .write_to_file(out_path.join("hid.rs"))?)
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
