@@ -1,0 +1,60 @@
+on:
+  push:
+  pull_request:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: "0 11 * * *"
+
+name: Test
+
+jobs:
+  test:
+    name: Test
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        wdk:
+          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+        cargo_profile:
+          - dev
+          - release
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Winget
+        uses: ./.github/actions/winget-install
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install WDK (${{ matrix.wdk }})
+        run: |
+          if (!(winget list --exact --source winget --id ${{ matrix.wdk }})[-1].contains("${{ matrix.wdk }}")) {
+            winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
+          }
+
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+
+      - name: Install Cargo Expand
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-expand
+
+      # FIXME: wdk-sys layout tests fail, but only on github hosted runner
+      - name: Run Cargo Test
+        # Final driver crates must be excluded since theres no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
+        run: cargo test --locked --profile ${{ matrix.cargo_profile }}  --workspace --exclude sample-* --exclude wdk-sys
+
+      - name: Run Cargo Test (--features nightly)
+        if: matrix.rust_toolchain == 'nightly'
+        # Final driver crates must be excluded since theres no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
+        run: cargo test --locked --profile ${{ matrix.cargo_profile }} --features nightly --workspace --exclude sample-* --exclude wdk-sys
