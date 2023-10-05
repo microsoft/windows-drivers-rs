@@ -1,0 +1,21 @@
+name: Dependency Review
+on:
+  pull_request:
+
+jobs:
+  dependency-review:
+    name: Github Dependency Review
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v3
+        with:
+          allow-licenses: MIT, Apache-2.0
+          comment-summary-in-pr: on-failure

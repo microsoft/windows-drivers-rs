@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      timezone: "America/Los_Angeles"
+      time: "06:00"
+    commit-message:
+      prefix: "Cargo Dependency"
+    labels:
+      - "type:dependabot"
+      - "type:dependencies-cargo"
+    rebase-strategy: "disabled"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      timezone: "America/Los_Angeles"
+      time: "06:00"
+    ignore:
+      - dependency-name: "microsoft/mu_devops"
+    commit-message:
+      prefix: "GitHub Actions"
+    labels:
+      - "type:dependabot"
+      - "type:dependencies-github-actions"

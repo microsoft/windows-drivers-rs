@@ -1,0 +1,106 @@
+on:
+  push:
+  pull_request:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: "0 11 * * *"
+
+name: Lint
+
+jobs:
+  clippy:
+    name: Clippy
+    runs-on: windows-latest
+    permissions:
+      checks: write
+    strategy:
+      matrix:
+        wdk:
+          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+        cargo_profile:
+          - dev
+          - release
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Winget
+        uses: ./.github/actions/winget-install
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install WDK (${{ matrix.wdk }})
+        run: |
+          if (!(winget list --exact --source winget --id ${{ matrix.wdk }})[-1].contains("${{ matrix.wdk }}")) {
+            winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
+          }
+
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+
+      - name: Run Cargo Clippy
+        uses: giraffate/clippy-action@v1
+        with:
+          tool_name: Clippy
+          clippy_flags: --locked --profile ${{ matrix.cargo_profile }} --all-targets -- -D warnings
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          filter_mode: nofilter
+          fail_on_error: true
+
+      - name: Run Cargo Clippy (--features nightly)
+        if: matrix.rust_toolchain == 'nightly'
+        uses: giraffate/clippy-action@v1
+        with:
+          tool_name: Clippy (--features nightly)
+          clippy_flags: --locked --profile ${{ matrix.cargo_profile }} --all-targets --features nightly -- -D warnings
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          filter_mode: nofilter
+          fail_on_error: true
+
+  udeps:
+    name: Detect Unused Cargo Dependencies
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        wdk:
+          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Winget
+        uses: ./.github/actions/winget-install
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install WDK (${{ matrix.wdk }})
+        run: |
+          if (!(winget list --exact --source winget --id ${{ matrix.wdk }})[-1].contains("${{ matrix.wdk }}")) {
+            winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
+          }
+
+      - name: Install Rust Toolchain (Nightly)
+        uses: dtolnay/rust-toolchain@nightly
+        # Cargo udeps only supports running on nightly due to reliance on unstable dep-info feature: https://github.com/est31/cargo-udeps/issues/113, https://github.com/est31/cargo-udeps/issues/136
+
+      - name: Install Cargo Udeps
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-udeps
+
+      - name: Run Cargo Udeps
+        run: cargo udeps --locked --all-targets
+
+      - name: Run Cargo Udeps (--features nightly)
+        run: cargo udeps --locked --all-targets --features nightly
