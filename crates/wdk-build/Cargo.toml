@@ -21,3 +21,6 @@ windows = { version = "0.51.1", features = [
 
 [build-dependencies]
 rustversion = "1.0.14"
+
+[dev-dependencies]
+windows = { version = "0.51.1", features = ["Win32_UI_Shell"] }
