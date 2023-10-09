@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+#[allow(missing_docs)]
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
@@ -20,6 +21,7 @@
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::transmute_ptr_to_ptr)]
+#[allow(clippy::undocumented_unsafe_blocks)]
 #[allow(clippy::unnecessary_cast)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::used_underscore_binding)]

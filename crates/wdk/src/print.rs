@@ -7,6 +7,7 @@ use alloc::ffi::CString;
 
 use wdk_sys::ntddk::DbgPrint;
 
+/// print to kernel debugger via [`wdk_sys::ntddk::DbgPrint`]
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
@@ -14,6 +15,7 @@ macro_rules! print {
     };
 }
 
+/// print with newline to debugger via [`wdk_sys::ntddk::DbgPrint`]
 #[macro_export]
 macro_rules! println {
     () => {
@@ -24,6 +26,7 @@ macro_rules! println {
       ($crate::print!("{}\n", format_args!($($arg)*)))
     };
 }
+
 /// Internal implementation of print macros. This function is an implementation
 /// detail and should never be called directly, but must be public to be useable
 /// by the print! and println! macro
@@ -36,6 +39,7 @@ pub fn _print(args: core::fmt::Arguments) {
     let formatted_string = CString::new(alloc::format!("{args}"))
         .expect("CString should be able to be created from a String.");
 
+    // SAFETY: `formatted_string` is a valid null terminated string
     unsafe {
         DbgPrint(formatted_string.as_ptr());
     }

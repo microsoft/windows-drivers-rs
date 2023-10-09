@@ -1,12 +1,26 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! A collection of macros that help make it easier to interact with
+//! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
 #![cfg_attr(feature = "nightly", feature(hint_must_use))]
 #![deny(warnings)]
+#![deny(missing_docs)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+#![deny(clippy::undocumented_unsafe_blocks)]
+#![deny(clippy::unnecessary_safety_doc)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::private_intra_doc_links)]
+#![deny(rustdoc::missing_crate_level_docs)]
+#![deny(rustdoc::invalid_codeblock_attributes)]
+#![deny(rustdoc::invalid_html_tags)]
+#![deny(rustdoc::invalid_rust_codeblocks)]
+#![deny(rustdoc::bare_urls)]
+#![deny(rustdoc::unescaped_backticks)]
+#![deny(rustdoc::redundant_explicit_links)]
 
 use cfg_if::cfg_if;
 use proc_macro::TokenStream;
@@ -21,6 +35,41 @@ use syn::{
     Token,
 };
 
+/// A procedural macro that allows WDF functions to be called by name.
+///
+/// This function parses the name of the WDF function, finds it function pointer
+/// from the WDF function table, and then calls it with the arguments passed to
+/// it
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// #![cfg_attr(feature = "nightly", feature(hint_must_use))]
+/// use wdk_sys::*;
+///
+/// #[export_name = "DriverEntry"]
+/// pub extern "system" fn driver_entry(
+///     driver: &mut DRIVER_OBJECT,
+///     registry_path: PCUNICODE_STRING,
+/// ) -> NTSTATUS {
+///     let mut driver_config = WDF_DRIVER_CONFIG {
+///         Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
+///         ..WDF_DRIVER_CONFIG::default()
+///     };
+///     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
+///
+///     unsafe {
+///         wdk_macros::call_unsafe_wdf_function_binding!(
+///             WdfDriverCreate,
+///             driver as PDRIVER_OBJECT,
+///             registry_path,
+///             WDF_NO_OBJECT_ATTRIBUTES,
+///             &mut driver_config,
+///             driver_handle_output,
+///         )
+///     }
+/// }
+/// ```
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
@@ -148,7 +197,7 @@ mod tests {
         /// `TestCases::pass`. `cargo build` will fail at link stage due to
         /// `trybuild` not allowing configuration to compile as a`cdylib`. To
         /// work around this, `compile_fail` is used, and we mark the test as
-        /// expecting to pnaic with a specific message using the `should_panic`
+        /// expecting to panic with a specific message using the `should_panic`
         /// attribute macro.
         macro_rules! generate_macro_expansion_and_compilation_tests {
             ($($filename:ident),+) => {
@@ -288,7 +337,7 @@ mod tests {
         #[test]
         fn trybuild() {
             trybuild::TestCases::new().compile_fail(
-                // canonicalizing this path causes a bug in `glob`: https://github.com/rust-lang/glob/issues/132
+                // canonicalization of this path causes a bug in `glob`: https://github.com/rust-lang/glob/issues/132
                 TRYBUILD_FOLDER_PATH // .canonicalize()?
                     .join("*.rs"),
             );

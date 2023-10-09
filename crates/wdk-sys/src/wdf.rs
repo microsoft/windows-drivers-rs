@@ -1,7 +1,11 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Direct FFI bindings to WDF APIs from the Windows Driver Kit (WDK)
+
 use crate::types::ULONG;
+
+#[allow(missing_docs)]
 #[allow(clippy::unreadable_literal)]
 mod bindings {
     // allow wildcards for types module since underlying c code relies on all

@@ -1,3 +1,5 @@
+//! Safe abstractions over WDF APIs
+
 mod spinlock;
 mod timer;
 
