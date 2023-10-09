@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+#![allow(missing_docs)]
+
 use crate::types::{NTSTATUS, POOL_FLAGS, PVOID, PWDF_OBJECT_ATTRIBUTES};
 
 #[allow(non_upper_case_globals)]

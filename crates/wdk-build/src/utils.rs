@@ -23,6 +23,7 @@ use windows::{
 
 use crate::{CPUArchitecture, ConfigError};
 
+/// Errors that may occur when stripping the extended path prefix from a path
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StripExtendedPathPrefixError {
     #[error("provided path is empty")]
@@ -169,6 +170,7 @@ fn read_registry_key_string_value(
 ) -> Option<String> {
     let mut opened_key_handle = HKEY::default();
     let mut len = 0;
+    // SAFETY: FIXME seperate unsafe blocks
     unsafe {
         if RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut opened_key_handle).is_ok() {
             if RegGetValueA(
@@ -302,6 +304,7 @@ mod tests {
     #[test]
     fn read_reg_key_programfilesdir() {
         let program_files_dir =
+            // SAFETY: FOLDERID_ProgramFiles is a constant from the windows crate, so dereference a pointer re-borrowed from its reference is always valid
             unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }
                 .expect("Program Files Folder should always resolve via SHGetKnownFolderPath.");
 
@@ -312,6 +315,8 @@ mod tests {
                 s!("ProgramFilesDir")
             ),
             Some(
+                // SAFETY: program_files_dir pointer stays valid for reads up until and including
+                // its terminating null
                 unsafe { program_files_dir.to_string() }
                     .expect("Path resolved from FOLDERID_ProgramFiles should be valid UTF16.")
             )

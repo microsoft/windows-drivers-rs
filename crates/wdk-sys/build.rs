@@ -69,7 +69,7 @@ fn main() -> Result<(), ConfigError> {
 
     let config = Config {
         // FIXME: this should be based off of Cargo feature version
-        driver_config: DriverConfig::KMDFConfig(KMDFConfig::new()),
+        driver_config: DriverConfig::KMDF(KMDFConfig::new()),
         ..Config::default()
     };
 
