@@ -17,10 +17,12 @@
 #![no_std]
 #![deny(warnings)]
 #![deny(missing_docs)]
+#![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+#![deny(clippy::multiple_unsafe_ops_per_block)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 #![deny(clippy::unnecessary_safety_doc)]
 #![deny(rustdoc::broken_intra_doc_links)]
@@ -45,6 +47,10 @@ use wdk_sys::{
 
 /// Allocator implementation to use with `#[global_allocator]` to allow use of
 /// [`core::alloc`].
+///
+/// # Safety
+/// This allocator is only safe to use for allocations happening at `IRQL` <=
+/// `DISPATCH_LEVEL`
 pub struct WDKAllocator;
 
 // The value of memory tags are stored in little-endian order, so it is
@@ -67,7 +73,11 @@ lazy_static! {
 //            supported)
 unsafe impl GlobalAlloc for WDKAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let ptr = ExAllocatePool2(POOL_FLAG_NON_PAGED, layout.size() as SIZE_T, *RUST_TAG);
+        let ptr =
+            // SAFETY: `ExAllocatePool2` is safe to call from any `IRQL` <= `DISPATCH_LEVEL` since its allocating from `POOL_FLAG_NON_PAGED`
+            unsafe {
+                ExAllocatePool2(POOL_FLAG_NON_PAGED, layout.size() as SIZE_T, *RUST_TAG)
+            };
         if ptr.is_null() {
             return core::ptr::null_mut();
         }
@@ -75,6 +85,10 @@ unsafe impl GlobalAlloc for WDKAllocator {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        ExFreePool(ptr.cast());
+        // SAFETY: `ExFreePool` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
+        // since its freeing memory allocated from `POOL_FLAG_NON_PAGED` in `alloc`
+        unsafe {
+            ExFreePool(ptr.cast());
+        }
     }
 }

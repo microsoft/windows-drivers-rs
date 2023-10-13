@@ -170,10 +170,18 @@ fn read_registry_key_string_value(
 ) -> Option<String> {
     let mut opened_key_handle = HKEY::default();
     let mut len = 0;
-    // SAFETY: FIXME seperate unsafe blocks
-    unsafe {
-        if RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut opened_key_handle).is_ok() {
-            if RegGetValueA(
+    if
+    // SAFETY: `&mut opened_key_handle` is coerced to a &raw mut, so the address passed as the
+    // argument is always valid. `&mut opened_key_handle` is coerced to a pointer of the correct
+    // type.
+    unsafe { RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut opened_key_handle) }.is_ok() {
+        if
+        // SAFETY: `opened_key_handle` is valid key opened with the `KEY_QUERY_VALUE` access right
+        // (included in `KEY_READ`). `&mut len` is coerced to a &raw mut, so the address passed as
+        // the argument is always valid. `&mut len` is coerced to a pointer of the correct
+        // type.
+        unsafe {
+            RegGetValueA(
                 opened_key_handle,
                 None,
                 value,
@@ -182,10 +190,19 @@ fn read_registry_key_string_value(
                 None,
                 Some(&mut len),
             )
-            .is_ok()
-            {
-                let mut buffer = vec![0u8; len as usize];
-                if RegGetValueA(
+        }
+        .is_ok()
+        {
+            let mut buffer = vec![0u8; len as usize];
+            if
+            // SAFETY: `opened_key_handle` is valid key opened with the `KEY_QUERY_VALUE` access
+            // right (included in `KEY_READ`). `&mut buffer` is coerced to a &raw mut,
+            // so the address passed as the argument is always valid. `&mut buffer` is
+            // coerced to a pointer of the correct type. `&mut len` is coerced to a &raw
+            // mut, so the address passed as the argument is always valid. `&mut len` is
+            // coerced to a pointer of the correct type.
+            unsafe {
+                RegGetValueA(
                     opened_key_handle,
                     None,
                     value,
@@ -194,21 +211,31 @@ fn read_registry_key_string_value(
                     Some(buffer.as_mut_ptr().cast()),
                     Some(&mut len),
                 )
-                .is_ok()
-                {
-                    RegCloseKey(opened_key_handle)
-                        .expect("opened_key_handle should be successfully closed");
-                    return Some(
-                        CStr::from_bytes_with_nul_unchecked(&buffer[..len as usize])
-                            .to_str()
-                            .expect("Registry value should be parseable as utf8")
-                            .to_string(),
-                    );
-                }
             }
-            RegCloseKey(opened_key_handle)
-                .expect(r"opened_key_handle should be successfully closed");
+            .is_ok()
+            {
+                // SAFETY: `opened_key_handle` is valid opened key that was opened by
+                // `RegOpenKeyExA`
+                unsafe { RegCloseKey(opened_key_handle) }
+                    .expect("opened_key_handle should be successfully closed");
+                return Some(
+                    CStr::from_bytes_with_nul(&buffer[..len as usize])
+                        .expect(
+                            "RegGetValueA should always return a null terminated string. The read \
+                             string (REG_SZ) from the registry should not contain any interior \
+                             nulls.",
+                        )
+                        .to_str()
+                        .expect("Registry value should be parseable as UTF8")
+                        .to_string(),
+                );
+            }
         }
+
+        // SAFETY: `opened_key_handle` is valid opened key that was opened by
+        // `RegOpenKeyExA`
+        unsafe { RegCloseKey(opened_key_handle) }
+            .expect(r"opened_key_handle should be successfully closed");
     }
     None
 }
@@ -304,7 +331,7 @@ mod tests {
     #[test]
     fn read_reg_key_programfilesdir() {
         let program_files_dir =
-            // SAFETY: FOLDERID_ProgramFiles is a constant from the windows crate, so dereference a pointer re-borrowed from its reference is always valid
+            // SAFETY: FOLDERID_ProgramFiles is a constant from the windows crate, so the pointer (resulting from its reference being coerced) is always valid to be dereferenced
             unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }
                 .expect("Program Files Folder should always resolve via SHGetKnownFolderPath.");
 
