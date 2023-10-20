@@ -1,12 +1,25 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Default Panic Handlers for programs built with the WDK (Windows Drivers Kit)
 #![no_std]
 #![deny(warnings)]
+#![deny(missing_docs)]
 #![deny(clippy::all)]
-#![warn(clippy::pedantic)]
-#![warn(clippy::nursery)]
-#![warn(clippy::cargo)]
+#![deny(clippy::pedantic)]
+#![deny(clippy::nursery)]
+#![deny(clippy::cargo)]
+#![deny(clippy::undocumented_unsafe_blocks)]
+#![deny(clippy::unnecessary_safety_doc)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::private_intra_doc_links)]
+#![deny(rustdoc::missing_crate_level_docs)]
+#![deny(rustdoc::invalid_codeblock_attributes)]
+#![deny(rustdoc::invalid_html_tags)]
+#![deny(rustdoc::invalid_rust_codeblocks)]
+#![deny(rustdoc::bare_urls)]
+#![deny(rustdoc::unescaped_backticks)]
+#![deny(rustdoc::redundant_explicit_links)]
 
 #[cfg(not(test))]
 use core::panic::PanicInfo;

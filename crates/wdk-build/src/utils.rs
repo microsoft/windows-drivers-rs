@@ -3,6 +3,7 @@
 
 use std::{
     env,
+    ffi::CStr,
     path::{Path, PathBuf},
 };
 
@@ -22,6 +23,7 @@ use windows::{
 
 use crate::{CPUArchitecture, ConfigError};
 
+/// Errors that may occur when stripping the extended path prefix from a path
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StripExtendedPathPrefixError {
     #[error("provided path is empty")]
@@ -127,8 +129,8 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // Roots@KitsRoot10 registry key
     if let Some(path) = read_registry_key_string_value(
         HKEY_LOCAL_MACHINE,
-        s!(r"SOFTWARE\Microsoft\Windows Kits"),
-        s!(r"Installed Roots@KitsRoot10"),
+        s!(r"SOFTWARE\Microsoft\Windows Kits\Installed Roots"),
+        s!(r"KitsRoot10"),
     ) {
         return Some(Path::new(path.as_str()).to_path_buf());
     }
@@ -137,8 +139,8 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // Kits\Installed Roots@KitsRoot10 registry key
     if let Some(path) = read_registry_key_string_value(
         HKEY_LOCAL_MACHINE,
-        s!(r"SOFTWARE\Wow6432Node\Microsoft\Windows Kits"),
-        s!(r"Installed Roots@KitsRoot10"),
+        s!(r"SOFTWARE\Wow6432Node\Microsoft\Windows Kits\Installed Roots"),
+        s!(r"KitsRoot10"),
     ) {
         return Some(Path::new(path.as_str()).to_path_buf());
     }
@@ -166,13 +168,14 @@ fn read_registry_key_string_value(
     sub_key: PCSTR,
     value: PCSTR,
 ) -> Option<String> {
-    let mut new_key_handle = HKEY::default();
+    let mut opened_key_handle = HKEY::default();
     let mut len = 0;
+    // SAFETY: FIXME seperate unsafe blocks
     unsafe {
-        if RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut new_key_handle).is_ok() {
+        if RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut opened_key_handle).is_ok() {
             if RegGetValueA(
-                new_key_handle,
-                sub_key,
+                opened_key_handle,
+                None,
                 value,
                 RRF_RT_REG_SZ,
                 None,
@@ -183,8 +186,8 @@ fn read_registry_key_string_value(
             {
                 let mut buffer = vec![0u8; len as usize];
                 if RegGetValueA(
-                    new_key_handle,
-                    sub_key,
+                    opened_key_handle,
+                    None,
                     value,
                     RRF_RT_REG_SZ,
                     None,
@@ -193,15 +196,18 @@ fn read_registry_key_string_value(
                 )
                 .is_ok()
                 {
-                    RegCloseKey(new_key_handle)
-                        .expect("new_key_handle should be successfully closed");
+                    RegCloseKey(opened_key_handle)
+                        .expect("opened_key_handle should be successfully closed");
                     return Some(
-                        String::from_utf8(buffer)
-                            .expect("Registry value should be parseable as utf8"),
+                        CStr::from_bytes_with_nul_unchecked(&buffer[..len as usize])
+                            .to_str()
+                            .expect("Registry value should be parseable as utf8")
+                            .to_string(),
                     );
                 }
             }
-            RegCloseKey(new_key_handle).expect(r"new_key_handle should be successfully closed");
+            RegCloseKey(opened_key_handle)
+                .expect(r"opened_key_handle should be successfully closed");
         }
     }
     None
@@ -256,6 +262,8 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
 mod tests {
     use std::path::PathBuf;
 
+    use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+
     use super::*;
 
     #[test]
@@ -290,6 +298,28 @@ mod tests {
         assert_eq!(
             PathBuf::from(r"C:\Program Files").strip_extended_length_path_prefix(),
             Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
+        );
+    }
+
+    #[test]
+    fn read_reg_key_programfilesdir() {
+        let program_files_dir =
+            // SAFETY: FOLDERID_ProgramFiles is a constant from the windows crate, so dereference a pointer re-borrowed from its reference is always valid
+            unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }
+                .expect("Program Files Folder should always resolve via SHGetKnownFolderPath.");
+
+        assert_eq!(
+            read_registry_key_string_value(
+                HKEY_LOCAL_MACHINE,
+                s!(r"SOFTWARE\Microsoft\Windows\CurrentVersion"),
+                s!("ProgramFilesDir")
+            ),
+            Some(
+                // SAFETY: program_files_dir pointer stays valid for reads up until and including
+                // its terminating null
+                unsafe { program_files_dir.to_string() }
+                    .expect("Path resolved from FOLDERID_ProgramFiles should be valid UTF16.")
+            )
         );
     }
 }

@@ -2,7 +2,7 @@
 edition.workspace = true
 name = "wdk-build"
 version = "0.1.0"
-description = "A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Developer Kit)"
+description = "A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Driver Kit)"
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
@@ -21,3 +21,6 @@ windows = { version = "0.51.1", features = [
 
 [build-dependencies]
 rustversion = "1.0.14"
+
+[dev-dependencies]
+windows = { version = "0.51.1", features = ["Win32_UI_Shell"] }

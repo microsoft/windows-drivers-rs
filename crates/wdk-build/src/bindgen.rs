@@ -4,6 +4,9 @@
 use bindgen::Builder;
 
 use crate::{CPUArchitecture, Config, ConfigError, DriverConfig};
+
+/// An extension trait that provides a way to create a [`bindgen::Builder`]
+/// configured for generating bindings to the wdk
 pub trait BuilderExt {
     /// Returns a `bindgen::Builder` with the default configuration for
     /// generation of bindings to the WDK
@@ -59,13 +62,13 @@ impl BuilderExt for Builder {
                     DriverConfig::WDM() => {
                         vec![]
                     }
-                    DriverConfig::KMDFConfig(kmdf_config) => {
+                    DriverConfig::KMDF(kmdf_config) => {
                         vec![
                             format!("KMDF_VERSION_MAJOR={}", kmdf_config.kmdf_version_major),
                             format!("KMDF_VERSION_MINOR={}", kmdf_config.kmdf_version_minor),
                         ]
                     }
-                    DriverConfig::UMDFConfig(umdf_config) => {
+                    DriverConfig::UMDF(umdf_config) => {
                         let mut umdf_definitions = vec![
                             format!("UMDF_VERSION_MAJOR={}", umdf_config.umdf_version_major),
                             format!("UMDF_VERSION_MINOR={}", umdf_config.umdf_version_minor),

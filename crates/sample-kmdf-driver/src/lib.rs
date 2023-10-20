@@ -8,6 +8,7 @@
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+#![deny(clippy::unnecessary_safety_doc)]
 
 extern crate alloc;
 

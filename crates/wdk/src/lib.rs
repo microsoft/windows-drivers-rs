@@ -1,13 +1,28 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Idiomatic Rust wrappers for the Windows Driver Kit (WDK) APIs. This crate is
+//! built on top of the raw FFI bindings provided by [`wdk-sys`], and provides a
+//! safe, idiomatic rust interface to the WDK.
 #![no_std]
 #![cfg_attr(feature = "nightly", feature(hint_must_use))]
 #![deny(warnings)]
+#![deny(missing_docs)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+#![deny(clippy::undocumented_unsafe_blocks)]
+#![deny(clippy::unnecessary_safety_doc)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::private_intra_doc_links)]
+#![deny(rustdoc::missing_crate_level_docs)]
+#![deny(rustdoc::invalid_codeblock_attributes)]
+#![deny(rustdoc::invalid_html_tags)]
+#![deny(rustdoc::invalid_rust_codeblocks)]
+#![deny(rustdoc::bare_urls)]
+#![deny(rustdoc::unescaped_backticks)]
+#![deny(rustdoc::redundant_explicit_links)]
 
 #[cfg(feature = "alloc")]
 mod print;
@@ -21,6 +36,7 @@ pub mod wdf;
 /// # Panics
 /// Will Panic if called on an unsupported architecture
 pub fn dbg_break() {
+    // SAFETY: Abides all rules outlined in https://doc.rust-lang.org/reference/inline-assembly.html#rules-for-inline-assembly
     unsafe {
         #[cfg(target_arch = "aarch64")]
         {
