@@ -33,7 +33,9 @@ pub use print::_print;
 pub use wdk_sys::{NT_SUCCESS as nt_success, PAGED_CODE as paged_code};
 pub mod wdf;
 
-/// Trigger a breakpoint in debugger via architecture-specific inline assembly
+/// Trigger a breakpoint in debugger via architecture-specific inline assembly.
+///
+/// Implementations derived from details outlined in [MSVC `__debugbreak` intrinsic documentation](https://learn.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170#remarks)
 ///
 /// # Panics
 /// Will Panic if called on an unsupported architecture
@@ -42,7 +44,7 @@ pub fn dbg_break() {
     unsafe {
         #[cfg(target_arch = "aarch64")]
         {
-            core::arch::asm!("int 3");
+            core::arch::asm!("brk #0xF000");
             return;
         }
 
