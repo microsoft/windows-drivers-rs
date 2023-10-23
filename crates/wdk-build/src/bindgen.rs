@@ -48,13 +48,22 @@ impl BuilderExt for Builder {
                         .expect("Non Unicode paths are not supported")
                 )
             }))
-            .clang_arg(format!(
-                "--define-macro={}",
+            .clang_args(
                 match config.cpu_architecture {
-                    CPUArchitecture::AMD64 => "_AMD64_",
-                    CPUArchitecture::ARM64 => "_ARM64EC_",
+                    // Definitions sourced from `Program Files\Windows
+                    // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
+                    CPUArchitecture::AMD64 => {
+                        vec!["_WIN64", "_AMD64_", "AMD64"]
+                    }
+                    // Definitions sourced from `Program Files\Windows
+                    // Kits\10\build\10.0.22621.0\WindowsDriver.arm64.props`
+                    CPUArchitecture::ARM64 => {
+                        vec!["_ARM64_", "ARM64", "_USE_DECLSPECS_FOR_SAL=1", "STD_CALL"]
+                    }
                 }
-            ))
+                .iter()
+                .map(|preprocessor_definition| format!("--define-macro={preprocessor_definition}")),
+            )
             .clang_args(
                 match config.driver_config {
                     // FIXME: Add support for KMDF_MINIMUM_VERSION_REQUIRED and
@@ -100,6 +109,9 @@ impl BuilderExt for Builder {
             // below and if there are any non-blocklisted function definitions, it will throw a
             // -WDeprecated warning
             .clang_arg("--warn-=no-deprecated-declarations")
+            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
+            // `_variable` are seperate tokens already, and don't need `##` to concatenate them)
+            .clang_arg("--warn-=no-invalid-token-paste")
             .clang_arg("-fms-extensions")
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
