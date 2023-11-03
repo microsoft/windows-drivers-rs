@@ -31,6 +31,8 @@
 mod bindgen;
 mod utils;
 
+pub mod cargo_make;
+
 use std::{env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
