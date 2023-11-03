@@ -12,7 +12,7 @@ This repo is a collection of Rust crates that enable developers to develop Windo
 
 To see an example of this repo used to create drivers, see [Windows-rust-driver-samples](https://github.com/microsoft/Windows-rust-driver-samples).
 
-Note: This project is still in early stages of development and is not yet recommended for commercial use. We encourage community experimentation, suggestions and discussions! We will be using our [GitHub Discussions forum](https://github.com/microsoft/windows-drivers-rs/discussions) as the main form of engagement with the community!
+Note: This project is still in early stages of development and is not yet recommended for production use. We encourage community experimentation, suggestions and discussions! We will be using our [GitHub Discussions forum](https://github.com/microsoft/windows-drivers-rs/discussions) as the main form of engagement with the community!
 
 ## <a name="supported-configs">Supported Configurations
 
@@ -29,14 +29,14 @@ This project was built with support of WDM, KMDF, and UMDF drivers in mind, as w
 
 * Building programs with the WDK also requires being in a valid WDK environment. The recommended way to do this is to [enter an eWDK developer prompt](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/using-the-enterprise-wdk#getting-started)
 
-## Adding windows-drivers-rs to Your Driver Package
+### Adding windows-drivers-rs to Your Driver Package
 
 The crates in this repository are available from [`crates.io`](https://crates.io), but take into account the current limitations outlined in [Supported Configurations](#supported-configs). If you need to support a different config, try cloning this repo and using [path dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-path-dependencies)
 
 1. Create a new Cargo package with a lib crate:
 
    ```pwsh
-   cargo new <driver_name> --lib --config
+   cargo new <driver_name> --lib
    ```
 
 2. Add dependencies on `windows-drivers-rs` crates:
@@ -146,6 +146,9 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    ```
 
 A `DriverCertificate.cer` file will be generated, and a signed driver package will be available at `target/<Cargo profile>/package`
+
+## Crates.io Release Policy
+Releases to crates.io are not made after every change merged to main. Releases will only be made when requested by the community, or when the `windows-drivers-rs` team believes there is sufficient value in pushing a release.
 
 ## Trademark Notice
 
