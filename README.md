@@ -1,6 +1,5 @@
 # windows-drivers-rs
 
-
 This repo is a collection of Rust crates that enable developers to develop Windows Drivers in Rust. It is the intention to support both WDM and WDF driver development models. This repo contains the following crates:
 
 * [wdk-build](./crates/wdk-build): A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Driver Kit). While this crate is written to be flexible with different WDK releases and different WDF version, it is currently only tested for NI eWDK, KMDF 1.33, UMDF 2.33, and WDM Drivers. There may be missing linker options for older DDKs.
@@ -148,7 +147,44 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
 A `DriverCertificate.cer` file will be generated, and a signed driver package will be available at `target/<Cargo profile>/package`
 
+## Cargo Make
+
+[`cargo-make`](https://github.com/sagiegurari/cargo-make) is used to facilitate builds using `windows-drivers-rs`, including for executing post-build driver packaging steps.
+
+To execute the default action (build and package driver):
+
+`cargo make default`
+
+When executing the default task, just `cargo make` make also works since the `default` task is implied.
+
+### Argument Forwarding
+
+`windows-drivers-rs` extends `cargo make` to forward specific arguements to the underlying `cargo` commands. In order to specify arguments to forward, they must be provided **after explicitly specifying the `cargo-make` task name** (ie. omitting the name for the  `default` task is not supported).
+
+#### Examples
+
+For a specific target:
+
+`cargo make default --target <TARGET TRIPLE>`
+
+For release builds:
+
+`cargo make default --release` or `cargo make default --profile release`
+
+To specify specific features:
+
+`cargo make default --feature <FEATURES>`
+
+To specify a specific rust toolchain:
+
+`cargo make default +<TOOLCHAIN>`
+
+To display help and see the full list of supported CLI args to forward to Cargo:
+
+`cargo make help`
+
 ## Crates.io Release Policy
+
 Releases to crates.io are not made after every change merged to main. Releases will only be made when requested by the community, or when the `windows-drivers-rs` team believes there is sufficient value in pushing a release.
 
 ## Trademark Notice
