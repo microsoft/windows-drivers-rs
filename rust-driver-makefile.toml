@@ -3,13 +3,96 @@
 # FIXME: replace all script blocks with cargo-make commands: "Favor commands over scripts, as commands support more features such as automatic dependencies installation, argument functions, and more..."
 # FIXME: this flow is based on the signing process of a KMDF PNP driver. There should be different flows availabe for different types of drivers as outlined in https://learn.microsoft.com/en-us/windows-hardware/drivers/install/test-signing-driver-packages 
 
+[config]
+min_version = "0.37.3"
+init_task = "wdk-build-init"
+default_to_workspace = false
+
 [env]
+# This allows all workspace members to access this makefile
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+# CARGO_MAKE_CARGO_BUILD_TEST_FLAGS is set to "--all-features" by default in cargo-make: https://github.com/sagiegurari/cargo-make/blob/c0abc4d0ae1bcc03adde22b63fa0accc4af2b3bc/src/lib/descriptor/makefiles/stable.toml#L31
+# This is set to "" here to match the default behavior of Cargo. 
+CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = ""
+
 VC_BUILD_DIR = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvarsamd64_x86.bat"
+
 # FIXME: add --locked for CI builds using CARGO_MAKE_PR and CARGO_MAKE_CI
-CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--profile ${CARGO_MAKE_CARGO_PROFILE}"
 
 # Cargo puts "dev" profile builds in the "debug" target folder: https://doc.rust-lang.org/cargo/guide/build-cache.html#build-cache. This supports cargo-make profile values of both "development" and "dev"
-OUTPUT_DIR = { source = "${CARGO_MAKE_CARGO_PROFILE}", default_value = "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}\\${CARGO_MAKE_CARGO_PROFILE}", mapping = { "dev" = "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}\\debug" } }
+OUTPUT_DIR = { source = "${CARGO_MAKE_CARGO_PROFILE}", default_value = "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}\\${CARGO_MAKE_CARGO_PROFILE}", mapping = { "dev" = "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}\\debug" } }
+
+[plugins.impl.rust-env-update]
+script = '''
+assert ${task.has_script} "script is required for rust-env-update plugin"
+assert_eq ${task.script_runner} @rust "script_runner must be set to @rust for rust-env-update plugin"
+
+cargo_make_rust_script_provider = get_env CARGO_MAKE_RUST_SCRIPT_PROVIDER
+assert_eq ${cargo_make_rust_script_provider} rust-script "rust-env-update plugin is only compatible with rust-script"
+
+taskjson = json_parse ${task.as_json}
+
+# Install dependency crate
+out = exec --fail-on-error cargo install ${taskjson.install_crate.crate_name} --version ${taskjson.install_crate.min_version}
+assert_eq ${out.code} 0 "[tasks.${task.name}]'s install_crate failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}"
+
+# Execute rust-script
+taskjson = json_parse ${task.as_json}
+filepath = set "./target/cargo-make-script/${task.name}/main.rs"
+# If a file already exists, only overwrite it if the script has changed (so that rust-script caching can be leveraged)
+if is_file ${filepath}
+    old_hash = digest --algo sha256 --file ${filepath}
+    new_hash = digest --algo sha256 ${taskjson.script}
+    if not eq ${old_hash} ${new_hash}
+        writefile ${filepath} ${taskjson.script}
+    end
+else
+    writefile ${filepath} ${taskjson.script}
+end
+cli_args = array_join ${flow.cli.args} " "
+trigger_help = get_env TRIGGER_HELP
+if not is_empty ${trigger_help}
+    cli_args = concat ${cli_args} " --help"
+end
+out = exec --fail-on-error rust-script --base-path ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} ./target/cargo-make-script/${task.name}/main.rs %{cli_args}
+assert_eq ${out.code} 0 "[tasks.${task.name}]'s script failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ./target/cargo-make-script/${task.name}/main.rs"
+
+# Set cargo-make env vars based on output of rust-script
+script_output = trim ${out.stdout}
+if not is_empty ${script_output}
+    script_output_array = split ${script_output} \n
+    stdout_first_line = array_get ${script_output_array} 0
+    assert_eq ${stdout_first_line} "FORWARDING ARGS TO CARGO-MAKE:" "[tasks.${task.name}]'s script output did not begin with \"FORWARDING ARGS TO CARGO-MAKE:\". Was `--help` passed as one of the arguments?\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ./target/cargo-make-script/${task.name}/main.rs"
+    array_remove ${script_output_array} 0
+    for line in ${script_output_array}
+        parts = split ${line} =
+        key = array_get ${parts} 0
+        value = array_get ${parts} 1
+        set_env ${key} ${value}
+    end
+end
+'''
+
+[tasks.wdk-build-init]
+private = true
+install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
+plugin = "rust-env-update"
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::validate_and_forward_args();
+'''
+
+[tasks.help]
+workspace = false
+env = { "TRIGGER_HELP" = "1" }
+run_task = "wdk-build-init"
 
 [tasks.rename-dll-to-sys]
 dependencies = ["build"]
