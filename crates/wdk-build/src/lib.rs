@@ -138,6 +138,21 @@ pub enum ConfigError {
          the environment setup scripts in the eWDK have been run."
     )]
     WDKContentRootDetectionError,
+
+    /// Error returned when cargo_metadata execution or parsing fails
+    #[error(transparent)]
+    CargoMetadataError(#[from] cargo_metadata::Error),
+
+    /// Error returned when multiple versions of the wdk-build package are
+    /// detected
+    #[error(
+        "multiple versions of the wdk-build package are detected, but only one version is \
+         allowed: {package_ids:#?}"
+    )]
+    MultipleWDKBuildCratesDetected {
+        /// package ids of the wdk-build crates detected
+        package_ids: Vec<cargo_metadata::PackageId>,
+    },
 }
 
 /// Errors that could result from parsing a configuration from a [`wdk-build`]

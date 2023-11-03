@@ -10,6 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
+use cargo_metadata::MetadataCommand;
 use clap::{Args, Parser};
 
 use crate::{
@@ -30,6 +31,8 @@ const CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY";
 const CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR: &str = "CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN";
 const CARGO_MAKE_CRATE_FS_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_FS_NAME";
+const CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR: &str =
+    "CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY";
 const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
@@ -547,6 +550,77 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
     );
     std::fs::copy(path_to_copy, destination_path)?;
 
+    Ok(())
+}
+
+/// Symlinks `rust-driver-toolchain.toml` to the `target` folder where it can be
+/// extended from a `Makefile.toml`. This is necessary so that paths in the
+/// `rust-driver-toolchain.toml` can to be relative to
+/// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+///
+/// # Errors
+///
+/// This function returns:
+/// - [`ConfigError::CargoMetadataError`] if there is an error executing or
+///   parsing `cargo_metadata`
+/// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
+///   versions of the WDK build crate detected
+/// - [`ConfigError::IoError`] if there is an error creating or updating the
+///   symlink to `rust-driver-toolchain.toml`
+///
+/// # Panics
+///
+/// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
+/// environment variable is not set
+pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
+    let cargo_metadata = MetadataCommand::new().exec()?;
+
+    let wdk_build_package_matches = cargo_metadata
+        .packages
+        .into_iter()
+        .filter(|package| package.name == "wdk-build")
+        .collect::<Vec<_>>();
+    if wdk_build_package_matches.len() != 1 {
+        return Err(ConfigError::MultipleWDKBuildCratesDetected {
+            package_ids: wdk_build_package_matches
+                .iter()
+                .map(|package_info| package_info.id.clone())
+                .collect(),
+        });
+    }
+
+    let rust_driver_makefile_toml_path = wdk_build_package_matches[0]
+        .manifest_path
+        .parent()
+        .expect("The parsed manifest_path should have a valid parent directory")
+        .join("rust-driver-makefile.toml");
+
+    let cargo_make_workspace_working_directory =
+        std::env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
+            panic!("{CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make.")
+        });
+
+    let destination_path =
+        Path::new(&cargo_make_workspace_working_directory).join("target/rust-driver-makefile.toml");
+
+    // Only create a new symlink if the existing one is not already pointing to the
+    // correct file
+    if !destination_path.exists() {
+        return Ok(std::os::windows::fs::symlink_file(
+            rust_driver_makefile_toml_path,
+            destination_path,
+        )?);
+    } else if !destination_path.is_symlink()
+        || std::fs::read_link(&destination_path)? != rust_driver_makefile_toml_path
+    {
+        std::fs::remove_file(&destination_path)?;
+        return Ok(std::os::windows::fs::symlink_file(
+            rust_driver_makefile_toml_path,
+            destination_path,
+        )?);
+    }
+
+    // Symlink is already up to date
     Ok(())
 }
 
