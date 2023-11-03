@@ -1,1 +1,3 @@
-extend = "./rust-driver-makefile.toml"
+extend = "./crates/wdk-build/rust-driver-makefile.toml"
+
+# TODO: find a way to skip all non-driver targets?

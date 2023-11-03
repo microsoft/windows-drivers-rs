@@ -126,14 +126,57 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
    [config]
-   load_script = """
-   pwsh.exe -Command "\
-   if ($env:CARGO_MAKE_CRATE_IS_WORKSPACE) { return };\
-   $cargoMakeURI = 'https://raw.githubusercontent.com/microsoft/windows-drivers-rs/main/rust-driver-makefile.toml';\
-   New-Item -ItemType Directory .cargo-make-loadscripts -Force;\
-   Invoke-RestMethod -Method GET -Uri $CargoMakeURI -OutFile $env:CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY/.cargo-make-loadscripts/rust-driver-makefile.toml\
-   "
-   """
+   load_script = '''
+   #!@duckscript
+
+   # Get cargo metadata
+   out = exec --fail-on-error cargo metadata --format-version 1
+   assert_eq ${out.code} 0 "Running `cargo metadata` failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}"
+   cargo_metadata_handle = json_parse --collection ${out.stdout}
+
+   # Find resolved dependency for wdk_build
+   resolve_handle = map_get ${cargo_metadata_handle} resolve
+   resolve_nodes_handle = map_get ${resolve_handle} nodes
+   fn <scope> find_resolved_wdk_build
+      nodes_array = set ${1}
+
+      for node in ${nodes_array}
+         package_id = map_get ${node} id
+         if starts_with ${package_id} "wdk-build"
+               return ${package_id}
+         end
+      end
+   end
+   resolved_wdk_build_id = find_resolved_wdk_build ${resolve_nodes_handle}
+
+   # Find cargo manifest for resolved wdk-build
+   packages_handle = map_get ${cargo_metadata_handle} packages
+   fn <scope> find_resolved_wdk_build_manifest_path
+      packages_array = set ${1}
+      resolved_wdk_build_id = set ${2}
+
+      for pkg in ${packages_array}
+         package_id = map_get ${pkg} id
+         if eq ${package_id} ${resolved_wdk_build_id}
+               manifest_path = map_get ${pkg} manifest_path
+               return ${manifest_path}
+         end
+      end
+   end
+   wdk_build_manifest_path = find_resolved_wdk_build_manifest_path ${packages_handle} ${resolved_wdk_build_id}
+
+   # Get wdk-build makefile file path
+   length_to_trim = strlen Cargo.toml
+   basepath = substring ${wdk_build_manifest_path} -${length_to_trim}
+   makefile_path = concat ${basepath} rust-driver-makefile.toml
+
+   # Copy wdk-build makefile
+   copy_success = cp ${makefile_path} .cargo-make-loadscripts/rust-driver-makefile.toml
+   assert_eq ${copy_success} true "Failed to copy wdk-build makefile to .cargo-make-loadscripts/rust-driver-makefile.toml\nstdout:\n${copy_success.stdout}\nstderr:\n${copy_success.stderr}"
+
+   # Release duckscript object handles
+   release --recursive cargo_metadata_handle
+   '''
    ```
 
 11. Add an inx file that matches the name of your `cdylib` crate.
