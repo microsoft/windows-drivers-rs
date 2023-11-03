@@ -35,7 +35,6 @@
 
 use core::alloc::{GlobalAlloc, Layout};
 
-use lazy_static::lazy_static;
 use wdk_sys::{
     ntddk::{ExAllocatePool2, ExFreePool},
     POOL_FLAG_NON_PAGED,
@@ -47,18 +46,9 @@ use wdk_sys::{
 /// [`core::alloc`].
 pub struct WDKAllocator;
 
-// The value of memory tags are stored in little-endian order, so it is
-// convenient to reverse the order for readability in tooling(ie. Windbg)
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-lazy_static! {
-    static ref RUST_TAG: ULONG = u32::from_ne_bytes(
-        #[allow(clippy::string_lit_as_bytes)] // A u8 slice is required here
-        "rust"
-            .as_bytes()
-            .try_into()
-            .expect("tag string.as_bytes() should be able to convert into [u8; 4]"),
-    );
-}
+// The value of memory tags are stored in little-endian order, so it is
+// convenient to reverse the order for readability in tooling (ie. Windbg)
+const RUST_TAG: ULONG = u32::from_ne_bytes(*b"rust");
 
 // SAFETY: This is safe because the WDK allocator:
 //         1. can never unwind since it can never panic
@@ -67,7 +57,7 @@ lazy_static! {
 //            supported)
 unsafe impl GlobalAlloc for WDKAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let ptr = ExAllocatePool2(POOL_FLAG_NON_PAGED, layout.size() as SIZE_T, *RUST_TAG);
+        let ptr = ExAllocatePool2(POOL_FLAG_NON_PAGED, layout.size() as SIZE_T, RUST_TAG);
         if ptr.is_null() {
             return core::ptr::null_mut();
         }

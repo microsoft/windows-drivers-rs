@@ -11,7 +11,6 @@ categories = ["memory-management", "no-std", "hardware-support"]
 
 [dependencies]
 wdk-sys.workspace = true
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 
 [dev-dependencies]
 wdk-sys = { workspace = true, features = ["test-stubs"] }
