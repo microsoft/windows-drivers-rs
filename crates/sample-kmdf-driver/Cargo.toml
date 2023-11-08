@@ -20,7 +20,7 @@ wdk-macros.workspace = true
 wdk-panic.workspace = true
 wdk-sys.workspace = true
 static_assertions = "1.1.0"
-thiserror = "1.0.48"
+thiserror = "1.0.50"
 
 [build-dependencies]
 wdk-build.workspace = true

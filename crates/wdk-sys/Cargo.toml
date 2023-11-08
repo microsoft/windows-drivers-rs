@@ -19,7 +19,7 @@ categories = [
 [build-dependencies]
 bindgen.workspace = true
 wdk-build.workspace = true
-thiserror = "1.0.48"
+thiserror = "1.0.50"
 tracing-subscriber = "0.3.17"
 
 [dependencies]
