@@ -10,8 +10,9 @@ jobs:
   clippy:
     name: Clippy
     runs-on: windows-latest
-    permissions:
-      checks: write
+    permissions: write-all
+    # permissions:
+    #   checks: write
     strategy:
       matrix:
         wdk:
