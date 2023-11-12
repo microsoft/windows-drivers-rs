@@ -145,7 +145,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    cargo make
    ```
 
-A `DriverCertificate.cer` file will be generated, and a signed driver package will be available at `target/<Cargo profile>/package`
+A signed driver package, including a `WDRLocalTestCert.cer` file, will be generated at `target/<Cargo profile>/package`. If a specific target architecture was specified, the driver package will be generated at `target/<target architecture>/<Cargo profile>/package`
 
 ## Cargo Make
 
@@ -159,7 +159,7 @@ When executing the default task, just `cargo make` make also works since the `de
 
 ### Argument Forwarding
 
-`windows-drivers-rs` extends `cargo make` to forward specific arguements to the underlying `cargo` commands. In order to specify arguments to forward, they must be provided **after explicitly specifying the `cargo-make` task name** (ie. omitting the name for the  `default` task is not supported).
+`windows-drivers-rs` extends `cargo make` to forward specific arguements to the underlying `cargo` commands. In order to specify arguments to forward, they must be provided **after explicitly specifying the `cargo-make` task name** (ie. omitting the name for the `default` task is not supported).
 
 #### Examples
 

@@ -12,9 +12,11 @@
 ## Install
 
 1. Copy the following to the DUT (Device Under Test: the computer you want to test the driver on):
-   1. [`.\target\x86_64-pc-windows-msvc\debug\package`](.\target\x86_64-pc-windows-msvc\debug\package)
-   2. [`.\DriverCertificate.cer`](.\DriverCertificate.cer)
-   3. The version of `devgen.exe` from the WDK Developer Tools that matches the archtecture of your DUT
+   1. The driver `package` folder located in the [Cargo Output Directory](https://doc.rust-lang.org/cargo/guide/build-cache.html). The Cargo Output Directory changes based off of build profile, target architecture, etc.
+     * Ex. `<REPO_ROOT>\target\x86_64-pc-windows-msvc\debug\package`, `<REPO_ROOT>\target\x86_64-pc-windows-msvc\release\package`, `<REPO_ROOT>\target\aarch64-pc-windows-msvc\debug\package`, `<REPO_ROOT>\target\aarch64-pc-windows-msvc\release\package`,
+     `<REPO_ROOT>\target\debug\package`,
+     `<REPO_ROOT>\target\release\package`
+   2. The version of `devgen.exe` from the WDK Developer Tools that matches the archtecture of your DUT
      * Ex. `C:\Program Files\Windows Kits\10\Tools\10.0.22621.0\x64\devgen.exe`. Note: This path will vary based off your WDK environment
 2. Install the Certificate on the DUT:
    1. Double click the certificate

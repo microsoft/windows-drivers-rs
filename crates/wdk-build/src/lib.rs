@@ -129,6 +129,13 @@ pub enum ConfigError {
     /// Error returned when a [`Config`] fails to be exported to the environment
     #[error(transparent)]
     ExportError(#[from] ExportError),
+
+    /// Error returned when a [`Config`] fails to be serialized
+    #[error(
+        "WDKContentRoot should be able to be detected. Ensure that the WDK is installed, or that \
+         the environment setup scripts in the eWDK have been run."
+    )]
+    WDKContentRootDetectionError,
 }
 
 /// Errors that could result from parsing a configuration from a [`wdk-build`]
@@ -400,10 +407,10 @@ impl Config {
                 .join(sdk_version)
                 .join(match self.driver_config {
                     DriverConfig::WDM() | DriverConfig::KMDF(_) => {
-                        format!("km/{}", self.cpu_architecture.to_windows_str(),)
+                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
                     }
                     DriverConfig::UMDF(_) => {
-                        format!("um/{}", self.cpu_architecture.to_windows_str(),)
+                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
                     }
                 });
         if !windows_sdk_library_path.is_dir() {
@@ -423,7 +430,7 @@ impl Config {
             DriverConfig::KMDF(kmdf_config) => {
                 let kmdf_library_path = library_directory.join(format!(
                     "wdf/kmdf/{}/{}.{}",
-                    self.cpu_architecture.to_windows_str(),
+                    self.cpu_architecture.as_windows_str(),
                     kmdf_config.kmdf_version_major,
                     kmdf_config.kmdf_version_minor
                 ));
@@ -441,7 +448,7 @@ impl Config {
             DriverConfig::UMDF(umdf_config) => {
                 let umdf_library_path = library_directory.join(format!(
                     "wdf/umdf/{}/{}.{}",
-                    self.cpu_architecture.to_windows_str(),
+                    self.cpu_architecture.as_windows_str(),
                     umdf_config.umdf_version_major,
                     umdf_config.umdf_version_minor
                 ));
@@ -653,10 +660,37 @@ impl CPUArchitecture {
     /// Converts [`CPUArchitecture`] to the string corresponding to what the
     /// architecture is typically referred to in Windows
     #[must_use]
-    pub const fn to_windows_str(&self) -> &str {
+    pub const fn as_windows_str(&self) -> &str {
         match self {
             Self::AMD64 => "x64",
             Self::ARM64 => "ARM64",
+        }
+    }
+
+    /// Converts [`CPUArchitecture`] to the string corresponding to what the
+    /// architecture is typically referred to in Windows
+    #[deprecated(
+        since = "0.2.0",
+        note = "CPUArchitecture.to_windows_str() was mis-named when originally created, since the \
+                conversion from CPUArchitecture to str is free. Use \
+                CPUArchitecture.as_windows_str instead."
+    )]
+    #[must_use]
+    pub const fn to_windows_str(&self) -> &str {
+        self.as_windows_str()
+    }
+
+    /// Converts from a cargo-provided [`std::str`] to a [`CPUArchitecture`].
+    ///
+    /// #
+    #[must_use]
+    pub fn try_from_cargo_str<S: AsRef<str>>(cargo_str: S) -> Option<Self> {
+        // Specifically not using the [`std::convert::TryFrom`] trait to be more
+        // explicit in function name, since only arch strings from cargo are handled.
+        match cargo_str.as_ref() {
+            "x86_64" => Some(Self::AMD64),
+            "aarch64" => Some(Self::ARM64),
+            _ => None,
         }
     }
 }
@@ -820,5 +854,18 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::ARM64);
+    }
+
+    #[test]
+    fn test_try_from_cargo_str() {
+        assert_eq!(
+            CPUArchitecture::try_from_cargo_str("x86_64"),
+            Some(CPUArchitecture::AMD64)
+        );
+        assert_eq!(
+            CPUArchitecture::try_from_cargo_str("aarch64"),
+            Some(CPUArchitecture::ARM64)
+        );
+        assert_eq!(CPUArchitecture::try_from_cargo_str("arm"), None);
     }
 }
