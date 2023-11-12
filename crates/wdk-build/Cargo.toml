@@ -13,7 +13,7 @@ categories = ["development-tools::build-utils", "development-tools::ffi"]
 bindgen.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-clap = { version = "4.4.7", features = ["derive"] }
+clap = { version = "4.4.11", features = ["derive"] }
 clap-cargo = "0.13.0"
 thiserror = "1.0.55"
 windows = { version = "0.51.1", features = [

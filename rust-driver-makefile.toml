@@ -1,12 +1,9 @@
 # This file can be leveraged to build downstream drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
 
-# FIXME: replace all script blocks with cargo-make commands: "Favor commands over scripts, as commands support more features such as automatic dependencies installation, argument functions, and more..."
 # FIXME: this flow is based on the signing process of a KMDF PNP driver. There should be different flows availabe for different types of drivers as outlined in https://learn.microsoft.com/en-us/windows-hardware/drivers/install/test-signing-driver-packages 
-
 [config]
 min_version = "0.37.3"
 init_task = "wdk-build-init"
-default_to_workspace = false
 
 [env]
 # This allows all workspace members to access this makefile
@@ -14,14 +11,9 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
 # CARGO_MAKE_CARGO_BUILD_TEST_FLAGS is set to "--all-features" by default in cargo-make: https://github.com/sagiegurari/cargo-make/blob/c0abc4d0ae1bcc03adde22b63fa0accc4af2b3bc/src/lib/descriptor/makefiles/stable.toml#L31
 # This is set to "" here to match the default behavior of Cargo. 
-CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = ""
-
-VC_BUILD_DIR = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvarsamd64_x86.bat"
+CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true }
 
 # FIXME: add --locked for CI builds using CARGO_MAKE_PR and CARGO_MAKE_CI
-
-# Cargo puts "dev" profile builds in the "debug" target folder: https://doc.rust-lang.org/cargo/guide/build-cache.html#build-cache. This supports cargo-make profile values of both "development" and "dev"
-OUTPUT_DIR = { source = "${CARGO_MAKE_CARGO_PROFILE}", default_value = "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}\\${CARGO_MAKE_CARGO_PROFILE}", mapping = { "dev" = "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}\\debug" } }
 
 [plugins.impl.rust-env-update]
 script = '''
@@ -39,7 +31,7 @@ assert_eq ${out.code} 0 "[tasks.${task.name}]'s install_crate failed with exit c
 
 # Execute rust-script
 taskjson = json_parse ${task.as_json}
-filepath = set "./target/cargo-make-script/${task.name}/main.rs"
+filepath = set "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs"
 # If a file already exists, only overwrite it if the script has changed (so that rust-script caching can be leveraged)
 if is_file ${filepath}
     old_hash = digest --algo sha256 --file ${filepath}
@@ -51,19 +43,20 @@ else
     writefile ${filepath} ${taskjson.script}
 end
 cli_args = array_join ${flow.cli.args} " "
+# rust-script will try to consume --help, so help must be passed via TRIGGER_HELP env var in order to provide clap help output
 trigger_help = get_env TRIGGER_HELP
 if not is_empty ${trigger_help}
     cli_args = concat ${cli_args} " --help"
 end
-out = exec --fail-on-error rust-script --base-path ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} ./target/cargo-make-script/${task.name}/main.rs %{cli_args}
-assert_eq ${out.code} 0 "[tasks.${task.name}]'s script failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ./target/cargo-make-script/${task.name}/main.rs"
+out = exec --fail-on-error rust-script --base-path ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs %{cli_args}
+assert_eq ${out.code} 0 "[tasks.${task.name}]'s script failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs"
 
 # Set cargo-make env vars based on output of rust-script
 script_output = trim ${out.stdout}
 if not is_empty ${script_output}
     script_output_array = split ${script_output} \n
     stdout_first_line = array_get ${script_output_array} 0
-    assert_eq ${stdout_first_line} "FORWARDING ARGS TO CARGO-MAKE:" "[tasks.${task.name}]'s script output did not begin with \"FORWARDING ARGS TO CARGO-MAKE:\". Was `--help` passed as one of the arguments?\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ./target/cargo-make-script/${task.name}/main.rs"
+    assert_eq ${stdout_first_line} "FORWARDING ARGS TO CARGO-MAKE:" "[tasks.${task.name}]'s script output did not begin with \"FORWARDING ARGS TO CARGO-MAKE:\". Was `--help` passed as one of the arguments?\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs"
     array_remove ${script_output_array} 0
     for line in ${script_output_array}
         parts = split ${line} =
@@ -87,6 +80,7 @@ script = '''
 #![allow(unused_doc_comments)]
 
 wdk_build::cargo_make::validate_and_forward_args();
+wdk_build::cargo_make::setup_path()?;
 '''
 
 [tasks.help]
@@ -94,56 +88,225 @@ workspace = false
 env = { "TRIGGER_HELP" = "1" }
 run_task = "wdk-build-init"
 
-[tasks.rename-dll-to-sys]
-dependencies = ["build"]
+[tasks.copy-inx-to-output]
+script_runner = "@rust"
 script = '''
-echo "%OUTPUT_DIR%"
-cd "%OUTPUT_DIR%"
-mkdir package
-if exist package\%CARGO_MAKE_CRATE_FS_NAME%.sys (
-  del package\%CARGO_MAKE_CRATE_FS_NAME%.sys
-)
-rename %CARGO_MAKE_CRATE_FS_NAME%.dll %CARGO_MAKE_CRATE_FS_NAME%.sys
-copy %CARGO_MAKE_CRATE_FS_NAME%.sys package\%CARGO_MAKE_CRATE_FS_NAME%.sys
+use std::path::PathBuf;
+
+let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
+let cargo_make_working_directory = std::env::var("CARGO_MAKE_WORKING_DIRECTORY").expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let output_folder_path = PathBuf::from(&output_directory);
+if !output_folder_path.exists() {
+    std::fs::create_dir_all(&output_folder_path).expect(&format!("creation of '{}' folder should succeed", output_folder_path.display()));
+}
+
+let source_file = format!("{cargo_make_working_directory}/{crate_name}.inx");
+let destination_file = format!("{output_directory}/{crate_name}.inf");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+'''
+
+[tasks.generate-sys-file]
+dependencies = ["build"]
+script_runner = "@rust"
+script = '''
+let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let source_file = format!("{output_directory}/{crate_name}.dll");
+let destination_file = format!("{output_directory}/{crate_name}.sys");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
 '''
 
 [tasks.stampinf]
-dependencies = ["build"]
-script = '''
-copy "%CARGO_MAKE_WORKING_DIRECTORY%\%CARGO_MAKE_CRATE_FS_NAME%.inx" "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.inf"
-stampinf.exe -f "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.inf" -d * -a amd64 -c %CARGO_MAKE_CRATE_FS_NAME%.cat -v * -k 1.33 -n
-'''
-
-[tasks.copypdb]
-dependencies = ["build"]
-script = '''
-cd "%OUTPUT_DIR%"
-copy %CARGO_MAKE_CRATE_FS_NAME%.pdb package\%CARGO_MAKE_CRATE_FS_NAME%.pdb
-'''
-
-[tasks.inf2cat]
-dependencies = ["stampinf"]
-script = '''
-inf2cat.exe /driver:"%OUTPUT_DIR%\package" /os:10_NI_X64,10_VB_X64 /uselocaltime /verbose
-'''
+dependencies = ["copy-inx-to-output"]
+command = "stampinf"
+args = [
+  "-f",
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}.inf",
+  "-d",
+  "*",
+  "-a",
+  "amd64",
+  "-c",
+  "${CARGO_MAKE_CRATE_FS_NAME}.cat",
+  "-v",
+  "*",
+  "-k",
+  "1.33",
+]
 
 [tasks.infverif]
 dependencies = ["stampinf"]
+command = "infverif"
+args = [
+  "/v",
+  "/w",
+  "@@split(WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS, )",
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}.inf",
+]
+
+[tasks.copy-sys-to-package]
+dependencies = ["generate-sys-file"]
+script_runner = "@rust"
 script = '''
-"%WDKToolRoot%\%Platform%\infverif.exe" /v /w "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.inf" /msft
+use std::path::PathBuf;
+
+let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
+if !package_folder_path.exists() {
+    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
+}
+
+let source_file = format!("{output_directory}/{crate_name}.sys");
+let destination_file = format!("{output_directory}/package/{crate_name}.sys");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
 '''
 
-[tasks.sign]
-dependencies = ["rename-dll-to-sys", "inf2cat", "infverif"]
+[tasks.copy-pdb-to-package]
+dependencies = ["build"]
+script_runner = "@rust"
 script = '''
-call "%VC_BUILD_DIR%"
-if not exist DriverCertificate.cer (
-  makecert -r -pe -ss PrivateCertStore -n CN=DriverCertificate DriverCertificate.cer
-) else (
-  echo Certificate already exists.
-)
-signtool sign /a /v /s PrivateCertStore /n DriverCertificate /fd certHash /t http://timestamp.digicert.com "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.cat"
+use std::path::PathBuf;
+
+let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
+if !package_folder_path.exists() {
+    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
+}
+
+let source_file = format!("{output_directory}/{crate_name}.pdb");
+let destination_file = format!("{output_directory}/package/{crate_name}.pdb");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
 '''
+
+[tasks.copy-inf-to-package]
+dependencies = ["stampinf"]
+script_runner = "@rust"
+script = '''
+use std::path::PathBuf;
+
+let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
+if !package_folder_path.exists() {
+    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
+}
+
+let source_file = format!("{output_directory}/{crate_name}.inf");
+let destination_file = format!("{output_directory}/package/{crate_name}.inf");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+'''
+
+[tasks.copy-map-to-package]
+dependencies = ["build"]
+script_runner = "@rust"
+script = '''
+use std::path::PathBuf;
+
+let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
+if !package_folder_path.exists() {
+    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
+}
+
+let source_file = format!("{output_directory}/deps/{crate_name}.map");
+let destination_file = format!("{output_directory}/package/{crate_name}.map");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+'''
+
+[tasks.inf2cat]
+dependencies = ["copy-sys-to-package", "copy-inf-to-package"]
+command = "inf2cat"
+args = [
+  "/driver:${WDK_BUILD_OUTPUT_DIRECTORY}/package",
+  "/os:10_NI_X64,10_VB_X64",                       # TODO: this should be a parameter
+  "/uselocaltime",
+]
+
+[tasks.generate-certificate-if-needed]
+# This script can't be in a `condition_script` block because of https://github.com/sagiegurari/cargo-make/issues/987
+script_runner = "@duckscript"
+script = '''
+out = exec certmgr.exe -put -s WDRTestCertStore -c -n WDRLocalTestCert ${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer
+if not eq ${out.code} 0
+    echo WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate.
+    cm_run_task generate-certificate
+end
+'''
+
+[tasks.generate-certificate]
+private = true
+command = "makecert"
+args = [
+  "-r",
+  "-pe",
+  "-a",
+  "SHA256",
+  "-eku",
+  "1.3.6.1.5.5.7.3.3",
+  "-ss",
+  "WDRTestCertStore",                                   # TODO: this should be a parameter
+  "-n",
+  "CN=WDRLocalTestCert",                                # TODO: this should be a parameter
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer",
+]
+
+[tasks.copy-certificate-to-package]
+dependencies = ["generate-certificate-if-needed"]
+script_runner = "@rust"
+script = '''
+use std::path::PathBuf;
+
+let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+
+let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
+if !package_folder_path.exists() {
+    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
+}
+
+let source_file = format!("{output_directory}/WDRLocalTestCert.cer");
+let destination_file = format!("{output_directory}/package/WDRLocalTestCert.cer");
+std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+'''
+
+[tasks.signtool]
+dependencies = ["inf2cat", "generate-certificate-if-needed"]
+command = "signtool"
+args = [
+  "sign",
+  "/v",
+  "/s",
+  "WDRTestCertStore",                                                      # TODO: this should be a parameter
+  "/n",
+  "WDRLocalTestCert",                                                      # TODO: this should be a parameter
+  "/t",
+  "http://timestamp.digicert.com",
+  "/fd",
+  "SHA256",
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/package/${CARGO_MAKE_CRATE_FS_NAME}.cat",
+]
+
+[tasks.package-driver]
+dependencies = [
+  "copy-sys-to-package",
+  "copy-pdb-to-package",
+  "copy-inf-to-package",
+  "copy-map-to-package",
+  "copy-certificate-to-package",
+  "signtool",
+  "infverif",
+]
 
 [tasks.default]
-alias = "sign"
+alias = "package-driver"
+
+# TODO: mark drivers

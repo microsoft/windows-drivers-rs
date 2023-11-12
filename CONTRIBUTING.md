@@ -98,6 +98,8 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 
 * To compile and open documentation: `cargo doc --locked --open`
   * To include nightly features: `cargo +nightly doc --locked --open --features nightly`
+  * To open docs for non-host architecture: `cargo doc --locked --open --target <target-triple> --workspace --exclude wdk-macros`
+    * `--target` is incompatible with `proc-macro` crates due to a [cargo bug](https://github.com/rust-lang/cargo/issues/10368)
 
 ### Policy on using Nightly/Unstable Features
 
