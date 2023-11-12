@@ -9,6 +9,14 @@
 
 use clap::{Args, Parser};
 
+use crate::{
+    utils::{detect_wdk_content_root, get_latest_windows_sdk_version, PathExt},
+    CPUArchitecture,
+    ConfigError,
+};
+
+const PATH_ENV_VAR: &str = "Path";
+
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
 const CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR: &str = "CARGO_MAKE_CARGO_BUILD_TEST_FLAGS";
@@ -363,7 +371,7 @@ pub fn validate_and_forward_args() {
                 .to_string_lossy()
                 .strip_prefix('+')
                 .expect("Toolchain arg should have a + prefix")
-                .to_owned(),
+                .to_string(),
         )
     } else {
         None
@@ -389,7 +397,87 @@ pub fn validate_and_forward_args() {
     forward_env_var_to_cargo_make(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR);
 }
 
-fn append_to_space_delimited_env_var<S: AsRef<str>>(env_var_name: S, string_to_append: S) {
+/// Prepends the path variable with the necessary paths to access WDK tools
+///
+/// # Errors
+///
+/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// WDK content root directory could not be found.
+/// Sets up the path for the WDK build environment.
+///
+/// # Panics
+///
+/// This function will panic if the CPU architecture cannot be determined from
+/// `std::env::consts::ARCH` or if the PATH variable contains non-UTF8
+/// characters.
+pub fn setup_path() -> Result<(), ConfigError> {
+    let Some(wdk_content_root) = detect_wdk_content_root() else {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    };
+    let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+    let host_arch = CPUArchitecture::try_from_cargo_str(std::env::consts::ARCH)
+        .expect("The rust standard library should always set std::env::consts::ARCH");
+
+    let wdk_bin_root = wdk_content_root
+        .join(format!("bin/{version}"))
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?;
+    let host_windows_sdk_ver_bin_path = match host_arch {
+        CPUArchitecture::AMD64 => wdk_bin_root
+            .join(host_arch.as_windows_str())
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?
+            .to_str()
+            .expect("x64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
+            .to_string(),
+        CPUArchitecture::ARM64 => wdk_bin_root
+            .join(host_arch.as_windows_str())
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?
+            .to_str()
+            .expect("ARM64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
+            .to_string(),
+    };
+
+    // Some tools (ex. inf2cat) are only available in the x86 folder
+    let x86_windows_sdk_ver_bin_path = wdk_bin_root
+        .join("x86")
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?
+        .to_str()
+        .expect("x86_windows_sdk_ver_bin_path should only contain valid UTF8")
+        .to_string();
+    prepend_to_semicolon_delimited_env_var(
+        PATH_ENV_VAR,
+        // By putting host path first, host versions of tools are prioritized over
+        // x86 versions
+        format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
+    );
+
+    let wdk_tool_root = wdk_content_root
+        .join(format!("Tools/{version}"))
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?;
+    let arch_specific_wdk_tool_root = wdk_tool_root
+        .join(host_arch.as_windows_str())
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?;
+    prepend_to_semicolon_delimited_env_var(
+        PATH_ENV_VAR,
+        arch_specific_wdk_tool_root
+            .to_str()
+            .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
+    );
+
+    forward_env_var_to_cargo_make(PATH_ENV_VAR);
+    Ok(())
+}
+
+fn append_to_space_delimited_env_var<S, T>(env_var_name: S, string_to_append: T)
+where
+    S: AsRef<str>,
+    T: AsRef<str>,
+{
     let env_var_name = env_var_name.as_ref();
     let string_to_append = string_to_append.as_ref();
 
@@ -397,6 +485,20 @@ fn append_to_space_delimited_env_var<S: AsRef<str>>(env_var_name: S, string_to_a
     env_var_value.push(' ');
     env_var_value.push_str(string_to_append);
     std::env::set_var(env_var_name, env_var_value.trim());
+}
+
+fn prepend_to_semicolon_delimited_env_var<S, T>(env_var_name: S, string_to_prepend: T)
+where
+    S: AsRef<str>,
+    T: AsRef<str>,
+{
+    let env_var_name = env_var_name.as_ref();
+    let string_to_prepend = string_to_prepend.as_ref();
+
+    let mut env_var_value = string_to_prepend.to_string();
+    env_var_value.push(';');
+    env_var_value.push_str(std::env::var(env_var_name).unwrap_or_default().as_str());
+    std::env::set_var(env_var_name, env_var_value);
 }
 
 fn forward_env_var_to_cargo_make<S: AsRef<str>>(env_var_name: S) {

@@ -276,13 +276,9 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
          build.rs",
     );
 
-    if target_arch == "x86_64" {
-        return CPUArchitecture::AMD64;
-    } else if target_arch == "aarch64" {
-        return CPUArchitecture::ARM64;
-    }
-
-    panic!("The target architecture, {target_arch}, is currently not supported.");
+    CPUArchitecture::try_from_cargo_str(&target_arch).unwrap_or_else(|| {
+        panic!("The target architecture, {target_arch}, is currently not supported.")
+    })
 }
 
 #[cfg(test)]
