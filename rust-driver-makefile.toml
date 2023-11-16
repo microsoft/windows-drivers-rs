@@ -55,11 +55,12 @@ dependencies = ["rename-dll-to-sys", "inf2cat", "infverif"]
 script = '''
 call "%VC_BUILD_DIR%"
 if not exist DriverCertificate.cer (
-  makecert -r -pe -ss PrivateCertStore -n CN=DriverCertificate DriverCertificate.cer
+  makecert -a sha256 -r -pe -ss PrivateCertStore -n CN=DriverCertificate DriverCertificate.cer
 ) else (
   echo Certificate already exists.
 )
-signtool sign /a /v /s PrivateCertStore /n DriverCertificate /fd certHash /t http://timestamp.digicert.com "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.cat"
+signtool sign /a /v /s PrivateCertStore /n DriverCertificate /fd sha256 /t http://timestamp.digicert.com "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.cat"
+signtool sign /a /v /s PrivateCertStore /n DriverCertificate /fd sha256 /t http://timestamp.digicert.com "%OUTPUT_DIR%\package\%CARGO_MAKE_CRATE_FS_NAME%.sys"
 '''
 
 [tasks.default]
