@@ -25,12 +25,12 @@ impl Timer {
         let nt_status =
             // SAFETY: The resulting ffi object is stored in a private member and not accessible outside of this module, and this module guarantees that it is always in a valid state.
             unsafe {
-                macros::call_unsafe_wdf_function_binding!(
-                    WdfTimerCreate,
-                    timer_config,
-                    attributes,
-                    &mut timer.wdf_timer,
-                )
+                macros::call_unsafe_wdf_function_binding!{
+                    WdfTimerCreate(
+                        timer_config,
+                        attributes,
+                        &mut timer.wdf_timer)
+                }
             };
         nt_success(nt_status).then_some(timer).ok_or(nt_status)
     }
@@ -52,7 +52,7 @@ impl Timer {
         let result =
             // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by WDF, and this module guarantees that it is always in a valid state.
             unsafe {
-                macros::call_unsafe_wdf_function_binding!(WdfTimerStart, self.wdf_timer, due_time)
+                macros::call_unsafe_wdf_function_binding!{WdfTimerStart(self.wdf_timer, due_time)}
             };
         result != 0
     }
@@ -62,7 +62,7 @@ impl Timer {
         let result =
             // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by WDF, and this module guarantees that it is always in a valid state.
             unsafe {
-                macros::call_unsafe_wdf_function_binding!(WdfTimerStop, self.wdf_timer, u8::from(wait))
+                macros::call_unsafe_wdf_function_binding!{WdfTimerStop(self.wdf_timer, u8::from(wait))}
             };
         result != 0
     }

@@ -34,11 +34,11 @@ impl SpinLock {
         let nt_status =
             // SAFETY: The resulting ffi object is stored in a private member and not accessible outside of this module, and this module guarantees that it is always in a valid state.
             unsafe {
-                macros::call_unsafe_wdf_function_binding!(
-                    WdfSpinLockCreate,
-                    attributes,
-                    &mut spin_lock.wdf_spin_lock,
-                )
+                macros::call_unsafe_wdf_function_binding!{
+                    WdfSpinLockCreate(
+                        attributes,
+                        &mut spin_lock.wdf_spin_lock)
+                }
             };
         nt_success(nt_status).then_some(spin_lock).ok_or(nt_status)
     }
@@ -58,10 +58,9 @@ impl SpinLock {
         let [()] =
             // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally created by WDF, and this module guarantees that it is always in a valid state.
             unsafe {
-                [macros::call_unsafe_wdf_function_binding!(
-                    WdfSpinLockAcquire,
-                    self.wdf_spin_lock
-                )]
+                [macros::call_unsafe_wdf_function_binding!{
+                    WdfSpinLockAcquire(self.wdf_spin_lock)
+                }]
             };
     }
 
@@ -70,10 +69,9 @@ impl SpinLock {
         let [()] =
             // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally created by WDF, and this module guarantees that it is always in a valid state.
             unsafe {
-                [macros::call_unsafe_wdf_function_binding!(
-                    WdfSpinLockRelease,
-                    self.wdf_spin_lock
-                )]
+                [macros::call_unsafe_wdf_function_binding!{
+                    WdfSpinLockRelease(self.wdf_spin_lock)
+                }]
             };
     }
 }

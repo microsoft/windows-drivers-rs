@@ -82,14 +82,14 @@ pub unsafe extern "system" fn driver_entry(
     let driver_handle_output = WDF_NO_HANDLE.cast::<*mut wdk_sys::WDFDRIVER__>();
 
     let wdf_driver_create_ntstatus = unsafe {
-        call_unsafe_wdf_function_binding!(
-            WdfDriverCreate,
-            driver as wdk_sys::PDRIVER_OBJECT,
-            registry_path,
-            driver_attributes,
-            &mut driver_config,
-            driver_handle_output,
-        )
+        call_unsafe_wdf_function_binding! {
+            WdfDriverCreate(
+                driver as wdk_sys::PDRIVER_OBJECT,
+                registry_path,
+                driver_attributes,
+                &mut driver_config,
+                driver_handle_output)
+        }
     };
 
     // Translate UTF16 string to rust string
@@ -118,12 +118,12 @@ extern "C" fn evt_driver_device_add(
     let mut device_handle_output: WDFDEVICE = WDF_NO_HANDLE.cast();
 
     let ntstatus = unsafe {
-        wdk_macros::call_unsafe_wdf_function_binding!(
-            WdfDeviceCreate,
-            &mut device_init,
-            WDF_NO_OBJECT_ATTRIBUTES,
-            &mut device_handle_output,
-        )
+        call_unsafe_wdf_function_binding! {
+            WdfDeviceCreate(
+                &mut device_init,
+                WDF_NO_OBJECT_ATTRIBUTES,
+                &mut device_handle_output)
+        }
     };
     println!("WdfDeviceCreate NTSTATUS: {ntstatus:#02x}");
 
