@@ -27,6 +27,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{
+    parenthesized,
     parse::{Parse, ParseStream},
     parse2,
     Error,
@@ -59,14 +60,14 @@ use syn::{
 ///     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
 ///
 ///     unsafe {
-///         wdk_macros::call_unsafe_wdf_function_binding!(
-///             WdfDriverCreate,
-///             driver as PDRIVER_OBJECT,
-///             registry_path,
-///             WDF_NO_OBJECT_ATTRIBUTES,
-///             &mut driver_config,
-///             driver_handle_output,
-///         )
+///         wdk_macros::call_unsafe_wdf_function_binding! {
+///             WdfDriverCreate(
+///                 driver as PDRIVER_OBJECT,
+///                 registry_path,
+///                 WDF_NO_OBJECT_ATTRIBUTES,
+///                 &mut driver_config,
+///                 driver_handle_output)
+///         }
 ///     }
 /// }
 /// ```
@@ -84,8 +85,10 @@ struct CallUnsafeWDFFunctionInput {
 impl Parse for CallUnsafeWDFFunctionInput {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let c_function_name: String = input.parse::<Ident>()?.to_string();
-        input.parse::<Token![,]>()?;
-        let function_arguments = input.parse_terminated(Expr::parse, Token![,])?;
+
+        let function_arguments;
+        parenthesized!(function_arguments in input);
+        let function_arguments = function_arguments.parse_terminated(Expr::parse, Token![,])?;
 
         Ok(Self {
             function_pointer_type: format_ident!(

@@ -11,11 +11,11 @@ extern "C" fn evt_driver_device_add(
     let mut device_handle_output: WDFDEVICE = WDF_NO_HANDLE.cast();
 
     unsafe {
-        wdk_macros::call_unsafe_wdf_function_binding!(
-            WdfDeviceCreate,
-            &mut device_init,
-            WDF_NO_OBJECT_ATTRIBUTES,
-            &mut device_handle_output,
-        )
+        wdk_macros::call_unsafe_wdf_function_binding! {
+            WdfDeviceCreate(
+                &mut device_init,
+                WDF_NO_OBJECT_ATTRIBUTES,
+                &mut device_handle_output)
+        }
     }
 }
