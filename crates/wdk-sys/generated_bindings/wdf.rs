@@ -8,3 +8,2726 @@ extern "C" {
         Message: PSTR,
     );
 }
+extern "C" {
+    pub fn WdfVerifierDbgBreakPoint();
+}
+extern "C" {
+    pub fn WdfVerifierKeBugCheck(
+        BugCheckCode: ULONG,
+        BugCheckParameter1: ULONG_PTR,
+        BugCheckParameter2: ULONG_PTR,
+        BugCheckParameter3: ULONG_PTR,
+        BugCheckParameter4: ULONG_PTR,
+    );
+}
+extern "C" {
+    pub fn WdfGetTriageInfo() -> PVOID;
+}
+extern "C" {
+    pub fn WDF_OBJECT_ATTRIBUTES_INIT(Attributes: PWDF_OBJECT_ATTRIBUTES);
+}
+extern "C" {
+    pub fn WdfObjectGetTypedContextWorker(
+        Handle: WDFOBJECT,
+        TypeInfo: PCWDF_OBJECT_CONTEXT_TYPE_INFO,
+    ) -> PVOID;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfObjectAllocateContext(
+        Handle: WDFOBJECT,
+        ContextAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Context: *mut PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfObjectContextGetObject(ContextPointer: PVOID) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WdfObjectReferenceActual(
+        Handle: WDFOBJECT,
+        Tag: PVOID,
+        Line: LONG,
+        File: PCCH,
+    );
+}
+extern "C" {
+    pub fn WdfObjectDereferenceActual(
+        Handle: WDFOBJECT,
+        Tag: PVOID,
+        Line: LONG,
+        File: PCCH,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfObjectCreate(
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        Object: *mut WDFOBJECT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfObjectDelete(Object: WDFOBJECT);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfObjectQuery(
+        Object: WDFOBJECT,
+        Guid: *const GUID,
+        QueryBufferLength: ULONG,
+        QueryBuffer: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfObjectAcquireLock(Object: WDFOBJECT);
+}
+extern "C" {
+    pub fn WdfObjectReleaseLock(Object: WDFOBJECT);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWaitLockCreate(
+        LockAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Lock: *mut WDFWAITLOCK,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWaitLockAcquire(Lock: WDFWAITLOCK, Timeout: PLONGLONG) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfWaitLockRelease(Lock: WDFWAITLOCK);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfSpinLockCreate(
+        SpinLockAttributes: PWDF_OBJECT_ATTRIBUTES,
+        SpinLock: *mut WDFSPINLOCK,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfSpinLockAcquire(SpinLock: WDFSPINLOCK);
+}
+extern "C" {
+    pub fn WdfSpinLockRelease(SpinLock: WDFSPINLOCK);
+}
+extern "C" {
+    pub fn WDF_REL_TIMEOUT_IN_SEC(Time: ULONGLONG) -> LONGLONG;
+}
+extern "C" {
+    pub fn WDF_ABS_TIMEOUT_IN_SEC(Time: ULONGLONG) -> LONGLONG;
+}
+extern "C" {
+    pub fn WDF_REL_TIMEOUT_IN_MS(Time: ULONGLONG) -> LONGLONG;
+}
+extern "C" {
+    pub fn WDF_ABS_TIMEOUT_IN_MS(Time: ULONGLONG) -> LONGLONG;
+}
+extern "C" {
+    pub fn WDF_REL_TIMEOUT_IN_US(Time: ULONGLONG) -> LONGLONG;
+}
+extern "C" {
+    pub fn WDF_ABS_TIMEOUT_IN_US(Time: ULONGLONG) -> LONGLONG;
+}
+extern "C" {
+    pub fn WDF_ALIGN_SIZE_DOWN(Length: usize, AlignTo: usize) -> usize;
+}
+extern "C" {
+    pub fn WDF_ALIGN_SIZE_UP(Length: usize, AlignTo: usize) -> usize;
+}
+extern "C" {
+    pub fn WDF_DRIVER_CONFIG_INIT(
+        Config: PWDF_DRIVER_CONFIG,
+        EvtDriverDeviceAdd: PFN_WDF_DRIVER_DEVICE_ADD,
+    );
+}
+extern "C" {
+    pub fn WDF_DRIVER_VERSION_AVAILABLE_PARAMS_INIT(
+        Params: PWDF_DRIVER_VERSION_AVAILABLE_PARAMS,
+        MajorVersion: ULONG,
+        MinorVersion: ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfGetDriver() -> WDFDRIVER;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDriverCreate(
+        DriverObject: PDRIVER_OBJECT,
+        RegistryPath: PCUNICODE_STRING,
+        DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+        DriverConfig: PWDF_DRIVER_CONFIG,
+        Driver: *mut WDFDRIVER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDriverGetRegistryPath(Driver: WDFDRIVER) -> PWSTR;
+}
+extern "C" {
+    pub fn WdfDriverWdmGetDriverObject(Driver: WDFDRIVER) -> PDRIVER_OBJECT;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDriverOpenParametersRegistryKey(
+        Driver: WDFDRIVER,
+        DesiredAccess: ACCESS_MASK,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfWdmDriverGetWdfDriverHandle(DriverObject: PDRIVER_OBJECT) -> WDFDRIVER;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDriverRegisterTraceInfo(
+        DriverObject: PDRIVER_OBJECT,
+        EvtTraceCallback: PFN_WDF_TRACE_CALLBACK,
+        ControlBlock: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDriverRetrieveVersionString(
+        Driver: WDFDRIVER,
+        String: WDFSTRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDriverIsVersionAvailable(
+        Driver: WDFDRIVER,
+        VersionAvailableParams: PWDF_DRIVER_VERSION_AVAILABLE_PARAMS,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDriverErrorReportApiMissing(
+        Driver: WDFDRIVER,
+        FrameworkExtensionName: PCWSTR,
+        ApiIndex: ULONG,
+        DoesApiReturnNtstatus: BOOLEAN,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDriverOpenPersistentStateRegistryKey(
+        Driver: WDFDRIVER,
+        DesiredAccess: ACCESS_MASK,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WDF_QUERY_INTERFACE_CONFIG_INIT(
+        InterfaceConfig: PWDF_QUERY_INTERFACE_CONFIG,
+        Interface: PINTERFACE,
+        InterfaceType: *const GUID,
+        EvtDeviceProcessQueryInterfaceRequest: PFN_WDF_DEVICE_PROCESS_QUERY_INTERFACE_REQUEST,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAddQueryInterface(
+        Device: WDFDEVICE,
+        InterfaceConfig: PWDF_QUERY_INTERFACE_CONFIG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceInterfaceReferenceNoOp(Context: PVOID);
+}
+extern "C" {
+    pub fn WdfDeviceInterfaceDereferenceNoOp(Context: PVOID);
+}
+extern "C" {
+    pub fn WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(
+        Descriptor: PWDF_MEMORY_DESCRIPTOR,
+        Buffer: PVOID,
+        BufferLength: ULONG,
+    );
+}
+extern "C" {
+    pub fn WDF_MEMORY_DESCRIPTOR_INIT_HANDLE(
+        Descriptor: PWDF_MEMORY_DESCRIPTOR,
+        Memory: WDFMEMORY,
+        Offsets: PWDFMEMORY_OFFSET,
+    );
+}
+extern "C" {
+    pub fn WDF_MEMORY_DESCRIPTOR_INIT_MDL(
+        Descriptor: PWDF_MEMORY_DESCRIPTOR,
+        Mdl: PMDL,
+        BufferLength: ULONG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfMemoryCreate(
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        PoolType: POOL_TYPE,
+        PoolTag: ULONG,
+        BufferSize: usize,
+        Memory: *mut WDFMEMORY,
+        Buffer: *mut PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfMemoryCreatePreallocated(
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        Buffer: PVOID,
+        BufferSize: usize,
+        Memory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfMemoryGetBuffer(Memory: WDFMEMORY, BufferSize: *mut usize) -> PVOID;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfMemoryAssignBuffer(
+        Memory: WDFMEMORY,
+        Buffer: PVOID,
+        BufferSize: usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfMemoryCopyToBuffer(
+        SourceMemory: WDFMEMORY,
+        SourceOffset: usize,
+        Buffer: PVOID,
+        NumBytesToCopyTo: usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfMemoryCopyFromBuffer(
+        DestinationMemory: WDFMEMORY,
+        DestinationOffset: usize,
+        Buffer: PVOID,
+        NumBytesToCopyFrom: usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfLookasideListCreate(
+        LookasideAttributes: PWDF_OBJECT_ATTRIBUTES,
+        BufferSize: usize,
+        PoolType: POOL_TYPE,
+        MemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        PoolTag: ULONG,
+        Lookaside: *mut WDFLOOKASIDE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfMemoryCreateFromLookaside(
+        Lookaside: WDFLOOKASIDE,
+        Memory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(
+        Header: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+        IdentificationDescriptionSize: ULONG,
+    );
+}
+extern "C" {
+    pub fn WDF_CHILD_ADDRESS_DESCRIPTION_HEADER_INIT(
+        Header: PWDF_CHILD_ADDRESS_DESCRIPTION_HEADER,
+        AddressDescriptionSize: ULONG,
+    );
+}
+extern "C" {
+    pub fn WDF_CHILD_RETRIEVE_INFO_INIT(
+        Info: PWDF_CHILD_RETRIEVE_INFO,
+        IdentificationDescription: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+    );
+}
+extern "C" {
+    pub fn WDF_CHILD_LIST_CONFIG_INIT(
+        Config: PWDF_CHILD_LIST_CONFIG,
+        IdentificationDescriptionSize: ULONG,
+        EvtChildListCreateDevice: PFN_WDF_CHILD_LIST_CREATE_DEVICE,
+    );
+}
+extern "C" {
+    pub fn WDF_CHILD_LIST_ITERATOR_INIT(
+        Iterator: PWDF_CHILD_LIST_ITERATOR,
+        Flags: ULONG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfChildListCreate(
+        Device: WDFDEVICE,
+        Config: PWDF_CHILD_LIST_CONFIG,
+        ChildListAttributes: PWDF_OBJECT_ATTRIBUTES,
+        ChildList: *mut WDFCHILDLIST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfChildListGetDevice(ChildList: WDFCHILDLIST) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfChildListRetrievePdo(
+        ChildList: WDFCHILDLIST,
+        RetrieveInfo: PWDF_CHILD_RETRIEVE_INFO,
+    ) -> WDFDEVICE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfChildListRetrieveAddressDescription(
+        ChildList: WDFCHILDLIST,
+        IdentificationDescription: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+        AddressDescription: PWDF_CHILD_ADDRESS_DESCRIPTION_HEADER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfChildListBeginScan(ChildList: WDFCHILDLIST);
+}
+extern "C" {
+    pub fn WdfChildListEndScan(ChildList: WDFCHILDLIST);
+}
+extern "C" {
+    pub fn WdfChildListBeginIteration(
+        ChildList: WDFCHILDLIST,
+        Iterator: PWDF_CHILD_LIST_ITERATOR,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfChildListRetrieveNextDevice(
+        ChildList: WDFCHILDLIST,
+        Iterator: PWDF_CHILD_LIST_ITERATOR,
+        Device: *mut WDFDEVICE,
+        Info: PWDF_CHILD_RETRIEVE_INFO,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfChildListEndIteration(
+        ChildList: WDFCHILDLIST,
+        Iterator: PWDF_CHILD_LIST_ITERATOR,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfChildListAddOrUpdateChildDescriptionAsPresent(
+        ChildList: WDFCHILDLIST,
+        IdentificationDescription: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+        AddressDescription: PWDF_CHILD_ADDRESS_DESCRIPTION_HEADER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfChildListUpdateChildDescriptionAsMissing(
+        ChildList: WDFCHILDLIST,
+        IdentificationDescription: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfChildListUpdateAllChildDescriptionsAsPresent(ChildList: WDFCHILDLIST);
+}
+extern "C" {
+    pub fn WdfChildListRequestChildEject(
+        ChildList: WDFCHILDLIST,
+        IdentificationDescription: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfFileObjectGetFileName(FileObject: WDFFILEOBJECT) -> PUNICODE_STRING;
+}
+extern "C" {
+    pub fn WdfFileObjectGetFlags(FileObject: WDFFILEOBJECT) -> ULONG;
+}
+extern "C" {
+    pub fn WdfFileObjectGetDevice(FileObject: WDFFILEOBJECT) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfFileObjectGetInitiatorProcessId(FileObject: WDFFILEOBJECT) -> ULONG;
+}
+extern "C" {
+    pub fn WdfFileObjectWdmGetFileObject(FileObject: WDFFILEOBJECT) -> PFILE_OBJECT;
+}
+extern "C" {
+    pub fn WDF_FILEOBJECT_CONFIG_INIT(
+        FileEventCallbacks: PWDF_FILEOBJECT_CONFIG,
+        EvtDeviceFileCreate: PFN_WDF_DEVICE_FILE_CREATE,
+        EvtFileClose: PFN_WDF_FILE_CLOSE,
+        EvtFileCleanup: PFN_WDF_FILE_CLEANUP,
+    );
+}
+extern "C" {
+    pub fn WDF_POWER_POLICY_EVENT_CALLBACKS_INIT(
+        Callbacks: PWDF_POWER_POLICY_EVENT_CALLBACKS,
+    );
+}
+extern "C" {
+    pub fn WDF_PNPPOWER_EVENT_CALLBACKS_INIT(Callbacks: PWDF_PNPPOWER_EVENT_CALLBACKS);
+}
+extern "C" {
+    pub fn WdfDevStateNormalize(State: ULONG) -> ULONG;
+}
+extern "C" {
+    pub fn WdfDevStateIsNP(State: ULONG) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WDF_DEVICE_POWER_POLICY_IDLE_SETTINGS_INIT(
+        Settings: PWDF_DEVICE_POWER_POLICY_IDLE_SETTINGS,
+        IdleCaps: WDF_POWER_POLICY_S0_IDLE_CAPABILITIES,
+    );
+}
+extern "C" {
+    pub fn WDF_DEVICE_POWER_POLICY_WAKE_SETTINGS_INIT(
+        Settings: PWDF_DEVICE_POWER_POLICY_WAKE_SETTINGS,
+    );
+}
+extern "C" {
+    pub fn WDF_DEVICE_STATE_INIT(PnpDeviceState: PWDF_DEVICE_STATE);
+}
+extern "C" {
+    pub fn WDF_DEVICE_PNP_CAPABILITIES_INIT(Caps: PWDF_DEVICE_PNP_CAPABILITIES);
+}
+extern "C" {
+    pub fn WDF_DEVICE_POWER_CAPABILITIES_INIT(Caps: PWDF_DEVICE_POWER_CAPABILITIES);
+}
+extern "C" {
+    pub fn WDF_REMOVE_LOCK_OPTIONS_INIT(
+        RemoveLockOptions: PWDF_REMOVE_LOCK_OPTIONS,
+        Flags: ULONG,
+    );
+}
+extern "C" {
+    pub fn WDF_POWER_FRAMEWORK_SETTINGS_INIT(
+        PowerFrameworkSettings: PWDF_POWER_FRAMEWORK_SETTINGS,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_TYPE_CONFIG_INIT(IoTypeConfig: PWDF_IO_TYPE_CONFIG);
+}
+extern "C" {
+    pub fn WDF_DEVICE_PROPERTY_DATA_INIT(
+        PropertyData: PWDF_DEVICE_PROPERTY_DATA,
+        PropertyKey: *const DEVPROPKEY,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceGetDeviceState(Device: WDFDEVICE, DeviceState: PWDF_DEVICE_STATE);
+}
+extern "C" {
+    pub fn WdfDeviceSetDeviceState(Device: WDFDEVICE, DeviceState: PWDF_DEVICE_STATE);
+}
+extern "C" {
+    pub fn WdfWdmDeviceGetWdfDeviceHandle(DeviceObject: PDEVICE_OBJECT) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfDeviceWdmGetDeviceObject(Device: WDFDEVICE) -> PDEVICE_OBJECT;
+}
+extern "C" {
+    pub fn WdfDeviceWdmGetAttachedDevice(Device: WDFDEVICE) -> PDEVICE_OBJECT;
+}
+extern "C" {
+    pub fn WdfDeviceWdmGetPhysicalDevice(Device: WDFDEVICE) -> PDEVICE_OBJECT;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceWdmDispatchPreprocessedIrp(Device: WDFDEVICE, Irp: PIRP) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceWdmDispatchIrp(
+        Device: WDFDEVICE,
+        Irp: PIRP,
+        DispatchContext: WDFCONTEXT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceWdmDispatchIrpToIoQueue(
+        Device: WDFDEVICE,
+        Irp: PIRP,
+        Queue: WDFQUEUE,
+        Flags: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAddDependentUsageDeviceObject(
+        Device: WDFDEVICE,
+        DependentDevice: PDEVICE_OBJECT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceRemoveDependentUsageDeviceObject(
+        Device: WDFDEVICE,
+        DependentDevice: PDEVICE_OBJECT,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAddRemovalRelationsPhysicalDevice(
+        Device: WDFDEVICE,
+        PhysicalDevice: PDEVICE_OBJECT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceRemoveRemovalRelationsPhysicalDevice(
+        Device: WDFDEVICE,
+        PhysicalDevice: PDEVICE_OBJECT,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceClearRemovalRelationsDevices(Device: WDFDEVICE);
+}
+extern "C" {
+    pub fn WdfDeviceGetDriver(Device: WDFDEVICE) -> WDFDRIVER;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceRetrieveDeviceName(Device: WDFDEVICE, String: WDFSTRING) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAssignMofResourceName(
+        Device: WDFDEVICE,
+        MofResourceName: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceGetIoTarget(Device: WDFDEVICE) -> WDFIOTARGET;
+}
+extern "C" {
+    pub fn WdfDeviceGetDevicePnpState(Device: WDFDEVICE) -> WDF_DEVICE_PNP_STATE;
+}
+extern "C" {
+    pub fn WdfDeviceGetDevicePowerState(Device: WDFDEVICE) -> WDF_DEVICE_POWER_STATE;
+}
+extern "C" {
+    pub fn WdfDeviceGetDevicePowerPolicyState(
+        Device: WDFDEVICE,
+    ) -> WDF_DEVICE_POWER_POLICY_STATE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAssignS0IdleSettings(
+        Device: WDFDEVICE,
+        Settings: PWDF_DEVICE_POWER_POLICY_IDLE_SETTINGS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAssignSxWakeSettings(
+        Device: WDFDEVICE,
+        Settings: PWDF_DEVICE_POWER_POLICY_WAKE_SETTINGS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceOpenRegistryKey(
+        Device: WDFDEVICE,
+        DeviceInstanceKeyType: ULONG,
+        DesiredAccess: ACCESS_MASK,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceOpenDevicemapKey(
+        Device: WDFDEVICE,
+        KeyName: PCUNICODE_STRING,
+        DesiredAccess: ACCESS_MASK,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceSetSpecialFileSupport(
+        Device: WDFDEVICE,
+        FileType: WDF_SPECIAL_FILE_TYPE,
+        FileTypeIsSupported: BOOLEAN,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceSetCharacteristics(Device: WDFDEVICE, DeviceCharacteristics: ULONG);
+}
+extern "C" {
+    pub fn WdfDeviceGetCharacteristics(Device: WDFDEVICE) -> ULONG;
+}
+extern "C" {
+    pub fn WdfDeviceGetAlignmentRequirement(Device: WDFDEVICE) -> ULONG;
+}
+extern "C" {
+    pub fn WdfDeviceSetAlignmentRequirement(
+        Device: WDFDEVICE,
+        AlignmentRequirement: ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitFree(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    pub fn WdfDeviceInitSetPnpPowerEventCallbacks(
+        DeviceInit: PWDFDEVICE_INIT,
+        PnpPowerEventCallbacks: PWDF_PNPPOWER_EVENT_CALLBACKS,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetPowerPolicyEventCallbacks(
+        DeviceInit: PWDFDEVICE_INIT,
+        PowerPolicyEventCallbacks: PWDF_POWER_POLICY_EVENT_CALLBACKS,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetPowerPolicyOwnership(
+        DeviceInit: PWDFDEVICE_INIT,
+        IsPowerPolicyOwner: BOOLEAN,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceInitRegisterPnpStateChangeCallback(
+        DeviceInit: PWDFDEVICE_INIT,
+        PnpState: WDF_DEVICE_PNP_STATE,
+        EvtDevicePnpStateChange: PFN_WDF_DEVICE_PNP_STATE_CHANGE_NOTIFICATION,
+        CallbackTypes: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceInitRegisterPowerStateChangeCallback(
+        DeviceInit: PWDFDEVICE_INIT,
+        PowerState: WDF_DEVICE_POWER_STATE,
+        EvtDevicePowerStateChange: PFN_WDF_DEVICE_POWER_STATE_CHANGE_NOTIFICATION,
+        CallbackTypes: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceInitRegisterPowerPolicyStateChangeCallback(
+        DeviceInit: PWDFDEVICE_INIT,
+        PowerPolicyState: WDF_DEVICE_POWER_POLICY_STATE,
+        EvtDevicePowerPolicyStateChange: PFN_WDF_DEVICE_POWER_POLICY_STATE_CHANGE_NOTIFICATION,
+        CallbackTypes: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceInitSetExclusive(DeviceInit: PWDFDEVICE_INIT, IsExclusive: BOOLEAN);
+}
+extern "C" {
+    pub fn WdfDeviceInitSetIoType(
+        DeviceInit: PWDFDEVICE_INIT,
+        IoType: WDF_DEVICE_IO_TYPE,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetPowerNotPageable(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    pub fn WdfDeviceInitSetPowerPageable(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    pub fn WdfDeviceInitSetPowerInrush(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    pub fn WdfDeviceInitSetDeviceType(DeviceInit: PWDFDEVICE_INIT, DeviceType: ULONG);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceInitAssignName(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceName: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceInitAssignSDDLString(
+        DeviceInit: PWDFDEVICE_INIT,
+        SDDLString: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceInitSetDeviceClass(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceClassGuid: *const GUID,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetCharacteristics(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceCharacteristics: ULONG,
+        OrInValues: BOOLEAN,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetFileObjectConfig(
+        DeviceInit: PWDFDEVICE_INIT,
+        FileObjectConfig: PWDF_FILEOBJECT_CONFIG,
+        FileObjectAttributes: PWDF_OBJECT_ATTRIBUTES,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetRequestAttributes(
+        DeviceInit: PWDFDEVICE_INIT,
+        RequestAttributes: PWDF_OBJECT_ATTRIBUTES,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceInitAssignWdmIrpPreprocessCallback(
+        DeviceInit: PWDFDEVICE_INIT,
+        EvtDeviceWdmIrpPreprocess: PFN_WDFDEVICE_WDM_IRP_PREPROCESS,
+        MajorFunction: UCHAR,
+        MinorFunctions: PUCHAR,
+        NumMinorFunctions: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceInitSetIoInCallerContextCallback(
+        DeviceInit: PWDFDEVICE_INIT,
+        EvtIoInCallerContext: PFN_WDF_IO_IN_CALLER_CONTEXT,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetRemoveLockOptions(
+        DeviceInit: PWDFDEVICE_INIT,
+        Options: PWDF_REMOVE_LOCK_OPTIONS,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceCreate(
+        DeviceInit: *mut PWDFDEVICE_INIT,
+        DeviceAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Device: *mut WDFDEVICE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceSetStaticStopRemove(Device: WDFDEVICE, Stoppable: BOOLEAN);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceCreateDeviceInterface(
+        Device: WDFDEVICE,
+        InterfaceClassGUID: *const GUID,
+        ReferenceString: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceSetDeviceInterfaceState(
+        Device: WDFDEVICE,
+        InterfaceClassGUID: *const GUID,
+        ReferenceString: PCUNICODE_STRING,
+        IsInterfaceEnabled: BOOLEAN,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceSetDeviceInterfaceStateEx(
+        Device: WDFDEVICE,
+        InterfaceClassGUID: *const GUID,
+        ReferenceString: PCUNICODE_STRING,
+        IsInterfaceEnabled: BOOLEAN,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceRetrieveDeviceInterfaceString(
+        Device: WDFDEVICE,
+        InterfaceClassGUID: *const GUID,
+        ReferenceString: PCUNICODE_STRING,
+        String: WDFSTRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceCreateSymbolicLink(
+        Device: WDFDEVICE,
+        SymbolicLinkName: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceQueryProperty(
+        Device: WDFDEVICE,
+        DeviceProperty: DEVICE_REGISTRY_PROPERTY::Type,
+        BufferLength: ULONG,
+        PropertyBuffer: PVOID,
+        ResultLength: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAllocAndQueryProperty(
+        Device: WDFDEVICE,
+        DeviceProperty: DEVICE_REGISTRY_PROPERTY::Type,
+        PoolType: POOL_TYPE,
+        PropertyMemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        PropertyMemory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceSetPnpCapabilities(
+        Device: WDFDEVICE,
+        PnpCapabilities: PWDF_DEVICE_PNP_CAPABILITIES,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceSetPowerCapabilities(
+        Device: WDFDEVICE,
+        PowerCapabilities: PWDF_DEVICE_POWER_CAPABILITIES,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceSetBusInformationForChildren(
+        Device: WDFDEVICE,
+        BusInformation: PPNP_BUS_INFORMATION,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceIndicateWakeStatus(
+        Device: WDFDEVICE,
+        WaitWakeStatus: NTSTATUS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceSetFailed(Device: WDFDEVICE, FailedAction: WDF_DEVICE_FAILED_ACTION);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceStopIdleNoTrack(Device: WDFDEVICE, WaitForD0: BOOLEAN) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceResumeIdleNoTrack(Device: WDFDEVICE);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceStopIdleActual(
+        Device: WDFDEVICE,
+        WaitForD0: BOOLEAN,
+        Tag: PVOID,
+        Line: LONG,
+        File: PCCH,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceResumeIdleActual(
+        Device: WDFDEVICE,
+        Tag: PVOID,
+        Line: LONG,
+        File: PCCH,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceGetFileObject(
+        Device: WDFDEVICE,
+        FileObject: PFILE_OBJECT,
+    ) -> WDFFILEOBJECT;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceEnqueueRequest(Device: WDFDEVICE, Request: WDFREQUEST) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceGetDefaultQueue(Device: WDFDEVICE) -> WDFQUEUE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceConfigureRequestDispatching(
+        Device: WDFDEVICE,
+        Queue: WDFQUEUE,
+        RequestType: WDF_REQUEST_TYPE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceConfigureWdmIrpDispatchCallback(
+        Device: WDFDEVICE,
+        Driver: WDFDRIVER,
+        MajorFunction: UCHAR,
+        EvtDeviceWdmIrpDispatch: PFN_WDFDEVICE_WDM_IRP_DISPATCH,
+        DriverContext: WDFCONTEXT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceGetSystemPowerAction(Device: WDFDEVICE) -> POWER_ACTION::Type;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceWdmAssignPowerFrameworkSettings(
+        Device: WDFDEVICE,
+        PowerFrameworkSettings: PWDF_POWER_FRAMEWORK_SETTINGS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDeviceInitSetReleaseHardwareOrderOnFailure(
+        DeviceInit: PWDFDEVICE_INIT,
+        ReleaseHardwareOrderOnFailure: WDF_RELEASE_HARDWARE_ORDER_ON_FAILURE,
+    );
+}
+extern "C" {
+    pub fn WdfDeviceInitSetIoTypeEx(
+        DeviceInit: PWDFDEVICE_INIT,
+        IoTypeConfig: PWDF_IO_TYPE_CONFIG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceQueryPropertyEx(
+        Device: WDFDEVICE,
+        DeviceProperty: PWDF_DEVICE_PROPERTY_DATA,
+        BufferLength: ULONG,
+        PropertyBuffer: PVOID,
+        RequiredSize: PULONG,
+        Type: PDEVPROPTYPE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAllocAndQueryPropertyEx(
+        Device: WDFDEVICE,
+        DeviceProperty: PWDF_DEVICE_PROPERTY_DATA,
+        PoolType: POOL_TYPE,
+        PropertyMemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        PropertyMemory: *mut WDFMEMORY,
+        Type: PDEVPROPTYPE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceAssignProperty(
+        Device: WDFDEVICE,
+        DeviceProperty: PWDF_DEVICE_PROPERTY_DATA,
+        Type: DEVPROPTYPE,
+        Size: ULONG,
+        Data: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDeviceRetrieveCompanionTarget(
+        Device: WDFDEVICE,
+        CompanionTarget: *mut WDFCOMPANIONTARGET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCollectionCreate(
+        CollectionAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Collection: *mut WDFCOLLECTION,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfCollectionGetCount(Collection: WDFCOLLECTION) -> ULONG;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCollectionAdd(Collection: WDFCOLLECTION, Object: WDFOBJECT) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfCollectionRemove(Collection: WDFCOLLECTION, Item: WDFOBJECT);
+}
+extern "C" {
+    pub fn WdfCollectionRemoveItem(Collection: WDFCOLLECTION, Index: ULONG);
+}
+extern "C" {
+    pub fn WdfCollectionGetItem(Collection: WDFCOLLECTION, Index: ULONG) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WdfCollectionGetFirstItem(Collection: WDFCOLLECTION) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WdfCollectionGetLastItem(Collection: WDFCOLLECTION) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WDF_DPC_CONFIG_INIT(Config: PWDF_DPC_CONFIG, EvtDpcFunc: PFN_WDF_DPC);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDpcCreate(
+        Config: PWDF_DPC_CONFIG,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        Dpc: *mut WDFDPC,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDpcEnqueue(Dpc: WDFDPC) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfDpcCancel(Dpc: WDFDPC, Wait: BOOLEAN) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfDpcGetParentObject(Dpc: WDFDPC) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WdfDpcWdmGetDpc(Dpc: WDFDPC) -> PKDPC;
+}
+extern "C" {
+    pub fn WDF_TIMER_CONFIG_INIT(Config: PWDF_TIMER_CONFIG, EvtTimerFunc: PFN_WDF_TIMER);
+}
+extern "C" {
+    pub fn WDF_TIMER_CONFIG_INIT_PERIODIC(
+        Config: PWDF_TIMER_CONFIG,
+        EvtTimerFunc: PFN_WDF_TIMER,
+        Period: LONG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfTimerCreate(
+        Config: PWDF_TIMER_CONFIG,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        Timer: *mut WDFTIMER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfTimerStart(Timer: WDFTIMER, DueTime: LONGLONG) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfTimerStop(Timer: WDFTIMER, Wait: BOOLEAN) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfTimerGetParentObject(Timer: WDFTIMER) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WDF_WORKITEM_CONFIG_INIT(
+        Config: PWDF_WORKITEM_CONFIG,
+        EvtWorkItemFunc: PFN_WDF_WORKITEM,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWorkItemCreate(
+        Config: PWDF_WORKITEM_CONFIG,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        WorkItem: *mut WDFWORKITEM,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfWorkItemEnqueue(WorkItem: WDFWORKITEM);
+}
+extern "C" {
+    pub fn WdfWorkItemGetParentObject(WorkItem: WDFWORKITEM) -> WDFOBJECT;
+}
+extern "C" {
+    pub fn WdfWorkItemFlush(WorkItem: WDFWORKITEM);
+}
+extern "C" {
+    pub fn WDF_INTERRUPT_CONFIG_INIT(
+        Configuration: PWDF_INTERRUPT_CONFIG,
+        EvtInterruptIsr: PFN_WDF_INTERRUPT_ISR,
+        EvtInterruptDpc: PFN_WDF_INTERRUPT_DPC,
+    );
+}
+extern "C" {
+    pub fn WDF_INTERRUPT_INFO_INIT(Info: PWDF_INTERRUPT_INFO);
+}
+extern "C" {
+    pub fn WDF_INTERRUPT_EXTENDED_POLICY_INIT(
+        ExtendedPolicy: PWDF_INTERRUPT_EXTENDED_POLICY,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfInterruptCreate(
+        Device: WDFDEVICE,
+        Configuration: PWDF_INTERRUPT_CONFIG,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        Interrupt: *mut WDFINTERRUPT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfInterruptQueueDpcForIsr(Interrupt: WDFINTERRUPT) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfInterruptQueueWorkItemForIsr(Interrupt: WDFINTERRUPT) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfInterruptSynchronize(
+        Interrupt: WDFINTERRUPT,
+        Callback: PFN_WDF_INTERRUPT_SYNCHRONIZE,
+        Context: WDFCONTEXT,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfInterruptAcquireLock(Interrupt: WDFINTERRUPT);
+}
+extern "C" {
+    pub fn WdfInterruptReleaseLock(Interrupt: WDFINTERRUPT);
+}
+extern "C" {
+    pub fn WdfInterruptEnable(Interrupt: WDFINTERRUPT);
+}
+extern "C" {
+    pub fn WdfInterruptDisable(Interrupt: WDFINTERRUPT);
+}
+extern "C" {
+    pub fn WdfInterruptWdmGetInterrupt(Interrupt: WDFINTERRUPT) -> PKINTERRUPT;
+}
+extern "C" {
+    pub fn WdfInterruptGetInfo(Interrupt: WDFINTERRUPT, Info: PWDF_INTERRUPT_INFO);
+}
+extern "C" {
+    pub fn WdfInterruptSetPolicy(
+        Interrupt: WDFINTERRUPT,
+        Policy: WDF_INTERRUPT_POLICY,
+        Priority: WDF_INTERRUPT_PRIORITY,
+        TargetProcessorSet: KAFFINITY,
+    );
+}
+extern "C" {
+    pub fn WdfInterruptSetExtendedPolicy(
+        Interrupt: WDFINTERRUPT,
+        PolicyAndGroup: PWDF_INTERRUPT_EXTENDED_POLICY,
+    );
+}
+extern "C" {
+    pub fn WdfInterruptGetDevice(Interrupt: WDFINTERRUPT) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfInterruptTryToAcquireLock(Interrupt: WDFINTERRUPT) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfInterruptReportActive(Interrupt: WDFINTERRUPT);
+}
+extern "C" {
+    pub fn WdfInterruptReportInactive(Interrupt: WDFINTERRUPT);
+}
+extern "C" {
+    pub fn WdfIoResourceRequirementsListSetSlotNumber(
+        RequirementsList: WDFIORESREQLIST,
+        SlotNumber: ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfIoResourceRequirementsListSetInterfaceType(
+        RequirementsList: WDFIORESREQLIST,
+        InterfaceType: INTERFACE_TYPE,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoResourceRequirementsListAppendIoResList(
+        RequirementsList: WDFIORESREQLIST,
+        IoResList: WDFIORESLIST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoResourceRequirementsListInsertIoResList(
+        RequirementsList: WDFIORESREQLIST,
+        IoResList: WDFIORESLIST,
+        Index: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoResourceRequirementsListGetCount(
+        RequirementsList: WDFIORESREQLIST,
+    ) -> ULONG;
+}
+extern "C" {
+    pub fn WdfIoResourceRequirementsListGetIoResList(
+        RequirementsList: WDFIORESREQLIST,
+        Index: ULONG,
+    ) -> WDFIORESLIST;
+}
+extern "C" {
+    pub fn WdfIoResourceRequirementsListRemove(
+        RequirementsList: WDFIORESREQLIST,
+        Index: ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfIoResourceRequirementsListRemoveByIoResList(
+        RequirementsList: WDFIORESREQLIST,
+        IoResList: WDFIORESLIST,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoResourceListCreate(
+        RequirementsList: WDFIORESREQLIST,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        ResourceList: *mut WDFIORESLIST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoResourceListAppendDescriptor(
+        ResourceList: WDFIORESLIST,
+        Descriptor: PIO_RESOURCE_DESCRIPTOR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoResourceListInsertDescriptor(
+        ResourceList: WDFIORESLIST,
+        Descriptor: PIO_RESOURCE_DESCRIPTOR,
+        Index: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoResourceListUpdateDescriptor(
+        ResourceList: WDFIORESLIST,
+        Descriptor: PIO_RESOURCE_DESCRIPTOR,
+        Index: ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfIoResourceListGetCount(ResourceList: WDFIORESLIST) -> ULONG;
+}
+extern "C" {
+    pub fn WdfIoResourceListGetDescriptor(
+        ResourceList: WDFIORESLIST,
+        Index: ULONG,
+    ) -> PIO_RESOURCE_DESCRIPTOR;
+}
+extern "C" {
+    pub fn WdfIoResourceListRemove(ResourceList: WDFIORESLIST, Index: ULONG);
+}
+extern "C" {
+    pub fn WdfIoResourceListRemoveByDescriptor(
+        ResourceList: WDFIORESLIST,
+        Descriptor: PIO_RESOURCE_DESCRIPTOR,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCmResourceListAppendDescriptor(
+        List: WDFCMRESLIST,
+        Descriptor: PCM_PARTIAL_RESOURCE_DESCRIPTOR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCmResourceListInsertDescriptor(
+        List: WDFCMRESLIST,
+        Descriptor: PCM_PARTIAL_RESOURCE_DESCRIPTOR,
+        Index: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfCmResourceListGetCount(List: WDFCMRESLIST) -> ULONG;
+}
+extern "C" {
+    pub fn WdfCmResourceListGetDescriptor(
+        List: WDFCMRESLIST,
+        Index: ULONG,
+    ) -> PCM_PARTIAL_RESOURCE_DESCRIPTOR;
+}
+extern "C" {
+    pub fn WdfCmResourceListRemove(List: WDFCMRESLIST, Index: ULONG);
+}
+extern "C" {
+    pub fn WdfCmResourceListRemoveByDescriptor(
+        List: WDFCMRESLIST,
+        Descriptor: PCM_PARTIAL_RESOURCE_DESCRIPTOR,
+    );
+}
+extern "C" {
+    pub fn WDF_REQUEST_PARAMETERS_INIT(Parameters: PWDF_REQUEST_PARAMETERS);
+}
+extern "C" {
+    pub fn WDF_REQUEST_COMPLETION_PARAMS_INIT(Params: PWDF_REQUEST_COMPLETION_PARAMS);
+}
+extern "C" {
+    pub fn WDF_REQUEST_REUSE_PARAMS_INIT(
+        Params: PWDF_REQUEST_REUSE_PARAMS,
+        Flags: ULONG,
+        Status: NTSTATUS,
+    );
+}
+extern "C" {
+    pub fn WDF_REQUEST_REUSE_PARAMS_SET_NEW_IRP(
+        Params: PWDF_REQUEST_REUSE_PARAMS,
+        NewIrp: PIRP,
+    );
+}
+extern "C" {
+    pub fn WDF_REQUEST_SEND_OPTIONS_INIT(
+        Options: PWDF_REQUEST_SEND_OPTIONS,
+        Flags: ULONG,
+    );
+}
+extern "C" {
+    pub fn WDF_REQUEST_SEND_OPTIONS_SET_TIMEOUT(
+        Options: PWDF_REQUEST_SEND_OPTIONS,
+        Timeout: LONGLONG,
+    );
+}
+extern "C" {
+    pub fn WDF_REQUEST_FORWARD_OPTIONS_INIT(
+        ForwardOptions: PWDF_REQUEST_FORWARD_OPTIONS,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestCreate(
+        RequestAttributes: PWDF_OBJECT_ATTRIBUTES,
+        IoTarget: WDFIOTARGET,
+        Request: *mut WDFREQUEST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestGetRequestorProcessId(Request: WDFREQUEST) -> ULONG;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestCreateFromIrp(
+        RequestAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Irp: PIRP,
+        RequestFreesIrp: BOOLEAN,
+        Request: *mut WDFREQUEST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestReuse(
+        Request: WDFREQUEST,
+        ReuseParams: PWDF_REQUEST_REUSE_PARAMS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestChangeTarget(
+        Request: WDFREQUEST,
+        IoTarget: WDFIOTARGET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestFormatRequestUsingCurrentType(Request: WDFREQUEST);
+}
+extern "C" {
+    pub fn WdfRequestWdmFormatUsingStackLocation(
+        Request: WDFREQUEST,
+        Stack: PIO_STACK_LOCATION,
+    );
+}
+extern "C" {
+    pub fn WdfRequestSend(
+        Request: WDFREQUEST,
+        Target: WDFIOTARGET,
+        Options: PWDF_REQUEST_SEND_OPTIONS,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestGetStatus(Request: WDFREQUEST) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestMarkCancelable(
+        Request: WDFREQUEST,
+        EvtRequestCancel: PFN_WDF_REQUEST_CANCEL,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestMarkCancelableEx(
+        Request: WDFREQUEST,
+        EvtRequestCancel: PFN_WDF_REQUEST_CANCEL,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestUnmarkCancelable(Request: WDFREQUEST) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestIsCanceled(Request: WDFREQUEST) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfRequestCancelSentRequest(Request: WDFREQUEST) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfRequestIsFrom32BitProcess(Request: WDFREQUEST) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfRequestSetCompletionRoutine(
+        Request: WDFREQUEST,
+        CompletionRoutine: PFN_WDF_REQUEST_COMPLETION_ROUTINE,
+        CompletionContext: WDFCONTEXT,
+    );
+}
+extern "C" {
+    pub fn WdfRequestGetCompletionParams(
+        Request: WDFREQUEST,
+        Params: PWDF_REQUEST_COMPLETION_PARAMS,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestAllocateTimer(Request: WDFREQUEST) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestComplete(Request: WDFREQUEST, Status: NTSTATUS);
+}
+extern "C" {
+    pub fn WdfRequestCompleteWithPriorityBoost(
+        Request: WDFREQUEST,
+        Status: NTSTATUS,
+        PriorityBoost: CCHAR,
+    );
+}
+extern "C" {
+    pub fn WdfRequestCompleteWithInformation(
+        Request: WDFREQUEST,
+        Status: NTSTATUS,
+        Information: ULONG_PTR,
+    );
+}
+extern "C" {
+    pub fn WdfRequestGetParameters(
+        Request: WDFREQUEST,
+        Parameters: PWDF_REQUEST_PARAMETERS,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveInputMemory(
+        Request: WDFREQUEST,
+        Memory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveOutputMemory(
+        Request: WDFREQUEST,
+        Memory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveInputBuffer(
+        Request: WDFREQUEST,
+        MinimumRequiredLength: usize,
+        Buffer: *mut PVOID,
+        Length: *mut usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveOutputBuffer(
+        Request: WDFREQUEST,
+        MinimumRequiredSize: usize,
+        Buffer: *mut PVOID,
+        Length: *mut usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveInputWdmMdl(
+        Request: WDFREQUEST,
+        Mdl: *mut PMDL,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveOutputWdmMdl(
+        Request: WDFREQUEST,
+        Mdl: *mut PMDL,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveUnsafeUserInputBuffer(
+        Request: WDFREQUEST,
+        MinimumRequiredLength: usize,
+        InputBuffer: *mut PVOID,
+        Length: *mut usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRetrieveUnsafeUserOutputBuffer(
+        Request: WDFREQUEST,
+        MinimumRequiredLength: usize,
+        OutputBuffer: *mut PVOID,
+        Length: *mut usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestSetInformation(Request: WDFREQUEST, Information: ULONG_PTR);
+}
+extern "C" {
+    pub fn WdfRequestGetInformation(Request: WDFREQUEST) -> ULONG_PTR;
+}
+extern "C" {
+    pub fn WdfRequestGetFileObject(Request: WDFREQUEST) -> WDFFILEOBJECT;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestProbeAndLockUserBufferForRead(
+        Request: WDFREQUEST,
+        Buffer: PVOID,
+        Length: usize,
+        MemoryObject: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestProbeAndLockUserBufferForWrite(
+        Request: WDFREQUEST,
+        Buffer: PVOID,
+        Length: usize,
+        MemoryObject: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestGetRequestorMode(Request: WDFREQUEST) -> KPROCESSOR_MODE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestForwardToIoQueue(
+        Request: WDFREQUEST,
+        DestinationQueue: WDFQUEUE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestGetIoQueue(Request: WDFREQUEST) -> WDFQUEUE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestRequeue(Request: WDFREQUEST) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRequestStopAcknowledge(Request: WDFREQUEST, Requeue: BOOLEAN);
+}
+extern "C" {
+    pub fn WdfRequestWdmGetIrp(Request: WDFREQUEST) -> PIRP;
+}
+extern "C" {
+    pub fn WdfRequestIsReserved(Request: WDFREQUEST) -> BOOLEAN;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRequestForwardToParentDeviceIoQueue(
+        Request: WDFREQUEST,
+        ParentDeviceQueue: WDFQUEUE,
+        ForwardOptions: PWDF_REQUEST_FORWARD_OPTIONS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WDF_IO_TARGET_OPEN_PARAMS_INIT_EXISTING_DEVICE(
+        Params: PWDF_IO_TARGET_OPEN_PARAMS,
+        DeviceObject: PDEVICE_OBJECT,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_TARGET_OPEN_PARAMS_INIT_CREATE_BY_NAME(
+        Params: PWDF_IO_TARGET_OPEN_PARAMS,
+        TargetDeviceName: PCUNICODE_STRING,
+        DesiredAccess: ACCESS_MASK,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_TARGET_OPEN_PARAMS_INIT_OPEN_BY_NAME(
+        Params: PWDF_IO_TARGET_OPEN_PARAMS,
+        TargetDeviceName: PCUNICODE_STRING,
+        DesiredAccess: ACCESS_MASK,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_TARGET_OPEN_PARAMS_INIT_REOPEN(Params: PWDF_IO_TARGET_OPEN_PARAMS);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetCreate(
+        Device: WDFDEVICE,
+        IoTargetAttributes: PWDF_OBJECT_ATTRIBUTES,
+        IoTarget: *mut WDFIOTARGET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetOpen(
+        IoTarget: WDFIOTARGET,
+        OpenParams: PWDF_IO_TARGET_OPEN_PARAMS,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoTargetCloseForQueryRemove(IoTarget: WDFIOTARGET);
+}
+extern "C" {
+    pub fn WdfIoTargetClose(IoTarget: WDFIOTARGET);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetStart(IoTarget: WDFIOTARGET) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoTargetStop(IoTarget: WDFIOTARGET, Action: WDF_IO_TARGET_SENT_IO_ACTION);
+}
+extern "C" {
+    pub fn WdfIoTargetPurge(
+        IoTarget: WDFIOTARGET,
+        Action: WDF_IO_TARGET_PURGE_IO_ACTION,
+    );
+}
+extern "C" {
+    pub fn WdfIoTargetGetState(IoTarget: WDFIOTARGET) -> WDF_IO_TARGET_STATE;
+}
+extern "C" {
+    pub fn WdfIoTargetGetDevice(IoTarget: WDFIOTARGET) -> WDFDEVICE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetQueryTargetProperty(
+        IoTarget: WDFIOTARGET,
+        DeviceProperty: DEVICE_REGISTRY_PROPERTY::Type,
+        BufferLength: ULONG,
+        PropertyBuffer: PVOID,
+        ResultLength: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetAllocAndQueryTargetProperty(
+        IoTarget: WDFIOTARGET,
+        DeviceProperty: DEVICE_REGISTRY_PROPERTY::Type,
+        PoolType: POOL_TYPE,
+        PropertyMemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        PropertyMemory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetQueryForInterface(
+        IoTarget: WDFIOTARGET,
+        InterfaceType: LPCGUID,
+        Interface: PINTERFACE,
+        Size: USHORT,
+        Version: USHORT,
+        InterfaceSpecificData: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoTargetWdmGetTargetDeviceObject(IoTarget: WDFIOTARGET) -> PDEVICE_OBJECT;
+}
+extern "C" {
+    pub fn WdfIoTargetWdmGetTargetPhysicalDevice(
+        IoTarget: WDFIOTARGET,
+    ) -> PDEVICE_OBJECT;
+}
+extern "C" {
+    pub fn WdfIoTargetWdmGetTargetFileObject(IoTarget: WDFIOTARGET) -> PFILE_OBJECT;
+}
+extern "C" {
+    pub fn WdfIoTargetWdmGetTargetFileHandle(IoTarget: WDFIOTARGET) -> HANDLE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetSendReadSynchronously(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        OutputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        DeviceOffset: PLONGLONG,
+        RequestOptions: PWDF_REQUEST_SEND_OPTIONS,
+        BytesRead: PULONG_PTR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetFormatRequestForRead(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        OutputBuffer: WDFMEMORY,
+        OutputBufferOffset: PWDFMEMORY_OFFSET,
+        DeviceOffset: PLONGLONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetSendWriteSynchronously(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        InputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        DeviceOffset: PLONGLONG,
+        RequestOptions: PWDF_REQUEST_SEND_OPTIONS,
+        BytesWritten: PULONG_PTR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetFormatRequestForWrite(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        InputBuffer: WDFMEMORY,
+        InputBufferOffset: PWDFMEMORY_OFFSET,
+        DeviceOffset: PLONGLONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetSendIoctlSynchronously(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        IoctlCode: ULONG,
+        InputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        OutputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        RequestOptions: PWDF_REQUEST_SEND_OPTIONS,
+        BytesReturned: PULONG_PTR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetFormatRequestForIoctl(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        IoctlCode: ULONG,
+        InputBuffer: WDFMEMORY,
+        InputBufferOffset: PWDFMEMORY_OFFSET,
+        OutputBuffer: WDFMEMORY,
+        OutputBufferOffset: PWDFMEMORY_OFFSET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetSendInternalIoctlSynchronously(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        IoctlCode: ULONG,
+        InputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        OutputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        RequestOptions: PWDF_REQUEST_SEND_OPTIONS,
+        BytesReturned: PULONG_PTR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetFormatRequestForInternalIoctl(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        IoctlCode: ULONG,
+        InputBuffer: WDFMEMORY,
+        InputBufferOffset: PWDFMEMORY_OFFSET,
+        OutputBuffer: WDFMEMORY,
+        OutputBufferOffset: PWDFMEMORY_OFFSET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetSendInternalIoctlOthersSynchronously(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        IoctlCode: ULONG,
+        OtherArg1: PWDF_MEMORY_DESCRIPTOR,
+        OtherArg2: PWDF_MEMORY_DESCRIPTOR,
+        OtherArg4: PWDF_MEMORY_DESCRIPTOR,
+        RequestOptions: PWDF_REQUEST_SEND_OPTIONS,
+        BytesReturned: PULONG_PTR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoTargetFormatRequestForInternalIoctlOthers(
+        IoTarget: WDFIOTARGET,
+        Request: WDFREQUEST,
+        IoctlCode: ULONG,
+        OtherArg1: WDFMEMORY,
+        OtherArg1Offset: PWDFMEMORY_OFFSET,
+        OtherArg2: WDFMEMORY,
+        OtherArg2Offset: PWDFMEMORY_OFFSET,
+        OtherArg4: WDFMEMORY,
+        OtherArg4Offset: PWDFMEMORY_OFFSET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_IDLE(State: WDF_IO_QUEUE_STATE) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_READY(State: WDF_IO_QUEUE_STATE) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_STOPPED(State: WDF_IO_QUEUE_STATE) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_DRAINED(State: WDF_IO_QUEUE_STATE) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_PURGED(State: WDF_IO_QUEUE_STATE) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_CONFIG_INIT(
+        Config: PWDF_IO_QUEUE_CONFIG,
+        DispatchType: WDF_IO_QUEUE_DISPATCH_TYPE,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
+        Config: PWDF_IO_QUEUE_CONFIG,
+        DispatchType: WDF_IO_QUEUE_DISPATCH_TYPE,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_FORWARD_PROGRESS_POLICY_DEFAULT_INIT(
+        Policy: PWDF_IO_QUEUE_FORWARD_PROGRESS_POLICY,
+        TotalForwardProgressRequests: ULONG,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_FORWARD_PROGRESS_POLICY_EXAMINE_INIT(
+        Policy: PWDF_IO_QUEUE_FORWARD_PROGRESS_POLICY,
+        TotalForwardProgressRequests: ULONG,
+        EvtIoWdmIrpForForwardProgress: PFN_WDF_IO_WDM_IRP_FOR_FORWARD_PROGRESS,
+    );
+}
+extern "C" {
+    pub fn WDF_IO_QUEUE_FORWARD_PROGRESS_POLICY_PAGINGIO_INIT(
+        Policy: PWDF_IO_QUEUE_FORWARD_PROGRESS_POLICY,
+        TotalForwardProgressRequests: ULONG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueCreate(
+        Device: WDFDEVICE,
+        Config: PWDF_IO_QUEUE_CONFIG,
+        QueueAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Queue: *mut WDFQUEUE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoQueueGetState(
+        Queue: WDFQUEUE,
+        QueueRequests: PULONG,
+        DriverRequests: PULONG,
+    ) -> WDF_IO_QUEUE_STATE;
+}
+extern "C" {
+    pub fn WdfIoQueueStart(Queue: WDFQUEUE);
+}
+extern "C" {
+    pub fn WdfIoQueueStop(
+        Queue: WDFQUEUE,
+        StopComplete: PFN_WDF_IO_QUEUE_STATE,
+        Context: WDFCONTEXT,
+    );
+}
+extern "C" {
+    pub fn WdfIoQueueStopSynchronously(Queue: WDFQUEUE);
+}
+extern "C" {
+    pub fn WdfIoQueueGetDevice(Queue: WDFQUEUE) -> WDFDEVICE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueRetrieveNextRequest(
+        Queue: WDFQUEUE,
+        OutRequest: *mut WDFREQUEST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueRetrieveRequestByFileObject(
+        Queue: WDFQUEUE,
+        FileObject: WDFFILEOBJECT,
+        OutRequest: *mut WDFREQUEST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueFindRequest(
+        Queue: WDFQUEUE,
+        FoundRequest: WDFREQUEST,
+        FileObject: WDFFILEOBJECT,
+        Parameters: PWDF_REQUEST_PARAMETERS,
+        OutRequest: *mut WDFREQUEST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueRetrieveFoundRequest(
+        Queue: WDFQUEUE,
+        FoundRequest: WDFREQUEST,
+        OutRequest: *mut WDFREQUEST,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoQueueDrainSynchronously(Queue: WDFQUEUE);
+}
+extern "C" {
+    pub fn WdfIoQueueDrain(
+        Queue: WDFQUEUE,
+        DrainComplete: PFN_WDF_IO_QUEUE_STATE,
+        Context: WDFCONTEXT,
+    );
+}
+extern "C" {
+    pub fn WdfIoQueuePurgeSynchronously(Queue: WDFQUEUE);
+}
+extern "C" {
+    pub fn WdfIoQueuePurge(
+        Queue: WDFQUEUE,
+        PurgeComplete: PFN_WDF_IO_QUEUE_STATE,
+        Context: WDFCONTEXT,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueReadyNotify(
+        Queue: WDFQUEUE,
+        QueueReady: PFN_WDF_IO_QUEUE_STATE,
+        Context: WDFCONTEXT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfIoQueueAssignForwardProgressPolicy(
+        Queue: WDFQUEUE,
+        ForwardProgressPolicy: PWDF_IO_QUEUE_FORWARD_PROGRESS_POLICY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfIoQueueStopAndPurge(
+        Queue: WDFQUEUE,
+        StopAndPurgeComplete: PFN_WDF_IO_QUEUE_STATE,
+        Context: WDFCONTEXT,
+    );
+}
+extern "C" {
+    pub fn WdfIoQueueStopAndPurgeSynchronously(Queue: WDFQUEUE);
+}
+extern "C" {
+    pub fn WDF_FDO_EVENT_CALLBACKS_INIT(Callbacks: PWDF_FDO_EVENT_CALLBACKS);
+}
+extern "C" {
+    pub fn WdfFdoInitWdmGetPhysicalDevice(DeviceInit: PWDFDEVICE_INIT) -> PDEVICE_OBJECT;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoInitOpenRegistryKey(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceInstanceKeyType: ULONG,
+        DesiredAccess: ACCESS_MASK,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoInitQueryProperty(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceProperty: DEVICE_REGISTRY_PROPERTY::Type,
+        BufferLength: ULONG,
+        PropertyBuffer: PVOID,
+        ResultLength: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoInitAllocAndQueryProperty(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceProperty: DEVICE_REGISTRY_PROPERTY::Type,
+        PoolType: POOL_TYPE,
+        PropertyMemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        PropertyMemory: *mut WDFMEMORY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoInitQueryPropertyEx(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceProperty: PWDF_DEVICE_PROPERTY_DATA,
+        BufferLength: ULONG,
+        PropertyBuffer: PVOID,
+        ResultLength: PULONG,
+        Type: PDEVPROPTYPE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoInitAllocAndQueryPropertyEx(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceProperty: PWDF_DEVICE_PROPERTY_DATA,
+        PoolType: POOL_TYPE,
+        PropertyMemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        PropertyMemory: *mut WDFMEMORY,
+        Type: PDEVPROPTYPE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfFdoInitSetEventCallbacks(
+        DeviceInit: PWDFDEVICE_INIT,
+        FdoEventCallbacks: PWDF_FDO_EVENT_CALLBACKS,
+    );
+}
+extern "C" {
+    pub fn WdfFdoInitSetFilter(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    pub fn WdfFdoInitSetDefaultChildListConfig(
+        DeviceInit: PWDFDEVICE_INIT,
+        Config: PWDF_CHILD_LIST_CONFIG,
+        DefaultChildListAttributes: PWDF_OBJECT_ATTRIBUTES,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoQueryForInterface(
+        Fdo: WDFDEVICE,
+        InterfaceType: LPCGUID,
+        Interface: PINTERFACE,
+        Size: USHORT,
+        Version: USHORT,
+        InterfaceSpecificData: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfFdoGetDefaultChildList(Fdo: WDFDEVICE) -> WDFCHILDLIST;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfFdoAddStaticChild(Fdo: WDFDEVICE, Child: WDFDEVICE) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfFdoLockStaticChildListForIteration(Fdo: WDFDEVICE);
+}
+extern "C" {
+    pub fn WdfFdoRetrieveNextStaticChild(
+        Fdo: WDFDEVICE,
+        PreviousChild: WDFDEVICE,
+        Flags: ULONG,
+    ) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfFdoUnlockStaticChildListFromIteration(Fdo: WDFDEVICE);
+}
+extern "C" {
+    pub fn WDF_PDO_EVENT_CALLBACKS_INIT(Callbacks: PWDF_PDO_EVENT_CALLBACKS);
+}
+extern "C" {
+    pub fn WdfPdoInitAllocate(ParentDevice: WDFDEVICE) -> PWDFDEVICE_INIT;
+}
+extern "C" {
+    pub fn WdfPdoInitSetEventCallbacks(
+        DeviceInit: PWDFDEVICE_INIT,
+        DispatchTable: PWDF_PDO_EVENT_CALLBACKS,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAssignDeviceID(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceID: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAssignInstanceID(
+        DeviceInit: PWDFDEVICE_INIT,
+        InstanceID: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAddHardwareID(
+        DeviceInit: PWDFDEVICE_INIT,
+        HardwareID: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAddCompatibleID(
+        DeviceInit: PWDFDEVICE_INIT,
+        CompatibleID: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAssignContainerID(
+        DeviceInit: PWDFDEVICE_INIT,
+        ContainerID: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAddDeviceText(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceDescription: PCUNICODE_STRING,
+        DeviceLocation: PCUNICODE_STRING,
+        LocaleId: LCID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfPdoInitSetDefaultLocale(DeviceInit: PWDFDEVICE_INIT, LocaleId: LCID);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoInitAssignRawDevice(
+        DeviceInit: PWDFDEVICE_INIT,
+        DeviceClassGuid: *const GUID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfPdoInitAllowForwardingRequestToParent(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoMarkMissing(Device: WDFDEVICE) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfPdoRequestEject(Device: WDFDEVICE);
+}
+extern "C" {
+    pub fn WdfPdoGetParent(Device: WDFDEVICE) -> WDFDEVICE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoRetrieveIdentificationDescription(
+        Device: WDFDEVICE,
+        IdentificationDescription: PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoRetrieveAddressDescription(
+        Device: WDFDEVICE,
+        AddressDescription: PWDF_CHILD_ADDRESS_DESCRIPTION_HEADER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoUpdateAddressDescription(
+        Device: WDFDEVICE,
+        AddressDescription: PWDF_CHILD_ADDRESS_DESCRIPTION_HEADER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfPdoAddEjectionRelationsPhysicalDevice(
+        Device: WDFDEVICE,
+        PhysicalDevice: PDEVICE_OBJECT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfPdoRemoveEjectionRelationsPhysicalDevice(
+        Device: WDFDEVICE,
+        PhysicalDevice: PDEVICE_OBJECT,
+    );
+}
+extern "C" {
+    pub fn WdfPdoClearEjectionRelationsDevices(Device: WDFDEVICE);
+}
+extern "C" {
+    pub fn WdfPdoInitRemovePowerDependencyOnParent(DeviceInit: PWDFDEVICE_INIT);
+}
+extern "C" {
+    pub fn WdfControlDeviceInitAllocate(
+        Driver: WDFDRIVER,
+        SDDLString: *const UNICODE_STRING,
+    ) -> PWDFDEVICE_INIT;
+}
+extern "C" {
+    pub fn WdfControlDeviceInitSetShutdownNotification(
+        DeviceInit: PWDFDEVICE_INIT,
+        Notification: PFN_WDF_DEVICE_SHUTDOWN_NOTIFICATION,
+        Flags: UCHAR,
+    );
+}
+extern "C" {
+    pub fn WdfControlFinishInitializing(Device: WDFDEVICE);
+}
+extern "C" {
+    pub fn WDF_WMI_PROVIDER_CONFIG_INIT(
+        Config: PWDF_WMI_PROVIDER_CONFIG,
+        Guid: *const GUID,
+    );
+}
+extern "C" {
+    pub fn WDF_WMI_INSTANCE_CONFIG_INIT_PROVIDER(
+        Config: PWDF_WMI_INSTANCE_CONFIG,
+        Provider: WDFWMIPROVIDER,
+    );
+}
+extern "C" {
+    pub fn WDF_WMI_INSTANCE_CONFIG_INIT_PROVIDER_CONFIG(
+        Config: PWDF_WMI_INSTANCE_CONFIG,
+        ProviderConfig: PWDF_WMI_PROVIDER_CONFIG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WDF_WMI_BUFFER_APPEND_STRING(
+        Buffer: PVOID,
+        BufferLength: ULONG,
+        String: PCUNICODE_STRING,
+        RequiredSize: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWmiProviderCreate(
+        Device: WDFDEVICE,
+        WmiProviderConfig: PWDF_WMI_PROVIDER_CONFIG,
+        ProviderAttributes: PWDF_OBJECT_ATTRIBUTES,
+        WmiProvider: *mut WDFWMIPROVIDER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfWmiProviderGetDevice(WmiProvider: WDFWMIPROVIDER) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfWmiProviderIsEnabled(
+        WmiProvider: WDFWMIPROVIDER,
+        ProviderControl: WDF_WMI_PROVIDER_CONTROL,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfWmiProviderGetTracingHandle(WmiProvider: WDFWMIPROVIDER) -> ULONGLONG;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWmiInstanceCreate(
+        Device: WDFDEVICE,
+        InstanceConfig: PWDF_WMI_INSTANCE_CONFIG,
+        InstanceAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Instance: *mut WDFWMIINSTANCE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWmiInstanceRegister(WmiInstance: WDFWMIINSTANCE) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfWmiInstanceDeregister(WmiInstance: WDFWMIINSTANCE);
+}
+extern "C" {
+    pub fn WdfWmiInstanceGetDevice(WmiInstance: WDFWMIINSTANCE) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfWmiInstanceGetProvider(WmiInstance: WDFWMIINSTANCE) -> WDFWMIPROVIDER;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfWmiInstanceFireEvent(
+        WmiInstance: WDFWMIINSTANCE,
+        EventDataSize: ULONG,
+        EventData: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfStringCreate(
+        UnicodeString: PCUNICODE_STRING,
+        StringAttributes: PWDF_OBJECT_ATTRIBUTES,
+        String: *mut WDFSTRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfStringGetUnicodeString(String: WDFSTRING, UnicodeString: PUNICODE_STRING);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryOpenKey(
+        ParentKey: WDFKEY,
+        KeyName: PCUNICODE_STRING,
+        DesiredAccess: ACCESS_MASK,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryCreateKey(
+        ParentKey: WDFKEY,
+        KeyName: PCUNICODE_STRING,
+        DesiredAccess: ACCESS_MASK,
+        CreateOptions: ULONG,
+        CreateDisposition: PULONG,
+        KeyAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Key: *mut WDFKEY,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfRegistryClose(Key: WDFKEY);
+}
+extern "C" {
+    pub fn WdfRegistryWdmGetHandle(Key: WDFKEY) -> HANDLE;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryRemoveKey(Key: WDFKEY) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryRemoveValue(Key: WDFKEY, ValueName: PCUNICODE_STRING) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryQueryValue(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        ValueLength: ULONG,
+        Value: PVOID,
+        ValueLengthQueried: PULONG,
+        ValueType: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryQueryMemory(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        PoolType: POOL_TYPE,
+        MemoryAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Memory: *mut WDFMEMORY,
+        ValueType: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryQueryMultiString(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        StringsAttributes: PWDF_OBJECT_ATTRIBUTES,
+        Collection: WDFCOLLECTION,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryQueryUnicodeString(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        ValueByteLength: PUSHORT,
+        Value: PUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryQueryString(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        String: WDFSTRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryQueryULong(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        Value: PULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryAssignValue(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        ValueType: ULONG,
+        ValueLength: ULONG,
+        Value: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryAssignMemory(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        ValueType: ULONG,
+        Memory: WDFMEMORY,
+        MemoryOffsets: PWDFMEMORY_OFFSET,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryAssignMultiString(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        StringsCollection: WDFCOLLECTION,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryAssignUnicodeString(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        Value: PCUNICODE_STRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryAssignString(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        String: WDFSTRING,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfRegistryAssignULong(
+        Key: WDFKEY,
+        ValueName: PCUNICODE_STRING,
+        Value: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WDF_DMA_ENABLER_CONFIG_INIT(
+        Config: PWDF_DMA_ENABLER_CONFIG,
+        Profile: WDF_DMA_PROFILE,
+        MaximumLength: usize,
+    );
+}
+extern "C" {
+    pub fn WDF_DMA_SYSTEM_PROFILE_CONFIG_INIT(
+        DmaConfig: PWDF_DMA_SYSTEM_PROFILE_CONFIG,
+        Address: PHYSICAL_ADDRESS,
+        DmaWidth: DMA_WIDTH,
+        DmaDescriptor: PCM_PARTIAL_RESOURCE_DESCRIPTOR,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaEnablerCreate(
+        Device: WDFDEVICE,
+        Config: PWDF_DMA_ENABLER_CONFIG,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        DmaEnablerHandle: *mut WDFDMAENABLER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaEnablerConfigureSystemProfile(
+        DmaEnabler: WDFDMAENABLER,
+        ProfileConfig: PWDF_DMA_SYSTEM_PROFILE_CONFIG,
+        ConfigDirection: WDF_DMA_DIRECTION,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDmaEnablerGetMaximumLength(DmaEnabler: WDFDMAENABLER) -> usize;
+}
+extern "C" {
+    pub fn WdfDmaEnablerGetMaximumScatterGatherElements(
+        DmaEnabler: WDFDMAENABLER,
+    ) -> usize;
+}
+extern "C" {
+    pub fn WdfDmaEnablerSetMaximumScatterGatherElements(
+        DmaEnabler: WDFDMAENABLER,
+        MaximumFragments: usize,
+    );
+}
+extern "C" {
+    pub fn WdfDmaEnablerGetFragmentLength(
+        DmaEnabler: WDFDMAENABLER,
+        DmaDirection: WDF_DMA_DIRECTION,
+    ) -> usize;
+}
+extern "C" {
+    pub fn WdfDmaEnablerWdmGetDmaAdapter(
+        DmaEnabler: WDFDMAENABLER,
+        DmaDirection: WDF_DMA_DIRECTION,
+    ) -> PDMA_ADAPTER;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionCreate(
+        DmaEnabler: WDFDMAENABLER,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        DmaTransaction: *mut WDFDMATRANSACTION,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionInitialize(
+        DmaTransaction: WDFDMATRANSACTION,
+        EvtProgramDmaFunction: PFN_WDF_PROGRAM_DMA,
+        DmaDirection: WDF_DMA_DIRECTION,
+        Mdl: PMDL,
+        VirtualAddress: PVOID,
+        Length: usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionInitializeUsingOffset(
+        DmaTransaction: WDFDMATRANSACTION,
+        EvtProgramDmaFunction: PFN_WDF_PROGRAM_DMA,
+        DmaDirection: WDF_DMA_DIRECTION,
+        Mdl: PMDL,
+        Offset: usize,
+        Length: usize,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionInitializeUsingRequest(
+        DmaTransaction: WDFDMATRANSACTION,
+        Request: WDFREQUEST,
+        EvtProgramDmaFunction: PFN_WDF_PROGRAM_DMA,
+        DmaDirection: WDF_DMA_DIRECTION,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionExecute(
+        DmaTransaction: WDFDMATRANSACTION,
+        Context: WDFCONTEXT,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionRelease(DmaTransaction: WDFDMATRANSACTION) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDmaTransactionDmaCompleted(
+        DmaTransaction: WDFDMATRANSACTION,
+        Status: *mut NTSTATUS,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfDmaTransactionDmaCompletedWithLength(
+        DmaTransaction: WDFDMATRANSACTION,
+        TransferredLength: usize,
+        Status: *mut NTSTATUS,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfDmaTransactionDmaCompletedFinal(
+        DmaTransaction: WDFDMATRANSACTION,
+        FinalTransferredLength: usize,
+        Status: *mut NTSTATUS,
+    ) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfDmaTransactionGetBytesTransferred(
+        DmaTransaction: WDFDMATRANSACTION,
+    ) -> usize;
+}
+extern "C" {
+    pub fn WdfDmaTransactionSetMaximumLength(
+        DmaTransaction: WDFDMATRANSACTION,
+        MaximumLength: usize,
+    );
+}
+extern "C" {
+    pub fn WdfDmaTransactionSetSingleTransferRequirement(
+        DmaTransaction: WDFDMATRANSACTION,
+        RequireSingleTransfer: BOOLEAN,
+    );
+}
+extern "C" {
+    pub fn WdfDmaTransactionGetRequest(DmaTransaction: WDFDMATRANSACTION) -> WDFREQUEST;
+}
+extern "C" {
+    pub fn WdfDmaTransactionGetCurrentDmaTransferLength(
+        DmaTransaction: WDFDMATRANSACTION,
+    ) -> usize;
+}
+extern "C" {
+    pub fn WdfDmaTransactionGetDevice(DmaTransaction: WDFDMATRANSACTION) -> WDFDEVICE;
+}
+extern "C" {
+    pub fn WdfDmaTransactionGetTransferInfo(
+        DmaTransaction: WDFDMATRANSACTION,
+        MapRegisterCount: *mut ULONG,
+        ScatterGatherElementCount: *mut ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfDmaTransactionSetChannelConfigurationCallback(
+        DmaTransaction: WDFDMATRANSACTION,
+        ConfigureRoutine: PFN_WDF_DMA_TRANSACTION_CONFIGURE_DMA_CHANNEL,
+        ConfigureContext: PVOID,
+    );
+}
+extern "C" {
+    pub fn WdfDmaTransactionSetTransferCompleteCallback(
+        DmaTransaction: WDFDMATRANSACTION,
+        DmaCompletionRoutine: PFN_WDF_DMA_TRANSACTION_DMA_TRANSFER_COMPLETE,
+        DmaCompletionContext: PVOID,
+    );
+}
+extern "C" {
+    pub fn WdfDmaTransactionSetImmediateExecution(
+        DmaTransaction: WDFDMATRANSACTION,
+        UseImmediateExecution: BOOLEAN,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfDmaTransactionAllocateResources(
+        DmaTransaction: WDFDMATRANSACTION,
+        DmaDirection: WDF_DMA_DIRECTION,
+        RequiredMapRegisters: ULONG,
+        EvtReserveDmaFunction: PFN_WDF_RESERVE_DMA,
+        EvtReserveDmaContext: PVOID,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfDmaTransactionSetDeviceAddressOffset(
+        DmaTransaction: WDFDMATRANSACTION,
+        Offset: ULONG,
+    );
+}
+extern "C" {
+    pub fn WdfDmaTransactionFreeResources(DmaTransaction: WDFDMATRANSACTION);
+}
+extern "C" {
+    pub fn WdfDmaTransactionCancel(DmaTransaction: WDFDMATRANSACTION) -> BOOLEAN;
+}
+extern "C" {
+    pub fn WdfDmaTransactionWdmGetTransferContext(
+        DmaTransaction: WDFDMATRANSACTION,
+    ) -> PVOID;
+}
+extern "C" {
+    pub fn WdfDmaTransactionStopSystemTransfer(DmaTransaction: WDFDMATRANSACTION);
+}
+extern "C" {
+    pub fn WDF_COMMON_BUFFER_CONFIG_INIT(
+        Config: PWDF_COMMON_BUFFER_CONFIG,
+        AlignmentRequirement: ULONG,
+    );
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCommonBufferCreate(
+        DmaEnabler: WDFDMAENABLER,
+        Length: usize,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        CommonBuffer: *mut WDFCOMMONBUFFER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCommonBufferCreateWithConfig(
+        DmaEnabler: WDFDMAENABLER,
+        Length: usize,
+        Config: PWDF_COMMON_BUFFER_CONFIG,
+        Attributes: PWDF_OBJECT_ATTRIBUTES,
+        CommonBuffer: *mut WDFCOMMONBUFFER,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfCommonBufferGetAlignedVirtualAddress(
+        CommonBuffer: WDFCOMMONBUFFER,
+    ) -> PVOID;
+}
+extern "C" {
+    pub fn WdfCommonBufferGetAlignedLogicalAddress(
+        CommonBuffer: WDFCOMMONBUFFER,
+    ) -> PHYSICAL_ADDRESS;
+}
+extern "C" {
+    pub fn WdfCommonBufferGetLength(CommonBuffer: WDFCOMMONBUFFER) -> usize;
+}
+extern "C" {
+    pub fn WDF_TASK_SEND_OPTIONS_INIT(Options: PWDF_TASK_SEND_OPTIONS, Flags: ULONG);
+}
+extern "C" {
+    #[must_use]
+    pub fn WdfCompanionTargetSendTaskSynchronously(
+        CompanionTarget: WDFCOMPANIONTARGET,
+        TaskQueueIdentifier: USHORT,
+        TaskOperationCode: ULONG,
+        InputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        OutputBuffer: PWDF_MEMORY_DESCRIPTOR,
+        TaskOptions: PWDF_TASK_SEND_OPTIONS,
+        BytesReturned: PULONG_PTR,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    pub fn WdfCompanionTargetWdmGetCompanionProcess(
+        CompanionTarget: WDFCOMPANIONTARGET,
+    ) -> PEPROCESS;
+}
