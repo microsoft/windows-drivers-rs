@@ -21,6 +21,7 @@ bindgen.workspace = true
 wdk-build.workspace = true
 thiserror = "1.0.48"
 tracing-subscriber = "0.3.17"
+cc = "1.0.83"
 
 [dependencies]
 wdk-macros.workspace = true

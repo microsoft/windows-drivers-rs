@@ -10514,6 +10514,21 @@ extern "C" {
 }
 extern "C" {
     #[must_use]
+    pub fn NtCopyFileChunk(
+        SourceHandle: HANDLE,
+        DestHandle: HANDLE,
+        Event: HANDLE,
+        IoStatusBlock: PIO_STATUS_BLOCK,
+        Length: ULONG,
+        SourceOffset: PLARGE_INTEGER,
+        DestOffset: PLARGE_INTEGER,
+        SourceKey: PULONG,
+        DestKey: PULONG,
+        Flags: ULONG,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
     pub fn NtQueryObject(
         Handle: HANDLE,
         ObjectInformationClass: OBJECT_INFORMATION_CLASS,
@@ -12872,6 +12887,14 @@ extern "C" {
         Timeout: ULONGLONG,
         NotifyContext: PVOID,
         NotifyRoutine: POPLOCK_NOTIFY_ROUTINE,
+    ) -> NTSTATUS;
+}
+extern "C" {
+    #[must_use]
+    pub fn FsRtlCheckOplockForFsFilterCallback(
+        Oplock: POPLOCK,
+        CallbackData: PVOID,
+        Flags: ULONG,
     ) -> NTSTATUS;
 }
 extern "C" {

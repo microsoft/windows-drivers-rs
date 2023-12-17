@@ -609,6 +609,7 @@ name = "wdk-sys"
 version = "0.1.0"
 dependencies = [
  "bindgen",
+ "cc",
  "lazy_static",
  "rustversion",
  "thiserror",
