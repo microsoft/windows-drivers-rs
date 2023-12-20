@@ -6,10 +6,12 @@
 #![cfg_attr(feature = "nightly", feature(hint_must_use))]
 #![deny(warnings)]
 #![deny(missing_docs)]
+#![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+#![deny(clippy::multiple_unsafe_ops_per_block)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 #![deny(clippy::unnecessary_safety_doc)]
 #![deny(rustdoc::broken_intra_doc_links)]
@@ -41,6 +43,11 @@ use syn::{
 /// from the WDF function table, and then calls it with the arguments passed to
 /// it
 ///
+/// # Safety
+/// Function arguments must abide by any rules outlined in the WDF
+/// documentation. This macro does not perform any validation of the arguments
+/// passed to it., beyond type validation.
+///
 /// # Examples
 ///
 /// ```rust, no_run
@@ -70,6 +77,7 @@ use syn::{
 ///     }
 /// }
 /// ```
+#[allow(clippy::unnecessary_safety_doc)]
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
@@ -108,20 +116,48 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         Err(err) => return err.to_compile_error(),
     };
 
+    // let inner_attribute_macros = proc_macro2::TokenStream::from_str(
+    //     "#![allow(unused_unsafe)]\n\
+    //      #![allow(clippy::multiple_unsafe_ops_per_block)]",
+    // ).expect("inner_attribute_macros must be convertible to a valid
+    // TokenStream");
+
     let wdf_function_call_tokens = quote! {
         {
-            // Get handle to WDF function from the function table
-            let wdf_function: wdk_sys::#function_pointer_type = Some(core::mem::transmute(
-                // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
-                wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],
-            ));
+            // Force the macro to require an unsafe block
+            unsafe fn force_unsafe(){}
+            force_unsafe();
 
-            // Call the WDF function with the supplied args. This mirrors what happens in the inlined WDF function in the various wdf headers(ex. wdfdriver.h)
+            // Get handle to WDF function from the function table
+            let wdf_function: wdk_sys::#function_pointer_type = Some(
+                // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
+                //         arguments for the WDF function is safe befause WDF maintains the strict mapping between the
+                //         function table index and the correct function pointer type.
+                #[allow(unused_unsafe)]
+                #[allow(clippy::multiple_unsafe_ops_per_block)]
+                unsafe {
+                    core::mem::transmute(
+                        // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],
+                    )
+                }
+            );
+
+            // Call the WDF function with the supplied args. This mirrors what happens in the inlined WDF function in
+            // the various wdf headers(ex. wdfdriver.h)
             if let Some(wdf_function) = wdf_function {
-                (wdf_function)(
-                    wdk_sys::WdfDriverGlobals,
-                    #function_arguments
-                )
+                // SAFETY: The WDF function pointer is always valid because its an entry in
+                // `wdk_sys::WDF_FUNCTION_TABLE` indexed by `function_table_index` and guarded by the type-safety of
+                // `function_pointer_type`. The passed arguments are also guaranteed to be of a compatible type due to
+                // `function_pointer_type`.
+                #[allow(unused_unsafe)]
+                #[allow(clippy::multiple_unsafe_ops_per_block)]
+                unsafe {
+                    (wdf_function)(
+                        wdk_sys::WdfDriverGlobals,
+                        #function_arguments
+                    )
+                }
             } else {
                 unreachable!("Option should never be None");
             }

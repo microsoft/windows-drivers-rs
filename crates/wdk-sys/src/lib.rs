@@ -6,10 +6,12 @@
 #![no_std]
 #![deny(warnings)]
 #![deny(missing_docs)]
+#![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+#![deny(clippy::multiple_unsafe_ops_per_block)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 #![deny(clippy::unnecessary_safety_doc)]
 #![deny(rustdoc::broken_intra_doc_links)]
@@ -57,12 +59,11 @@ pub extern "system" fn __CxxFrameHandler3() -> i32 {
 lazy_static! {
     #[allow(missing_docs)]
     pub static ref WDF_FUNCTION_TABLE: &'static [WDFFUNC] = {
-        debug_assert!(
-            isize::try_from(
-                // SAFETY: `WdfFunctionCount` is generated as a mutable static, but is not supposed to be mutated by WDF.
-                unsafe { WdfFunctionCount } as usize * core::mem::size_of::<WDFFUNC>()
-            ).is_ok()
-        );
+        // SAFETY: `WdfFunctions_01033` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
+        let wdf_function_table = unsafe { WdfFunctions_01033 };
+
+        // SAFETY: `WdfFunctionCount` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
+        let wdf_function_count = unsafe { WdfFunctionCount } as usize;
 
         // SAFETY: This is safe because:
         //         1. `WdfFunctions_01033` is valid for reads for `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`
@@ -71,8 +72,11 @@ lazy_static! {
         //            type `WDFFUNC`.
         //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
         //         4. The total size, `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
-        //            larger than `isize::MAX`. This is proven by the above `debug_assert!`.
-        unsafe { core::slice::from_raw_parts(WdfFunctions_01033, WdfFunctionCount as usize) }
+        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
+        unsafe {
+            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<WDFFUNC>()).is_ok());
+            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
+        }
     };
 }
 

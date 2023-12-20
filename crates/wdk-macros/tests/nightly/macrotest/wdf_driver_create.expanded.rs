@@ -13,21 +13,30 @@ pub extern "system" fn driver_entry(
     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
     unsafe {
         core::hint::must_use({
+            unsafe fn force_unsafe() {}
+            force_unsafe();
             let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(
-                core::mem::transmute(
-                    wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDriverCreateTableIndex
-                        as usize],
-                ),
+                #[allow(unused_unsafe)]
+                #[allow(clippy::multiple_unsafe_ops_per_block)]
+                unsafe {
+                    core::mem::transmute(
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDriverCreateTableIndex
+                            as usize],
+                    )
+                },
             );
             if let Some(wdf_function) = wdf_function {
-                (wdf_function)(
-                    wdk_sys::WdfDriverGlobals,
-                    driver as PDRIVER_OBJECT,
-                    registry_path,
-                    WDF_NO_OBJECT_ATTRIBUTES,
-                    &mut driver_config,
-                    driver_handle_output,
-                )
+                #[allow(unused_unsafe)] #[allow(clippy::multiple_unsafe_ops_per_block)]
+                unsafe {
+                    (wdf_function)(
+                        wdk_sys::WdfDriverGlobals,
+                        driver as PDRIVER_OBJECT,
+                        registry_path,
+                        WDF_NO_OBJECT_ATTRIBUTES,
+                        &mut driver_config,
+                        driver_handle_output,
+                    )
+                }
             } else {
                 {
                     ::core::panicking::panic_fmt(
