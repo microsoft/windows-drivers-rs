@@ -10,8 +10,20 @@
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cognitive_complexity)]
 #[allow(clippy::default_trait_access)]
-#[rustversion::attr(before(2023-09-10), allow(clippy::incorrect_clone_impl_on_copy_type))]
-#[rustversion::attr(since(2023-09-10), allow(clippy::non_canonical_clone_impl))]
+#[rustversion::attr(
+    any(
+        all(not(nightly), before(1.74)),
+        all(nightly, before(2023-09-13)),
+    ),
+    allow(clippy::incorrect_clone_impl_on_copy_type)
+)]
+#[rustversion::attr(
+    any(
+        all(not(nightly), since(1.74)),
+        all(nightly, since(2023-09-13)),
+    ),
+    allow(clippy::non_canonical_clone_impl)
+)]
 #[allow(clippy::missing_safety_doc)]
 #[allow(clippy::missing_const_for_fn)]
 #[allow(clippy::module_name_repetitions)]
