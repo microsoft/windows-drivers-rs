@@ -84,33 +84,33 @@ pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStrea
 }
 
 struct CallUnsafeWDFFunctionInput {
-    function_pointer_type: Ident,
-    function_table_index: Ident,
-    function_arguments: syn::punctuated::Punctuated<Expr, Token![,]>,
+    pointer_type: Ident,
+    table_index: Ident,
+    arguments: syn::punctuated::Punctuated<Expr, Token![,]>,
 }
 
 impl Parse for CallUnsafeWDFFunctionInput {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let c_function_name: String = input.parse::<Ident>()?.to_string();
         input.parse::<Token![,]>()?;
-        let function_arguments = input.parse_terminated(Expr::parse, Token![,])?;
+        let arguments = input.parse_terminated(Expr::parse, Token![,])?;
 
         Ok(Self {
-            function_pointer_type: format_ident!(
+            pointer_type: format_ident!(
                 "PFN_{uppercase_c_function_name}",
                 uppercase_c_function_name = c_function_name.to_uppercase()
             ),
-            function_table_index: format_ident!("{c_function_name}TableIndex"),
-            function_arguments,
+            table_index: format_ident!("{c_function_name}TableIndex"),
+            arguments,
         })
     }
 }
 
 fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStream2 {
     let CallUnsafeWDFFunctionInput {
-        function_pointer_type,
-        function_table_index,
-        function_arguments,
+        pointer_type,
+        table_index,
+        arguments,
     } = match parse2::<CallUnsafeWDFFunctionInput>(input_tokens) {
         Ok(syntax_tree) => syntax_tree,
         Err(err) => return err.to_compile_error(),
@@ -129,7 +129,7 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
             force_unsafe();
 
             // Get handle to WDF function from the function table
-            let wdf_function: wdk_sys::#function_pointer_type = Some(
+            let wdf_function: wdk_sys::#pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
                 //         arguments for the WDF function is safe befause WDF maintains the strict mapping between the
                 //         function table index and the correct function pointer type.
@@ -138,7 +138,7 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
                 unsafe {
                     core::mem::transmute(
                         // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
-                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#table_index as usize],
                     )
                 }
             );
@@ -147,15 +147,15 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
             // the various wdf headers(ex. wdfdriver.h)
             if let Some(wdf_function) = wdf_function {
                 // SAFETY: The WDF function pointer is always valid because its an entry in
-                // `wdk_sys::WDF_FUNCTION_TABLE` indexed by `function_table_index` and guarded by the type-safety of
-                // `function_pointer_type`. The passed arguments are also guaranteed to be of a compatible type due to
-                // `function_pointer_type`.
+                // `wdk_sys::WDF_FUNCTION_TABLE` indexed by `table_index` and guarded by the type-safety of
+                // `pointer_type`. The passed arguments are also guaranteed to be of a compatible type due to
+                // `pointer_type`.
                 #[allow(unused_unsafe)]
                 #[allow(clippy::multiple_unsafe_ops_per_block)]
                 unsafe {
                     (wdf_function)(
                         wdk_sys::WdfDriverGlobals,
-                        #function_arguments
+                        #arguments
                     )
                 }
             } else {
