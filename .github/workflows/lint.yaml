@@ -45,27 +45,14 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+          components: clippy
 
       - name: Run Cargo Clippy
-        uses: giraffate/clippy-action@v1
-        with:
-          tool_name: Clippy
-          clippy_flags: --locked --profile ${{ matrix.cargo_profile }} --all-targets -- -D warnings
-          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          filter_mode: nofilter
-          fail_on_error: true
+        run: cargo clippy --locked --profile ${{ matrix.cargo_profile }} --all-targets -- -D warnings
 
       - name: Run Cargo Clippy (--features nightly)
         if: matrix.rust_toolchain == 'nightly'
-        uses: giraffate/clippy-action@v1
-        with:
-          tool_name: Clippy (--features nightly)
-          clippy_flags: --locked --profile ${{ matrix.cargo_profile }} --all-targets --features nightly -- -D warnings
-          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          filter_mode: nofilter
-          fail_on_error: true
+        run: cargo clippy --locked --profile ${{ matrix.cargo_profile }} --all-targets --features nightly -- -D warnings
 
   udeps:
     name: Detect Unused Cargo Dependencies
