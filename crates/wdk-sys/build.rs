@@ -7,6 +7,7 @@ use std::{
 };
 
 use bindgen::CodegenConfig;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wdk_build::{BuilderExt, Config, ConfigError, DriverConfig, KMDFConfig};
 
 // FIXME: feature gate the WDF version
@@ -64,8 +65,53 @@ fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     )
 }
 
-fn main() -> Result<(), ConfigError> {
-    tracing_subscriber::fmt::init();
+fn main() -> anyhow::Result<()> {
+    let tracing_filter = EnvFilter::default()
+        // Show errors and warnings by default
+        .add_directive(LevelFilter::WARN.into())
+        // Silence various warnings originating from bindgen that are not currently actionable
+        // FIXME: this currently sets the minimum log level to error for the listed modules. It should actually be turning off logging (level=off) for specific warnings in these modules, but a bug in the tracing crate's filtering is preventing this from working as expected. See https://github.com/tokio-rs/tracing/issues/2843.
+        .add_directive("bindgen::codegen::helpers[{message}]=error".parse()?)
+        .add_directive("bindgen::codegen::struct_layout[{message}]=error".parse()?)
+        .add_directive("bindgen::ir::comp[{message}]=error".parse()?)
+        .add_directive("bindgen::ir::context[{message}]=error".parse()?)
+        .add_directive("bindgen::ir::ty[{message}]=error".parse()?)
+        .add_directive("bindgen::ir::var[{message}]=error".parse()?);
+
+    // Allow overriding tracing behaviour via `EnvFilter::DEFAULT_ENV` env var
+    let tracing_filter =
+        if let Ok(filter_directives_from_env_var) = env::var(EnvFilter::DEFAULT_ENV) {
+            // Append each directive from the env var to the filter
+            filter_directives_from_env_var.split(',').fold(
+                tracing_filter,
+                |tracing_filter, filter_directive| {
+                    match filter_directive.parse() {
+                        Ok(parsed_filter_directive) => {
+                            tracing_filter.add_directive(parsed_filter_directive)
+                        }
+                        Err(parsing_error) => {
+                            // Must use eprintln!() here as tracing is not yet initialized
+                            eprintln!(
+                                "Skipping filter directive, {}, which failed to be parsed from {} \
+                                 obtained from {} with the following error: {}",
+                                filter_directive,
+                                filter_directives_from_env_var,
+                                EnvFilter::DEFAULT_ENV,
+                                parsing_error
+                            );
+                            tracing_filter
+                        }
+                    }
+                },
+            )
+        } else {
+            tracing_filter
+        };
+
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_env_filter(tracing_filter)
+        .init();
 
     let config = Config {
         // FIXME: this should be based off of Cargo feature version

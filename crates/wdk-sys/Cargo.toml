@@ -20,7 +20,8 @@ categories = [
 bindgen.workspace = true
 wdk-build.workspace = true
 thiserror = "1.0.55"
-tracing-subscriber = "0.3.17"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+anyhow = "1.0.79"
 
 [dependencies]
 wdk-macros.workspace = true

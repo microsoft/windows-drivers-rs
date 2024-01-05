@@ -3,4 +3,4 @@
 
 *.rs       text diff=rust
 *.toml     text diff=toml
-Cargo.lock text
+Cargo.lock text diff=toml
