@@ -15,7 +15,7 @@ OUTPUT_DIR = { source = "${CARGO_MAKE_CARGO_PROFILE}", default_value = "${CARGO_
 dependencies = ["build"]
 script = '''
 echo "%OUTPUT_DIR%"
-cd "%OUTPUT_DIR%"
+cd /D "%OUTPUT_DIR%"
 mkdir package
 if exist package\%CARGO_MAKE_CRATE_FS_NAME%.sys (
   del package\%CARGO_MAKE_CRATE_FS_NAME%.sys
