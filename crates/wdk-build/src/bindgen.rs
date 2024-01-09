@@ -37,6 +37,9 @@ impl BuilderExt for Builder {
         builder = builder
             .use_core() // Can't use std for kernel code
             .derive_default(true) // allows for default initializing structs
+            // CStr types are safer and easier to work with when interacting with string constants
+            // from C
+            .generate_cstr(true)
             // Building in eWDK can pollute system search path when clang-sys tries to detect
             // c_search_paths
             .detect_include_paths(false)
