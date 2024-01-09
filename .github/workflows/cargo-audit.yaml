@@ -5,6 +5,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
   pull_request:
+  merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 

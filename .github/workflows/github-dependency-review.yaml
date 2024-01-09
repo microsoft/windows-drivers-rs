@@ -1,6 +1,8 @@
 name: Dependency Review
 on:
+  push:
   pull_request:
+  merge_group:
 
 jobs:
   dependency-review:
@@ -19,3 +21,8 @@ jobs:
         with:
           allow-licenses: MIT, Apache-2.0
           comment-summary-in-pr: on-failure
+          # Explicit refs required for merge_group and push triggers:
+          # https://github.com/actions/dependency-review-action/issues/456
+          # https://github.com/actions/dependency-review-action/issues/252
+          base-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || (github.event_name == 'push' && github.event.before || (github.event_name == 'merge_group' && 'main' || 'unsupported trigger' ) ) }}
+          head-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || (github.event_name == 'push' && github.sha || (github.event_name == 'merge_group' && github.ref || 'unsupported trigger' ) ) }}
