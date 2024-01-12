@@ -25,6 +25,10 @@ jobs:
           - dev
           - release
 
+        target_triple:
+          - x86_64-pc-windows-msvc
+          # - aarch64-pc-windows-msvc FIXME: Add support for executing ARM64 tests. Maybe use target specific test runner in emulator: https://doc.rust-lang.org/cargo/reference/config.html#target
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -44,6 +48,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+          targets: ${{ matrix.target_triple }}
 
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
@@ -52,10 +57,8 @@ jobs:
 
       # FIXME: wdk-sys layout tests fail, but only on github hosted runner
       - name: Run Cargo Test
-        # Final driver crates must be excluded since theres no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
-        run: cargo test --locked --profile ${{ matrix.cargo_profile }}  --workspace --exclude sample-* --exclude wdk-sys
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-sys
 
       - name: Run Cargo Test (--features nightly)
         if: matrix.rust_toolchain == 'nightly'
-        # Final driver crates must be excluded since theres no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
-        run: cargo test --locked --profile ${{ matrix.cargo_profile }} --features nightly --workspace --exclude sample-* --exclude wdk-sys
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-sys --features nightly

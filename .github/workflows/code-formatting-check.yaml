@@ -22,7 +22,7 @@ jobs:
           components: rustfmt
 
       - name: Run Cargo Format
-        run: cargo fmt --all -- --check
+        run: cargo +nightly fmt --all -- --check
 
   taplo-fmt:
     name: .toml Formatting Check

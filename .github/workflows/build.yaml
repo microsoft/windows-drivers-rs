@@ -25,6 +25,10 @@ jobs:
           - dev
           - release
 
+        target_triple:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -44,15 +48,15 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+          targets: ${{ matrix.target_triple }}
 
       - name: Run Cargo Build
-        run: cargo build --locked --profile ${{ matrix.cargo_profile }} --workspace
+        run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-make
 
-      - name: Build and Package Sample KMDF Driver
-        run: cargo make --cwd .\crates\sample-kmdf-driver --profile ${{ matrix.cargo_profile }}
-        continue-on-error: true # FIXME: Packaging tools in non-ewdk environments are not found
+      - name: Build and Package Sample Drivers
+        run: cargo make default +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
