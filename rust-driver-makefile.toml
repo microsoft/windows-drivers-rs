@@ -13,8 +13,6 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 # This is set to "" here to match the default behavior of Cargo. 
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true }
 
-# FIXME: add --locked for CI builds using CARGO_MAKE_PR and CARGO_MAKE_CI
-
 [plugins.impl.rust-env-update]
 script = '''
 assert ${task.has_script} "script is required for rust-env-update plugin"

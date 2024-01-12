@@ -27,6 +27,10 @@ jobs:
           - dev
           - release
 
+        target_triple:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -47,13 +51,14 @@ jobs:
         with:
           toolchain: ${{ matrix.rust_toolchain }}
           components: clippy
+          targets: ${{ matrix.target_triple }}
 
       - name: Run Cargo Clippy
-        run: cargo clippy --locked --profile ${{ matrix.cargo_profile }} --all-targets -- -D warnings
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets -- -D warnings
 
       - name: Run Cargo Clippy (--features nightly)
         if: matrix.rust_toolchain == 'nightly'
-        run: cargo clippy --locked --profile ${{ matrix.cargo_profile }} --all-targets --features nightly -- -D warnings
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets --features nightly -- -D warnings
 
   udeps:
     name: Detect Unused Cargo Dependencies
@@ -79,8 +84,8 @@ jobs:
           }
 
       - name: Install Rust Toolchain (Nightly)
-        uses: dtolnay/rust-toolchain@nightly
         # Cargo udeps only supports running on nightly due to reliance on unstable dep-info feature: https://github.com/est31/cargo-udeps/issues/113, https://github.com/est31/cargo-udeps/issues/136
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Install Cargo Udeps
         uses: taiki-e/install-action@v2
@@ -88,7 +93,7 @@ jobs:
           tool: cargo-udeps
 
       - name: Run Cargo Udeps
-        run: cargo udeps --locked --all-targets
+        run: cargo +nightly udeps --locked --all-targets
 
       - name: Run Cargo Udeps (--features nightly)
-        run: cargo udeps --locked --all-targets --features nightly
+        run: cargo +nightly udeps --locked --all-targets --features nightly
