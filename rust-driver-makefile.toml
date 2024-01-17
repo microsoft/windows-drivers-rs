@@ -2,8 +2,9 @@
 
 # FIXME: this flow is based on the signing process of a KMDF PNP driver. There should be different flows availabe for different types of drivers as outlined in https://learn.microsoft.com/en-us/windows-hardware/drivers/install/test-signing-driver-packages 
 [config]
-min_version = "0.37.3"
+min_version = "0.37.8"
 init_task = "wdk-build-init"
+reduce_output = false
 
 [env]
 # This allows all workspace members to access this makefile
@@ -106,6 +107,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.generate-sys-file]
+private = true
 dependencies = ["build"]
 script_runner = "@rust"
 script = '''
@@ -118,6 +120,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.stampinf]
+private = true
 dependencies = ["copy-inx-to-output"]
 command = "stampinf"
 args = [
@@ -136,6 +139,7 @@ args = [
 ]
 
 [tasks.infverif]
+private = true
 dependencies = ["stampinf"]
 command = "infverif"
 args = [
@@ -165,6 +169,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.copy-pdb-to-package]
+private = true
 dependencies = ["build"]
 script_runner = "@rust"
 script = '''
@@ -184,6 +189,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.copy-inf-to-package]
+private = true
 dependencies = ["stampinf"]
 script_runner = "@rust"
 script = '''
@@ -203,6 +209,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.copy-map-to-package]
+private = true
 dependencies = ["build"]
 script_runner = "@rust"
 script = '''
@@ -222,6 +229,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.inf2cat]
+private = true
 dependencies = ["copy-sys-to-package", "copy-inf-to-package"]
 command = "inf2cat"
 args = [
@@ -230,19 +238,20 @@ args = [
   "/uselocaltime",
 ]
 
-[tasks.generate-certificate-if-needed]
-# This script can't be in a `condition_script` block because of https://github.com/sagiegurari/cargo-make/issues/987
-script_runner = "@duckscript"
-script = '''
-out = exec certmgr.exe -put -s WDRTestCertStore -c -n WDRLocalTestCert ${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer
-if not eq ${out.code} 0
-    echo WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate.
-    cm_run_task generate-certificate
-end
-'''
-
 [tasks.generate-certificate]
 private = true
+condition_script = '''
+#!@duckscript
+
+out = exec certmgr.exe -put -s WDRTestCertStore -c -n WDRLocalTestCert ${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer
+if eq ${out.code} 0
+    echo WDRLocalTestCert found in WDRTestCertStore. Skipping certificate generation.
+    exit 1
+else
+    echo WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate.
+    exit 0
+end
+'''
 command = "makecert"
 args = [
   "-r",
@@ -259,7 +268,8 @@ args = [
 ]
 
 [tasks.copy-certificate-to-package]
-dependencies = ["generate-certificate-if-needed"]
+private = true
+dependencies = ["generate-certificate"]
 script_runner = "@rust"
 script = '''
 use std::path::PathBuf;
@@ -277,7 +287,8 @@ std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source
 '''
 
 [tasks.signtool]
-dependencies = ["inf2cat", "generate-certificate-if-needed"]
+private = true
+dependencies = ["inf2cat", "generate-certificate"]
 command = "signtool"
 args = [
   "sign",
@@ -294,6 +305,7 @@ args = [
 ]
 
 [tasks.package-driver]
+private = true
 dependencies = [
   "copy-sys-to-package",
   "copy-pdb-to-package",
@@ -304,7 +316,47 @@ dependencies = [
   "infverif",
 ]
 
-[tasks.default]
-alias = "package-driver"
+[tasks.package-driver-flow]
+# Only run flow if the current package is marked as a driver
+condition_script = '''
+#!@duckscript
 
-# TODO: mark drivers
+# Execute Cargo Metadata to get Package information
+out = exec --fail-on-error cargo metadata --no-deps --format-version 1 --manifest-path ${CARGO_MAKE_WORKING_DIRECTORY}/Cargo.toml
+assert_eq ${out.code} 0 "cargo metadata failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}"
+
+manifest_metadata = json_parse --collection ${out.stdout}
+packages = map_get ${manifest_metadata} packages
+contains_wdk_metadata = set false
+
+for package in ${packages}
+    package_name = map_get ${package} name
+    
+    # Find metadata for the current package
+    if eq ${package_name} ${CARGO_MAKE_CRATE_NAME}
+        package_metadata = map_get ${package} metadata
+
+        # Check if the package contains a metadata section
+        if is_map ${package_metadata}
+
+            # Check if the package contains a package.metadata.wdk section
+            contains_wdk_metadata = map_contains_key ${package_metadata} wdk
+        end
+    end
+end
+
+release --recursive ${manifest_metadata}
+
+# Run driver package-driver task if the package contains a package.metadata.wdk section
+if ${contains_wdk_metadata}
+    echo Building and packaging driver: ${CARGO_MAKE_CRATE_NAME}...
+    exit 0
+else
+    echo ${CARGO_MAKE_CRATE_NAME} does not contain a package.metadata.wdk section in its manifest. Skipping package-driver task.
+    exit 1
+end
+'''
+run_task = "package-driver"
+
+[tasks.default]
+alias = "package-driver-flow"

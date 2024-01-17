@@ -54,7 +54,13 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    crate-type = ["cdylib"]
    ```
 
-4. Set crate panic strategy to `abort` in `Cargo.toml`:
+4. Mark the crate as a driver with a wdk metadata section. This lets the cargo-make tasks know that the package is a driver and that the driver packaging steps need to run.
+
+   ```toml
+   [package.metadata.wdk]
+   ```
+
+5. Set crate panic strategy to `abort` in `Cargo.toml`:
 
    ```toml
    [profile.dev]
@@ -66,7 +72,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    lto = true # optional setting to enable Link Time Optimizations
    ```
 
-5. Create a `build.rs` and add the following snippet:
+6. Create a `build.rs` and add the following snippet:
 
    ```rust
    fn main() -> Result<(), wdk_build::ConfigError> {
@@ -75,13 +81,13 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    }
    ```
 
-6. Mark your driver as `no_std` in `lib.rs`:
+7. Mark your driver crate as `no_std` in `lib.rs`:
 
    ```rust
    #![no_std]
    ```
 
-7. Add a panic handler in `lib.rs`:
+8. Add a panic handler in `lib.rs`:
 
    ```rust
    #[cfg(not(test))]
@@ -89,7 +95,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```
 
-8. Add a global allocator in `lib.rs`:
+9. Optional: Add a global allocator in `lib.rs`:
 
    ```rust
    #[cfg(not(test))]
@@ -100,7 +106,9 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
    ```
 
-9. Add a DriverEntry in `lib.rs`:
+   This is only required if you want to be able to use the [`alloc` modules](https://doc.rust-lang.org/alloc/) in the rust standard library. You are also free to use your own implementations of global allocators.
+
+10. Add a DriverEntry in `lib.rs`:
 
    ```rust
    use wdk_sys::{
@@ -118,7 +126,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    }
    ```
 
-10. Add a `Makefile.toml`:
+11. Add a `Makefile.toml`:
 
    ```toml
    extend = ".cargo-make-loadscripts/rust-driver-makefile.toml"
@@ -137,9 +145,9 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    """
    ```
 
-11. Add an inx file that matches the name of your `cdylib` crate.
+12. Add an inx file that matches the name of your `cdylib` crate.
 
-12. Build the driver:
+13. Build the driver:
 
    ```pwsh
    cargo make
