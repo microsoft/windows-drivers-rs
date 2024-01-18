@@ -82,41 +82,80 @@ wdk_build::cargo_make::validate_and_forward_args();
 wdk_build::cargo_make::setup_path()?;
 '''
 
-[tasks.help]
-workspace = false
-env = { "TRIGGER_HELP" = "1" }
-run_task = "wdk-build-init"
-
 [tasks.copy-inx-to-output]
+private = true
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-use std::path::PathBuf;
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
-let cargo_make_working_directory = std::env::var("CARGO_MAKE_WORKING_DIRECTORY").expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-
-let output_folder_path = PathBuf::from(&output_directory);
+// Create build output directory if it doesn't exist
+let output_folder_path = wdk_build::cargo_make::get_wdk_build_output_directory();
 if !output_folder_path.exists() {
     std::fs::create_dir_all(&output_folder_path).expect(&format!("creation of '{}' folder should succeed", output_folder_path.display()));
 }
 
-let source_file = format!("{cargo_make_working_directory}/{crate_name}.inx");
-let destination_file = format!("{output_directory}/{crate_name}.inf");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+let cargo_make_working_directory = std::env::var("CARGO_MAKE_WORKING_DIRECTORY").expect(
+    "CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make via the env section of \
+        rust-driver-makefile.toml",
+);
+
+let source_file = [
+    cargo_make_working_directory,
+    format!("{}.inx", wdk_build::cargo_make::get_current_package_name()),
+]
+.iter()
+.collect::<std::path::PathBuf>();
+
+let destination_file = wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+    "{}.inf",
+    wdk_build::cargo_make::get_current_package_name()
+));
+
+std::fs::copy(&source_file, &destination_file).expect(&format!(
+    "copy of '{}' file to '{}' file should succeed",
+    source_file.display(),
+    destination_file.display()
+));
 '''
 
 [tasks.generate-sys-file]
 private = true
 dependencies = ["build"]
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let source_file = format!("{output_directory}/{crate_name}.dll");
-let destination_file = format!("{output_directory}/{crate_name}.sys");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+let source_file = wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+    "{}.dll",
+    wdk_build::cargo_make::get_current_package_name()
+));
+
+let destination_file = wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+    "{}.sys",
+    wdk_build::cargo_make::get_current_package_name()
+));
+
+std::fs::copy(&source_file, &destination_file).expect(&format!(
+    "copy of '{}' file to '{}' file should succeed",
+    source_file.display(),
+    destination_file.display()
+));
 '''
 
 [tasks.stampinf]
@@ -150,82 +189,95 @@ args = [
 ]
 
 [tasks.copy-sys-to-package]
+private = true
 dependencies = ["generate-sys-file"]
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-use std::path::PathBuf;
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-
-let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
-if !package_folder_path.exists() {
-    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
-}
-
-let source_file = format!("{output_directory}/{crate_name}.sys");
-let destination_file = format!("{output_directory}/package/{crate_name}.sys");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+wdk_build::cargo_make::copy_to_driver_package_folder(
+    wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+        "{}.sys",
+        wdk_build::cargo_make::get_current_package_name()
+    )),
+);
 '''
 
 [tasks.copy-pdb-to-package]
 private = true
 dependencies = ["build"]
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-use std::path::PathBuf;
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-
-let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
-if !package_folder_path.exists() {
-    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
-}
-
-let source_file = format!("{output_directory}/{crate_name}.pdb");
-let destination_file = format!("{output_directory}/package/{crate_name}.pdb");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+wdk_build::cargo_make::copy_to_driver_package_folder(
+    wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+        "{}.pdb",
+        wdk_build::cargo_make::get_current_package_name()
+    )),
+);
 '''
 
 [tasks.copy-inf-to-package]
 private = true
 dependencies = ["stampinf"]
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-use std::path::PathBuf;
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-
-let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
-if !package_folder_path.exists() {
-    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
-}
-
-let source_file = format!("{output_directory}/{crate_name}.inf");
-let destination_file = format!("{output_directory}/package/{crate_name}.inf");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+wdk_build::cargo_make::copy_to_driver_package_folder(
+    wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+        "{}.inf",
+        wdk_build::cargo_make::get_current_package_name()
+    )),
+);
 '''
 
 [tasks.copy-map-to-package]
 private = true
 dependencies = ["build"]
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-use std::path::PathBuf;
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let crate_name = std::env::var("CARGO_MAKE_CRATE_FS_NAME").expect("CARGO_MAKE_CRATE_FS_NAME should be set by cargo-make");
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-
-let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
-if !package_folder_path.exists() {
-    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
-}
-
-let source_file = format!("{output_directory}/deps/{crate_name}.map");
-let destination_file = format!("{output_directory}/package/{crate_name}.map");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+wdk_build::cargo_make::copy_to_driver_package_folder(
+    wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
+        "deps/{}.map",
+        wdk_build::cargo_make::get_current_package_name()
+    )),
+);
 '''
 
 [tasks.inf2cat]
@@ -233,8 +285,8 @@ private = true
 dependencies = ["copy-sys-to-package", "copy-inf-to-package"]
 command = "inf2cat"
 args = [
-  "/driver:${WDK_BUILD_OUTPUT_DIRECTORY}/package",
-  "/os:10_NI_X64,10_VB_X64",                       # TODO: this should be a parameter
+  "/driver:${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package",
+  "/os:10_NI_X64,10_VB_X64",                                                   # TODO: this should be a parameter
   "/uselocaltime",
 ]
 
@@ -271,19 +323,20 @@ args = [
 private = true
 dependencies = ["generate-certificate"]
 script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 script = '''
-use std::path::PathBuf;
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "./crates/wdk-build", version = "0.1.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-let output_directory = std::env::var("WDK_BUILD_OUTPUT_DIRECTORY").expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by cargo-make via the env section of rust-driver-makefile.toml");
-
-let package_folder_path = [output_directory.as_str(), "package"].iter().collect::<PathBuf>();
-if !package_folder_path.exists() {
-    std::fs::create_dir(&package_folder_path).expect(&format!("creation of '{}' folder should succeed", package_folder_path.display()));
-}
-
-let source_file = format!("{output_directory}/WDRLocalTestCert.cer");
-let destination_file = format!("{output_directory}/package/WDRLocalTestCert.cer");
-std::fs::copy(&source_file, &destination_file).expect(&format!("copy of '{source_file}' file to '{destination_file}' file should succeed"));
+wdk_build::cargo_make::copy_to_driver_package_folder(
+    wdk_build::cargo_make::get_wdk_build_output_directory().join("WDRLocalTestCert.cer"),
+);
 '''
 
 [tasks.signtool]
@@ -294,14 +347,14 @@ args = [
   "sign",
   "/v",
   "/s",
-  "WDRTestCertStore",                                                      # TODO: this should be a parameter
+  "WDRTestCertStore",                                                                                  # TODO: this should be a parameter
   "/n",
-  "WDRLocalTestCert",                                                      # TODO: this should be a parameter
+  "WDRLocalTestCert",                                                                                  # TODO: this should be a parameter
   "/t",
   "http://timestamp.digicert.com",
   "/fd",
   "SHA256",
-  "${WDK_BUILD_OUTPUT_DIRECTORY}/package/${CARGO_MAKE_CRATE_FS_NAME}.cat",
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.cat",
 ]
 
 [tasks.package-driver]
@@ -357,6 +410,11 @@ else
 end
 '''
 run_task = "package-driver"
+
+[tasks.help]
+workspace = false
+env = { "TRIGGER_HELP" = "1" }
+run_task = "wdk-build-init"
 
 [tasks.default]
 alias = "package-driver-flow"
