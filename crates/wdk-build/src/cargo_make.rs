@@ -1,11 +1,14 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! This module provides argument parsing functionality used by
-//! `rust-driver-makefile.toml` to validate and forward arguments common to
-//! cargo commands. It uses a combination of `clap` and `clap_cargo` to provide
-//! a CLI very close to cargo's own, but only exposes the arguments supported by
-//! `rust-driver-makefile.toml`. Help text and other `clap::Arg`
+//! This module provides functions used in the rust scripts in
+//! `rust-driver-makefile.toml`. This includes argument parsing functionality
+//! used by `rust-driver-makefile.toml` to validate and forward arguments common
+//! to cargo commands. It uses a combination of `clap` and `clap_cargo` to
+//! provide a CLI very close to cargo's own, but only exposes the arguments
+//! supported by `rust-driver-makefile.toml`.
+
+use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser};
 
@@ -26,6 +29,7 @@ const CARGO_MAKE_CARGO_PROFILE_ENV_VAR: &str = "CARGO_MAKE_CARGO_PROFILE";
 const CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY";
 const CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR: &str = "CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN";
+const CARGO_MAKE_CRATE_FS_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_FS_NAME";
 const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
@@ -416,7 +420,6 @@ pub fn validate_and_forward_args() {
 ///
 /// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
 /// WDK content root directory could not be found.
-/// Sets up the path for the WDK build environment.
 ///
 /// # Panics
 ///
@@ -483,6 +486,67 @@ pub fn setup_path() -> Result<(), ConfigError> {
     );
 
     forward_env_var_to_cargo_make(PATH_ENV_VAR);
+    Ok(())
+}
+
+/// Returns the path to the WDK build output directory for the current
+/// cargo-make flow
+///
+/// # Panics
+///
+/// This function will panic if the `WDK_BUILD_OUTPUT_DIRECTORY` environment
+/// variable is not set
+#[must_use]
+pub fn get_wdk_build_output_directory() -> PathBuf {
+    PathBuf::from(
+        std::env::var("WDK_BUILD_OUTPUT_DIRECTORY")
+            .expect("WDK_BUILD_OUTPUT_DIRECTORY should have been set by the wdk-build-init task"),
+    )
+}
+
+/// Returns the name of the current cargo package cargo-make is processing
+///
+/// # Panics
+///
+/// This function will panic if the `CARGO_MAKE_CRATE_FS_NAME` environment
+/// variable is not set
+#[must_use]
+pub fn get_current_package_name() -> String {
+    std::env::var(CARGO_MAKE_CRATE_FS_NAME_ENV_VAR).unwrap_or_else(|_| {
+        panic!(
+            "{} should be set by cargo-make",
+            &CARGO_MAKE_CRATE_FS_NAME_ENV_VAR
+        )
+    })
+}
+
+/// Copies the file or directory at `path_to_copy` to the Driver Package folder
+///
+/// # Errors
+///
+/// This function returns a [`ConfigError::IoError`] if the it encouters IO
+/// errors while copying the file or creating the directory
+///
+/// # Panics
+///
+/// This function will panic if `path_to_copy` does end with a valid file or
+/// directory name
+pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<(), ConfigError> {
+    let path_to_copy = path_to_copy.as_ref();
+
+    let package_folder_path =
+        get_wdk_build_output_directory().join(format!("{}_package", get_current_package_name()));
+    if !package_folder_path.exists() {
+        std::fs::create_dir(&package_folder_path)?;
+    }
+
+    let destination_path = package_folder_path.join(
+        path_to_copy
+            .file_name()
+            .expect("path_to_copy should always end with a valid file or directory name"),
+    );
+    std::fs::copy(path_to_copy, destination_path)?;
+
     Ok(())
 }
 
