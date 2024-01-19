@@ -1,1 +1,69 @@
 extend = "./rust-driver-makefile.toml"
+
+[config]
+additional_profiles = ["all-default-tasks"]
+
+[env]
+CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
+CARGO_MAKE_CLIPPY_ARGS = "--all-targets -- -D warnings"
+
+[tasks.wdk-pre-commit-flow]
+description = "Run pre-commit tasks and checks"
+category = "Development"
+workspace = false
+dependencies = [
+  "format-flow",
+  "format-toml-conditioned-flow",
+  "build",
+  "package-driver-workspace-flow",
+  "test-flow",
+  "clippy-flow",
+  "audit-flow",
+  "unused-dependencies-flow",
+  "docs",
+  "nightly-test-flow",
+  "nightly-docs",
+]
+
+[tasks.format]
+toolchain = "nightly"
+
+[tasks.package-driver-workspace-flow]
+# by forking, a new cargo make invocation starts and by default detects it is a workspace and runs the package-driver task for each member crate
+run_task = { name = "package-driver-flow", fork = true }
+
+[tasks.pre-test]
+# macrotest and trybuild tests will fail when switching between nightly and stable toolchains due to trybuild/macrotest caching artifacts built with the other toolchain. Deleting the tests directory is enough to purge all test artifacts created by trybuild/macrotest.
+script = '''
+#!@duckscript
+success = rm -r ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/tests
+assert ${success} "Failed to delete tests directory"
+'''
+
+[tasks.audit]
+args = ["audit", "--deny", "warnings"]
+
+[tasks.unused-dependencies]
+toolchain = "nightly"
+args = ["udeps", "--all-targets"]
+
+[tasks.nightly-test-flow]
+extend = "test-flow"
+dependencies = ["pre-nightly-test", "nightly-test", "post-nightly-test"]
+
+[tasks.pre-nightly-test]
+alias = "pre-test"
+
+[tasks.nightly-test]
+extend = "test"
+env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--features nightly" }
+toolchain = "nightly"
+
+[tasks.post-nightly-test]
+extend = "post-test"
+env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true } }
+
+[tasks.nightly-docs]
+extend = "docs"
+toolchain = "nightly"
+args = ["doc", "--no-deps", "--features", "nightly"]
