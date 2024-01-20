@@ -191,6 +191,16 @@ To display help and see the full list of supported CLI args to forward to Cargo:
 
 `cargo make help`
 
+### Driver Package Signature Verification
+
+The `WDK_BUILD_ENABLE_SIGNTOOL_VERIFY` [cargo-make environment variable](https://github.com/sagiegurari/cargo-make?tab=readme-ov-file#environment-variables) can be set to `true` to enable tasks that handle signature verification of the generated `.sys` and `.cat` files. `signtool verify` requires the certificate to be installed as in the `Trusted Root Certification Authorities` for this verification to function. These tasks are not enabled by default as the default behavior of `WDR` is to sign with a generated test certificate. These test certificates are typically only installed into `Trusted Root Certification Authorities` on computers dedicated to testing drivers, and not personal development machines, given the security implications of installing your own root certificates.
+
+If you understand these implications, and have installed the test certificate, then you may validate the signatures as follows:
+
+```
+cargo make --env WDK_BUILD_ENABLE_SIGNTOOL_VERIFY=true
+```
+
 ## Crates.io Release Policy
 
 Releases to crates.io are not made after every change merged to main. Releases will only be made when requested by the community, or when the `windows-drivers-rs` team believes there is sufficient value in pushing a release.
