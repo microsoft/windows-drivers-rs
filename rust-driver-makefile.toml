@@ -339,23 +339,53 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 );
 '''
 
-[tasks.signtool]
+[tasks.signtool-sign]
 private = true
-dependencies = ["inf2cat", "generate-certificate"]
+dependencies = ["generate-certificate"]
 command = "signtool"
 args = [
   "sign",
   "/v",
   "/s",
-  "WDRTestCertStore",                                                                                  # TODO: this should be a parameter
+  "WDRTestCertStore",                      # TODO: this should be a parameter
   "/n",
-  "WDRLocalTestCert",                                                                                  # TODO: this should be a parameter
+  "WDRLocalTestCert",                      # TODO: this should be a parameter
   "/t",
   "http://timestamp.digicert.com",
   "/fd",
   "SHA256",
-  "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.cat",
+  "${WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE}",
 ]
+
+[tasks.sign-sys]
+private = true
+dependencies = ["copy-sys-to-package"]
+env = { "WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.sys" }
+run_task = "signtool-sign"
+
+[tasks.sign-cat]
+private = true
+dependencies = ["inf2cat", "sign-sys"]
+env = { "WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.cat" }
+run_task = "signtool-sign"
+
+[tasks.signtool-verify]
+private = true
+condition = { env_true = ["WDK_BUILD_ENABLE_SIGNTOOL_VERIFY"] }
+command = "signtool"
+args = ["verify", "/v", "/pa", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
+
+[tasks.verify-signature-sys]
+private = true
+dependencies = ["sign-sys"]
+env = { "WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.sys" }
+run_task = "signtool-verify"
+
+[tasks.verify-signature-cat]
+private = true
+dependencies = ["sign-cat"]
+env = { "WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.cat" }
+run_task = "signtool-verify"
 
 [tasks.package-driver]
 private = true
@@ -365,7 +395,10 @@ dependencies = [
   "copy-inf-to-package",
   "copy-map-to-package",
   "copy-certificate-to-package",
-  "signtool",
+  "sign-sys",
+  "verify-signature-sys",
+  "sign-cat",
+  "verify-signature-cat",
   "infverif",
 ]
 
