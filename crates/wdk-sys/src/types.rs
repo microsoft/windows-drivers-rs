@@ -31,6 +31,13 @@
 #[allow(clippy::must_use_candidate)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[allow(clippy::ptr_as_ptr)]
+#[rustversion::attr(
+    any(
+        all(not(nightly), since(1.77)),
+        all(nightly, since(2024-01-11)),
+    ),
+    allow(clippy::pub_underscore_fields)
+)]
 #[allow(clippy::semicolon_if_nothing_returned)]
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
