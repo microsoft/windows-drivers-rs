@@ -209,7 +209,7 @@ mod tests {
     mod macro_expansion_and_compilation {
         use std::{io::Write, stringify};
 
-        use colored::Colorize;
+        use owo_colors::OwoColorize;
         use paste::paste;
 
         use super::*;
