@@ -65,6 +65,8 @@ pub unsafe extern "system" fn driver_entry(
         DbgPrint(string.as_ptr());
     }
 
+    let x = 1123;
+
     driver.DriverUnload = Some(driver_exit);
 
     let mut driver_config = {
