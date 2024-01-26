@@ -7,6 +7,9 @@ on:
 
 name: Build
 
+env:
+  RUSTFLAGS: -D warnings
+
 jobs:
   build:
     name: Build

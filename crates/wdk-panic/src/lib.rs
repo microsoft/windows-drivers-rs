@@ -3,7 +3,6 @@
 
 //! Default Panic Handlers for programs built with the WDK (Windows Drivers Kit)
 #![no_std]
-#![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
