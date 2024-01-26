@@ -4,7 +4,6 @@
 //! A collection of macros that help make it easier to interact with
 //! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
 #![cfg_attr(feature = "nightly", feature(hint_must_use))]
-#![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]

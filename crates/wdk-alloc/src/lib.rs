@@ -8,14 +8,13 @@
 //! ```rust, no_run
 //! #[cfg(not(test))]
 //! use wdk_alloc::WDKAllocator;
-//!
+//!     
 //! #[cfg(not(test))]
 //! #[global_allocator]
 //! static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
 //! ```
 
 #![no_std]
-#![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]

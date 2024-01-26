@@ -6,7 +6,6 @@
 //! safe, idiomatic rust interface to the WDK.
 #![no_std]
 #![cfg_attr(feature = "nightly", feature(hint_must_use))]
-#![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
