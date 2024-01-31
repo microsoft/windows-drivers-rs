@@ -1775,7 +1775,10 @@ pub const CTMF_INCLUDE_APPCONTAINER: u32 = 1;
 pub const CTMF_INCLUDE_LPAC: u32 = 2;
 pub const CTMF_VALID_FLAGS: u32 = 3;
 pub const IMAGE_POLICY_METADATA_VERSION: u32 = 1;
-pub const IMAGE_POLICY_SECTION_NAME: &[u8; 9] = b".tPolicy\0";
+#[allow(unsafe_code)]
+pub const IMAGE_POLICY_SECTION_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b".tPolicy\0")
+};
 pub const TRANSACTION_MANAGER_VOLATILE: u32 = 1;
 pub const TRANSACTION_MANAGER_COMMIT_DEFAULT: u32 = 0;
 pub const TRANSACTION_MANAGER_COMMIT_SYSTEM_VOLUME: u32 = 2;
@@ -1821,10 +1824,22 @@ pub const TRANSACTION_NOTIFY_PROMOTE: u32 = 134217728;
 pub const TRANSACTION_NOTIFY_PROMOTE_NEW: u32 = 268435456;
 pub const TRANSACTION_NOTIFY_REQUEST_OUTCOME: u32 = 536870912;
 pub const TRANSACTION_NOTIFY_COMMIT_FINALIZE: u32 = 1073741824;
-pub const TRANSACTIONMANAGER_OBJECT_PATH: &[u8; 21] = b"\\TransactionManager\\\0";
-pub const TRANSACTION_OBJECT_PATH: &[u8; 14] = b"\\Transaction\\\0";
-pub const ENLISTMENT_OBJECT_PATH: &[u8; 13] = b"\\Enlistment\\\0";
-pub const RESOURCE_MANAGER_OBJECT_PATH: &[u8; 18] = b"\\ResourceManager\\\0";
+#[allow(unsafe_code)]
+pub const TRANSACTIONMANAGER_OBJECT_PATH: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"\\TransactionManager\\\0")
+};
+#[allow(unsafe_code)]
+pub const TRANSACTION_OBJECT_PATH: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"\\Transaction\\\0")
+};
+#[allow(unsafe_code)]
+pub const ENLISTMENT_OBJECT_PATH: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"\\Enlistment\\\0")
+};
+#[allow(unsafe_code)]
+pub const RESOURCE_MANAGER_OBJECT_PATH: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"\\ResourceManager\\\0")
+};
 pub const TRANSACTION_NOTIFICATION_TM_ONLINE_FLAG_IS_CLUSTERED: u32 = 1;
 pub const KTM_MARSHAL_BLOB_VERSION_MAJOR: u32 = 1;
 pub const KTM_MARSHAL_BLOB_VERSION_MINOR: u32 = 1;
@@ -2728,9 +2743,18 @@ pub const PCI_EXPRESS_LINK_QUIESCENT_INTERFACE_VERSION: u32 = 1;
 pub const PCI_EXPRESS_ROOT_PORT_INTERFACE_VERSION: u32 = 1;
 pub const PCI_MSIX_TABLE_CONFIG_INTERFACE_VERSION: u32 = 1;
 pub const FILE_ATTRIBUTE_DEDICATED: u32 = 256;
-pub const EA_CONTAINER_NAME: &[u8; 14] = b"ContainerName\0";
-pub const EA_CONTAINER_SIZE: &[u8; 14] = b"ContainerSize\0";
-pub const CLFS_BASELOG_EXTENSION: &[u8; 5] = b".blf\0";
+#[allow(unsafe_code)]
+pub const EA_CONTAINER_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"ContainerName\0")
+};
+#[allow(unsafe_code)]
+pub const EA_CONTAINER_SIZE: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"ContainerSize\0")
+};
+#[allow(unsafe_code)]
+pub const CLFS_BASELOG_EXTENSION: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b".blf\0")
+};
 pub const CLFS_FLAG_NO_FLAGS: u32 = 0;
 pub const CLFS_FLAG_FORCE_APPEND: u32 = 1;
 pub const CLFS_FLAG_FORCE_FLUSH: u32 = 2;
@@ -2750,8 +2774,14 @@ pub const ClfsNullRecord: u32 = 0;
 pub const ClfsDataRecord: u32 = 1;
 pub const ClfsRestartRecord: u32 = 2;
 pub const ClfsClientRecord: u32 = 3;
-pub const CLFS_CONTAINER_STREAM_PREFIX: &[u8; 7] = b"%BLF%:\0";
-pub const CLFS_CONTAINER_RELATIVE_PREFIX: &[u8; 7] = b"%BLF%\\\0";
+#[allow(unsafe_code)]
+pub const CLFS_CONTAINER_STREAM_PREFIX: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"%BLF%:\0")
+};
+#[allow(unsafe_code)]
+pub const CLFS_CONTAINER_RELATIVE_PREFIX: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"%BLF%\\\0")
+};
 pub const ClsContainerInitializing: u32 = 1;
 pub const ClsContainerInactive: u32 = 2;
 pub const ClsContainerActive: u32 = 4;
@@ -3658,10 +3688,22 @@ pub const ACCESS_PROPERTY_SET_GUID: u32 = 1;
 pub const ACCESS_PROPERTY_GUID: u32 = 2;
 pub const ACCESS_MAX_LEVEL: u32 = 4;
 pub const AUDIT_ALLOW_NO_PRIVILEGE: u32 = 1;
-pub const ACCESS_DS_SOURCE_A: &[u8; 3] = b"DS\0";
-pub const ACCESS_DS_SOURCE_W: &[u8; 3] = b"DS\0";
-pub const ACCESS_DS_OBJECT_TYPE_NAME_A: &[u8; 25] = b"Directory Service Object\0";
-pub const ACCESS_DS_OBJECT_TYPE_NAME_W: &[u8; 25] = b"Directory Service Object\0";
+#[allow(unsafe_code)]
+pub const ACCESS_DS_SOURCE_A: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"DS\0")
+};
+#[allow(unsafe_code)]
+pub const ACCESS_DS_SOURCE_W: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"DS\0")
+};
+#[allow(unsafe_code)]
+pub const ACCESS_DS_OBJECT_TYPE_NAME_A: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"Directory Service Object\0")
+};
+#[allow(unsafe_code)]
+pub const ACCESS_DS_OBJECT_TYPE_NAME_W: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"Directory Service Object\0")
+};
 pub const ACCESS_REASON_TYPE_MASK: u32 = 16711680;
 pub const ACCESS_REASON_DATA_MASK: u32 = 65535;
 pub const ACCESS_REASON_STAGING_MASK: u32 = 2147483648;
@@ -3769,13 +3811,34 @@ pub const COMPRESSION_FORMAT_MASK: u32 = 255;
 pub const COMPRESSION_ENGINE_MASK: u32 = 65280;
 pub const COMPRESSION_FORMAT_ENGINE_MASK: u32 = 65535;
 pub const MAX_UNICODE_STACK_BUFFER_LENGTH: u32 = 256;
-pub const RTL_SYSTEM_VOLUME_INFORMATION_FOLDER: &[u8; 26] = b"System Volume Information\0";
+#[allow(unsafe_code)]
+pub const RTL_SYSTEM_VOLUME_INFORMATION_FOLDER: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"System Volume Information\0")
+};
 pub const PSMP_MINIMUM_SYSAPP_CLAIM_VALUES: u32 = 2;
 pub const PSMP_MAXIMUM_SYSAPP_CLAIM_VALUES: u32 = 4;
-pub const MSV1_0_PACKAGE_NAME: &[u8; 38] = b"MICROSOFT_AUTHENTICATION_PACKAGE_V1_0\0";
-pub const MSV1_0_PACKAGE_NAMEW: &[u8; 38] = b"MICROSOFT_AUTHENTICATION_PACKAGE_V1_0\0";
-pub const MSV1_0_SUBAUTHENTICATION_KEY: &[u8; 44] = b"SYSTEM\\CurrentControlSet\\Control\\Lsa\\MSV1_0\0";
-pub const MSV1_0_SUBAUTHENTICATION_VALUE: &[u8; 5] = b"Auth\0";
+#[allow(unsafe_code)]
+pub const MSV1_0_PACKAGE_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"MICROSOFT_AUTHENTICATION_PACKAGE_V1_0\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const MSV1_0_PACKAGE_NAMEW: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"MICROSOFT_AUTHENTICATION_PACKAGE_V1_0\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const MSV1_0_SUBAUTHENTICATION_KEY: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"SYSTEM\\CurrentControlSet\\Control\\Lsa\\MSV1_0\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const MSV1_0_SUBAUTHENTICATION_VALUE: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"Auth\0")
+};
 pub const MSV1_0_CHALLENGE_LENGTH: u32 = 8;
 pub const MSV1_0_USER_SESSION_KEY_LENGTH: u32 = 16;
 pub const MSV1_0_LANMAN_SESSION_KEY_LENGTH: u32 = 8;
@@ -4556,12 +4619,27 @@ pub const REFS_SET_VOLUME_IO_METRICS_INFO_INPUT_BUFFER_VERSION: u32 = 1;
 pub const REFS_QUERY_VOLUME_IO_METRICS_INFO_INPUT_BUFFER_VERSION: u32 = 1;
 pub const REFS_QUERY_VOLUME_IO_METRICS_INFO_OUTPUT_BUFFER_VERSION: u32 = 1;
 pub const IO_QOS_MAX_RESERVATION: u32 = 1000000000;
-pub const SMB_CCF_APP_INSTANCE_EA_NAME: &[u8; 29] = b"ClusteredApplicationInstance\0";
+#[allow(unsafe_code)]
+pub const SMB_CCF_APP_INSTANCE_EA_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"ClusteredApplicationInstance\0")
+};
 pub const NETWORK_APP_INSTANCE_CSV_FLAGS_VALID_ONLY_IF_CSV_COORDINATOR: u32 = 1;
-pub const LX_FILE_METADATA_UID_EA_NAME: &[u8; 7] = b"$LXUID\0";
-pub const LX_FILE_METADATA_GID_EA_NAME: &[u8; 7] = b"$LXGID\0";
-pub const LX_FILE_METADATA_MODE_EA_NAME: &[u8; 7] = b"$LXMOD\0";
-pub const LX_FILE_METADATA_DEVICE_ID_EA_NAME: &[u8; 7] = b"$LXDEV\0";
+#[allow(unsafe_code)]
+pub const LX_FILE_METADATA_UID_EA_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"$LXUID\0")
+};
+#[allow(unsafe_code)]
+pub const LX_FILE_METADATA_GID_EA_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"$LXGID\0")
+};
+#[allow(unsafe_code)]
+pub const LX_FILE_METADATA_MODE_EA_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"$LXMOD\0")
+};
+#[allow(unsafe_code)]
+pub const LX_FILE_METADATA_DEVICE_ID_EA_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"$LXDEV\0")
+};
 pub const VALID_COPY_FILE_CHUNK_FLAGS: u32 = 0;
 pub const SYSTEM_PAGE_PRIORITY_BITS: u32 = 3;
 pub const SYSTEM_PAGE_PRIORITY_LEVELS: u32 = 8;
@@ -5066,11 +5144,34 @@ pub const SEC_WINNT_AUTH_IDENTITY_MARSHALLED: u32 = 4;
 pub const SEC_WINNT_AUTH_IDENTITY_ONLY: u32 = 8;
 pub const UNDERSTANDS_LONG_NAMES: u32 = 1;
 pub const NO_LONG_NAMES: u32 = 2;
-pub const DD_MUP_DEVICE_NAME: &[u8; 12] = b"\\Device\\Mup\0";
-pub const EA_NAME_NETWORK_OPEN_ECP_PRIVACY: &[u8; 52] = b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-PRIVACY\0";
-pub const EA_NAME_NETWORK_OPEN_ECP_PRIVACY_U: &[u8; 52] = b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-PRIVACY\0";
-pub const EA_NAME_NETWORK_OPEN_ECP_INTEGRITY: &[u8; 54] = b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-INTEGRITY\0";
-pub const EA_NAME_NETWORK_OPEN_ECP_INTEGRITY_U: &[u8; 54] = b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-INTEGRITY\0";
+#[allow(unsafe_code)]
+pub const DD_MUP_DEVICE_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"\\Device\\Mup\0")
+};
+#[allow(unsafe_code)]
+pub const EA_NAME_NETWORK_OPEN_ECP_PRIVACY: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-PRIVACY\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const EA_NAME_NETWORK_OPEN_ECP_PRIVACY_U: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-PRIVACY\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const EA_NAME_NETWORK_OPEN_ECP_INTEGRITY: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-INTEGRITY\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const EA_NAME_NETWORK_OPEN_ECP_INTEGRITY_U: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"ECP{c584edbf-00df-4d28-00b8-8435baca8911e8}-INTEGRITY\0",
+    )
+};
 pub const WNNC_NET_MSNET: u32 = 65536;
 pub const WNNC_NET_SMB: u32 = 131072;
 pub const WNNC_NET_NETWARE: u32 = 196608;
@@ -5148,13 +5249,34 @@ pub const VOLSNAPCONTROLTYPE: u32 = 83;
 pub const WDF_DRIVER_GLOBALS_NAME_LEN: u32 = 32;
 pub const WDF_FIRST_VERSION_SUPPORTING_CLIENT_VERSION_HIGHER_THAN_FRAMEWORK: u32 = 25;
 pub const WDF_ALWAYS_AVAILABLE_FUNCTION_COUNT: u32 = 453;
-pub const WDF_TYPE_INIT_BASE_SECTION_NAME: &[u8; 14] = b".kmdftypeinit\0";
-pub const WDF_TYPE_INIT_SECTION_NAME: &[u8; 16] = b".kmdftypeinit$b\0";
-pub const WDF_TYPE_DEFAULT_SECTION_NAME: &[u8; 6] = b".data\0";
-pub const WDF_S0_IDLE_ENABLED_VALUE_NAME: &[u8; 19] = b"IdleInWorkingState\0";
-pub const WDF_SX_WAKE_ENABLED_VALUE_NAME: &[u8; 19] = b"WakeFromSleepState\0";
-pub const WDF_S0_IDLE_DEFAULT_VALUE_NAME: &[u8; 29] = b"WdfDefaultIdleInWorkingState\0";
-pub const WDF_SX_WAKE_DEFAULT_VALUE_NAME: &[u8; 29] = b"WdfDefaultWakeFromSleepState\0";
+#[allow(unsafe_code)]
+pub const WDF_TYPE_INIT_BASE_SECTION_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b".kmdftypeinit\0")
+};
+#[allow(unsafe_code)]
+pub const WDF_TYPE_INIT_SECTION_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b".kmdftypeinit$b\0")
+};
+#[allow(unsafe_code)]
+pub const WDF_TYPE_DEFAULT_SECTION_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b".data\0")
+};
+#[allow(unsafe_code)]
+pub const WDF_S0_IDLE_ENABLED_VALUE_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"IdleInWorkingState\0")
+};
+#[allow(unsafe_code)]
+pub const WDF_SX_WAKE_ENABLED_VALUE_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"WakeFromSleepState\0")
+};
+#[allow(unsafe_code)]
+pub const WDF_S0_IDLE_DEFAULT_VALUE_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"WdfDefaultIdleInWorkingState\0")
+};
+#[allow(unsafe_code)]
+pub const WDF_SX_WAKE_DEFAULT_VALUE_NAME: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"WdfDefaultWakeFromSleepState\0")
+};
 pub const WDF_REGKEY_DEVICE_SUBKEY: u32 = 0;
 pub const WDF_REGKEY_DRIVER_SUBKEY: u32 = 0;
 extern "C" {
