@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v3
+        uses: actions/dependency-review-action@v4
         with:
           # AND combinations are currently bugged and must be listed separately: https://github.com/actions/dependency-review-action/issues/263
           allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC, Unicode-DFS-2016, (MIT OR Apache-2.0) AND Unicode-DFS-2016
