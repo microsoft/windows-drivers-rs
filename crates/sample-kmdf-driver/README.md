@@ -21,7 +21,7 @@
 2. Install the Certificate on the DUT:
    1. Double click the certificate
    2. Click Install Certificate
-   3. Select a Store Location __(Either Store Location is Fine)__ -> Next
+   3. Store Location: Local Machine -> Next
    4. Place all certificates in the following Store -> Browse -> Trusted Root Certification Authorities -> Ok -> Next
    5. Repeat 2-4 for Store -> Browse -> Trusted Publishers -> Ok -> Next
    6. Finish
