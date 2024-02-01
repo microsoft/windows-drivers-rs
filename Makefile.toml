@@ -22,6 +22,7 @@ dependencies = [
   "unused-dependencies-flow",
   "docs",
   "nightly-test-flow",
+  "nightly-clippy-flow",
   "nightly-docs",
 ]
 
@@ -62,6 +63,28 @@ toolchain = "nightly"
 [tasks.post-nightly-test]
 extend = "post-test"
 env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true } }
+
+[tasks.nightly-clippy-flow]
+extend = "clippy-flow"
+toolchain = "nightly"
+dependencies = [
+  "pre-nightly-clippy",
+  "nightly-clippy-router",
+  "post-nightly-clippy",
+]
+
+[tasks.pre-nightly-clippy]
+extend = "pre-clippy"
+# Proc-macro crates fail to trigger recompilation when switching toolchains due to bug in rustc resulting in "found invalid metadata files for crate" errors.
+run_task = "clean"
+
+[tasks.nightly-clippy-router]
+extend = "clippy-router"
+env = { CARGO_MAKE_CLIPPY_ARGS = "--features nightly ${CARGO_MAKE_CLIPPY_ARGS}", CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "nightly" }
+
+[tasks.post-nightly-clippy]
+extend = "post-clippy"
+env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = { unset = true } }
 
 [tasks.nightly-docs]
 extend = "docs"

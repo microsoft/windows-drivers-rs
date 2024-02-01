@@ -30,7 +30,6 @@ impl BuilderExt for Builder {
         let mut builder = Self::default();
 
         for c_header in c_header_files {
-            println!("cargo:rerun-if-changed={c_header}");
             builder = builder.header(c_header);
         }
 
@@ -132,7 +131,7 @@ impl BuilderExt for Builder {
             // Defaults enums to generate as a set of constants contained in a module (default value
             // is EnumVariation::Consts which generates enums as global constants)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
-            .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             .formatter(bindgen::Formatter::Prettyplease);
 
         Ok(builder)
