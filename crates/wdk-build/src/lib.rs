@@ -17,6 +17,9 @@
 #![deny(clippy::pedantic)]
 #![deny(clippy::nursery)]
 #![deny(clippy::cargo)]
+// `wdk-build` is only to be used in build scripts, so binary bloat from multiple depenedency
+// versions is not a concern
+#![allow(clippy::multiple_crate_versions)]
 #![deny(clippy::multiple_unsafe_ops_per_block)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 #![deny(clippy::unnecessary_safety_doc)]

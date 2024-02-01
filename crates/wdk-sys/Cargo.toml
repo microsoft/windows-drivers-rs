@@ -19,8 +19,8 @@ categories = [
 [build-dependencies]
 bindgen.workspace = true
 wdk-build.workspace = true
-thiserror = "1.0.55"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+thiserror = "1.0.56"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 anyhow = "1.0.79"
 
 [dependencies]
