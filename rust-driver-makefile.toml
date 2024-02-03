@@ -208,7 +208,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
         "{}.sys",
         wdk_build::cargo_make::get_current_package_name()
     )),
-);
+)?
 '''
 
 [tasks.copy-pdb-to-package]
@@ -231,7 +231,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
         "{}.pdb",
         wdk_build::cargo_make::get_current_package_name()
     )),
-);
+)?
 '''
 
 [tasks.copy-inf-to-package]
@@ -254,7 +254,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
         "{}.inf",
         wdk_build::cargo_make::get_current_package_name()
     )),
-);
+)?
 '''
 
 [tasks.copy-map-to-package]
@@ -277,7 +277,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
         "deps/{}.map",
         wdk_build::cargo_make::get_current_package_name()
     )),
-);
+)?
 '''
 
 [tasks.inf2cat]
@@ -336,7 +336,7 @@ script = '''
 
 wdk_build::cargo_make::copy_to_driver_package_folder(
     wdk_build::cargo_make::get_wdk_build_output_directory().join("WDRLocalTestCert.cer"),
-);
+)?
 '''
 
 [tasks.signtool-sign]

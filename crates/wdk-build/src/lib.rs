@@ -10,7 +10,6 @@
 //! includes being ables to select different WDF versions and different driver
 //! models (WDM, KMDF, UMDF).
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
-#![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
