@@ -127,22 +127,23 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    ```
 
 11. Add a `Makefile.toml`:
-
    ```toml
-   extend = ".cargo-make-loadscripts/rust-driver-makefile.toml"
+   extend = "target/rust-driver-makefile.toml"
 
    [env]
    CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
    [config]
-   load_script = """
-   pwsh.exe -Command "\
-   if ($env:CARGO_MAKE_CRATE_IS_WORKSPACE) { return };\
-   $cargoMakeURI = 'https://raw.githubusercontent.com/microsoft/windows-drivers-rs/main/rust-driver-makefile.toml';\
-   New-Item -ItemType Directory .cargo-make-loadscripts -Force;\
-   Invoke-RestMethod -Method GET -Uri $CargoMakeURI -OutFile $env:CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY/.cargo-make-loadscripts/rust-driver-makefile.toml\
-   "
-   """
+   load_script = '''
+   #!@rust
+   //! ```cargo
+   //! [dependencies]
+   //! wdk-build = "0.1.0"
+   //! ```
+   #![allow(unused_doc_comments)]
+
+   wdk_build::cargo_make::load_rust_driver_makefile()?
+   '''
    ```
 
 12. Add an inx file that matches the name of your `cdylib` crate.

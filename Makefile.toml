@@ -1,4 +1,4 @@
-extend = "./rust-driver-makefile.toml"
+extend = "./crates/wdk-build/rust-driver-makefile.toml"
 
 [config]
 additional_profiles = ["all-default-tasks"]
