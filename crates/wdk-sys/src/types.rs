@@ -38,6 +38,13 @@
     ),
     allow(clippy::pub_underscore_fields)
 )]
+#[rustversion::attr(
+    any(
+        all(not(nightly), since(1.79)),
+        all(nightly, since(2024-02-09)),
+    ),
+    allow(clippy::ref_as_ptr)
+)]
 #[allow(clippy::semicolon_if_nothing_returned)]
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]

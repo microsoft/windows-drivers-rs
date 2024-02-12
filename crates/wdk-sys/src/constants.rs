@@ -6,6 +6,13 @@
 use crate::types::{NTSTATUS, POOL_FLAGS, PVOID, PWDF_OBJECT_ATTRIBUTES};
 
 #[allow(non_upper_case_globals)]
+#[rustversion::attr(
+    any(
+        all(not(nightly), since(1.79)),
+        all(nightly, since(2024-02-09)),
+    ),
+    allow(clippy::manual_c_str_literals)
+)]
 #[allow(clippy::unreadable_literal)]
 mod bindings {
     // allow wildcards for types module since underlying c code relies on all
