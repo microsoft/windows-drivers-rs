@@ -123,8 +123,8 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 **_Functional Correctness:_**
 
-* `cargo test --locked --workspace --exclude sample-*`
-  * To test `nightly` features: `cargo +nightly test --locked --workspace --exclude sample-* --features nightly`
+* `cargo test --locked`
+  * To test `nightly` features: `cargo +nightly test --locked --features nightly`
 
 **_Static Analysis and Linting:_**
 

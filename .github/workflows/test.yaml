@@ -55,10 +55,9 @@ jobs:
         with:
           tool: cargo-expand
 
-      # FIXME: wdk-sys layout tests fail, but only on github hosted runner
       - name: Run Cargo Test
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-sys
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
 
       - name: Run Cargo Test (--features nightly)
         if: matrix.rust_toolchain == 'nightly'
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-sys --features nightly
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --features nightly
