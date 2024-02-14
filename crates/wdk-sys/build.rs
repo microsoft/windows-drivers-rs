@@ -126,29 +126,17 @@ fn main() -> anyhow::Result<()> {
         ..Config::default()
     };
 
-    let out_paths = vec![
-        // FIXME: gate the generations of the generated_bindings folder behind a feature flag that
-        // is disabled in crates.io builds (modifying source is illegal when distributing
-        // crates)
-
-        // Generate a copy of the bindings to the generated_bindings so that its easier to see
-        // diffs in the output due to bindgen settings changes
-        PathBuf::from("./generated_bindings/"),
-        // This is the actual bindings that get consumed via !include in this library's modules
-        PathBuf::from(
-            env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
-        ),
-    ];
+    let out_path = PathBuf::from(
+        env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
+    );
 
     // TODO: consider using references here to avoid cloning
     info_span!("bindgen").in_scope(|| {
         info!("Generating bindings to WDK");
-        for out_path in out_paths {
-            generate_constants(&out_path, config.clone())?;
-            generate_types(&out_path, config.clone())?;
-            generate_ntddk(&out_path, config.clone())?;
-            generate_wdf(&out_path, config.clone())?;
-        }
+        generate_constants(&out_path, config.clone())?;
+        generate_types(&out_path, config.clone())?;
+        generate_ntddk(&out_path, config.clone())?;
+        generate_wdf(&out_path, config.clone())?;
         Ok::<(), ConfigError>(())
     })?;
 
