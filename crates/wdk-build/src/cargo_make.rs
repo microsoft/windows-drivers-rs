@@ -652,7 +652,7 @@ fn configure_wdf_build_output_dir(target_arg: &Option<String>, cargo_make_cargo_
             output_dir += "/debug";
         } else {
             output_dir += "/";
-            output_dir += &cargo_make_cargo_profile;
+            output_dir += cargo_make_cargo_profile;
         }
 
         output_dir
