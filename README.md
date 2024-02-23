@@ -22,7 +22,7 @@ This project was built with support of WDM, KMDF, and UMDF drivers in mind, as w
 ### Build Requirements
 
 * Binding generation via `bindgen` requires `libclang`. The easiest way to acquire this is via `winget`
-  * `winget -i install LLVM.LLVM`
+  * `winget install -i LLVM.LLVM`
     * Ensure you select the GUI option to add LLVM to the PATH 
 * To execute post-build tasks (ie. `inf2cat`, `infverif`, etc.), `cargo make` is used
   * `cargo install --locked cargo-make --no-default-features --features tls-native`
