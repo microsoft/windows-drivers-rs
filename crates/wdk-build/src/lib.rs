@@ -562,7 +562,9 @@ impl Config {
     ///
     /// This consists mainly of linker setting configuration. This must be
     /// called from a Cargo build script of the binary being built
-    pub fn configure_binary_build(&self) {
+    pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
+        self.configure_library_build()?;
+        
         // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
         println!("cargo:rustc-cdylib-link-arg=/NXCOMPAT");
         println!("cargo:rustc-cdylib-link-arg=/DYNAMICBASE");
@@ -609,6 +611,8 @@ impl Config {
                 println!("cargo:rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
         }
+
+        Ok(())
     }
 
     /// Serializes this [`Config`] and exports it via the Cargo
