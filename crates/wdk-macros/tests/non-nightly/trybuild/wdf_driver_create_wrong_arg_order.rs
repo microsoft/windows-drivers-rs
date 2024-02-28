@@ -20,7 +20,7 @@ pub extern "system" fn driver_entry(
             WdfDriverCreate,
             driver as PDRIVER_OBJECT,
             registry_path,
-            // The order of the next two arguements is swapped!
+            // The order of the next two arguments is swapped!
             &mut driver_config,
             WDF_NO_OBJECT_ATTRIBUTES,
             driver_handle_output,

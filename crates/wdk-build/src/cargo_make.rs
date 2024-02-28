@@ -694,7 +694,7 @@ where
 fn forward_env_var_to_cargo_make<S: AsRef<str>>(env_var_name: S) {
     let env_var_name = env_var_name.as_ref();
 
-    // Since this executes in a child proccess to cargo-make, we need to forward the
+    // Since this executes in a child process to cargo-make, we need to forward the
     // values we want to change to duckscript, in order to get it to modify the
     // parent process (ie. cargo-make)
     if let Some(env_var_value) = std::env::var_os(env_var_name) {
