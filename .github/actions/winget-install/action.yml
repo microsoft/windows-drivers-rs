@@ -41,7 +41,7 @@ runs:
     - name: Wait for Completion of Winget Installation
       shell: pwsh
       run: |
-        while ((Get-Command * | Select-String winget).ToString() -ne "winget.exe") {
+        while ((Get-Command * | Select-String winget)?.ToString() -ne "winget.exe") {
           Start-Sleep -Seconds 1
         }
         Write-Output "Winget Version: $(winget --version)"
