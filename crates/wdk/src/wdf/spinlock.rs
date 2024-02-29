@@ -63,10 +63,10 @@ impl SpinLock {
         // by WDF, and this module guarantees that it is always in a valid state.
         unsafe {
             #![allow(clippy::multiple_unsafe_ops_per_block)]
-            let [()] = [macros::call_unsafe_wdf_function_binding!(
+            macros::call_unsafe_wdf_function_binding!(
                 WdfSpinLockAcquire,
                 self.wdf_spin_lock
-            )];
+            );
         }
     }
 
@@ -76,10 +76,10 @@ impl SpinLock {
         // by WDF, and this module guarantees that it is always in a valid state.
         unsafe {
             #![allow(clippy::multiple_unsafe_ops_per_block)]
-            let [()] = [macros::call_unsafe_wdf_function_binding!(
+            macros::call_unsafe_wdf_function_binding!(
                 WdfSpinLockRelease,
                 self.wdf_spin_lock
-            )];
+            );
         }
     }
 }
