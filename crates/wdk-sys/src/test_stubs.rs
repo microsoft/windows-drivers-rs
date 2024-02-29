@@ -13,7 +13,7 @@ use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
 /// # Safety
 ///
 /// This function should never be called, so its safety is irrelevant
-#[export_name = "DriverEntry"]// WDF expects a symbol with the name DriverEntry
+#[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry_stub(
     _driver: &mut DRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
