@@ -23,6 +23,12 @@
 #![deny(rustdoc::unescaped_backticks)]
 #![deny(rustdoc::redundant_explicit_links)]
 
+use std::{
+    path::Path,
+    process::{Command, Stdio},
+};
+
+use cargo_metadata::{Message, MetadataCommand};
 use cfg_if::cfg_if;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -30,6 +36,7 @@ use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, ParseStream},
     parse2,
+    spanned::Spanned,
     Error,
     Expr,
     Ident,
@@ -106,6 +113,95 @@ impl Parse for CallUnsafeWDFFunctionInput {
 }
 
 fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStream2 {
+    // find wdk-sys package_id. WDR places a limitation that only one instance of
+    // wdk-sys is allowed in the dependency graph
+    let cargo_metadata_packages_list = MetadataCommand::new()
+        .exec()
+        .unwrap() // TODO error handling
+        .packages;
+    let wdk_sys_package_matches = cargo_metadata_packages_list
+        .iter()
+        .filter(|package| package.name == "wdk-sys")
+        .collect::<Vec<_>>();
+    if wdk_sys_package_matches.len() != 1 {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            format!(
+                "Expected exactly one instance of wdk-sys in dependency graph, found {}",
+                wdk_sys_package_matches.len()
+            ),
+        )
+        .into_compile_error();
+    }
+    let wdk_sys_package_id = &wdk_sys_package_matches[0].id;
+
+    // determine OUT_DIR of wdk-sys
+    let mut cargo_check_process_handle = Command::new("cargo")
+        .args(&[
+            "check",
+            "--message-format=json",
+            "--package",
+            "wdk-sys",
+            // must have a seperate target directory to prevent deadlock from cargo holding a file
+            // lock on build output directory since this proc_macro causes cargo build to invoke
+            // cargo check
+            "--target-dir",
+            "target/wdk-macros-target",
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("cargo check process should succeed to start");
+
+    let wdk_sys_out_dir = cargo_metadata::Message::parse_stream(std::io::BufReader::new(
+        cargo_check_process_handle
+            .stdout
+            .take()
+            .expect("cargo check process should have valid stdout handle"),
+    ))
+    .filter_map(|message| {
+        if let Ok(Message::BuildScriptExecuted(build_script_message)) = message {
+            if build_script_message.package_id == *wdk_sys_package_id {
+                return Some(build_script_message.out_dir);
+            }
+        }
+        None
+    })
+    .collect::<Vec<_>>();
+    let wdk_sys_out_dir = match wdk_sys_out_dir.len() {
+        1 => &wdk_sys_out_dir[0],
+        _ => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "Expected exactly one instance of wdk-sys in dependency graph, found {}",
+                    wdk_sys_out_dir.len()
+                ),
+            )
+            .into_compile_error();
+        }
+    };
+    match cargo_check_process_handle.wait() {
+        Ok(exit_status) => {
+            if !exit_status.success() {
+                return syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "cargo check failed to execute to get OUT_DIR for wdk-sys",
+                )
+                .into_compile_error();
+            }
+        }
+        Err(err) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "cargo check process handle should sucessfully be waited on: {}",
+                    err
+                ),
+            )
+            .into_compile_error();
+        }
+    }
+
     let CallUnsafeWDFFunctionInput {
         pointer_type,
         table_index,
@@ -115,11 +211,92 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         Err(err) => return err.to_compile_error(),
     };
 
-    // let inner_attribute_macros = proc_macro2::TokenStream::from_str(
-    //     "#![allow(unused_unsafe)]\n\
-    //      #![allow(clippy::multiple_unsafe_ops_per_block)]",
-    // ).expect("inner_attribute_macros must be convertible to a valid
-    // TokenStream");
+    // read types.rs file into syn::File
+    let types_rs_path = Path::new(wdk_sys_out_dir).join("types.rs");
+    let types_rs_contents = match std::fs::read_to_string(&types_rs_path) {
+        Ok(contents) => contents,
+        Err(err) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "Failed to read wdk-sys types.rs at {}: {}",
+                    types_rs_path.display(),
+                    err
+                ),
+            )
+            .into_compile_error();
+        }
+    };
+    let types_rs_abstract_syntax_tree = match syn::parse_file(&types_rs_contents) {
+        Ok(wdk_sys_types_rs_abstract_syntax_tree) => wdk_sys_types_rs_abstract_syntax_tree,
+        Err(err) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "Failed to parse wdk-sys types.rs into AST at {}: {}",
+                    types_rs_path.display(),
+                    err
+                ),
+            )
+            .into_compile_error();
+        }
+    };
+
+    // find the return type corresponding in the function signature of the
+    // pointer_type type alias in the AST for types.rs
+    let mut parsing_result = Ok(());
+    let return_type = types_rs_abstract_syntax_tree
+        .items
+        .iter()
+        .find_map(|item| {
+            if let syn::Item::Type(type_alias) = item {
+                if type_alias.ident == pointer_type {
+                    // FFI function pointer type aliases are generated as an Option<fn>, which syn
+                    // considers a syn::TypePath
+                    if let syn::Type::Path(fn_pointer_option) = type_alias.ty.as_ref() {
+                        if let Some(return_type) = fn_pointer_option.path.segments.iter().find_map(
+                            |syn::PathSegment {
+                                 ident, arguments, ..
+                             }| {
+                                if ident == "Option" {
+                                    if let syn::PathArguments::AngleBracketed(
+                                        syn::AngleBracketedGenericArguments { args, .. },
+                                    ) = arguments
+                                    {
+                                        // args is the generic argument of the Option (ie. args in
+                                        // Option<args>)
+                                        if let Some(syn::GenericArgument::Type(
+                                            syn::Type::BareFn(syn::TypeBareFn { output, .. }),
+                                        )) = args.first()
+                                        // Option<fn> has only one generic argument and it should be
+                                        // a syn::Type::BareFn
+                                        {
+                                            return Some(output);
+                                        }
+                                    }
+                                }
+                                None
+                            },
+                        ) {
+                            return Some(return_type);
+                        };
+                    }
+
+                    parsing_result = Err(syn::Error::new(
+                        item.span(),
+                        format!(
+                            "Parsing function pointer type alias failed: {:?}",
+                            type_alias.ty
+                        ),
+                    ));
+                }
+            }
+            None
+        })
+        .unwrap(); // TODO: error handling
+    if let Err(err) = parsing_result {
+        return err.to_compile_error();
+    }
 
     let wdf_function_call_tokens = quote! {
         {
@@ -165,10 +342,15 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 
     cfg_if! {
         if #[cfg(feature = "nightly")] {
-            // FIXME: parse return type of function pointer and only emit
-            // core::hint::must_use if the return type is not ()
-            quote! {
-                core::hint::must_use(#wdf_function_call_tokens)
+            // only emit must_use hint if there is actually a return type
+            if matches!(return_type, syn::ReturnType::Default) {
+                quote! {
+                    #wdf_function_call_tokens
+                }
+            } else {
+                quote! {
+                    core::hint::must_use(#wdf_function_call_tokens)
+                }
             }
         } else {
             quote! {
