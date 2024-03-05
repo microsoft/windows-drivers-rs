@@ -1,6 +1,6 @@
 # This file can be leveraged to build downstream drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
 
-# FIXME: this flow is based on the signing process of a KMDF PNP driver. There should be different flows availabe for different types of drivers as outlined in https://learn.microsoft.com/en-us/windows-hardware/drivers/install/test-signing-driver-packages 
+# FIXME: this flow is based on the signing process of a KMDF PNP driver. There should be different flows available for different types of drivers as outlined in https://learn.microsoft.com/en-us/windows-hardware/drivers/install/test-signing-driver-packages 
 [config]
 min_version = "0.37.8"
 init_task = "wdk-build-init"
