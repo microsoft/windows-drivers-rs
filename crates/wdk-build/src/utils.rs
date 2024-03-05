@@ -283,8 +283,6 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
 
     use super::*;

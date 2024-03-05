@@ -112,7 +112,7 @@ impl BuilderExt for Builder {
             // -WDeprecated warning
             .clang_arg("--warn-=no-deprecated-declarations")
             // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
-            // `_variable` are seperate tokens already, and don't need `##` to concatenate them)
+            // `_variable` are separate tokens already, and don't need `##` to concatenate them)
             .clang_arg("--warn-=no-invalid-token-paste")
             .clang_arg("-fms-extensions")
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
