@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-
 #![no_main]
+
 use wdk_sys::*;
 
 extern "C" fn evt_driver_device_add(

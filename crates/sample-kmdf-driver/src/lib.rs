@@ -2,7 +2,6 @@
 // License: MIT OR Apache-2.0
 
 #![no_std]
-#![cfg_attr(feature = "nightly", feature(hint_must_use))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]

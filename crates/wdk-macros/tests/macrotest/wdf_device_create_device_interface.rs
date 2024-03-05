@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-
 #![no_main]
+
 use wdk_sys::*;
 
 // {86E0D1E0-8089-11D0-9CE4-08003E301F73}
