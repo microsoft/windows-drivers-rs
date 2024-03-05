@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-
 #![no_main]
-#![feature(hint_must_use)]
+
 use wdk_sys::*;
 
 #[export_name = "DriverEntry"]// WDF expects a symbol with the name DriverEntry
@@ -21,9 +20,9 @@ pub extern "system" fn driver_entry(
             WdfDriverCreate,
             driver as PDRIVER_OBJECT,
             registry_path,
-            // The object attributes are missing from this call!
-            // WDF_NO_OBJECT_ATTRIBUTES,
+            // The order of the next two arguments is swapped!
             &mut driver_config,
+            WDF_NO_OBJECT_ATTRIBUTES,
             driver_handle_output,
         )
     }

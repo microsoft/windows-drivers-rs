@@ -3,7 +3,6 @@
 
 //! A collection of macros that help make it easier to interact with
 //! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
-#![cfg_attr(feature = "nightly", feature(hint_must_use))]
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
@@ -29,17 +28,20 @@ use std::{
 };
 
 use cargo_metadata::{Message, MetadataCommand};
-use cfg_if::cfg_if;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, ParseStream},
     parse2,
+    punctuated::Punctuated,
     spanned::Spanned,
+    BareFnArg,
     Error,
     Expr,
     Ident,
+    PathSegment,
+    ReturnType,
     Token,
 };
 
@@ -57,7 +59,6 @@ use syn::{
 /// # Examples
 ///
 /// ```rust, no_run
-/// #![cfg_attr(feature = "nightly", feature(hint_must_use))]
 /// use wdk_sys::*;
 ///
 /// #[export_name = "DriverEntry"]
@@ -90,222 +91,283 @@ pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStrea
 }
 
 struct CallUnsafeWDFFunctionInput {
-    pointer_type: Ident,
-    table_index: Ident,
-    arguments: syn::punctuated::Punctuated<Expr, Token![,]>,
+    function_pointer_type: Ident,
+    function_table_index: Ident,
+    parameters: Punctuated<BareFnArg, Token![,]>,
+    return_type: ReturnType,
+    arguments: Punctuated<Expr, Token![,]>,
 }
 
 impl Parse for CallUnsafeWDFFunctionInput {
     fn parse(input: ParseStream) -> Result<Self, Error> {
+        // parse input
         let c_function_name: String = input.parse::<Ident>()?.to_string();
         input.parse::<Token![,]>()?;
         let arguments = input.parse_terminated(Expr::parse, Token![,])?;
 
+        // create derived values
+        let function_pointer_type = format_ident!(
+            "PFN_{uppercase_c_function_name}",
+            uppercase_c_function_name = c_function_name.to_uppercase()
+        );
+        let function_table_index = format_ident!("{c_function_name}TableIndex");
+
+        // find wdk-sys package_id. WDR places a limitation that only one instance of
+        // wdk-sys is allowed in the dependency graph
+        let cargo_metadata_packages_list = MetadataCommand::new()
+            .exec()
+            .unwrap() // TODO error handling
+            .packages;
+        let wdk_sys_package_matches = cargo_metadata_packages_list
+            .iter()
+            .filter(|package| package.name == "wdk-sys")
+            .collect::<Vec<_>>();
+        if wdk_sys_package_matches.len() != 1 {
+            return Err(Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "Expected exactly one instance of wdk-sys in dependency graph, found {}",
+                    wdk_sys_package_matches.len()
+                ),
+            ));
+        }
+        let wdk_sys_package_id = &wdk_sys_package_matches[0].id;
+
+        // determine OUT_DIR of wdk-sys
+        let mut cargo_check_process_handle = Command::new("cargo")
+            .args([
+                "check",
+                "--message-format=json",
+                "--package",
+                "wdk-sys",
+                // must have a seperate target directory to prevent deadlock from cargo holding a
+                // file lock on build output directory since this proc_macro causes
+                // cargo build to invoke cargo check
+                "--target-dir",
+                "target/wdk-macros-target",
+            ])
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("cargo check process should succeed to start");
+
+        // TODO: capture stderr and only output if failed
+
+        let wdk_sys_out_dir = cargo_metadata::Message::parse_stream(std::io::BufReader::new(
+            cargo_check_process_handle
+                .stdout
+                .take()
+                .expect("cargo check process should have valid stdout handle"),
+        ))
+        .filter_map(|message| {
+            if let Ok(Message::BuildScriptExecuted(build_script_message)) = message {
+                if build_script_message.package_id == *wdk_sys_package_id {
+                    return Some(build_script_message.out_dir);
+                }
+            }
+            None
+        })
+        .collect::<Vec<_>>();
+        let wdk_sys_out_dir = match wdk_sys_out_dir.len() {
+            1 => &wdk_sys_out_dir[0],
+            _ => {
+                return Err(Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!(
+                        "Expected exactly one instance of wdk-sys in dependency graph, found {}",
+                        wdk_sys_out_dir.len()
+                    ),
+                ));
+            }
+        };
+        match cargo_check_process_handle.wait() {
+            Ok(exit_status) => {
+                if !exit_status.success() {
+                    return Err(Error::new(
+                        proc_macro2::Span::call_site(),
+                        "cargo check failed to execute to get OUT_DIR for wdk-sys",
+                    ));
+                }
+            }
+            Err(err) => {
+                return Err(Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!(
+                        "cargo check process handle should sucessfully be waited on: {err}"
+                    ),
+                ));
+            }
+        }
+
+        // read types.rs file into syn::File
+        let types_rs_path = Path::new(wdk_sys_out_dir).join("types.rs");
+        let types_rs_contents = match std::fs::read_to_string(&types_rs_path) {
+            Ok(contents) => contents,
+            Err(err) => {
+                return Err(Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!(
+                        "Failed to read wdk-sys types.rs at {}: {}",
+                        types_rs_path.display(),
+                        err
+                    ),
+                ));
+            }
+        };
+        let types_rs_abstract_syntax_tree = match syn::parse_file(&types_rs_contents) {
+            Ok(wdk_sys_types_rs_abstract_syntax_tree) => wdk_sys_types_rs_abstract_syntax_tree,
+            Err(err) => {
+                return Err(Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!(
+                        "Failed to parse wdk-sys types.rs into AST at {}: {}",
+                        types_rs_path.display(),
+                        err
+                    ),
+                ));
+            }
+        };
+
+        // find the function parameters and return type corresponding in the function
+        // signature of the pointer_type type alias in the AST for types.rs
+        let mut parsing_result = Ok(());
+        let (parameters, return_type) = types_rs_abstract_syntax_tree
+            .items
+            .iter()
+            .find_map(|item| {
+                if let syn::Item::Type(type_alias) = item {
+                    if type_alias.ident == function_pointer_type {
+                        // FFI function pointer type aliases are generated as an Option<fn>,
+                        // which syn considers a syn::TypePath
+                        if let syn::Type::Path(fn_pointer_option) = type_alias.ty.as_ref() {
+                            if let Some(parsed_tokens) =
+                                fn_pointer_option.path.segments.iter().find_map(
+                                    |syn::PathSegment {
+                                         ident, arguments, ..
+                                     }| {
+                                        if ident == "Option" {
+                                            if let syn::PathArguments::AngleBracketed(
+                                                syn::AngleBracketedGenericArguments {
+                                                    args, ..
+                                                },
+                                            ) = arguments
+                                            {
+                                                // args is the generic argument of the Option
+                                                // (ie.
+                                                // args in
+                                                // Option<args>)
+                                                if let Some(syn::GenericArgument::Type(
+                                                    syn::Type::BareFn(syn::TypeBareFn {
+                                                        inputs,
+                                                        output,
+                                                        ..
+                                                    }),
+                                                )) = args.first()
+                                                // Option<fn> has only one generic argument and
+                                                // it should be a syn::Type::BareFn
+                                                {
+                                                    let parameters = inputs
+                                                        .iter()
+                                                        // The first argument for every
+                                                        // WDF function in the function
+                                                        // table is PWDF_DRIVER_GLOBALS
+                                                        .skip(1)
+                                                        .cloned()
+                                                        .collect();
+
+                                                    let return_type = match output {
+                                                        ReturnType::Default => ReturnType::Default,
+                                                        ReturnType::Type(right_arrow_token, ty) => {
+                                                            match **ty {
+                                                                syn::Type::Path(ref type_path) => {
+                                                                    let mut modified_type_path =
+                                                                        type_path.clone();
+                                                                    modified_type_path
+                                                                        .path
+                                                                        .segments.insert(0, PathSegment{ident: format_ident!("wdk_sys"), arguments: syn::PathArguments::None});
+
+                                                                    ReturnType::Type(
+                                                                        *right_arrow_token,
+                                                                        Box::new(syn::Type::Path(
+                                                                            modified_type_path,
+                                                                        )),
+                                                                    )
+                                                                }
+                                                                _ => return None,
+                                                            }
+                                                        }
+                                                    };
+
+                                                    return Some((parameters, return_type));
+                                                }
+                                            }
+                                        }
+                                        None
+                                    },
+                                )
+                            {
+                                return Some(parsed_tokens);
+                            };
+                        }
+
+                        parsing_result = Err(syn::Error::new(
+                            item.span(),
+                            format!(
+                                "Parsing function pointer type alias failed: {:?}",
+                                type_alias.ty
+                            ),
+                        ));
+                    }
+                }
+                None
+            })
+            .unwrap(); // TODO: error handling
+        parsing_result?;
+        //
+
         Ok(Self {
-            pointer_type: format_ident!(
-                "PFN_{uppercase_c_function_name}",
-                uppercase_c_function_name = c_function_name.to_uppercase()
-            ),
-            table_index: format_ident!("{c_function_name}TableIndex"),
+            function_pointer_type,
+            function_table_index,
+            parameters,
+            return_type,
             arguments,
         })
     }
 }
 
+impl CallUnsafeWDFFunctionInput {
+    // fn
+}
+
 fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStream2 {
-    // find wdk-sys package_id. WDR places a limitation that only one instance of
-    // wdk-sys is allowed in the dependency graph
-    let cargo_metadata_packages_list = MetadataCommand::new()
-        .exec()
-        .unwrap() // TODO error handling
-        .packages;
-    let wdk_sys_package_matches = cargo_metadata_packages_list
-        .iter()
-        .filter(|package| package.name == "wdk-sys")
-        .collect::<Vec<_>>();
-    if wdk_sys_package_matches.len() != 1 {
-        return syn::Error::new(
-            proc_macro2::Span::call_site(),
-            format!(
-                "Expected exactly one instance of wdk-sys in dependency graph, found {}",
-                wdk_sys_package_matches.len()
-            ),
-        )
-        .into_compile_error();
-    }
-    let wdk_sys_package_id = &wdk_sys_package_matches[0].id;
-
-    // determine OUT_DIR of wdk-sys
-    let mut cargo_check_process_handle = Command::new("cargo")
-        .args(&[
-            "check",
-            "--message-format=json",
-            "--package",
-            "wdk-sys",
-            // must have a seperate target directory to prevent deadlock from cargo holding a file
-            // lock on build output directory since this proc_macro causes cargo build to invoke
-            // cargo check
-            "--target-dir",
-            "target/wdk-macros-target",
-        ])
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("cargo check process should succeed to start");
-
-    let wdk_sys_out_dir = cargo_metadata::Message::parse_stream(std::io::BufReader::new(
-        cargo_check_process_handle
-            .stdout
-            .take()
-            .expect("cargo check process should have valid stdout handle"),
-    ))
-    .filter_map(|message| {
-        if let Ok(Message::BuildScriptExecuted(build_script_message)) = message {
-            if build_script_message.package_id == *wdk_sys_package_id {
-                return Some(build_script_message.out_dir);
-            }
-        }
-        None
-    })
-    .collect::<Vec<_>>();
-    let wdk_sys_out_dir = match wdk_sys_out_dir.len() {
-        1 => &wdk_sys_out_dir[0],
-        _ => {
-            return syn::Error::new(
-                proc_macro2::Span::call_site(),
-                format!(
-                    "Expected exactly one instance of wdk-sys in dependency graph, found {}",
-                    wdk_sys_out_dir.len()
-                ),
-            )
-            .into_compile_error();
-        }
-    };
-    match cargo_check_process_handle.wait() {
-        Ok(exit_status) => {
-            if !exit_status.success() {
-                return syn::Error::new(
-                    proc_macro2::Span::call_site(),
-                    "cargo check failed to execute to get OUT_DIR for wdk-sys",
-                )
-                .into_compile_error();
-            }
-        }
-        Err(err) => {
-            return syn::Error::new(
-                proc_macro2::Span::call_site(),
-                format!(
-                    "cargo check process handle should sucessfully be waited on: {}",
-                    err
-                ),
-            )
-            .into_compile_error();
-        }
-    }
-
     let CallUnsafeWDFFunctionInput {
-        pointer_type,
-        table_index,
+        function_pointer_type,
+        function_table_index,
+        parameters,
+        return_type,
         arguments,
     } = match parse2::<CallUnsafeWDFFunctionInput>(input_tokens) {
         Ok(syntax_tree) => syntax_tree,
         Err(err) => return err.to_compile_error(),
     };
 
-    // read types.rs file into syn::File
-    let types_rs_path = Path::new(wdk_sys_out_dir).join("types.rs");
-    let types_rs_contents = match std::fs::read_to_string(&types_rs_path) {
-        Ok(contents) => contents,
-        Err(err) => {
-            return syn::Error::new(
-                proc_macro2::Span::call_site(),
-                format!(
-                    "Failed to read wdk-sys types.rs at {}: {}",
-                    types_rs_path.display(),
-                    err
-                ),
-            )
-            .into_compile_error();
-        }
-    };
-    let types_rs_abstract_syntax_tree = match syn::parse_file(&types_rs_contents) {
-        Ok(wdk_sys_types_rs_abstract_syntax_tree) => wdk_sys_types_rs_abstract_syntax_tree,
-        Err(err) => {
-            return syn::Error::new(
-                proc_macro2::Span::call_site(),
-                format!(
-                    "Failed to parse wdk-sys types.rs into AST at {}: {}",
-                    types_rs_path.display(),
-                    err
-                ),
-            )
-            .into_compile_error();
-        }
-    };
-
-    // find the return type corresponding in the function signature of the
-    // pointer_type type alias in the AST for types.rs
-    let mut parsing_result = Ok(());
-    let return_type = types_rs_abstract_syntax_tree
-        .items
+    let parameter_identifiers: Punctuated<Ident, syn::token::Comma> = parameters
         .iter()
-        .find_map(|item| {
-            if let syn::Item::Type(type_alias) = item {
-                if type_alias.ident == pointer_type {
-                    // FFI function pointer type aliases are generated as an Option<fn>, which syn
-                    // considers a syn::TypePath
-                    if let syn::Type::Path(fn_pointer_option) = type_alias.ty.as_ref() {
-                        if let Some(return_type) = fn_pointer_option.path.segments.iter().find_map(
-                            |syn::PathSegment {
-                                 ident, arguments, ..
-                             }| {
-                                if ident == "Option" {
-                                    if let syn::PathArguments::AngleBracketed(
-                                        syn::AngleBracketedGenericArguments { args, .. },
-                                    ) = arguments
-                                    {
-                                        // args is the generic argument of the Option (ie. args in
-                                        // Option<args>)
-                                        if let Some(syn::GenericArgument::Type(
-                                            syn::Type::BareFn(syn::TypeBareFn { output, .. }),
-                                        )) = args.first()
-                                        // Option<fn> has only one generic argument and it should be
-                                        // a syn::Type::BareFn
-                                        {
-                                            return Some(output);
-                                        }
-                                    }
-                                }
-                                None
-                            },
-                        ) {
-                            return Some(return_type);
-                        };
-                    }
-
-                    parsing_result = Err(syn::Error::new(
-                        item.span(),
-                        format!(
-                            "Parsing function pointer type alias failed: {:?}",
-                            type_alias.ty
-                        ),
-                    ));
-                }
+        .cloned()
+        .filter_map(|bare_fn_arg| {
+            if let Some((identifier, _)) = bare_fn_arg.name {
+                return Some(identifier);
             }
             None
+            // TODO error
         })
-        .unwrap(); // TODO: error handling
-    if let Err(err) = parsing_result {
-        return err.to_compile_error();
-    }
+        .collect();
 
     let wdf_function_call_tokens = quote! {
-        {
-            // Force the macro to require an unsafe block
-            unsafe fn force_unsafe(){}
-            force_unsafe();
-
+        #[inline(always)]
+        // TODO: fix fn name
+        fn unsafe_imp(#parameters) #return_type {
             // Get handle to WDF function from the function table
-            let wdf_function: wdk_sys::#pointer_type = Some(
+            let wdf_function: wdk_sys::#function_pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
                 //         arguments for the WDF function is safe befause WDF maintains the strict mapping between the
                 //         function table index and the correct function pointer type.
@@ -314,7 +376,7 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
                 unsafe {
                     core::mem::transmute(
                         // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
-                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#table_index as usize],
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],
                     )
                 }
             );
@@ -331,29 +393,38 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
                 unsafe {
                     (wdf_function)(
                         wdk_sys::WdfDriverGlobals,
-                        #arguments
+                        #parameter_identifiers
                     )
                 }
             } else {
                 unreachable!("Option should never be None");
             }
         }
+
+        unsafe_imp(#arguments)
     };
 
-    cfg_if! {
-        if #[cfg(feature = "nightly")] {
-            // only emit must_use hint if there is actually a return type
-            if matches!(return_type, syn::ReturnType::Default) {
-                quote! {
-                    #wdf_function_call_tokens
-                }
-            } else {
-                quote! {
-                    core::hint::must_use(#wdf_function_call_tokens)
-                }
+    // only emit must_use hint if there is actually a return type
+    if matches!(return_type, ReturnType::Type(..)) {
+        quote! {
+            {
+                use wdk_sys::*;
+                // Force the macro to require an unsafe block
+                unsafe fn force_unsafe(){}
+                force_unsafe();
+
+                #[must_use]
+                #wdf_function_call_tokens
             }
-        } else {
-            quote! {
+        }
+    } else {
+        quote! {
+            {
+                use wdk_sys::*;
+                // Force the macro to require an unsafe block
+                unsafe fn force_unsafe(){}
+                force_unsafe();
+
                 #wdf_function_call_tokens
             }
         }
@@ -364,27 +435,13 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use cfg_if::cfg_if;
     use lazy_static::lazy_static;
 
     lazy_static! {
         static ref TESTS_FOLDER_PATH: PathBuf =
             [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect();
-        static ref NIGHTLY_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("nightly");
-        static ref NON_NIGHTLY_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("non-nightly");
-        static ref NIGHTLY_FEATURE_MACROTEST_FOLDER_PATH: PathBuf =
-            NIGHTLY_FOLDER_PATH.join("macrotest");
-        static ref NO_NIGHTLY_FEATURE_MACROTEST_FOLDER_PATH: PathBuf =
-            NON_NIGHTLY_FOLDER_PATH.join("macrotest");
-        static ref TRYBUILD_FOLDER_PATH: PathBuf = {
-            cfg_if! {
-                if #[cfg(feature = "nightly")] {
-                    NIGHTLY_FOLDER_PATH.join("trybuild")
-                } else {
-                    NON_NIGHTLY_FOLDER_PATH.join("trybuild")
-                }
-            }
-        };
+        static ref MACROTEST_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("macrotest");
+        static ref TRYBUILD_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("trybuild");
     }
 
     mod macro_expansion_and_compilation {
@@ -427,7 +484,7 @@ mod tests {
                         $(
                             #[test]
                             fn [<$filename _expansion>]() -> std::io::Result<()> {
-                                macrotest::expand(&NO_NIGHTLY_FEATURE_MACROTEST_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize()?);
+                                macrotest::expand(&MACROTEST_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize()?);
                                 Ok(())
                             }
                         )?
@@ -439,7 +496,7 @@ mod tests {
                                 #[test]
                                 fn [<$filename _expansion>]() -> std::io::Result<()> {
                                     macrotest::expand_args(
-                                        &NIGHTLY_FEATURE_MACROTEST_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize()?, &["--features", "nightly"]);
+                                        &MACROTEST_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize()?, &["--features", "nightly"]);
                                     Ok(())
                                 }
                             )?
@@ -510,7 +567,7 @@ mod tests {
                             #[test]
                             fn [<$filename _compilation>]() {
                                 trybuild::TestCases::pass_cargo_check(
-                                    &NO_NIGHTLY_FEATURE_MACROTEST_FOLDER_PATH
+                                    &MACROTEST_FOLDER_PATH
                                         .join(format!("{}.rs", stringify!($filename)))
                                         .canonicalize()
                                         .expect(concat!(stringify!($filename), " should exist")),
@@ -526,7 +583,7 @@ mod tests {
                                 #[test]
                                 fn [<$filename _compilation>]() {
                                     trybuild::TestCases::pass_cargo_check(
-                                        &NIGHTLY_FEATURE_MACROTEST_FOLDER_PATH
+                                        &MACROTEST_FOLDER_PATH
                                             .join(format!("{}.rs", stringify!($filename)))
                                             .canonicalize()
                                             .expect(concat!(stringify!($filename), " should exist")),
@@ -542,7 +599,8 @@ mod tests {
         generate_macro_expansion_and_compilation_tests!(
             wdf_driver_create,
             wdf_device_create,
-            wdf_device_create_device_interface
+            wdf_device_create_device_interface,
+            wdf_spin_lock_acquire
         );
     }
 
