@@ -562,9 +562,18 @@ impl Config {
     ///
     /// This consists mainly of linker setting configuration. This must be
     /// called from a Cargo build script of the binary being built
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the required paths do not
+    /// exist.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the invoked from outside a Cargo build environmen
     pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
         self.configure_library_build()?;
-        
+
         // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
         println!("cargo:rustc-cdylib-link-arg=/NXCOMPAT");
         println!("cargo:rustc-cdylib-link-arg=/DYNAMICBASE");
