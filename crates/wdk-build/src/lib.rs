@@ -5,7 +5,7 @@
 //! configure any build that depends on the WDK (Windows Driver Kit). This is
 //! especially useful for crates that generate FFI bindings to the WDK,
 //! WDK-dependent libraries, and programs built on top of the WDK (ex. Drivers).
-//! This library is built to be able to accomodate different WDK releases, as
+//! This library is built to be able to accommodate different WDK releases, as
 //! well strives to allow for all the configuration the WDK allows. This
 //! includes being ables to select different WDF versions and different driver
 //! models (WDM, KMDF, UMDF).
@@ -47,8 +47,8 @@ use utils::PathExt;
 /// Configuration parameters for a build dependent on the WDK
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
-    /// Path to root of WDK. Corresponds with WDKContentRoot environment
-    /// varialbe in eWDK
+    /// Path to root of WDK. Corresponds with `WDKContentRoot` environment
+    /// variable in eWDK
     pub wdk_content_root: PathBuf,
     /// Build configuration of driver
     pub driver_config: DriverConfig,
@@ -108,7 +108,7 @@ pub struct UMDFConfig {
 /// Errors that could result from configuring a build via [`wdk-build`]
 #[derive(Debug, Error)]
 pub enum ConfigError {
-    /// Error returned when an std::io operation fails
+    /// Error returned when an [`std::io`] operation fails
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
@@ -139,7 +139,7 @@ pub enum ConfigError {
     )]
     WDKContentRootDetectionError,
 
-    /// Error returned when cargo_metadata execution or parsing fails
+    /// Error returned when `cargo_metadata` execution or parsing fails
     #[error(transparent)]
     CargoMetadataError(#[from] cargo_metadata::Error),
 
@@ -198,7 +198,7 @@ pub enum ExportError {
     /// Error returned when the crate being compiled does not have a `links`
     /// value in its Cargo.toml
     #[error(
-        "Missing `links` value in crate's config.toml. Metadata is unable to propogate to \
+        "Missing `links` value in crate's config.toml. Metadata is unable to propagate to \
          dependencies without a `links` value"
     )]
     MissingLinksValue(#[from] std::env::VarError),

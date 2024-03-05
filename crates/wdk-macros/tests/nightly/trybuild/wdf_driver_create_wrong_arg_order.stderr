@@ -5,7 +5,7 @@ error[E0308]: arguments to this function are incorrect
   | |             WdfDriverCreate,
   | |             driver as PDRIVER_OBJECT,
   | |             registry_path,
-  | |             // The order of the next two arguements is swapped!
+  | |             // The order of the next two arguments is swapped!
   | |             &mut driver_config,
   | |             ------------------ expected `*mut _WDF_OBJECT_ATTRIBUTES`, found `&mut _WDF_DRIVER_CONFIG`
   | |             WDF_NO_OBJECT_ATTRIBUTES,
@@ -21,7 +21,7 @@ help: swap these arguments
 29 +             WdfDriverCreate,
 30 +             driver as PDRIVER_OBJECT,
 31 +             registry_path,
-32 +             // The order of the next two arguements is swapped!
+32 +             // The order of the next two arguments is swapped!
 33 +             &mut driver_config,
 34 +             WDF_NO_OBJECT_ATTRIBUTES,
 35 +             driver_handle_output,

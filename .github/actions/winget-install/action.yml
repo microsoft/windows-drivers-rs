@@ -28,7 +28,7 @@ runs:
       shell: pwsh
       run: |
         New-Item -Type Directory $env:RUNNER_TEMP/winget-install
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri  https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.7.x64.appx
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri  https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx
         Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx # Needed per https://github.com/microsoft/winget-cli/blob/21de1607ed5c90174e6bb931406975c18681a5dd/README.md?plain=1#L35C19-L35C19
         Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:LatestWingetDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/winget.msixbundle
         Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:LatestWingetLicenseDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/license.xml
@@ -36,12 +36,12 @@ runs:
     - name: Start Winget Installation
       shell: pwsh
       run: |
-        Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.7.x64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
+        Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
 
     - name: Wait for Completion of Winget Installation
       shell: pwsh
       run: |
-        while ((Get-Command * | Select-String winget).ToString() -ne "winget.exe") {
+        while ((Get-Command * | Select-String winget)?.ToString() -ne "winget.exe") {
           Start-Sleep -Seconds 1
         }
         Write-Output "Winget Version: $(winget --version)"
