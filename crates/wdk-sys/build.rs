@@ -140,6 +140,5 @@ fn main() -> anyhow::Result<()> {
         generate_wdf(&out_path, config.clone())?;
     }
 
-    config.configure_library_build()?;
     Ok(config.export_config()?)
 }

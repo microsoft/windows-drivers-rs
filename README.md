@@ -76,7 +76,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```rust
    fn main() -> Result<(), wdk_build::ConfigError> {
-      wdk_build::Config::from_env_auto()?.configure_binary_build();
+      wdk_build::Config::from_env_auto()?.configure_binary_build()?;
       Ok(())
    }
    ```
