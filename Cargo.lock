@@ -765,7 +765,7 @@ dependencies = [
 name = "wdk-macros"
 version = "0.2.0"
 dependencies = [
- "cfg-if",
+ "cargo_metadata",
  "lazy_static",
  "macrotest",
  "owo-colors",
