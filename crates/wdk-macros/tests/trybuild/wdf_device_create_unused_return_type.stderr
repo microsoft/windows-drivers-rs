@@ -1,4 +1,4 @@
-error: unused return value of `unsafe_imp` that must be used
+error: unused return value of `wdf_device_create_impl` that must be used
  --> tests/trybuild/wdf_device_create_unused_return_type.rs
   |
   | /         wdk_macros::call_unsafe_wdf_function_binding!(

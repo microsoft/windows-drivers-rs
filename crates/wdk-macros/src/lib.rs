@@ -30,18 +30,25 @@ use std::{
 
 use cargo_metadata::{Message, MetadataCommand, PackageId};
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, ParseStream},
     parse2,
+    parse_file,
     punctuated::Punctuated,
     spanned::Spanned,
+    AngleBracketedGenericArguments,
     BareFnArg,
     Error,
     Expr,
+    File,
+    GenericArgument,
     Ident,
+    Item,
+    ItemType,
     Path,
+    PathArguments,
     PathSegment,
     ReturnType,
     Token,
@@ -100,23 +107,44 @@ struct CallUnsafeWDFFunctionParseOutputs {
     parameters: Punctuated<BareFnArg, Token![,]>,
     return_type: ReturnType,
     arguments: Punctuated<Expr, Token![,]>,
+    inline_fn_impl_name: Ident,
 }
 
 impl Parse for CallUnsafeWDFFunctionParseOutputs {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         // parse inputs
-        let c_function_name: String = input.parse::<Ident>()?.to_string();
+        let c_function_identifier = input.parse::<Ident>()?;
         input.parse::<Token![,]>()?;
         let arguments = input.parse_terminated(Expr::parse, Token![,])?;
 
         // compute parse outputs
         let function_pointer_type = format_ident!(
             "PFN_{uppercase_c_function_name}",
-            uppercase_c_function_name = c_function_name.to_uppercase()
+            uppercase_c_function_name = c_function_identifier.to_string().to_uppercase(),
+            span = c_function_identifier.span()
         );
-        let function_table_index = format_ident!("{c_function_name}TableIndex");
+        let function_table_index = format_ident!("{c_function_identifier}TableIndex");
         let (parameters, return_type) =
             compute_parse_outputs_from_generated_code(&function_pointer_type)?;
+        let inline_fn_impl_name = format_ident!(
+            "{c_function_name_snake_case}_impl",
+            c_function_name_snake_case = {
+                // convert c_function_name to snake case
+                let c_function_name = c_function_identifier.to_string();
+                let mut snake_case_name = String::with_capacity(c_function_name.len());
+                for (i, char) in c_function_name.chars().enumerate() {
+                    if char.is_uppercase() {
+                        if i != 0 {
+                            snake_case_name.push('_');
+                        }
+                        snake_case_name.push_str(char.to_lowercase().collect::<String>().as_str());
+                    } else {
+                        snake_case_name.push(char);
+                    }
+                }
+                snake_case_name
+            }
+        );
 
         Ok(Self {
             function_pointer_type,
@@ -124,35 +152,24 @@ impl Parse for CallUnsafeWDFFunctionParseOutputs {
             parameters,
             return_type,
             arguments,
+            inline_fn_impl_name,
         })
     }
 }
 
 fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStream2 {
-    let CallUnsafeWDFFunctionParseOutputs {
-        function_pointer_type,
-        function_table_index,
-        parameters,
-        return_type,
-        arguments,
-    } = match parse2::<CallUnsafeWDFFunctionParseOutputs>(input_tokens) {
+    let parse_outputs = match parse2::<CallUnsafeWDFFunctionParseOutputs>(input_tokens) {
         Ok(syntax_tree) => syntax_tree,
         Err(err) => return err.to_compile_error(),
     };
 
-    let wdf_function_call_tokens = generate_wdf_function_call_tokens(
-        &function_pointer_type,
-        &function_table_index,
-        &parameters,
-        &return_type,
-        &arguments,
-    );
-
-    let must_use_attribute = if matches!(return_type, ReturnType::Type(..)) {
+    let must_use_attribute = if matches!(parse_outputs.return_type, ReturnType::Type(..)) {
         quote! { #[must_use] }
     } else {
         TokenStream2::new()
     };
+
+    let wdf_function_call_tokens = generate_wdf_function_call_tokens(&parse_outputs);
 
     quote! {
         {
@@ -170,7 +187,7 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 }
 
 /// Compute the function parameters and return type corresponding to the
-/// function signature of the function_pointer_type type alias in the AST for
+/// function signature of the `function_pointer_type` type alias in the AST for
 /// types.rs
 fn compute_parse_outputs_from_generated_code(
     function_pointer_type: &Ident,
@@ -178,18 +195,16 @@ fn compute_parse_outputs_from_generated_code(
     let types_rs_ast = get_abstract_syntax_tree_from_types_rs()?;
     let type_alias_definition = find_type_alias_definition(&types_rs_ast, function_pointer_type)?;
     let fn_pointer_definition = extract_fn_pointer_definition(type_alias_definition)?;
-    Ok(compute_parse_outputs_from_fn_pointer_definition(
-        fn_pointer_definition,
-    )?)
+    compute_parse_outputs_from_fn_pointer_definition(fn_pointer_definition)
 }
 
-fn get_abstract_syntax_tree_from_types_rs() -> Result<syn::File, Error> {
+fn get_abstract_syntax_tree_from_types_rs() -> Result<File, Error> {
     let types_rs_path = find_wdk_sys_out_dir()?.join("types.rs");
     let types_rs_contents = match std::fs::read_to_string(&types_rs_path) {
         Ok(contents) => contents,
         Err(err) => {
             return Err(Error::new(
-                proc_macro2::Span::call_site(),
+                Span::call_site(),
                 format!(
                     "Failed to read wdk-sys types.rs at {}: {}",
                     types_rs_path.display(),
@@ -199,10 +214,10 @@ fn get_abstract_syntax_tree_from_types_rs() -> Result<syn::File, Error> {
         }
     };
 
-    match syn::parse_file(&types_rs_contents) {
+    match parse_file(&types_rs_contents) {
         Ok(wdk_sys_types_rs_abstract_syntax_tree) => Ok(wdk_sys_types_rs_abstract_syntax_tree),
         Err(err) => Err(Error::new(
-            proc_macro2::Span::call_site(),
+            Span::call_site(),
             format!(
                 "Failed to parse wdk-sys types.rs into AST at {}: {}",
                 types_rs_path.display(),
@@ -232,7 +247,7 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf, Error> {
         Ok(process) => process,
         Err(err) => {
             return Err(Error::new(
-                proc_macro2::Span::call_site(),
+                Span::call_site(),
                 format!("Failed to start cargo check process successfully: {err}"),
             ));
         }
@@ -258,7 +273,7 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf, Error> {
         1 => &wdk_sys_out_dir[0],
         _ => {
             return Err(Error::new(
-                proc_macro2::Span::call_site(),
+                Span::call_site(),
                 format!(
                     "Expected exactly one instance of wdk-sys in dependency graph, found {}",
                     wdk_sys_out_dir.len()
@@ -279,7 +294,7 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf, Error> {
                 .read_to_string(&mut stderr_output)
                 .expect("cargo check process' stderr should be valid UTF-8");
                 return Err(Error::new(
-                    proc_macro2::Span::call_site(),
+                    Span::call_site(),
                     format!(
                         "cargo check failed to execute to get OUT_DIR for wdk-sys: \
                          \n{stderr_output}"
@@ -289,7 +304,7 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf, Error> {
         }
         Err(err) => {
             return Err(Error::new(
-                proc_macro2::Span::call_site(),
+                Span::call_site(),
                 format!("cargo check process handle should sucessfully be waited on: {err}"),
             ));
         }
@@ -298,14 +313,14 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf, Error> {
     Ok(wdk_sys_out_dir.to_owned().into())
 }
 
-/// find wdk-sys package_id. WDR places a limitation that only one instance of
+/// find wdk-sys `package_id`. WDR places a limitation that only one instance of
 /// wdk-sys is allowed in the dependency graph
 fn find_wdk_sys_pkg_id() -> Result<PackageId, Error> {
     let cargo_metadata_packages_list = match MetadataCommand::new().exec() {
         Ok(metadata) => metadata.packages,
         Err(err) => {
             return Err(Error::new(
-                proc_macro2::Span::call_site(),
+                Span::call_site(),
                 format!("cargo metadata failed to run successfully: {err}"),
             ));
         }
@@ -317,7 +332,7 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId, Error> {
 
     if wdk_sys_package_matches.len() != 1 {
         return Err(Error::new(
-            proc_macro2::Span::call_site(),
+            Span::call_site(),
             format!(
                 "Expected exactly one instance of wdk-sys in dependency graph, found {}",
                 wdk_sys_package_matches.len()
@@ -328,10 +343,12 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId, Error> {
 }
 
 /// Find type alias definition that matches the Ident of `function_pointer_type`
-/// in syn::File AST
+/// in `syn::File` AST
 ///
 /// For example, passing the `PFN_WDFDRIVERCREATE` [`Ident`] as
-/// `function_pointer_type` would return a [`ItemType`] representation of: ```
+/// `function_pointer_type` would return a [`ItemType`] representation of:
+///
+/// ```rust, compile_fail
 /// pub type PFN_WDFDRIVERCREATE = ::core::option::Option<
 ///     unsafe extern "C" fn(
 ///         DriverGlobals: PWDF_DRIVER_GLOBALS,
@@ -344,13 +361,13 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId, Error> {
 /// >;
 /// ```
 fn find_type_alias_definition<'a>(
-    ast: &'a syn::File,
+    ast: &'a File,
     function_pointer_type: &Ident,
-) -> Result<&'a syn::ItemType, Error> {
+) -> Result<&'a ItemType, Error> {
     ast.items
         .iter()
         .find_map(|item| {
-            if let syn::Item::Type(type_alias) = item {
+            if let Item::Type(type_alias) = item {
                 if type_alias.ident == *function_pointer_type {
                     return Some(type_alias);
                 }
@@ -365,68 +382,62 @@ fn find_type_alias_definition<'a>(
         })
 }
 
-fn extract_fn_pointer_definition(type_alias: &syn::ItemType) -> Result<&syn::TypePath, Error> {
-    if let syn::Type::Path(fn_pointer) = type_alias.ty.as_ref() {
+fn extract_fn_pointer_definition(type_alias: &ItemType) -> Result<&TypePath, Error> {
+    if let Type::Path(fn_pointer) = type_alias.ty.as_ref() {
         Ok(fn_pointer)
     } else {
-        Err(syn::Error::new(type_alias.ty.span(), "Expected Type::Path"))
+        Err(Error::new(type_alias.ty.span(), "Expected Type::Path"))
     }
 }
 
 fn compute_parse_outputs_from_fn_pointer_definition(
-    fn_pointer_definition: &syn::TypePath,
+    fn_pointer_typepath: &TypePath,
 ) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType), Error> {
-    let Some(syn::PathSegment {
-        ident: option_ident,
-        arguments: option_arguments,
-        ..
-    }) = fn_pointer_definition.path.segments.last()
-    else {
-        return Err(Error::new(
-            fn_pointer_definition.path.segments.span(),
+    let bare_fn_type = extract_bare_fn_type(fn_pointer_typepath)?;
+    let fn_parameters = compute_fn_parameters(bare_fn_type)?;
+    let return_type = compute_return_type(bare_fn_type)?;
+
+    Ok((fn_parameters, return_type))
+}
+
+fn extract_bare_fn_type(fn_pointer_typepath: &TypePath) -> Result<&syn::TypeBareFn, Error> {
+    let option_path_segment = fn_pointer_typepath.path.segments.last().ok_or_else(|| {
+        Error::new(
+            fn_pointer_typepath.path.segments.span(),
             "Expected PathSegments",
+        )
+    })?;
+    if option_path_segment.ident != "Option" {
+        return Err(Error::new(
+            option_path_segment.ident.span(),
+            "Expected Option",
         ));
-    };
-
-    if option_ident != "Option" {
-        return Err(Error::new(option_ident.span(), "Expected Option"));
     }
-
-    let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-        args: option_angle_bracketed_args,
+    let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+        args: ref option_angle_bracketed_args,
         ..
-    }) = option_arguments
+    }) = option_path_segment.arguments
     else {
         return Err(Error::new(
-            option_arguments.span(),
+            option_path_segment.arguments.span(),
             "Expected AngleBracketed PathArguments",
         ));
     };
-    if option_angle_bracketed_args.len() != 1 {
-        return Err(Error::new(
+    let bracketed_argument = option_angle_bracketed_args.first().ok_or_else(|| {
+        Error::new(
             option_angle_bracketed_args.span(),
             "Expected exactly one generic argument",
-        ));
-    }
-
-    let Some(syn::GenericArgument::Type(syn::Type::BareFn(syn::TypeBareFn {
-        inputs: fn_parameters,
-        output: fn_return_type,
-        ..
-    }))) = option_angle_bracketed_args.first()
-    else {
-        return Err(Error::new(
-            option_angle_bracketed_args.span(),
-            "Expected BareFn",
-        ));
+        )
+    })?;
+    let GenericArgument::Type(Type::BareFn(bare_fn_type)) = bracketed_argument else {
+        return Err(Error::new(bracketed_argument.span(), "Expected TypeBareFn"));
     };
-    if fn_parameters.is_empty() {
-        return Err(Error::new(
-            fn_parameters.span(),
-            "Expected at least one function parameter",
-        ));
-    }
+    Ok(bare_fn_type)
+}
 
+fn compute_fn_parameters(
+    bare_fn_type: &syn::TypeBareFn,
+) -> Result<Punctuated<BareFnArg, Token![,]>, Error> {
     let Some(BareFnArg {
         ty:
             Type::Path(TypePath {
@@ -438,69 +449,80 @@ fn compute_parse_outputs_from_fn_pointer_definition(
                 ..
             }),
         ..
-    }) = fn_parameters.first()
+    }) = bare_fn_type.inputs.first()
     else {
         return Err(Error::new(
-            fn_parameters.span(),
-            // todo
-            "Expected BareFnArg",
+            bare_fn_type.inputs.span(),
+            "Expected at least one input parameter",
         ));
     };
-
-    let Some(PathSegment {
-        ident: first_parameter_type_identifier,
-        ..
-    }) = first_parameter_type_path.last()
-    else {
+    let Some(last_path_segment) = first_parameter_type_path.last() else {
         return Err(Error::new(
             first_parameter_type_path.span(),
-            "Expected PathSegment",
+            "Expected at least one segment in type path",
         ));
     };
-    if first_parameter_type_identifier != "PWDF_DRIVER_GLOBALS" {
+    if last_path_segment.ident != "PWDF_DRIVER_GLOBALS" {
         return Err(Error::new(
-            first_parameter_type_identifier.span(),
+            last_path_segment.ident.span(),
             "Expected PWDF_DRIVER_GLOBALS",
         ));
     }
 
-    // todo: add wdk_sys::
-    let parameters = fn_parameters
-        .iter()
-        .skip(1) // skip PWDF_DRIVER_GLOBALS
-        .cloned()
-        .collect();
+    let parameters = bare_fn_type.inputs.iter().skip(1).cloned().collect();
+    Ok(parameters)
+}
 
-    let return_type = match fn_return_type {
+fn compute_return_type(bare_fn_type: &syn::TypeBareFn) -> Result<ReturnType, Error> {
+    let return_type = match &bare_fn_type.output {
         ReturnType::Default => ReturnType::Default,
-        ReturnType::Type(right_arrow_token, ty) => {
-            let Type::Path(ref type_path) = **ty else {
-                return Err(Error::new(ty.span(), "Expected Type::Path"));
-            };
-
-            let mut modified_type_path = type_path.clone();
-            modified_type_path.path.segments.insert(
-                0,
-                PathSegment {
-                    ident: format_ident!("wdk_sys"),
-                    arguments: syn::PathArguments::None,
+        ReturnType::Type(right_arrow_token, ty) => ReturnType::Type(
+            *right_arrow_token,
+            Box::new(Type::Path(TypePath {
+                qself: None,
+                path: Path {
+                    leading_colon: None,
+                    segments: {
+                        // prepend wdk_sys to existing TypePath
+                        let Type::Path(TypePath {
+                            path: Path { ref segments, .. },
+                            ..
+                        }) = **ty
+                        else {
+                            return Err(Error::new(
+                                ty.span(),
+                                "Failed to parse ReturnType TypePath",
+                            ));
+                        };
+                        let mut segments = segments.clone();
+                        segments.insert(
+                            0,
+                            PathSegment {
+                                ident: format_ident!("wdk_sys"),
+                                arguments: PathArguments::None,
+                            },
+                        );
+                        segments
+                    },
                 },
-            );
-
-            ReturnType::Type(*right_arrow_token, Box::new(Type::Path(modified_type_path)))
-        }
+            })),
+        ),
     };
-
-    return Ok((parameters, return_type));
+    Ok(return_type)
 }
 
 fn generate_wdf_function_call_tokens(
-    function_pointer_type: &Ident,
-    function_table_index: &Ident,
-    parameters: &Punctuated<BareFnArg, Token![,]>,
-    return_type: &ReturnType,
-    arguments: &Punctuated<Expr, Token![,]>,
+    parse_outputs: &CallUnsafeWDFFunctionParseOutputs,
 ) -> TokenStream2 {
+    let CallUnsafeWDFFunctionParseOutputs {
+        function_pointer_type,
+        function_table_index,
+        parameters,
+        return_type,
+        arguments,
+        inline_fn_impl_name,
+    } = parse_outputs;
+
     let parameter_identifiers: Punctuated<Ident, Token![,]> = parameters
         .iter()
         .cloned()
@@ -515,8 +537,7 @@ fn generate_wdf_function_call_tokens(
 
     quote! {
         #[inline(always)]
-        // TODO: fix fn name
-        fn unsafe_imp(#parameters) #return_type {
+        fn #inline_fn_impl_name(#parameters) #return_type {
             // Get handle to WDF function from the function table
             let wdf_function: wdk_sys::#function_pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
@@ -552,7 +573,7 @@ fn generate_wdf_function_call_tokens(
             }
         }
 
-        unsafe_imp(#arguments)
+        #inline_fn_impl_name(#arguments)
     }
 }
 

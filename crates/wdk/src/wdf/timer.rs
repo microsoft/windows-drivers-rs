@@ -52,6 +52,7 @@ impl Timer {
     }
 
     /// Start the [`Timer`]'s clock
+    #[must_use]
     pub fn start(&self, due_time: i64) -> bool {
         let result;
         // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by
@@ -65,6 +66,7 @@ impl Timer {
     }
 
     /// Stop the [`Timer`]'s clock
+    #[must_use]
     pub fn stop(&self, wait: bool) -> bool {
         let result;
         // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by
