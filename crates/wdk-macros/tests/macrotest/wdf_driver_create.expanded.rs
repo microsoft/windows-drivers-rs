@@ -18,7 +18,7 @@ pub extern "system" fn driver_entry(
             force_unsafe();
             #[must_use]
             #[inline(always)]
-            fn unsafe_imp(
+            fn wdf_driver_create_impl(
                 DriverObject: PDRIVER_OBJECT,
                 RegistryPath: PCUNICODE_STRING,
                 DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
@@ -59,7 +59,7 @@ pub extern "system" fn driver_entry(
                     };
                 }
             }
-            unsafe_imp(
+            wdf_driver_create_impl(
                 driver as PDRIVER_OBJECT,
                 registry_path,
                 WDF_NO_OBJECT_ATTRIBUTES,

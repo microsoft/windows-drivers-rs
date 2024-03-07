@@ -1,10 +1,5 @@
 error: Failed to find type alias definition for PFN_WDFAPITHATDOESNOTEXIST
  --> tests/trybuild/wdf_api_that_does_not_exist.rs
   |
-  | /         wdk_macros::call_unsafe_wdf_function_binding!(
-  | |             WdfApiThatDoesNotExist,
-  | |             driver as PDRIVER_OBJECT,
-  | |         )
-  | |_________^
-  |
-  = note: this error originates in the macro `wdk_macros::call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)
+  |             WdfApiThatDoesNotExist,
+  |             ^^^^^^^^^^^^^^^^^^^^^^

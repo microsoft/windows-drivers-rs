@@ -9,7 +9,7 @@ fn acquire_lock(wdf_spin_lock: WDFSPINLOCK) {
             unsafe fn force_unsafe() {}
             force_unsafe();
             #[inline(always)]
-            fn unsafe_imp(SpinLock: WDFSPINLOCK) {
+            fn wdf_spin_lock_acquire_impl(SpinLock: WDFSPINLOCK) {
                 let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(
                     #[allow(unused_unsafe)]
                     #[allow(clippy::multiple_unsafe_ops_per_block)]
@@ -35,7 +35,7 @@ fn acquire_lock(wdf_spin_lock: WDFSPINLOCK) {
                     };
                 }
             }
-            unsafe_imp(wdf_spin_lock)
+            wdf_spin_lock_acquire_impl(wdf_spin_lock)
         };
     }
 }
