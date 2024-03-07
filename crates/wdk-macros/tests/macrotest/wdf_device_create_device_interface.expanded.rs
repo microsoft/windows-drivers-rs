@@ -1,4 +1,5 @@
 #![no_main]
+#![deny(warnings)]
 use wdk_sys::*;
 const GUID_DEVINTERFACE_COMPORT: GUID = GUID {
     Data1: 0x86E0D1E0u32,

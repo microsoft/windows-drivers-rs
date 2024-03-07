@@ -1,4 +1,5 @@
 #![no_main]
+#![deny(warnings)]
 use wdk_sys::*;
 fn acquire_lock(wdf_spin_lock: WDFSPINLOCK) {
     unsafe {
