@@ -1,4 +1,5 @@
 #![no_main]
+#![deny(warnings)]
 use wdk_sys::*;
 extern "C" fn evt_driver_device_add(
     _driver: WDFDRIVER,

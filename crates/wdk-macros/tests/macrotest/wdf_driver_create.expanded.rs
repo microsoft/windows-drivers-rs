@@ -1,4 +1,5 @@
 #![no_main]
+#![deny(warnings)]
 use wdk_sys::*;
 #[export_name = "DriverEntry"]
 pub extern "system" fn driver_entry(
