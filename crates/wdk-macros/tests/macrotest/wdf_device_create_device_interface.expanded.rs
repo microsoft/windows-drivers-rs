@@ -15,7 +15,7 @@ fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
             force_unsafe();
             #[must_use]
             #[inline(always)]
-            fn unsafe_imp(
+            fn wdf_device_create_device_interface_impl(
                 Device: WDFDEVICE,
                 InterfaceClassGUID: *const GUID,
                 ReferenceString: PCUNICODE_STRING,
@@ -52,7 +52,11 @@ fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
                     };
                 }
             }
-            unsafe_imp(wdf_device, &GUID_DEVINTERFACE_COMPORT, core::ptr::null())
+            wdf_device_create_device_interface_impl(
+                wdf_device,
+                &GUID_DEVINTERFACE_COMPORT,
+                core::ptr::null(),
+            )
         }
     }
 }

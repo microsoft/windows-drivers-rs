@@ -13,7 +13,7 @@ extern "C" fn evt_driver_device_add(
             force_unsafe();
             #[must_use]
             #[inline(always)]
-            fn unsafe_imp(
+            fn wdf_device_create_impl(
                 DeviceInit: *mut PWDFDEVICE_INIT,
                 DeviceAttributes: PWDF_OBJECT_ATTRIBUTES,
                 Device: *mut WDFDEVICE,
@@ -50,7 +50,7 @@ extern "C" fn evt_driver_device_add(
                     };
                 }
             }
-            unsafe_imp(
+            wdf_device_create_impl(
                 &mut device_init,
                 WDF_NO_OBJECT_ATTRIBUTES,
                 &mut device_handle_output,
