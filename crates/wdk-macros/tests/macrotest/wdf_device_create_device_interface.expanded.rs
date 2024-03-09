@@ -10,15 +10,14 @@ const GUID_DEVINTERFACE_COMPORT: GUID = GUID {
 fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
     unsafe {
         {
-            use wdk_sys::*;
             unsafe fn force_unsafe() {}
             force_unsafe();
             #[must_use]
             #[inline(always)]
             fn wdf_device_create_device_interface_impl(
-                Device: WDFDEVICE,
-                InterfaceClassGUID: *const GUID,
-                ReferenceString: PCUNICODE_STRING,
+                Device: wdk_sys::WDFDEVICE,
+                InterfaceClassGUID: *const wdk_sys::GUID,
+                ReferenceString: wdk_sys::PCUNICODE_STRING,
             ) -> wdk_sys::NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDEVICECREATEDEVICEINTERFACE = Some(
                     #[allow(unused_unsafe)]

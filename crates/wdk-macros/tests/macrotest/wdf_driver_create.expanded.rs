@@ -13,17 +13,16 @@ pub extern "system" fn driver_entry(
     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
     unsafe {
         {
-            use wdk_sys::*;
             unsafe fn force_unsafe() {}
             force_unsafe();
             #[must_use]
             #[inline(always)]
             fn wdf_driver_create_impl(
-                DriverObject: PDRIVER_OBJECT,
-                RegistryPath: PCUNICODE_STRING,
-                DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
-                DriverConfig: PWDF_DRIVER_CONFIG,
-                Driver: *mut WDFDRIVER,
+                DriverObject: wdk_sys::PDRIVER_OBJECT,
+                RegistryPath: wdk_sys::PCUNICODE_STRING,
+                DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
+                DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
+                Driver: *mut wdk_sys::WDFDRIVER,
             ) -> wdk_sys::NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(
                     #[allow(unused_unsafe)]
