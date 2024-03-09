@@ -54,6 +54,7 @@ use syn::{
     Token,
     Type,
     TypePath,
+    TypePtr,
 };
 
 /// A procedural macro that allows WDF functions to be called by name.
@@ -101,6 +102,8 @@ pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStrea
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
 }
 
+// TODO: for every place where an error can be returned, forward a span that
+// makes sense
 struct CallUnsafeWDFFunctionParseOutputs {
     function_pointer_type: Ident,
     function_table_index: Ident,
@@ -173,9 +176,6 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 
     quote! {
         {
-            // TODO: remove this
-            use wdk_sys::*;
-
             // Force the macro to require an unsafe block
             unsafe fn force_unsafe(){}
             force_unsafe();
@@ -361,10 +361,11 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId, Error> {
 /// >;
 /// ```
 fn find_type_alias_definition<'a>(
-    ast: &'a File,
+    file_ast: &'a File,
     function_pointer_type: &Ident,
 ) -> Result<&'a ItemType, Error> {
-    ast.items
+    file_ast
+        .items
         .iter()
         .find_map(|item| {
             if let Item::Type(type_alias) = item {
@@ -469,7 +470,58 @@ fn compute_fn_parameters(
         ));
     }
 
-    let parameters = bare_fn_type.inputs.iter().skip(1).cloned().collect();
+    // drop PWDF_DRIVER_GLOBALS parameter and prepend wdk_sys to the rest of the
+    // parameters
+    let parameters = bare_fn_type
+        .inputs
+        .iter()
+        .skip(1)
+        .cloned()
+        .map(|mut bare_fn_arg| {
+            let parameter_type_path_segments = match &mut bare_fn_arg.ty {
+                Type::Path(TypePath {
+                    path: Path {
+                        ref mut segments, ..
+                    },
+                    ..
+                }) => segments,
+
+                Type::Ptr(TypePtr { elem: ty, .. }) => {
+                    let Type::Path(TypePath {
+                        path:
+                            Path {
+                                ref mut segments, ..
+                            },
+                        ..
+                    }) = **ty
+                    else {
+                        return Err(Error::new(
+                            ty.span(),
+                            "Failed to parse TypePath from TypePtr",
+                        ));
+                    };
+                    segments
+                }
+
+                _ => {
+                    return Err(Error::new(
+                        bare_fn_arg.ty.span(),
+                        format!(
+                            "Unepected Type encountered when parsing: {:#?}",
+                            bare_fn_arg.ty
+                        ),
+                    ));
+                }
+            };
+
+            parameter_type_path_segments.insert(
+                0,
+                syn::PathSegment::from(Ident::new("wdk_sys", Span::call_site())),
+            );
+            Ok(bare_fn_arg)
+        })
+        .collect::<Result<_, Error>>()?;
+
     Ok(parameters)
 }
 
@@ -523,17 +575,23 @@ fn generate_wdf_function_call_tokens(
         inline_fn_impl_name,
     } = parse_outputs;
 
-    let parameter_identifiers: Punctuated<Ident, Token![,]> = parameters
+    let parameter_identifiers = match parameters
         .iter()
         .cloned()
-        .filter_map(|bare_fn_arg| {
+        .map(|bare_fn_arg| {
             if let Some((identifier, _)) = bare_fn_arg.name {
-                return Some(identifier);
+                return Ok(identifier);
             }
-            None
-            // TODO error
+            Err(Error::new(
+                bare_fn_arg.span(),
+                "Expected parameter to have a name",
+            ))
         })
-        .collect();
+        .collect::<Result<Punctuated<Ident, Token![,]>, Error>>()
+    {
+        Ok(identifiers) => identifiers,
+        Err(err) => return err.to_compile_error(),
+    };
 
     quote! {
         #[inline(always)]

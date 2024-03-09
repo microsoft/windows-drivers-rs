@@ -8,15 +8,14 @@ extern "C" fn evt_driver_device_add(
     let mut device_handle_output: WDFDEVICE = WDF_NO_HANDLE.cast();
     unsafe {
         {
-            use wdk_sys::*;
             unsafe fn force_unsafe() {}
             force_unsafe();
             #[must_use]
             #[inline(always)]
             fn wdf_device_create_impl(
-                DeviceInit: *mut PWDFDEVICE_INIT,
-                DeviceAttributes: PWDF_OBJECT_ATTRIBUTES,
-                Device: *mut WDFDEVICE,
+                DeviceInit: *mut wdk_sys::PWDFDEVICE_INIT,
+                DeviceAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
+                Device: *mut wdk_sys::WDFDEVICE,
             ) -> wdk_sys::NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDEVICECREATE = Some(
                     #[allow(unused_unsafe)]
