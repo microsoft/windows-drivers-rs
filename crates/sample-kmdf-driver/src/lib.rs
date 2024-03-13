@@ -95,7 +95,6 @@ pub unsafe extern "system" fn driver_entry(
     //         4. `driver_config` is a valid pointer to a valid `WDF_DRIVER_CONFIG`
     //         5. `driver_handle_output` is expected to be null
     unsafe {
-        #![allow(clippy::multiple_unsafe_ops_per_block)]
         wdf_driver_create_ntstatus = call_unsafe_wdf_function_binding!(
             WdfDriverCreate,
             driver as wdk_sys::PDRIVER_OBJECT,

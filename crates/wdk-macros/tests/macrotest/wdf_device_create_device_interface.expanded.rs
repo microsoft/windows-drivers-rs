@@ -10,11 +10,9 @@ const GUID_DEVINTERFACE_COMPORT: GUID = GUID {
 fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
     unsafe {
         {
-            unsafe fn force_unsafe() {}
-            force_unsafe();
             #[must_use]
             #[inline(always)]
-            fn wdf_device_create_device_interface_impl(
+            unsafe fn wdf_device_create_device_interface_impl(
                 Device: wdk_sys::WDFDEVICE,
                 InterfaceClassGUID: *const wdk_sys::GUID,
                 ReferenceString: wdk_sys::PCUNICODE_STRING,

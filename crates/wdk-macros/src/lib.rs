@@ -176,10 +176,6 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 
     quote! {
         {
-            // Force the macro to require an unsafe block
-            unsafe fn force_unsafe(){}
-            force_unsafe();
-
             #must_use_attribute
             #wdf_function_call_tokens
         }
@@ -595,7 +591,7 @@ fn generate_wdf_function_call_tokens(
 
     quote! {
         #[inline(always)]
-        fn #inline_fn_impl_name(#parameters) #return_type {
+        unsafe fn #inline_fn_impl_name(#parameters) #return_type {
             // Get handle to WDF function from the function table
             let wdf_function: wdk_sys::#function_pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
