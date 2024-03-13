@@ -13,11 +13,9 @@ pub extern "system" fn driver_entry(
     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
     unsafe {
         {
-            unsafe fn force_unsafe() {}
-            force_unsafe();
             #[must_use]
             #[inline(always)]
-            fn wdf_driver_create_impl(
+            unsafe fn wdf_driver_create_impl(
                 DriverObject: wdk_sys::PDRIVER_OBJECT,
                 RegistryPath: wdk_sys::PCUNICODE_STRING,
                 DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
