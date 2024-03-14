@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+
 use std::path::{Path, PathBuf};
 
 use lazy_static::lazy_static;
@@ -5,6 +8,7 @@ use lazy_static::lazy_static;
 lazy_static! {
     static ref TESTS_FOLDER_PATH: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect();
     static ref MACROTEST_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("macrotest");
+    static ref TRYBUILD_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("trybuild");
 }
 
 use std::{io::Write, stringify};
@@ -38,7 +42,7 @@ macro_rules! generate_macro_expansion_and_compilation_tests {
             paste! {
 
                 // This module's tests are deliberately not feature-gated by #[cfg(feature = "nightly")] since macrotest can control whether to expand with the nightly feature or not
-                mod expansion_tests {
+                mod macro_expansion {
                     use super::*;
 
                     $(
@@ -63,7 +67,7 @@ macro_rules! generate_macro_expansion_and_compilation_tests {
                     }
                 }
 
-                mod compilation_tests {
+                mod macro_compilation {
                     use super::*;
 
                     pub trait TestCasesExt {
@@ -162,3 +166,18 @@ generate_macro_expansion_and_compilation_tests!(
     wdf_device_create_device_interface,
     wdf_spin_lock_acquire
 );
+
+mod macro_usage_errors {
+    use super::*;
+
+    /// This test leverages `trybuild` to ensure that developer misuse of
+    /// the macro cause compilation failures, with an appropriate message
+    #[test]
+    fn trybuild() {
+        trybuild::TestCases::new().compile_fail(
+            // canonicalization of this path causes a bug in `glob`: https://github.com/rust-lang/glob/issues/132
+            TRYBUILD_FOLDER_PATH // .canonicalize()?
+                .join("*.rs"),
+        );
+    }
+}
