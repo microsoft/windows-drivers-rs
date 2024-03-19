@@ -8,9 +8,10 @@ use crate::types::{NTSTATUS, POOL_FLAGS, PVOID, PWDF_OBJECT_ATTRIBUTES};
 #[allow(non_upper_case_globals)]
 #[rustversion::attr(
     any(
-        all(not(nightly), since(1.79)),
+        all(not(nightly), since(1.78)),
         all(nightly, since(2024-02-09)),
     ),
+    // required until following issue is resolved: https://github.com/rust-lang/rust-bindgen/issues/2710
     allow(clippy::manual_c_str_literals)
 )]
 #[allow(clippy::unreadable_literal)]
