@@ -912,6 +912,17 @@ mod tests {
 
                 pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
             }
+
+            #[test]
+            fn wdf_function_with_no_arguments_and_trailing_comma() {
+                let input_tokens = quote! { WdfVerifierDbgBreakPoint, };
+                let expected = Inputs {
+                    wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                    wdf_function_arguments: Punctuated::new(),
+                };
+
+                pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
+            }
         }
     }
     mod generate_must_use_attribute {
