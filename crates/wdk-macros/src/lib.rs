@@ -923,6 +923,17 @@ mod tests {
 
                 pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
             }
+            
+            #[test]
+            fn invalid_ident() {
+                let input_tokens = quote! { 123InvalidIdent, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output, };
+                let expected = Error::new(
+                    Span::call_site(),
+                    "expected identifier",
+                );
+
+                pretty_assert_eq!(expected.to_string(), parse2::<Inputs>(input_tokens).unwrap_err().to_string());
+            }
         }
     }
     mod generate_must_use_attribute {
