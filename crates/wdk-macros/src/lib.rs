@@ -115,7 +115,7 @@ trait StringExt {
 
 /// Struct storing the input tokens directly parsed from calls to
 /// call_unsafe_wdf_function_binding macro
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq)]
 struct Inputs {
     /// The name of the WDF function to call. This matches the name of the
     /// function in C/C++.
@@ -128,6 +128,7 @@ struct Inputs {
 /// Struct storing all the AST fragments derived from `Inputs`. This represents
 /// all the derived ASTs depend on `Inputs` that ultimately get used in the
 /// final generated code that.
+#[derive(Debug, PartialEq)]
 struct DerivedASTFragments {
     function_pointer_type: Ident,
     function_table_index: Ident,
@@ -933,6 +934,72 @@ mod tests {
                 );
 
                 pretty_assert_eq!(expected.to_string(), parse2::<Inputs>(input_tokens).unwrap_err().to_string());
+            }
+        }
+
+        mod generate_derived_ast_fragments {
+            use super::*;
+
+            #[test]
+            fn valid_input() {
+                let inputs = Inputs {
+                    wdf_function_identifier: format_ident!("WdfDriverCreate"),
+                    wdf_function_arguments: parse_quote! {
+                        driver,
+                        registry_path,
+                        WDF_NO_OBJECT_ATTRIBUTES,
+                        &mut driver_config,
+                        driver_handle_output,
+                    },
+                };
+                let expected = DerivedASTFragments {
+                    function_pointer_type: format_ident!("PFN_WDFDRIVERCREATE"),
+                    function_table_index: format_ident!("WdfDriverCreateTableIndex"),
+                    parameters: parse_quote! {
+                        DriverObject: wdk_sys::PDRIVER_OBJECT,
+                        RegistryPath: wdk_sys::PCUNICODE_STRING,
+                        DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
+                        DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
+                        Driver: *mut wdk_sys::WDFDRIVER
+                    },
+                    parameter_identifiers: parse_quote! {
+                        DriverObject,
+                        RegistryPath,
+                        DriverAttributes,
+                        DriverConfig,
+                        Driver
+                    },
+                    return_type: parse_quote! { -> wdk_sys::NTSTATUS },
+                    arguments: parse_quote! {
+                        driver,
+                        registry_path,
+                        WDF_NO_OBJECT_ATTRIBUTES,
+                        &mut driver_config,
+                        driver_handle_output,
+                    },
+                    inline_wdf_fn_name: format_ident!("wdf_driver_create_impl"),
+                };
+
+                pretty_assert_eq!(expected, inputs.generate_derived_ast_fragments().unwrap());
+            }
+
+            #[test]
+            fn valid_input_with_no_arguments() {
+                let inputs = Inputs {
+                    wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                    wdf_function_arguments: Punctuated::new(),
+                };
+                let expected = DerivedASTFragments {
+                    function_pointer_type: format_ident!("PFN_WDFVERIFIERDBGBREAKPOINT"),
+                    function_table_index: format_ident!("WdfVerifierDbgBreakPointTableIndex"),
+                    parameters: Punctuated::new(),
+                    parameter_identifiers: Punctuated::new(),
+                    return_type: ReturnType::Default,
+                    arguments: Punctuated::new(),
+                    inline_wdf_fn_name: format_ident!("wdf_verifier_dbg_break_point_impl"),
+                };
+
+                pretty_assert_eq!(expected, inputs.generate_derived_ast_fragments().unwrap());
             }
         }
     }
