@@ -186,10 +186,14 @@ impl StringExt for String {
 impl Parse for Inputs {
     fn parse(input: ParseStream) -> Result<Self> {
         let c_wdf_function_identifier = input.parse::<Ident>()?;
-impl Parse for CallUnsafeWDFFunctionParseOutputs {
-    fn parse(input: ParseStream) -> Result<Self, Error> {
-        // parse inputs
-        let c_function_identifier = input.parse::<Ident>()?;
+
+        // Support WDF apis with no arguments
+        if input.is_empty() {
+            return Ok(Self {
+                wdf_function_identifier: c_wdf_function_identifier,
+                wdf_function_arguments: Punctuated::new(),
+            });
+        }
 
         input.parse::<Token![,]>()?;
         let wdf_function_arguments = input.parse_terminated(Expr::parse, Token![,])?;
@@ -898,7 +902,16 @@ mod tests {
                 pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
             }
 
- 
+            #[test]
+            fn wdf_function_with_no_arguments() {
+                let input_tokens = quote! { WdfVerifierDbgBreakPoint };
+                let expected = Inputs {
+                    wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                    wdf_function_arguments: Punctuated::new(),
+                };
+
+                pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
+            }
         }
     }
     mod generate_must_use_attribute {
