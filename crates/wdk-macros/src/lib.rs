@@ -788,7 +788,7 @@ mod tests {
             let input = "camelCaseString".to_string();
             let expected = "camel_case_string";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -796,7 +796,7 @@ mod tests {
             let input = "aB".to_string();
             let expected = "a_b";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -804,7 +804,7 @@ mod tests {
             let input = "PascalCaseString".to_string();
             let expected = "pascal_case_string";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -812,7 +812,7 @@ mod tests {
             let input = "ASCIIEncodedString".to_string();
             let expected = "ascii_encoded_string";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -820,7 +820,7 @@ mod tests {
             let input = "IsASCII".to_string();
             let expected = "is_ascii";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -828,7 +828,7 @@ mod tests {
             let input = "PFN_WDF_DRIVER_DEVICE_ADD".to_string();
             let expected = "pfn_wdf_driver_device_add";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -836,7 +836,7 @@ mod tests {
             let input = "ASCII_STRING".to_string();
             let expected = "ascii_string";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -844,7 +844,7 @@ mod tests {
             let input = "_WDF_DRIVER_INIT_FLAGS".to_string();
             let expected = "_wdf_driver_init_flags";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -852,7 +852,7 @@ mod tests {
             let input = "snake_case_string".to_string();
             let expected = "snake_case_string";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
 
         #[test]
@@ -860,7 +860,7 @@ mod tests {
             let input = "_snake_case_with_leading_underscore".to_string();
             let expected = "_snake_case_with_leading_underscore";
 
-            pretty_assert_eq!(expected, input.to_snake_case());
+            pretty_assert_eq!(input.to_snake_case(), expected);
         }
     }
 
@@ -883,7 +883,7 @@ mod tests {
                     },
                 };
 
-                pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
+                pretty_assert_eq!(parse2::<Inputs>(input_tokens).unwrap(), expected);
             }
 
             #[test]
@@ -900,7 +900,7 @@ mod tests {
                     },
                 };
 
-                pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
+                pretty_assert_eq!(parse2::<Inputs>(input_tokens).unwrap(), expected);
             }
 
             #[test]
@@ -911,7 +911,7 @@ mod tests {
                     wdf_function_arguments: Punctuated::new(),
                 };
 
-                pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
+                pretty_assert_eq!(parse2::<Inputs>(input_tokens).unwrap(), expected);
             }
 
             #[test]
@@ -922,18 +922,18 @@ mod tests {
                     wdf_function_arguments: Punctuated::new(),
                 };
 
-                pretty_assert_eq!(expected, parse2::<Inputs>(input_tokens).unwrap());
+                pretty_assert_eq!(parse2::<Inputs>(input_tokens).unwrap(), expected);
             }
-            
+
             #[test]
             fn invalid_ident() {
                 let input_tokens = quote! { 123InvalidIdent, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output, };
-                let expected = Error::new(
-                    Span::call_site(),
-                    "expected identifier",
-                );
+                let expected = Error::new(Span::call_site(), "expected identifier");
 
-                pretty_assert_eq!(expected.to_string(), parse2::<Inputs>(input_tokens).unwrap_err().to_string());
+                pretty_assert_eq!(
+                    parse2::<Inputs>(input_tokens).unwrap_err().to_string(),
+                    expected.to_string()
+                );
             }
         }
 
@@ -980,7 +980,7 @@ mod tests {
                     inline_wdf_fn_name: format_ident!("wdf_driver_create_impl"),
                 };
 
-                pretty_assert_eq!(expected, inputs.generate_derived_ast_fragments().unwrap());
+                pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
             }
 
             #[test]
@@ -999,7 +999,7 @@ mod tests {
                     inline_wdf_fn_name: format_ident!("wdf_verifier_dbg_break_point_impl"),
                 };
 
-                pretty_assert_eq!(expected, inputs.generate_derived_ast_fragments().unwrap());
+                pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
             }
         }
     }
@@ -1013,7 +1013,7 @@ mod tests {
             let return_type = ReturnType::Default;
             let generated_must_use_attribute_tokens = generate_must_use_attribute(&return_type);
 
-            pretty_assert_eq!(None, generated_must_use_attribute_tokens);
+            pretty_assert_eq!(generated_must_use_attribute_tokens, None);
         }
 
         #[test]
@@ -1023,11 +1023,11 @@ mod tests {
             let generated_must_use_attribute_tokens = generate_must_use_attribute(&return_type);
 
             pretty_assert_eq!(
-                expected_tokens.to_string(),
                 generated_must_use_attribute_tokens
                     .unwrap()
                     .into_token_stream()
-                    .to_string()
+                    .to_string(),
+                expected_tokens.to_string(),
             );
         }
     }
