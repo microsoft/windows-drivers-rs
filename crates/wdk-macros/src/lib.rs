@@ -571,7 +571,7 @@ fn find_type_alias_definition<'a>(
 ///
 /// # Examples
 ///
-/// The `ItemType` representation of
+/// The [`ItemType`] representation of
 ///
 /// ```rust, compile_fail
 /// pub type PFN_WDFDRIVERCREATE = ::core::option::Option<
@@ -1149,6 +1149,58 @@ mod tests {
 
                 pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
             }
+        }
+    }
+
+    mod extract_fn_pointer_definition {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            let fn_type_alias = parse_quote! {
+                pub type PFN_WDFDRIVERCREATE = ::core::option::Option<
+                    unsafe extern "C" fn(
+                        DriverGlobals: PWDF_DRIVER_GLOBALS,
+                        DriverObject: PDRIVER_OBJECT,
+                        RegistryPath: PCUNICODE_STRING,
+                        DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                        DriverConfig: PWDF_DRIVER_CONFIG,
+                        Driver: *mut WDFDRIVER,
+                    ) -> NTSTATUS
+                >;
+            };
+            let expected = parse_quote! {
+                ::core::option::Option<
+                    unsafe extern "C" fn(
+                        DriverGlobals: PWDF_DRIVER_GLOBALS,
+                        DriverObject: PDRIVER_OBJECT,
+                        RegistryPath: PCUNICODE_STRING,
+                        DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                        DriverConfig: PWDF_DRIVER_CONFIG,
+                        Driver: *mut WDFDRIVER,
+                    ) -> NTSTATUS
+                >
+            };
+
+            pretty_assert_eq!(
+                extract_fn_pointer_definition(&fn_type_alias, Span::call_site()).unwrap(),
+                &expected
+            );
+        }
+
+        #[test]
+        fn valid_input_with_no_arguments() {
+            let fn_type_alias = parse_quote! {
+                pub type PFN_WDFVERIFIERDBGBREAKPOINT = ::core::option::Option<unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS)>;
+            };
+            let expected = parse_quote! {
+                ::core::option::Option<unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS)>
+            };
+
+            pretty_assert_eq!(
+                extract_fn_pointer_definition(&fn_type_alias, Span::call_site()).unwrap(),
+                &expected
+            );
         }
     }
 
