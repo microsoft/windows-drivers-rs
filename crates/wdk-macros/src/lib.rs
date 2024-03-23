@@ -366,6 +366,21 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 /// Generate the function parameters and return type corresponding to the
 /// function signature of the `function_pointer_type` type alias in the AST for
 /// types.rs
+///
+/// # Examples
+///
+/// Passing the `PFN_WDFDRIVERCREATE` [`Ident`] as `function_pointer_type` would
+/// return a [`Punctuated`] representation of
+///
+/// ```rust, compile_fail
+/// DriverObject: wdk_sys::PDRIVER_OBJECT,
+/// RegistryPath: wdk_sys::PCUNICODE_STRING,
+/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
+/// Driver: *mut wdk_sys::WDFDRIVER
+/// ```
+///
+/// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
 fn generate_parameters_and_return_type(
     function_pointer_type: &Ident,
 ) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
@@ -632,7 +647,7 @@ fn extract_fn_pointer_definition(type_alias: &ItemType, error_span: Span) -> Res
 /// ```
 ///
 /// would return the parsed parameter list as the [`Punctuated`] representation
-/// of of
+/// of
 ///
 /// ```rust, compile_fail
 /// DriverObject: wdk_sys::PDRIVER_OBJECT,
@@ -1149,6 +1164,26 @@ mod tests {
 
                 pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
             }
+        }
+    }
+
+    mod generate_parameters_and_return_type {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            let function_pointer_type = format_ident!("PFN_WDFIOQUEUEPURGESYNCHRONOUSLY");
+            let expected = (
+                parse_quote! {
+                    Queue: wdk_sys::WDFQUEUE
+                },
+                ReturnType::Default,
+            );
+
+            pretty_assert_eq!(
+                generate_parameters_and_return_type(&function_pointer_type).unwrap(),
+                expected
+            );
         }
     }
 
