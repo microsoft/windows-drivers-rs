@@ -321,7 +321,7 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 [[package]]
 name = "macrotest"
 version = "1.0.9"
-source = "git+https://github.com/eupn/macrotest?rev=c4151a5#c4151a5f9f545942f4971980b5d264ebcd0b1d11"
+source = "git+https://github.com/eupn/macrotest?rev=bc3bd2a#bc3bd2a647b305089a07c70a9a57eadbe59f6f8f"
 dependencies = [
  "basic-toml",
  "diff",

@@ -32,7 +32,7 @@ use cargo_metadata::{Message, MetadataCommand, PackageId};
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, ParseStream},
     parse2,
@@ -42,9 +42,9 @@ use syn::{
     AngleBracketedGenericArguments,
     Attribute,
     BareFnArg,
-    Block,
     Error,
     Expr,
+    ExprCall,
     File,
     GenericArgument,
     Ident,
@@ -111,12 +111,12 @@ pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStrea
 
 /// A trait to provide additional functionality to the `String` type
 trait StringExt {
-    /// Convert a string to snake_case
+    /// Convert a string to `snake_case`
     fn to_snake_case(&self) -> String;
 }
 
 /// Struct storing the input tokens directly parsed from calls to
-/// call_unsafe_wdf_function_binding macro
+/// `call_unsafe_wdf_function_binding` macro
 #[derive(Debug, PartialEq)]
 struct Inputs {
     /// The name of the WDF function to call. This matches the name of the
@@ -146,17 +146,17 @@ struct DerivedASTFragments {
 struct IntermediateOutputASTFragments {
     must_use_attribute: Option<Attribute>,
     inline_wdf_fn_signature: Signature,
-    inline_wdf_fn_body: Block,
-    inline_wdf_fn_invocation: Stmt,
+    inline_wdf_fn_body_statments: Vec<Stmt>,
+    inline_wdf_fn_invocation: ExprCall,
 }
 
 impl StringExt for String {
     fn to_snake_case(&self) -> String {
-        let mut snake_case_string = String::with_capacity(self.len());
-
         // There will be, at max, 2 characters unhandled by the 3-char windows. It is
         // only less than 2 when the string has length less than 2
         const MAX_PADDING_NEEDED: usize = 2;
+
+        let mut snake_case_string = Self::with_capacity(self.len());
 
         for (current_char, next_char, next_next_char) in self
             .chars()
@@ -253,7 +253,7 @@ impl Inputs {
 }
 
 impl DerivedASTFragments {
-    fn generate_intermediate_output_ast_fragments(self) -> Result<IntermediateOutputASTFragments> {
+    fn generate_intermediate_output_ast_fragments(self) -> IntermediateOutputASTFragments {
         let Self {
             function_pointer_type,
             function_table_index,
@@ -267,11 +267,10 @@ impl DerivedASTFragments {
         let must_use_attribute = generate_must_use_attribute(&return_type);
 
         let inline_wdf_fn_signature = parse_quote! {
-            #[inline(always)]
             unsafe fn #inline_wdf_fn_name(#parameters) #return_type
         };
 
-        let inline_wdf_fn_body = parse_quote! {
+        let inline_wdf_fn_body_statments = parse_quote! {
             // Get handle to WDF function from the function table
             let wdf_function: wdk_sys::#function_pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
@@ -311,12 +310,12 @@ impl DerivedASTFragments {
             #inline_wdf_fn_name(#arguments)
         };
 
-        Ok(IntermediateOutputASTFragments {
+        IntermediateOutputASTFragments {
             must_use_attribute,
             inline_wdf_fn_signature,
-            inline_wdf_fn_body,
+            inline_wdf_fn_body_statments,
             inline_wdf_fn_invocation,
-        })
+        }
     }
 }
 
@@ -325,20 +324,23 @@ impl IntermediateOutputASTFragments {
         let Self {
             must_use_attribute,
             inline_wdf_fn_signature,
-            inline_wdf_fn_body,
+            inline_wdf_fn_body_statments,
             inline_wdf_fn_invocation,
         } = self;
 
-        let conditional_must_use_attribute = must_use_attribute
-            .map_or_else(TokenStream2::new, |attribute| attribute.into_token_stream());
+        let conditional_must_use_attribute =
+            must_use_attribute.map_or_else(TokenStream2::new, quote::ToTokens::into_token_stream);
 
         quote! {
-            #conditional_must_use_attribute
-            #inline_wdf_fn_signature {
-                #inline_wdf_fn_body
-            }
+            {
+                #conditional_must_use_attribute
+                #[inline(always)]
+                #inline_wdf_fn_signature {
+                    #(#inline_wdf_fn_body_statments)*
+                }
 
-            #inline_wdf_fn_invocation
+                #inline_wdf_fn_invocation
+            }
         }
     }
 }
@@ -354,13 +356,9 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         Err(err) => return err.to_compile_error(),
     };
 
-    let intermediate_output_ast_fragments =
-        match derived_ast_fragments.generate_intermediate_output_ast_fragments() {
-            Ok(intermediate_output_ast_fragments) => intermediate_output_ast_fragments,
-            Err(err) => return err.to_compile_error(),
-        };
-
-    intermediate_output_ast_fragments.assemble_final_output()
+    derived_ast_fragments
+        .generate_intermediate_output_ast_fragments()
+        .assemble_final_output()
 }
 
 /// Generate the function parameters and return type corresponding to the
@@ -421,7 +419,7 @@ fn get_type_rs_ast() -> Result<File> {
     }
 }
 
-/// Find the OUT_DIR of wdk-sys crate by running `cargo check` with
+/// Find the `OUT_DIR` of wdk-sys crate by running `cargo check` with
 /// `--message-format=json` and parsing its output using [`cargo_metadata`]
 fn find_wdk_sys_out_dir() -> Result<PathBuf> {
     let mut cargo_check_process_handle = match Command::new("cargo")
@@ -471,7 +469,8 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf> {
             return Err(Error::new(
                 Span::call_site(),
                 format!(
-                    "Expected exactly one instance of wdk-sys in dependency graph, found {}",
+                    "Expected exactly one instance of wdk-sys in dependency graph when running \
+                     `cargo check`, found {}",
                     wdk_sys_out_dir.len()
                 ),
             ));
@@ -530,7 +529,8 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId> {
         return Err(Error::new(
             Span::call_site(),
             format!(
-                "Expected exactly one instance of wdk-sys in dependency graph, found {}",
+                "Expected exactly one instance of wdk-sys in dependency graph when running `cargo \
+                 metadata`, found {}",
                 wdk_sys_package_matches.len()
             ),
         ));
@@ -940,6 +940,7 @@ fn generate_must_use_attribute(return_type: &ReturnType) -> Option<Attribute> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq as pretty_assert_eq;
+    use quote::ToTokens;
 
     use super::*;
 
@@ -1029,6 +1030,7 @@ mod tests {
 
     mod inputs {
         use super::*;
+
         mod parse {
             use super::*;
 
@@ -1460,8 +1462,6 @@ mod tests {
     }
 
     mod generate_must_use_attribute {
-        use syn::parse_quote;
-
         use super::*;
 
         #[test]
