@@ -639,7 +639,7 @@ fn extract_fn_pointer_definition(type_alias: &ItemType, error_span: Span) -> Res
 /// RegistryPath: wdk_sys::PCUNICODE_STRING,
 /// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
 /// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER,
+/// Driver: *mut wdk_sys::WDFDRIVER
 /// ```
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
@@ -755,7 +755,7 @@ fn extract_bare_fn_type(fn_pointer_typepath: &TypePath, error_span: Span) -> Res
 /// RegistryPath: wdk_sys::PCUNICODE_STRING,
 /// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
 /// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER,
+/// Driver: *mut wdk_sys::WDFDRIVER
 /// ```
 fn compute_fn_parameters(
     bare_fn_type: &syn::TypeBareFn,
@@ -1149,6 +1149,51 @@ mod tests {
 
                 pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
             }
+        }
+    }
+
+    mod compute_fn_parameters {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            // WdfDriverCreate has the following generated signature:
+            let bare_fn_type = parse_quote! {
+                unsafe extern "C" fn(
+                    DriverGlobals: PWDF_DRIVER_GLOBALS,
+                    DriverObject: PDRIVER_OBJECT,
+                    RegistryPath: PCUNICODE_STRING,
+                    DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                    DriverConfig: PWDF_DRIVER_CONFIG,
+                    Driver: *mut WDFDRIVER,
+                ) -> NTSTATUS
+            };
+            let expected = parse_quote! {
+                DriverObject: wdk_sys::PDRIVER_OBJECT,
+                RegistryPath: wdk_sys::PCUNICODE_STRING,
+                DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
+                DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
+                Driver: *mut wdk_sys::WDFDRIVER
+            };
+
+            pretty_assert_eq!(
+                compute_fn_parameters(&bare_fn_type, Span::call_site()).unwrap(),
+                expected
+            );
+        }
+
+        #[test]
+        fn valid_input_with_no_arguments() {
+            // WdfVerifierDbgBreakPoint has the following generated signature:
+            let bare_fn_type = parse_quote! {
+                unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS)
+            };
+            let expected = Punctuated::new();
+
+            pretty_assert_eq!(
+                compute_fn_parameters(&bare_fn_type, Span::call_site()).unwrap(),
+                expected
+            );
         }
     }
 
