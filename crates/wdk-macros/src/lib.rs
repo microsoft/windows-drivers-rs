@@ -1152,6 +1152,57 @@ mod tests {
         }
     }
 
+    mod parse_fn_pointer_definition {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            // WdfDriverCreate has the following generated signature:
+            let fn_pointer_typepath = parse_quote! {
+                ::core::option::Option<unsafe extern "C" fn(
+                    DriverGlobals: PWDF_DRIVER_GLOBALS,
+                    DriverObject: PDRIVER_OBJECT,
+                    RegistryPath: PCUNICODE_STRING,
+                    DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                    DriverConfig: PWDF_DRIVER_CONFIG,
+                    Driver: *mut WDFDRIVER,
+                ) -> NTSTATUS>
+            };
+            let expected = (
+                parse_quote! {
+                    DriverObject: wdk_sys::PDRIVER_OBJECT,
+                    RegistryPath: wdk_sys::PCUNICODE_STRING,
+                    DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
+                    DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
+                    Driver: *mut wdk_sys::WDFDRIVER
+                },
+                ReturnType::Type(
+                    Token![->](Span::call_site()),
+                    Box::new(Type::Path(parse_quote! { wdk_sys::NTSTATUS })),
+                ),
+            );
+
+            pretty_assert_eq!(
+                parse_fn_pointer_definition(&fn_pointer_typepath, Span::call_site()).unwrap(),
+                expected
+            );
+        }
+
+        #[test]
+        fn valid_input_with_no_arguments() {
+            // WdfVerifierDbgBreakPoint has the following generated signature:
+            let fn_pointer_typepath = parse_quote! {
+                ::core::option::Option<unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS)>
+            };
+            let expected = (Punctuated::new(), ReturnType::Default);
+
+            pretty_assert_eq!(
+                parse_fn_pointer_definition(&fn_pointer_typepath, Span::call_site()).unwrap(),
+                expected
+            );
+        }
+    }
+
     mod extract_bare_fn_type {
         use super::*;
 
