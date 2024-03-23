@@ -1152,6 +1152,49 @@ mod tests {
         }
     }
 
+    mod find_type_alias_definition {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            // This is just a snippet of a generated types.rs file
+            let types_rs_ast = parse_quote! {
+                pub type WDF_DRIVER_GLOBALS = _WDF_DRIVER_GLOBALS;
+                pub type PWDF_DRIVER_GLOBALS = *mut _WDF_DRIVER_GLOBALS;
+                pub mod _WDFFUNCENUM {
+                    pub type Type = ::core::ffi::c_int;
+                    pub const WdfChildListCreateTableIndex: Type = 0;
+                    pub const WdfChildListGetDeviceTableIndex: Type = 1;
+                    pub const WdfChildListRetrievePdoTableIndex: Type = 2;
+                    pub const WdfChildListRetrieveAddressDescriptionTableIndex: Type = 3;
+                    pub const WdfChildListBeginScanTableIndex: Type = 4;
+                    pub const WdfChildListEndScanTableIndex: Type = 5;
+                    pub const WdfChildListBeginIterationTableIndex: Type = 6;
+                    pub const WdfChildListRetrieveNextDeviceTableIndex: Type = 7;
+                    pub const WdfChildListEndIterationTableIndex: Type = 8;
+                    pub const WdfChildListAddOrUpdateChildDescriptionAsPresentTableIndex: Type = 9;
+                    pub const WdfChildListUpdateChildDescriptionAsMissingTableIndex: Type = 10;
+                    pub const WdfChildListUpdateAllChildDescriptionsAsPresentTableIndex: Type = 11;
+                    pub const WdfChildListRequestChildEjectTableIndex: Type = 12;
+                }
+                pub type PFN_WDFGETTRIAGEINFO = ::core::option::Option<
+                    unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS) -> PVOID,
+                >;
+            };
+            let function_pointer_type = format_ident!("PFN_WDFGETTRIAGEINFO");
+            let expected = parse_quote! {
+                pub type PFN_WDFGETTRIAGEINFO = ::core::option::Option<
+                    unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS) -> PVOID,
+                >;
+            };
+
+            pretty_assert_eq!(
+                find_type_alias_definition(&types_rs_ast, &function_pointer_type).unwrap(),
+                &expected
+            );
+        }
+    }
+
     mod extract_fn_pointer_definition {
         use super::*;
 
