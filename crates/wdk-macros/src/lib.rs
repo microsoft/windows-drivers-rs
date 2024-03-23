@@ -1003,6 +1003,52 @@ mod tests {
             }
         }
     }
+
+    mod compute_return_type {
+        use super::*;
+
+        #[test]
+        fn ntstatus() {
+            // WdfDriverCreate has the following generated signature:
+            let bare_fn_type = parse_quote! {
+                unsafe extern "C" fn(
+                    DriverGlobals: PWDF_DRIVER_GLOBALS,
+                    DriverObject: PDRIVER_OBJECT,
+                    RegistryPath: PCUNICODE_STRING,
+                    DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                    DriverConfig: PWDF_DRIVER_CONFIG,
+                    Driver: *mut WDFDRIVER,
+                ) -> NTSTATUS
+            };
+            let expected = ReturnType::Type(
+                Token![->](Span::call_site()),
+                Box::new(Type::Path(parse_quote! { wdk_sys::NTSTATUS })),
+            );
+
+            pretty_assert_eq!(
+                compute_return_type(&bare_fn_type, Span::call_site()).unwrap(),
+                expected
+            );
+        }
+
+        #[test]
+        fn unit() {
+            // WdfSpinLockAcquire has the following generated signature:
+            let bare_fn_type = parse_quote! {
+                unsafe extern "C" fn(
+                    DriverGlobals: PWDF_DRIVER_GLOBALS,
+                    SpinLock: WDFSPINLOCK
+                )
+            };
+            let expected = ReturnType::Default;
+
+            pretty_assert_eq!(
+                compute_return_type(&bare_fn_type, Span::call_site()).unwrap(),
+                expected
+            );
+        }
+    }
+
     mod generate_must_use_attribute {
         use syn::parse_quote;
 
