@@ -1152,6 +1152,42 @@ mod tests {
         }
     }
 
+    mod extract_bare_fn_type {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            // WdfDriverCreate has the following generated signature:
+            let fn_pointer_typepath = parse_quote! {
+                ::core::option::Option<
+                    unsafe extern "C" fn(
+                        DriverGlobals: PWDF_DRIVER_GLOBALS,
+                        DriverObject: PDRIVER_OBJECT,
+                        RegistryPath: PCUNICODE_STRING,
+                        DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                        DriverConfig: PWDF_DRIVER_CONFIG,
+                        Driver: *mut WDFDRIVER,
+                    ) -> NTSTATUS,
+                >
+            };
+            let expected: TypeBareFn = parse_quote! {
+                unsafe extern "C" fn(
+                    DriverGlobals: PWDF_DRIVER_GLOBALS,
+                    DriverObject: PDRIVER_OBJECT,
+                    RegistryPath: PCUNICODE_STRING,
+                    DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                    DriverConfig: PWDF_DRIVER_CONFIG,
+                    Driver: *mut WDFDRIVER,
+                ) -> NTSTATUS
+            };
+
+            pretty_assert_eq!(
+                extract_bare_fn_type(&fn_pointer_typepath, Span::call_site()).unwrap(),
+                &expected
+            );
+        }
+    }
+
     mod compute_fn_parameters {
         use super::*;
 
