@@ -164,7 +164,8 @@ generate_macro_expansion_and_compilation_tests!(
     wdf_driver_create,
     wdf_device_create,
     wdf_device_create_device_interface,
-    wdf_spin_lock_acquire
+    wdf_spin_lock_acquire,
+    wdf_verifier_dbg_break_point
 );
 
 mod macro_usage_errors {
