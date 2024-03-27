@@ -1,0 +1,54 @@
+on:
+  push:
+  pull_request:
+  merge_group:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: "0 11 * * *"
+
+name: Makefile
+
+env:
+  RUSTFLAGS: -D warnings
+
+jobs:
+  build:
+    name: Test WDR's local cargo-make Makefile
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        wdk:
+          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Winget
+        uses: ./.github/actions/winget-install
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install WDK (${{ matrix.wdk }})
+        run: |
+          if (!(winget list --exact --source winget --id ${{ matrix.wdk }})[-1].contains("${{ matrix.wdk }}")) {
+            winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
+          }
+
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          targets: ${{ matrix.target_triple }}
+
+      - name: Install Cargo Make
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
+
+      - name: Test wdk-pre-commit-flow cargo-make task
+        run: cargo make wdk-pre-commit-flow
