@@ -422,6 +422,7 @@ fn get_type_rs_ast() -> Result<File> {
 /// Find the `OUT_DIR` of wdk-sys crate by running `cargo check` with
 /// `--message-format=json` and parsing its output using [`cargo_metadata`]
 fn find_wdk_sys_out_dir() -> Result<PathBuf> {
+    let scratch_path = scratch::path(env!("CARGO_PKG_NAME"));
     let mut cargo_check_process_handle = match Command::new("cargo")
         .args([
             "check",
@@ -432,7 +433,10 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf> {
             // file lock on build output directory since this proc_macro causes
             // cargo build to invoke cargo check
             "--target-dir",
-            "target/wdk-macros-target",
+            scratch_path
+                .as_os_str()
+                .to_str()
+                .expect("scratch::path should be valid UTF-8"),
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
