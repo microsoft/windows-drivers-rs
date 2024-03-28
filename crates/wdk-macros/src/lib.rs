@@ -276,8 +276,6 @@ impl DerivedASTFragments {
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
                 //         arguments for the WDF function is safe befause WDF maintains the strict mapping between the
                 //         function table index and the correct function pointer type.
-                #[allow(unused_unsafe)]
-                #[allow(clippy::multiple_unsafe_ops_per_block)]
                 unsafe {
                     core::mem::transmute(
                         // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
@@ -293,8 +291,6 @@ impl DerivedASTFragments {
                 // `wdk_sys::WDF_FUNCTION_TABLE` indexed by `table_index` and guarded by the type-safety of
                 // `pointer_type`. The passed arguments are also guaranteed to be of a compatible type due to
                 // `pointer_type`.
-                #[allow(unused_unsafe)]
-                #[allow(clippy::multiple_unsafe_ops_per_block)]
                 unsafe {
                     (wdf_function)(
                         wdk_sys::WdfDriverGlobals,

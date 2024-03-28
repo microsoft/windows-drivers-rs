@@ -9,23 +9,23 @@ use std::{
 use fs4::FileExt;
 use lazy_static::lazy_static;
 
+#[rustversion::stable]
+const TOOLCHAIN_CHANNEL_NAME: &str = "stable";
+
+#[rustversion::beta]
+const TOOLCHAIN_CHANNEL_NAME: &str = "beta";
+
+#[rustversion::nightly]
+const TOOLCHAIN_CHANNEL_NAME: &str = "nightly";
+
 lazy_static! {
     static ref TESTS_FOLDER_PATH: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect();
     static ref INPUTS_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("inputs");
     static ref MACROTEST_INPUT_FOLDER_PATH: PathBuf = INPUTS_FOLDER_PATH.join("macrotest");
     static ref TRYBUILD_INPUT_FOLDER_PATH: PathBuf = INPUTS_FOLDER_PATH.join("trybuild");
     static ref OUTPUTS_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("outputs");
-    static ref TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: PathBuf = {
-        if rustversion::cfg!(stable) {
-            OUTPUTS_FOLDER_PATH.join("stable")
-        } else if rustversion::cfg!(beta) {
-            OUTPUTS_FOLDER_PATH.join("beta")
-        } else if rustversion::cfg!(nightly) {
-            OUTPUTS_FOLDER_PATH.join("nightly")
-        } else {
-            panic!("Unable to detect toolchain version")
-        }
-    };
+    static ref TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: PathBuf =
+        OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME);
     static ref MACROTEST_OUTPUT_FOLDER_PATH: PathBuf =
         TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("macrotest");
     static ref TRYBUILD_OUTPUT_FOLDER_PATH: PathBuf =
@@ -212,14 +212,12 @@ fn create_symlink_if_nonexistent(link: &Path, target: &Path) {
     // Only create a new symlink if there isn't an existing one, or if the existing
     // one points to the wrong place
     if !link.exists() {
-        return std::os::windows::fs::symlink_file(target, link)
-            .expect("symlink creation should succeed");
+        std::os::windows::fs::symlink_file(target, link).expect("symlink creation should succeed");
     } else if !link.is_symlink()
-        || std::fs::read_link(&link).expect("read_link of symlink should succeed") != target
+        || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
     {
-        std::fs::remove_file(&link).expect("stale symlink removal should succeed");
-        return std::os::windows::fs::symlink_file(target, link)
-            .expect("symlink creation should succeed");
+        std::fs::remove_file(link).expect("stale symlink removal should succeed");
+        std::os::windows::fs::symlink_file(target, link).expect("symlink creation should succeed");
     } else {
         // symlink already exists and points to the correct place
     }
