@@ -1,5 +1,5 @@
 error[E0061]: this function takes 5 arguments but 4 arguments were supplied
-  --> tests/outputs/stable/trybuild/wdf_driver_create_missing_arg.rs
+  --> tests/outputs/nightly/trybuild/wdf_driver_create_missing_arg.rs
    |
    | /         wdk_macros::call_unsafe_wdf_function_binding!(
    | |             WdfDriverCreate,
@@ -13,7 +13,7 @@ error[E0061]: this function takes 5 arguments but 4 arguments were supplied
    | |_________^
    |
 note: function defined here
-  --> tests/outputs/stable/trybuild/wdf_driver_create_missing_arg.rs
+  --> tests/outputs/nightly/trybuild/wdf_driver_create_missing_arg.rs
    |
    | /         wdk_macros::call_unsafe_wdf_function_binding!(
    | |             WdfDriverCreate,

@@ -1,5 +1,5 @@
 error[E0308]: arguments to this function are incorrect
-  --> tests/outputs/stable/trybuild/wdf_driver_create_wrong_arg_order.rs
+  --> tests/outputs/beta/trybuild/wdf_driver_create_wrong_arg_order.rs
    |
    | /         wdk_macros::call_unsafe_wdf_function_binding!(
    | |             WdfDriverCreate,
@@ -15,7 +15,7 @@ error[E0308]: arguments to this function are incorrect
    | |_________^
    |
 note: function defined here
-  --> tests/outputs/stable/trybuild/wdf_driver_create_wrong_arg_order.rs
+  --> tests/outputs/beta/trybuild/wdf_driver_create_wrong_arg_order.rs
    |
    | /         wdk_macros::call_unsafe_wdf_function_binding!(
    | |             WdfDriverCreate,
