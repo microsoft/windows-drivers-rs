@@ -1,5 +1,5 @@
 error: unused return value of `wdf_device_create_impl` that must be used
- --> tests/trybuild/wdf_device_create_unused_return_type.rs
+ --> tests/outputs/stable/trybuild/wdf_device_create_unused_return_type.rs
   |
   | /         wdk_macros::call_unsafe_wdf_function_binding!(
   | |             WdfDeviceCreate,
@@ -10,7 +10,7 @@ error: unused return value of `wdf_device_create_impl` that must be used
   | |_________^
   |
 note: the lint level is defined here
- --> tests/trybuild/wdf_device_create_unused_return_type.rs
+ --> tests/outputs/stable/trybuild/wdf_device_create_unused_return_type.rs
   |
   | #![deny(warnings)]
   |         ^^^^^^^^

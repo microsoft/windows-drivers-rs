@@ -28,12 +28,14 @@ syn = { version = "2.0.48", features = ["full"] }
 [dev-dependencies]
 # use path dependency instead of workspace due to: https://github.com/eupn/macrotest/issues/95
 wdk-sys.path = "../wdk-sys"
+fs4 = { version = "0.8", features = ["sync"] }
 lazy_static = "1.4.0"
 # Pin to github version due to: https://github.com/eupn/macrotest/issues/94
 macrotest = { git = "https://github.com/eupn/macrotest", rev = "bc3bd2a" }
 owo-colors = "4.0.0"
 paste = "1.0.14"
 pretty_assertions = "1.4.0"
+rustversion = "1.0.14"
 syn = { version = "2.0.48", features = ["extra-traits"] }
 trybuild = "1.0.89"
 

@@ -240,6 +240,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57b1e34e369d7f0151309821497440bd0266b86c77ccd69717c3b67e5eaeffe4"
+dependencies = [
+ "rustix",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -776,6 +786,7 @@ name = "wdk-macros"
 version = "0.2.0"
 dependencies = [
  "cargo_metadata",
+ "fs4",
  "itertools",
  "lazy_static",
  "macrotest",
@@ -784,6 +795,7 @@ dependencies = [
  "pretty_assertions",
  "proc-macro2",
  "quote",
+ "rustversion",
  "syn",
  "trybuild",
  "wdk-sys",

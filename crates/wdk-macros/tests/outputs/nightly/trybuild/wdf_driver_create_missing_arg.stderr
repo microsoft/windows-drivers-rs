@@ -1,21 +1,19 @@
-error[E0308]: arguments to this function are incorrect
-  --> tests/trybuild/wdf_driver_create_wrong_arg_order.rs
+error[E0061]: this function takes 5 arguments but 4 arguments were supplied
+  --> tests/outputs/stable/trybuild/wdf_driver_create_missing_arg.rs
    |
    | /         wdk_macros::call_unsafe_wdf_function_binding!(
    | |             WdfDriverCreate,
    | |             driver as PDRIVER_OBJECT,
    | |             registry_path,
-   | |             // The order of the next two arguments is swapped!
+...  |
    | |             &mut driver_config,
-   | |             ------------------ expected `*mut _WDF_OBJECT_ATTRIBUTES`, found `&mut _WDF_DRIVER_CONFIG`
-   | |             WDF_NO_OBJECT_ATTRIBUTES,
-   | |             ------------------------ expected `*mut _WDF_DRIVER_CONFIG`, found `*mut _WDF_OBJECT_ATTRIBUTES`
+   | |             ------------------ an argument of type `*mut _WDF_OBJECT_ATTRIBUTES` is missing
    | |             driver_handle_output,
    | |         )
    | |_________^
    |
 note: function defined here
-  --> tests/trybuild/wdf_driver_create_wrong_arg_order.rs
+  --> tests/outputs/stable/trybuild/wdf_driver_create_missing_arg.rs
    |
    | /         wdk_macros::call_unsafe_wdf_function_binding!(
    | |             WdfDriverCreate,
@@ -31,7 +29,7 @@ note: function defined here
    | |_________|
    |
    = note: this error originates in the macro `wdk_macros::call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: swap these arguments
+help: provide the argument
    |
-28 |         )(driver as PDRIVER_OBJECT, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output)
-   |          +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+28 |         )(driver as PDRIVER_OBJECT, registry_path, /* *mut _WDF_OBJECT_ATTRIBUTES */, &mut driver_config, driver_handle_output)
+   |          ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
