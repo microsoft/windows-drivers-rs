@@ -1,12 +1,14 @@
 extend = "./crates/wdk-build/rust-driver-makefile.toml"
 
 [config]
+min_version = "0.37.11"
 additional_profiles = ["all-default-tasks"]
 
 [env]
 CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
 CARGO_MAKE_CLIPPY_ARGS = "--all-targets -- -D warnings"
 RUSTFLAGS = "-D warnings"
+ORIGINAL_CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "${CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN}"
 
 [tasks.wdk-pre-commit-flow]
 description = "Run pre-commit tasks and checks"
@@ -25,6 +27,9 @@ dependencies = [
   "nightly-test-flow",
   "nightly-clippy-flow",
   "nightly-docs",
+  "beta-test-flow",
+  "beta-clippy-flow",
+  "beta-docs",
 ]
 
 [tasks.format]
@@ -71,7 +76,6 @@ env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true } }
 
 [tasks.nightly-clippy-flow]
 extend = "clippy-flow"
-toolchain = "nightly"
 dependencies = [
   "pre-nightly-clippy",
   "nightly-clippy-router",
@@ -89,9 +93,44 @@ env = { CARGO_MAKE_CLIPPY_ARGS = "--features nightly ${CARGO_MAKE_CLIPPY_ARGS}",
 
 [tasks.post-nightly-clippy]
 extend = "post-clippy"
-env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = { unset = true } }
+env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "${ORIGINAL_CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN}" }
 
 [tasks.nightly-docs]
 extend = "docs"
 toolchain = "nightly"
 args = ["doc", "--no-deps", "--features", "nightly"]
+
+[tasks.beta-test-flow]
+extend = "test-flow"
+dependencies = ["pre-beta-test", "beta-test", "post-beta-test"]
+
+[tasks.pre-beta-test]
+alias = "pre-test"
+
+[tasks.beta-test]
+extend = "test"
+toolchain = "beta"
+
+[tasks.post-beta-test]
+alias = "post-test"
+
+[tasks.beta-clippy-flow]
+extend = "clippy-flow"
+dependencies = ["pre-beta-clippy", "beta-clippy-router", "post-beta-clippy"]
+
+[tasks.pre-beta-clippy]
+extend = "pre-clippy"
+# Proc-macro crates fail to trigger recompilation when switching toolchains due to bug in rustc resulting in "found invalid metadata files for crate" errors.
+run_task = "clean"
+
+[tasks.beta-clippy-router]
+extend = "clippy-router"
+env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "beta" }
+
+[tasks.post-beta-clippy]
+extend = "post-clippy"
+env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "${ORIGINAL_CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN}" }
+
+[tasks.beta-docs]
+extend = "docs"
+toolchain = "beta"
