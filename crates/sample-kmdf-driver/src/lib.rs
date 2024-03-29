@@ -165,7 +165,6 @@ extern "C" fn evt_driver_device_add(
     //          null
     //       3. `device_handle_output` is expected to be null
     unsafe {
-        #![allow(clippy::multiple_unsafe_ops_per_block)]
         ntstatus = wdk_macros::call_unsafe_wdf_function_binding!(
             WdfDeviceCreate,
             &mut device_init,

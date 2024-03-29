@@ -17,19 +17,13 @@ fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
                 InterfaceClassGUID: *const wdk_sys::GUID,
                 ReferenceString: wdk_sys::PCUNICODE_STRING,
             ) -> wdk_sys::NTSTATUS {
-                let wdf_function: wdk_sys::PFN_WDFDEVICECREATEDEVICEINTERFACE = Some(
-                    #[allow(unused_unsafe)]
-                    #[allow(clippy::multiple_unsafe_ops_per_block)]
-                    unsafe {
-                        core::mem::transmute(
-                            wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateDeviceInterfaceTableIndex
-                                as usize],
-                        )
-                    },
-                );
+                let wdf_function: wdk_sys::PFN_WDFDEVICECREATEDEVICEINTERFACE = Some(unsafe {
+                    core::mem::transmute(
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateDeviceInterfaceTableIndex
+                            as usize],
+                    )
+                });
                 if let Some(wdf_function) = wdf_function {
-                    #[allow(unused_unsafe)]
-                    #[allow(clippy::multiple_unsafe_ops_per_block)]
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,

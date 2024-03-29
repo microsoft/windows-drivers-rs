@@ -3,23 +3,16 @@
 use wdk_sys::*;
 fn acquire_lock(wdf_spin_lock: WDFSPINLOCK) {
     unsafe {
-        #![allow(clippy::multiple_unsafe_ops_per_block)]
         {
             #[inline(always)]
             unsafe fn wdf_spin_lock_acquire_impl(SpinLock: wdk_sys::WDFSPINLOCK) {
-                let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(
-                    #[allow(unused_unsafe)]
-                    #[allow(clippy::multiple_unsafe_ops_per_block)]
-                    unsafe {
-                        core::mem::transmute(
-                            wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfSpinLockAcquireTableIndex
-                                as usize],
-                        )
-                    },
-                );
+                let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(unsafe {
+                    core::mem::transmute(
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfSpinLockAcquireTableIndex
+                            as usize],
+                    )
+                });
                 if let Some(wdf_function) = wdf_function {
-                    #[allow(unused_unsafe)]
-                    #[allow(clippy::multiple_unsafe_ops_per_block)]
                     unsafe { (wdf_function)(wdk_sys::WdfDriverGlobals, SpinLock) }
                 } else {
                     {

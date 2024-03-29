@@ -28,7 +28,6 @@ impl Timer {
         // accessible outside of this module, and this module guarantees that it is
         // always in a valid state.
         unsafe {
-            #![allow(clippy::multiple_unsafe_ops_per_block)]
             nt_status = macros::call_unsafe_wdf_function_binding!(
                 WdfTimerCreate,
                 timer_config,
@@ -58,7 +57,6 @@ impl Timer {
         // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by
         // WDF, and this module guarantees that it is always in a valid state.
         unsafe {
-            #![allow(clippy::multiple_unsafe_ops_per_block)]
             result =
                 macros::call_unsafe_wdf_function_binding!(WdfTimerStart, self.wdf_timer, due_time);
         }
@@ -72,7 +70,6 @@ impl Timer {
         // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by
         // WDF, and this module guarantees that it is always in a valid state.
         unsafe {
-            #![allow(clippy::multiple_unsafe_ops_per_block)]
             result = macros::call_unsafe_wdf_function_binding!(
                 WdfTimerStop,
                 self.wdf_timer,

@@ -22,19 +22,13 @@ pub extern "system" fn driver_entry(
                 DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
                 Driver: *mut wdk_sys::WDFDRIVER,
             ) -> wdk_sys::NTSTATUS {
-                let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(
-                    #[allow(unused_unsafe)]
-                    #[allow(clippy::multiple_unsafe_ops_per_block)]
-                    unsafe {
-                        core::mem::transmute(
-                            wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDriverCreateTableIndex
-                                as usize],
-                        )
-                    },
-                );
+                let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(unsafe {
+                    core::mem::transmute(
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDriverCreateTableIndex
+                            as usize],
+                    )
+                });
                 if let Some(wdf_function) = wdf_function {
-                    #[allow(unused_unsafe)]
-                    #[allow(clippy::multiple_unsafe_ops_per_block)]
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,
