@@ -217,6 +217,9 @@ fn create_symlink_if_nonexistent(link: &Path, target: &Path) {
         || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
     {
         std::fs::remove_file(link).expect("stale symlink removal should succeed");
+        // wait for deletion to complete
+        while link.exists() {}
+
         std::os::windows::fs::symlink_file(target, link).expect("symlink creation should succeed");
     } else {
         // symlink already exists and points to the correct place
