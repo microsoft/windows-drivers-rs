@@ -71,7 +71,7 @@ macro_rules! generate_macrotest_tests {
                 $(
                     #[test]
                     fn [<$filename _expansion>]() {
-                        let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize().expect("canonicalize of symlink target should succeed");
+                        let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         let symlink_path = &MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         create_symlink_if_nonexistent(symlink_path, symlink_target);
                         macrotest::expand(symlink_path);
@@ -84,7 +84,7 @@ macro_rules! generate_macrotest_tests {
                     $(
                         #[test]
                         fn [<$filename _expansion>]() {
-                            let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize().expect("canonicalize of symlink target should succeed");
+                            let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             let symlink_path = &MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             create_symlink_if_nonexistent(symlink_path, symlink_target);
                             macrotest::expand_args(
@@ -157,7 +157,7 @@ macro_rules! generate_macrotest_tests {
                     #[cfg(not(feature = "nightly"))]
                     #[test]
                     fn [<$filename _compilation>]() {
-                        let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize().expect("canonicalize of symlink target should succeed");
+                        let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         let symlink_path = &MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         create_symlink_if_nonexistent(symlink_path, symlink_target);
                         trybuild::TestCases::pass_cargo_check(symlink_path);
@@ -171,7 +171,7 @@ macro_rules! generate_macrotest_tests {
                     $(
                         #[test]
                         fn [<$filename _compilation>]() {
-                            let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize().expect("canonicalize of symlink target should succeed");
+                            let symlink_target = &MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             let symlink_path = &MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             create_symlink_if_nonexistent(symlink_path, symlink_target);
                             trybuild::TestCases::pass_cargo_check(symlink_path);
@@ -193,7 +193,7 @@ macro_rules! generate_trybuild_tests {
             $(
                 #[test]
                 fn $filename() {
-                    let symlink_target = &TRYBUILD_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename))).canonicalize().expect("canonicalize of symlink target should succeed");
+                    let symlink_target = &TRYBUILD_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                     let symlink_path = &TRYBUILD_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                     create_symlink_if_nonexistent(symlink_path, symlink_target);
                     trybuild::TestCases::new().compile_fail(symlink_path);
@@ -205,22 +205,36 @@ macro_rules! generate_trybuild_tests {
 }
 
 fn create_symlink_if_nonexistent(link: &Path, target: &Path) {
-    let target_file = File::open(target).expect("target file should be successfully opened");
+    // Use relative paths for symlink creation
+    let relative_target_path =
+        pathdiff::diff_paths(target, link.parent().expect("link.parent() should exist"))
+            .expect("target path should be resolvable as relative to link");
+
+    // Lock based off target_file so tests can run in parallel
+    let target_file = File::open(
+        target
+            .canonicalize()
+            .expect("canonicalize of symlink target should succeed"),
+    )
+    .expect("target file should be successfully opened");
     target_file
         .lock_exclusive()
         .expect("exclusive lock should be successfully acquired");
+
     // Only create a new symlink if there isn't an existing one, or if the existing
     // one points to the wrong place
     if !link.exists() {
-        std::os::windows::fs::symlink_file(target, link).expect("symlink creation should succeed");
+        std::os::windows::fs::symlink_file(relative_target_path, link)
+            .expect("symlink creation should succeed");
     } else if !link.is_symlink()
         || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
     {
         std::fs::remove_file(link).expect("stale symlink removal should succeed");
         // wait for deletion to complete
-        while link.exists() {}
+        while !matches!(link.try_exists(), Ok(false)) {}
 
-        std::os::windows::fs::symlink_file(target, link).expect("symlink creation should succeed");
+        std::os::windows::fs::symlink_file(relative_target_path, link)
+            .expect("symlink creation should succeed");
     } else {
         // symlink already exists and points to the correct place
     }

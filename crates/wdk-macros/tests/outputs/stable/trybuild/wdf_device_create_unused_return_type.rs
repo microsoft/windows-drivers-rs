@@ -1,1 +1,1 @@
-D:/git-repos/github/windows-drivers-rs.git/worktrees-folder/better-macro-must-use/crates/wdk-macros/tests/inputs/trybuild/wdf_device_create_unused_return_type.rs
+../../../inputs/trybuild/wdf_device_create_unused_return_type.rs
