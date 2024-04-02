@@ -53,7 +53,7 @@ jobs:
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-expand
+          tool: cargo-expand@1.0.80
 
       - name: Run Cargo Test
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
