@@ -19,10 +19,9 @@ jobs:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK
 
-        rust_toolchain:
-          - stable
-          - beta
-          - nightly
+        target_triple:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
 
     steps:
       - name: Checkout Repository
@@ -39,10 +38,9 @@ jobs:
             winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
           }
 
-      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
-        uses: dtolnay/rust-toolchain@master
+      - name: Install Rust Toolchain (${{ matrix.target_triple }})
+        uses: dtolnay/rust-toolchain@stable # Use stable since local makefile pins toolchain versions anyways
         with:
-          toolchain: ${{ matrix.rust_toolchain }}
           targets: ${{ matrix.target_triple }}
 
       - name: Install Cargo Make
