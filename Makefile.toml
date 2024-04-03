@@ -113,6 +113,7 @@ alias = "pre-test"
 
 [tasks.beta-test]
 extend = "test"
+install_crate = { crate_name = "cargo-expand", version = "1.0.80" }
 toolchain = "beta"
 
 [tasks.post-beta-test]
