@@ -28,7 +28,7 @@ syn = { version = "2.0.48", features = ["full"] }
 
 [dev-dependencies]
 wdk-sys.workspace = true
-fs4 = { version = "0.8", features = ["sync"] }
+fs4 = { version = "0.8.2", features = ["sync"] }
 pathdiff = "0.2.0"
 lazy_static = "1.4.0"
 macrotest = "1.0.11"
