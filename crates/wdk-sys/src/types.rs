@@ -40,7 +40,7 @@
 )]
 #[rustversion::attr(
     any(
-        all(not(nightly), since(1.79)),
+        all(not(nightly), since(1.78)),
         all(nightly, since(2024-02-09)),
     ),
     allow(clippy::ref_as_ptr)

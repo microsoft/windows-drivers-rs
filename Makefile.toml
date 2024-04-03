@@ -42,6 +42,9 @@ success = rm -r ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/tests
 assert ${success} "Failed to delete tests directory"
 '''
 
+[tasks.test]
+install_crate = { crate_name = "cargo-expand", version = "1.0.80" }
+
 [tasks.audit]
 args = ["audit", "--deny", "warnings"]
 
