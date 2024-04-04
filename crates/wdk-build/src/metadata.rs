@@ -106,7 +106,10 @@ impl TryFrom<WDKMetadata> for DriverConfig {
 /// todo
 pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
     // TODO: check that if this auto reruns if cargo.toml's change
-    let cargo_metadata_packages_list = MetadataCommand::new().exec()?.packages;
+    let cargo_metadata_packages_list = MetadataCommand::new()
+        .manifest_path(find_top_level_cargo_manifest())
+        .exec()?
+        .packages;
 
     // Only one version of wdk-build should be present in the dependency graph
     let wdk_build_package_matches = cargo_metadata_packages_list
@@ -155,4 +158,27 @@ pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
             });
         }
     })
+}
+
+/// Find the path the the toplevel Cargo manifest of the currently executing Cargo command. This should resolve to either:
+/// 1. the `Cargo.toml` in the package where the Cargo command was run
+/// 2. the `Cargo.toml` provided to the `--manifest-path` argument
+/// 3. the `Cargo.toml` of the workspace that contains the package pointed to by 1 or 2
+/// The returned path should be a manifest in the same directory of the lockfile. This does
+/// not support invokations that use non-default target directories (ex. via
+/// `--target-dir`).
+fn find_top_level_cargo_manifest() -> PathBuf {
+    let out_dir =
+        PathBuf::from(std::env::var("OUT_DIR").expect(
+            "Cargo should have set the OUT_DIR environment variable when executing build.rs",
+        ));
+    // TODO need rerun on OUT_DIR and cargo.toml changes?
+
+    out_dir
+        .ancestors()
+        .skip_while(|path| !path.join("Cargo.lock").exists())
+        .next()
+        .unwrap()
+        .join("Cargo.toml")
+    // TODO: error handling
 }

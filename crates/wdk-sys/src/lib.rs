@@ -42,22 +42,21 @@ pub extern "system" fn __CxxFrameHandler3() -> i32 {
     0
 }
 
-// FIXME: dynamically find name of this struct based off of wdk-build settings
 // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 lazy_static! {
     #[allow(missing_docs)]
     pub static ref WDF_FUNCTION_TABLE: &'static [WDFFUNC] = {
-        // SAFETY: `WdfFunctions_01033` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_table = unsafe { WdfFunctions_01033 };
+        // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
+        let wdf_function_table = unsafe { WdfFunctions };
 
         // SAFETY: `WdfFunctionCount` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
         let wdf_function_count = unsafe { WdfFunctionCount } as usize;
 
         // SAFETY: This is safe because:
-        //         1. `WdfFunctions_01033` is valid for reads for `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`
+        //         1. `WdfFunctions` is valid for reads for `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`
         //            bytes, and is guaranteed to be aligned and it must be properly aligned.
-        //         2. `WdfFunctions_01033` points to `WdfFunctionCount` consecutive properly initialized values of
+        //         2. `WdfFunctions` points to `WdfFunctionCount` consecutive properly initialized values of
         //            type `WDFFUNC`.
         //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
         //         4. The total size, `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
