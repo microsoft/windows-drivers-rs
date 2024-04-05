@@ -48,7 +48,7 @@ assert ${success} "Failed to delete tests directory"
 '''
 
 [tasks.test]
-install_crate = { crate_name = "cargo-expand", version = "1.0.80" }
+install_crate = { crate_name = "cargo-expand", binary="cargo", test_arg=["expand", "--version"], version = "1.0.80" }
 
 [tasks.audit]
 args = ["audit", "--deny", "warnings"]
@@ -66,7 +66,6 @@ alias = "pre-test"
 
 [tasks.nightly-test]
 extend = "test"
-install_crate = { crate_name = "cargo-expand", version = "1.0.80" }
 env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--features nightly" }
 toolchain = "nightly"
 
