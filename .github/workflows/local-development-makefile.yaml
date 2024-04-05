@@ -38,8 +38,18 @@ jobs:
             winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
           }
 
-      - name: Install Rust Toolchain (${{ matrix.target_triple }})
-        uses: dtolnay/rust-toolchain@stable # Use stable since local makefile pins toolchain versions anyways
+      - name: Install Nightly Rust Toolchain (${{ matrix.target_triple }})
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target_triple }}
+
+      - name: Install Beta Rust Toolchain (${{ matrix.target_triple }})
+        uses: dtolnay/rust-toolchain@beta
+        with:
+          targets: ${{ matrix.target_triple }}
+
+      - name: Install Stable Rust Toolchain (${{ matrix.target_triple }})
+        uses: dtolnay/rust-toolchain@stable 
         with:
           targets: ${{ matrix.target_triple }}
 
