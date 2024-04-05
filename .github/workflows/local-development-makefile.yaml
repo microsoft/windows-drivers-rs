@@ -21,7 +21,7 @@ jobs:
 
         target_triple:
           - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
+          # - aarch64-pc-windows-msvc FIXME: find a way to validate the local makefile on aarch64
 
     steps:
       - name: Checkout Repository
