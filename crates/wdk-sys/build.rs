@@ -14,33 +14,27 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError};
 
 fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    Ok(
-        bindgen::Builder::wdk_default(vec!["src/ntddk-input.h", "src/wdf-input.h"], config)?
-            .with_codegen_config(CodegenConfig::VARS)
-            .generate()
-            .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("constants.rs"))?,
-    )
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config(CodegenConfig::VARS)
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("constants.rs"))?)
 }
 
 fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    Ok(
-        bindgen::Builder::wdk_default(vec!["src/ntddk-input.h", "src/wdf-input.h"], config)?
-            .with_codegen_config(CodegenConfig::TYPES)
-            .generate()
-            .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("types.rs"))?,
-    )
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config(CodegenConfig::TYPES)
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("types.rs"))?)
 }
 
 fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    Ok(
-        bindgen::Builder::wdk_default(vec!["src/ntddk-input.h"], config)?
-            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-            .generate()
-            .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("ntddk.rs"))?,
-    )
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("ntddk.rs"))?)
 }
 
 fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
@@ -48,15 +42,13 @@ fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     // items in the wdf headers(i.e. functions are all inlined). This step is
     // intentionally left here in case older WDKs have non-inlined functions or new
     // WDKs may introduce non-inlined functions.
-    Ok(
-        bindgen::Builder::wdk_default(vec!["src/wdf-input.h"], config)?
-            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-            .allowlist_file("(?i).*wdf.*") // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
-            // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
-            .generate()
-            .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("wdf.rs"))?,
-    )
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+        .allowlist_file("(?i).*wdf.*") // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
+        // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("wdf.rs"))?)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -111,9 +103,7 @@ fn main() -> anyhow::Result<()> {
 
     let config = Config {
         driver_config: match detect_driver_config() {
-            Ok(driver_config) => {
-                driver_config
-            }
+            Ok(driver_config) => driver_config,
             Err(ConfigError::NoWDKConfigurationsDetected) => {
                 // When building wdk-sys standalone, skip binding generation
                 tracing::warn!("No WDK configurations detected. Skipping WDK binding generation.");
@@ -136,25 +126,34 @@ fn main() -> anyhow::Result<()> {
         generate_constants(&out_path, config.clone())?;
         generate_types(&out_path, config.clone())?;
         generate_ntddk(&out_path, config.clone())?;
-        generate_wdf(&out_path, config.clone())?;
-        Ok::<(), ConfigError>(())
-    })?;
 
-    // Compile a c library to expose symbols that are not exposed because of
-    // __declspec(selectany)
-    info_span!("cc").in_scope(|| {
-        info!("Compiling wdf.c");
-        let mut cc_builder = cc::Build::new();
-        for (key, value) in config.get_preprocessor_definitions_iter() {
-            cc_builder.define(&key, value.as_deref());
+        if let wdk_build::DriverConfig::KMDF(_) | wdk_build::DriverConfig::UMDF(_) =
+            config.driver_config
+        {
+            generate_wdf(&out_path, config.clone())?;
         }
-
-        cc_builder
-            .includes(config.get_include_paths()?)
-            .file("src/wdf.c")
-            .compile("wdf");
         Ok::<(), ConfigError>(())
     })?;
+
+    if let wdk_build::DriverConfig::KMDF(_) | wdk_build::DriverConfig::UMDF(_) =
+        config.driver_config
+    {
+        // Compile a c library to expose symbols that are not exposed because of
+        // __declspec(selectany)
+        info_span!("cc").in_scope(|| {
+            info!("Compiling wdf.c");
+            let mut cc_builder = cc::Build::new();
+            for (key, value) in config.get_preprocessor_definitions_iter() {
+                cc_builder.define(&key, value.as_deref());
+            }
+
+            cc_builder
+                .includes(config.get_include_paths()?)
+                .file("src/wdf.c")
+                .compile("wdf");
+            Ok::<(), ConfigError>(())
+        })?;
+    }
 
     config.configure_library_build()?;
     Ok(config.export_config()?)

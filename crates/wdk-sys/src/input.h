@@ -1,6 +1,12 @@
 /* Copyright (c) Microsoft Corporation
    License: MIT OR Apache-2.0 */
 
+#if defined(UMDF_VERSION_MAJOR)
+
+#include <windows.h>
+
+#else // !defined(UMDF_VERSION_MAJOR)
+
 #include "ntifs.h"
 #include "ntddk.h"
 
@@ -57,3 +63,10 @@ typedef union _KIDTENTRY64
   };
   unsigned __int64 Alignment;
 } KIDTENTRY64, *PKIDTENTRY64;
+#endif // !defined(UMDF_VERSION_MAJOR)
+
+#if defined(KMDF_VERSION_MAJOR) || defined(UMDF_VERSION_MAJOR)
+
+#include <wdf.h>
+
+#endif // defined(KMDF_VERSION_MAJOR) || defined(UMDF_VERSION_MAJOR)
