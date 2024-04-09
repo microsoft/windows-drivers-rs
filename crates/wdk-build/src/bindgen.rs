@@ -72,14 +72,14 @@ impl BuilderExt for Builder {
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
-            // FIXME: Types containing 32-bit pointers (via __ptr32) are not generated properly and cause bindgen layout tests to fail: https://github.com/rust-lang/rust-bindgen/issues/2636
-            .blocklist_item(".*EXTENDED_CREATE_INFORMATION_32")
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
             .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_XPF_MCA_SECTION")
             .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
             .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
+            // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
+            .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
             .must_use_type("HRESULT")
             // Defaults enums to generate as a set of constants contained in a module (default value
