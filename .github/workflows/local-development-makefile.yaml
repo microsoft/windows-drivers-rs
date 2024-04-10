@@ -41,16 +41,19 @@ jobs:
       - name: Install Nightly Rust Toolchain (${{ matrix.target_triple }})
         uses: dtolnay/rust-toolchain@nightly
         with:
+          components: clippy, rustfmt
           targets: ${{ matrix.target_triple }}
 
       - name: Install Beta Rust Toolchain (${{ matrix.target_triple }})
         uses: dtolnay/rust-toolchain@beta
         with:
+          components: clippy
           targets: ${{ matrix.target_triple }}
 
       - name: Install Stable Rust Toolchain (${{ matrix.target_triple }})
-        uses: dtolnay/rust-toolchain@stable 
+        uses: dtolnay/rust-toolchain@stable
         with:
+          components: clippy
           targets: ${{ matrix.target_triple }}
 
       - name: Install Cargo Make
