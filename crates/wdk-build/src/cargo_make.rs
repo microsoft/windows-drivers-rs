@@ -20,6 +20,7 @@ use crate::{
 };
 
 const PATH_ENV_VAR: &str = "Path";
+const WDK_VERSION_ENV_VAR: &str = "WDK_VER";
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -489,6 +490,22 @@ pub fn setup_path() -> Result<(), ConfigError> {
     );
 
     forward_env_var_to_cargo_make(PATH_ENV_VAR);
+    Ok(())
+}
+
+/// Adds the WDK version to the environment.
+///
+/// # Errors
+///
+/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// WDK content root directory could not be found.
+pub fn setup_wdk_version() -> Result<(), ConfigError> {
+    let Some(wdk_content_root) = detect_wdk_content_root() else {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    };
+    let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+    prepend_to_semicolon_delimited_env_var(&WDK_VERSION_ENV_VAR, &version);
+    forward_env_var_to_cargo_make(WDK_VERSION_ENV_VAR);
     Ok(())
 }
 
