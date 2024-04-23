@@ -284,6 +284,7 @@ impl IntermediateOutputASTFragments {
             {
                 #conditional_must_use_attribute
                 #[inline(always)]
+                #[allow(non_snake_case)]
                 #inline_wdf_fn_signature {
                     #(#inline_wdf_fn_body_statments)*
                 }

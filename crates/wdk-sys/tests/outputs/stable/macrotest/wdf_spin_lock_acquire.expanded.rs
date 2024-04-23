@@ -5,6 +5,7 @@ fn acquire_lock(wdf_spin_lock: WDFSPINLOCK) {
     unsafe {
         {
             #[inline(always)]
+            #[allow(non_snake_case)]
             unsafe fn wdf_spin_lock_acquire_impl(SpinLock: wdk_sys::WDFSPINLOCK) {
                 let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(unsafe {
                     core::mem::transmute(

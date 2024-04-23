@@ -15,6 +15,7 @@ pub extern "system" fn driver_entry(
         {
             #[must_use]
             #[inline(always)]
+            #[allow(non_snake_case)]
             unsafe fn wdf_driver_create_impl(
                 DriverObject: wdk_sys::PDRIVER_OBJECT,
                 RegistryPath: wdk_sys::PCUNICODE_STRING,

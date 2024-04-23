@@ -10,6 +10,7 @@ extern "C" fn evt_driver_device_add(
         {
             #[must_use]
             #[inline(always)]
+            #[allow(non_snake_case)]
             unsafe fn wdf_device_create_impl(
                 DeviceInit: *mut wdk_sys::PWDFDEVICE_INIT,
                 DeviceAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,

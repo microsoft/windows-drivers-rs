@@ -12,6 +12,7 @@ fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
         {
             #[must_use]
             #[inline(always)]
+            #[allow(non_snake_case)]
             unsafe fn wdf_device_create_device_interface_impl(
                 Device: wdk_sys::WDFDEVICE,
                 InterfaceClassGUID: *const wdk_sys::GUID,

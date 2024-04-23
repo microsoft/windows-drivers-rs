@@ -6,6 +6,7 @@ fn foo() {
     unsafe {
         {
             #[inline(always)]
+            #[allow(non_snake_case)]
             unsafe fn wdf_verifier_dbg_break_point_impl() {
                 let wdf_function: wdk_sys::PFN_WDFVERIFIERDBGBREAKPOINT = Some(unsafe {
                     core::mem::transmute(
