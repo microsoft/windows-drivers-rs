@@ -6,7 +6,7 @@ use bindgen::{
     Builder,
 };
 
-use crate::{Config, ConfigError, DriverConfig};
+use crate::{Config, ConfigError};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -96,21 +96,8 @@ impl BuilderExt for Builder {
 impl WDKCallbacks {
     fn new(config: &Config) -> Self {
         Self {
-            wdf_function_table_symbol_name: Self::compute_wdf_function_table_symbol_name(config),
+            wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
         }
-    }
-
-    fn compute_wdf_function_table_symbol_name(config: &Config) -> Option<String> {
-        let (wdf_major_version, wdf_minor_version) = match config.driver_config {
-            DriverConfig::KMDF(config) => (config.kmdf_version_major, config.kmdf_version_minor),
-            DriverConfig::UMDF(config) => (config.umdf_version_major, config.umdf_version_minor),
-            DriverConfig::WDM() => return None,
-        };
-
-        Some(format!(
-            "WdfFunctions_{:02}0{:02}",
-            wdf_major_version, wdf_minor_version
-        ))
     }
 }
 
@@ -130,58 +117,5 @@ impl ParseCallbacks for WDKCallbacks {
             }
         }
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::with_env;
-
-    mod compute_wdf_function_table_symbol_name {
-        use super::*;
-        use crate::{KMDFConfig, UMDFConfig};
-
-        #[test]
-        fn kmdf() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-                driver_config: DriverConfig::KMDF(KMDFConfig {
-                    kmdf_version_major: 1,
-                    kmdf_version_minor: 15,
-                }),
-                ..Default::default()
-            });
-
-            let result = WDKCallbacks::compute_wdf_function_table_symbol_name(&config);
-
-            assert_eq!(result, Some("WdfFunctions_01015".to_string()));
-        }
-
-        #[test]
-        fn umdf() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
-                driver_config: DriverConfig::UMDF(UMDFConfig {
-                    umdf_version_major: 2,
-                    umdf_version_minor: 33,
-                }),
-                ..Default::default()
-            });
-
-            let result = WDKCallbacks::compute_wdf_function_table_symbol_name(&config);
-
-            assert_eq!(result, Some("WdfFunctions_02033".to_string()));
-        }
-
-        #[test]
-        fn wdm() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-                driver_config: DriverConfig::WDM(),
-                ..Default::default()
-            });
-
-            let result = WDKCallbacks::compute_wdf_function_table_symbol_name(&config);
-
-            assert_eq!(result, None);
-        }
     }
 }

@@ -622,6 +622,22 @@ impl Config {
         Ok(())
     }
 
+    /// Computes the name of the WdfFunctions symbol used for WDF function
+    /// dispatching based off of the [`Config`]. Returns `None` if the driver
+    /// model is [`DriverConfig::WDM`]
+    pub fn compute_wdffunctions_symbol_name(&self) -> Option<String> {
+        let (wdf_major_version, wdf_minor_version) = match self.driver_config {
+            DriverConfig::KMDF(config) => (config.kmdf_version_major, config.kmdf_version_minor),
+            DriverConfig::UMDF(config) => (config.umdf_version_major, config.umdf_version_minor),
+            DriverConfig::WDM() => return None,
+        };
+
+        Some(format!(
+            "WdfFunctions_{:02}0{:02}",
+            wdf_major_version, wdf_minor_version
+        ))
+    }
+
     /// Configures a Cargo build of a binary that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
@@ -1013,5 +1029,52 @@ mod tests {
             Some(CPUArchitecture::ARM64)
         );
         assert_eq!(CPUArchitecture::try_from_cargo_str("arm"), None);
+    }
+
+    mod compute_wdffunctions_symbol_name {
+        use super::*;
+        use crate::{KMDFConfig, UMDFConfig};
+
+        #[test]
+        fn kmdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::KMDF(KMDFConfig {
+                    kmdf_version_major: 1,
+                    kmdf_version_minor: 15,
+                }),
+                ..Default::default()
+            });
+
+            let result = config.compute_wdffunctions_symbol_name();
+
+            assert_eq!(result, Some("WdfFunctions_01015".to_string()));
+        }
+
+        #[test]
+        fn umdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+                driver_config: DriverConfig::UMDF(UMDFConfig {
+                    umdf_version_major: 2,
+                    umdf_version_minor: 33,
+                }),
+                ..Default::default()
+            });
+
+            let result = config.compute_wdffunctions_symbol_name();
+
+            assert_eq!(result, Some("WdfFunctions_02033".to_string()));
+        }
+
+        #[test]
+        fn wdm() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::WDM(),
+                ..Default::default()
+            });
+
+            let result = config.compute_wdffunctions_symbol_name();
+
+            assert_eq!(result, None);
+        }
     }
 }
