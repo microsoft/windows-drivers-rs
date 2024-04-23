@@ -75,7 +75,7 @@ assert ${success} "Failed to delete tests directory"
 install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
   "expand",
   "--version",
-], version = "1.0.80" }
+], version = "1.0.85" }
 
 [tasks.audit]
 args = ["audit", "--deny", "warnings"]
@@ -135,7 +135,6 @@ alias = "pre-test"
 
 [tasks.beta-test]
 extend = "test"
-install_crate = { crate_name = "cargo-expand", version = "1.0.80" }
 toolchain = "beta"
 
 [tasks.post-beta-test]
