@@ -240,6 +240,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21dabded2e32cd57ded879041205c60a4a4c4bab47bd0fd2fa8b01f30849f02b"
+dependencies = [
+ "rustix",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -320,14 +330,16 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "macrotest"
-version = "1.0.9"
-source = "git+https://github.com/eupn/macrotest?rev=c4151a5#c4151a5f9f545942f4971980b5d264ebcd0b1d11"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "119d028d9d69a00b737d6af1081a690cee15df8ef75b3f71c86bcc48b301528e"
 dependencies = [
  "basic-toml",
  "diff",
  "glob",
  "prettyplease",
  "serde",
+ "serde_derive",
  "serde_json",
  "syn",
 ]
@@ -398,10 +410,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
+name = "pathdiff"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8afb450f006bf6385ca15ef45d71d2288452bc3683ce2e2cacc0d18e4be60b58"
+
+[[package]]
+name = "pretty_assertions"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af7cee1a6c8a5b9208b3cb1061f10c0cb689087b3d8ce85fb9d2dd7a29b6ba66"
+dependencies = [
+ "diff",
+ "yansi",
+]
 
 [[package]]
 name = "prettyplease"
@@ -519,6 +547,12 @@ dependencies = [
  "wdk-panic",
  "wdk-sys",
 ]
+
+[[package]]
+name = "scratch"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3cf7c11c38cb994f3d40e8a8cde3bbd1f72a435e4c49e85d6553d8312306152"
 
 [[package]]
 name = "semver"
@@ -765,13 +799,19 @@ dependencies = [
 name = "wdk-macros"
 version = "0.2.0"
 dependencies = [
- "cfg-if",
+ "cargo_metadata",
+ "fs4",
+ "itertools",
  "lazy_static",
  "macrotest",
  "owo-colors",
  "paste",
+ "pathdiff",
+ "pretty_assertions",
  "proc-macro2",
  "quote",
+ "rustversion",
+ "scratch",
  "syn",
  "trybuild",
  "wdk-sys",
@@ -988,3 +1028,9 @@ name = "windows_x86_64_msvc"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
+
+[[package]]
+name = "yansi"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
