@@ -37,7 +37,6 @@ impl SpinLock {
         // accessible outside of this module, and this module guarantees that it is
         // always in a valid state.
         unsafe {
-            #![allow(clippy::multiple_unsafe_ops_per_block)]
             nt_status = macros::call_unsafe_wdf_function_binding!(
                 WdfSpinLockCreate,
                 attributes,
@@ -62,11 +61,7 @@ impl SpinLock {
         // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally created
         // by WDF, and this module guarantees that it is always in a valid state.
         unsafe {
-            #![allow(clippy::multiple_unsafe_ops_per_block)]
-            let [()] = [macros::call_unsafe_wdf_function_binding!(
-                WdfSpinLockAcquire,
-                self.wdf_spin_lock
-            )];
+            macros::call_unsafe_wdf_function_binding!(WdfSpinLockAcquire, self.wdf_spin_lock);
         }
     }
 
@@ -75,11 +70,7 @@ impl SpinLock {
         // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally created
         // by WDF, and this module guarantees that it is always in a valid state.
         unsafe {
-            #![allow(clippy::multiple_unsafe_ops_per_block)]
-            let [()] = [macros::call_unsafe_wdf_function_binding!(
-                WdfSpinLockRelease,
-                self.wdf_spin_lock
-            )];
+            macros::call_unsafe_wdf_function_binding!(WdfSpinLockRelease, self.wdf_spin_lock);
         }
     }
 }
