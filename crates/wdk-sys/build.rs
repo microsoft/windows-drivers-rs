@@ -16,7 +16,7 @@ use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
     EnvFilter,
 };
-use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError};
+use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError, DriverConfig};
 
 const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
@@ -156,23 +156,29 @@ fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
         .write_to_file(out_path.join("types.rs"))?)
 }
 
-fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_base(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    let outfile_name = match &config.driver_config {
+        DriverConfig::WDM() | DriverConfig::KMDF(_) => "ntddk.rs",
+        DriverConfig::UMDF(_) => "windows.rs",
+    };
+
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("ntddk.rs"))?)
+        .write_to_file(out_path.join(outfile_name))?)
 }
 
 fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     // As of NI WDK, this may generate an empty file due to no non-type and non-var
     // items in the wdf headers(i.e. functions are all inlined). This step is
-    // intentionally left here in case older WDKs have non-inlined functions or new
-    // WDKs may introduce non-inlined functions.
+    // intentionally left here in case older/newer WDKs have non-inlined functions
+    // or new WDKs may introduce non-inlined functions.
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-        .allowlist_file("(?i).*wdf.*") // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
+        // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
         // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
+        .allowlist_file("(?i).*wdf.*")
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(out_path.join("wdf.rs"))?)
@@ -247,9 +253,9 @@ fn main() -> anyhow::Result<()> {
         info!("Generating bindings to WDK");
         generate_constants(&out_path, config.clone())?;
         generate_types(&out_path, config.clone())?;
-        generate_ntddk(&out_path, config.clone())?;
+        generate_base(&out_path, config.clone())?;
 
-        if let wdk_build::DriverConfig::KMDF(_) | wdk_build::DriverConfig::UMDF(_) =
+        if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) =
             config.driver_config
         {
             generate_wdf(&out_path, config.clone())?;
@@ -257,7 +263,7 @@ fn main() -> anyhow::Result<()> {
         Ok::<(), ConfigError>(())
     })?;
 
-    if let wdk_build::DriverConfig::KMDF(_) | wdk_build::DriverConfig::UMDF(_) =
+    if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) =
         config.driver_config
     {
         // Compile a c library to expose symbols that are not exposed because of

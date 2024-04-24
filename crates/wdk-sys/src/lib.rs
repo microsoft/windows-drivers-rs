@@ -19,6 +19,8 @@ pub use wdk_macros as __proc_macros;
 
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
 pub mod ntddk;
+#[cfg(driver_type = "umdf")]
+pub mod windows;
 #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 pub mod wdf;
 
