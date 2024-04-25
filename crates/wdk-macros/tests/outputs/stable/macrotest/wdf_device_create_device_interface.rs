@@ -1,0 +1,1 @@
+../../../inputs/macrotest/wdf_device_create_device_interface.rs

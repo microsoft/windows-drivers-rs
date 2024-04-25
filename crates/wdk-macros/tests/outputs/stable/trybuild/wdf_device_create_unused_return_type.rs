@@ -1,0 +1,1 @@
+../../../inputs/trybuild/wdf_device_create_unused_return_type.rs
