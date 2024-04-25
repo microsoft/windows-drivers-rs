@@ -2,9 +2,6 @@ use wdk_sys::{macros, NTSTATUS, WDFTIMER, WDF_OBJECT_ATTRIBUTES, WDF_TIMER_CONFI
 
 use crate::nt_success;
 
-// private module + public re-export avoids the module name repetition: https://github.com/rust-lang/rust-clippy/issues/8524
-#[allow(clippy::module_name_repetitions)]
-
 /// WDF Timer.
 pub struct Timer {
     wdf_timer: WDFTIMER,

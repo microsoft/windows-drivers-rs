@@ -14,3 +14,6 @@ wdk-sys.workspace = true
 
 [dev-dependencies]
 wdk-sys = { workspace = true, features = ["test-stubs"] }
+
+[lints]
+workspace = true

@@ -9,28 +9,8 @@
 //! well strives to allow for all the configuration the WDK allows. This
 //! includes being ables to select different WDF versions and different driver
 //! models (WDM, KMDF, UMDF).
+
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
-#![deny(missing_docs)]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::cargo)]
-// `wdk-build` is only to be used in build scripts, so binary bloat from multiple depenedency
-// versions is not a concern
-#![allow(clippy::multiple_crate_versions)]
-#![deny(clippy::multiple_unsafe_ops_per_block)]
-#![deny(clippy::undocumented_unsafe_blocks)]
-#![deny(clippy::unnecessary_safety_doc)]
-#![deny(rustdoc::broken_intra_doc_links)]
-#![deny(rustdoc::private_intra_doc_links)]
-#![deny(rustdoc::missing_crate_level_docs)]
-#![deny(rustdoc::invalid_codeblock_attributes)]
-#![deny(rustdoc::invalid_html_tags)]
-#![deny(rustdoc::invalid_rust_codeblocks)]
-#![deny(rustdoc::bare_urls)]
-#![deny(rustdoc::unescaped_backticks)]
-#![deny(rustdoc::redundant_explicit_links)]
 
 mod bindgen;
 mod utils;
