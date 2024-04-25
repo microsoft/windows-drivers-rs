@@ -1,0 +1,5 @@
+error: Failed to find type alias definition for PFN_WDFAPITHATDOESNOTEXIST
+ --> tests/outputs/stable/trybuild/wdf_api_that_does_not_exist.rs
+  |
+  |             WdfApiThatDoesNotExist,
+  |             ^^^^^^^^^^^^^^^^^^^^^^
