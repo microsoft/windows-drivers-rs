@@ -26,6 +26,7 @@ const WDK_VERSION_ENV_VAR: &str = "WDK_VER";
 const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG"; 
 /// The first WDK version with the new InfVerif behavior.
 const WDK_INF_NEW_VERSION: i32 = 25798;
+const WDK_INF_NEW_VERSION_FLAG: &str = "WDK_INF_NEW_VERSION";
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -533,7 +534,11 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
             false => "/msft",
         };
         std::env::set_var(&SAMPLE_ENV_VAR, &sample_flag);
-        forward_env_var_to_cargo_make(SAMPLE_ENV_VAR);
+        forward_env_var_to_cargo_make(&SAMPLE_ENV_VAR);
+        if version > WDK_INF_NEW_VERSION {
+            std::env::set_var(&WDK_INF_NEW_VERSION_FLAG, "true");
+            forward_env_var_to_cargo_make(&WDK_INF_NEW_VERSION_FLAG);
+        }
         return Ok(());
     }
 

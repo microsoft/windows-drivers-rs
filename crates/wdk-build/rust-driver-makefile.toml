@@ -184,6 +184,7 @@ args = [
 [tasks.infverif]
 private = true
 dependencies = ["stampinf"]
+condition = { env_not_set = ["WDK_INF_NEW_VERSION"] }
 command = "infverif"
 args = [
   "/v",
