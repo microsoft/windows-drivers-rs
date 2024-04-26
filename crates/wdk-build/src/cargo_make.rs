@@ -519,6 +519,7 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
         Ok(parsed_value) => parsed_value > 25798,
         Err(_) => false, /* TODO: Should this short-circuit and return
                           * ConfigError::WDKContentRootDetectionError for the func as a whole? */
+                          // TODO: Better to specifically look at substring 3 instead of "any"
     }) {
         true => "/sample",
         false => "/msft",
