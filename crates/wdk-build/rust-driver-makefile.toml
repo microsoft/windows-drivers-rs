@@ -80,7 +80,9 @@ script = '''
 
 wdk_build::cargo_make::validate_and_forward_args();
 wdk_build::cargo_make::setup_path()?;
-wdk_build::cargo_make::setup_wdk_version()?;
+
+let wdk_version = wdk_build::cargo_make::setup_wdk_version()?;
+wdk_build::cargo_make::set_sample_infverif(wdk_version)?;
 '''
 
 [tasks.copy-inx-to-output]

@@ -1,4 +1,4 @@
 extend = "../wdk-build/rust-driver-makefile.toml"
 
 [env]
-WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS = "/msft"
+WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS = "${WDK_INFVERIF_SAMPLE_FLAG}" # BUG: Applies a ; to the end of the environment variable for some reason
