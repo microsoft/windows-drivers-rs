@@ -23,7 +23,7 @@ const PATH_ENV_VAR: &str = "Path";
 const WDK_VERSION_ENV_VAR: &str = "WDK_VER";
 /// The name of the environment variable we store the appropriate InfVerif flag
 /// for samples in.
-const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG"; 
+const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG";
 /// The first WDK version with the new InfVerif behavior.
 const WDK_INF_NEW_VERSION: i32 = 25798;
 const WDK_INF_NEW_VERSION_FLAG: &str = "WDK_INF_NEW_VERSION";
