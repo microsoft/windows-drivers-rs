@@ -180,6 +180,7 @@ args = [
   "1.33",
 ]
 
+
 [tasks.infverif]
 private = true
 dependencies = ["stampinf"]
@@ -187,6 +188,7 @@ command = "infverif"
 args = [
   "/v",
   "/w",
+  "@@decode(WDK_IS_SAMPLE,true,${WDK_INFVERIF_SAMPLE_FLAG})",
   "@@split(WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS, )",
   "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}.inf",
 ]
