@@ -16,12 +16,14 @@ use clap::{Args, Parser};
 use crate::{
     utils::{detect_wdk_content_root, get_latest_windows_sdk_version, PathExt},
     CPUArchitecture,
+    Config,
     ConfigError,
 };
 
 const PATH_ENV_VAR: &str = "Path";
 const WDK_VERSION_ENV_VAR: &str = "WDK_VER";
-/// The name of the environment variable we store the appropriate InfVerif flag for samples in.
+/// The name of the environment variable we store the appropriate InfVerif flag
+/// for samples in.
 const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG"; // TODO: Should we return this directly instead of making it an environment variable?
 
 /// The name of the environment variable that cargo-make uses during `cargo
@@ -511,22 +513,31 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
     Ok(version)
 }
 
-/// Sets the WDK_INFVERIF_SAMPLE_FLAG environment variable to contain the appropriate flag for building samples.
+/// Sets the WDK_INFVERIF_SAMPLE_FLAG environment variable to contain the
+/// appropriate flag for building samples.
 pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
     let wdk_version = version.as_ref();
     let mut version_parts = wdk_version.split('.');
-    let sample_flag = match version_parts.any(|version_part| match version_part.parse::<i32>() {
-        Ok(parsed_value) => parsed_value > 25798,
-        Err(_) => false, /* TODO: Should this short-circuit and return
-                          * ConfigError::WDKContentRootDetectionError for the func as a whole? */
-                          // TODO: Better to specifically look at substring 3 instead of "any"
-    }) {
-        true => "/sample",
-        false => "/msft",
+    let version_number = match version_parts.nth(2) {
+        Some(version_str) => match version_str.parse::<i32>() {
+            Ok(version_int) => Some(version_int),
+            Err(_) => None,
+        },
+        None => None,
     };
-    std::env::set_var(&SAMPLE_ENV_VAR, &sample_flag);
-    forward_env_var_to_cargo_make(SAMPLE_ENV_VAR);
-    Ok(())
+
+    if let Some(version) = version_number {
+        let sample_flag = match version > 25798 {
+            true => "/sample",
+            false => "/msft",
+        };
+        std::env::set_var(&SAMPLE_ENV_VAR, &sample_flag);
+        forward_env_var_to_cargo_make(SAMPLE_ENV_VAR);
+        return Ok(());
+    }
+
+    // If we get this far, we weren't able to parse the WDK version number from the path
+    Err(ConfigError::WDKContentRootDetectionError)
 }
 
 /// Returns the path to the WDK build output directory for the current
@@ -748,17 +759,16 @@ fn forward_env_var_to_cargo_make<S: AsRef<str>>(env_var_name: S) {
 mod tests {
     use crate::ConfigError;
 
+    /// This test must be run in a WDK environment.
     #[test]
-    fn check_env_passing() -> Result<(), ConfigError>{
+    fn check_env_passing() -> Result<(), ConfigError> {
         let wdk_version = crate::cargo_make::setup_wdk_version()?;
         crate::cargo_make::set_sample_infverif(wdk_version)?;
-        let env_string = match std::env::var_os(crate::cargo_make::SAMPLE_ENV_VAR)
-        {
+        let env_string = match std::env::var_os(crate::cargo_make::SAMPLE_ENV_VAR) {
             Some(os_env_string) => os_env_string.to_string_lossy().into_owned().clone(),
-            None => panic!("Couldn't get OS string")
+            None => panic!("Couldn't get OS string"),
         };
         assert_eq!(env_string, "/msft");
         Ok(())
     }
-
 }
