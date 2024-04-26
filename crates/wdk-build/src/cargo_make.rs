@@ -529,7 +529,7 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
 
     if let Some(version) = version_number {
         let sample_flag = match version > WDK_INF_NEW_VERSION {
-            true => "/sample",
+            true => "/samples",
             false => "/msft",
         };
         std::env::set_var(&SAMPLE_ENV_VAR, &sample_flag);
@@ -778,7 +778,7 @@ mod tests {
             Some(os_env_string) => os_env_string.to_string_lossy().into_owned().clone(),
             None => panic!("Couldn't get OS string"),
         };
-        assert_eq!(env_string, "/sample");
+        assert_eq!(env_string, "/samples");
         Ok(())
     }
 }
