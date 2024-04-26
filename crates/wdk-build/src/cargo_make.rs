@@ -16,7 +16,6 @@ use clap::{Args, Parser};
 use crate::{
     utils::{detect_wdk_content_root, get_latest_windows_sdk_version, PathExt},
     CPUArchitecture,
-    Config,
     ConfigError,
 };
 
@@ -24,7 +23,9 @@ const PATH_ENV_VAR: &str = "Path";
 const WDK_VERSION_ENV_VAR: &str = "WDK_VER";
 /// The name of the environment variable we store the appropriate InfVerif flag
 /// for samples in.
-const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG"; // TODO: Should we return this directly instead of making it an environment variable?
+const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG"; 
+/// The first WDK version with the new InfVerif behavior.
+const WDK_INF_NEW_VERSION: i32 = 25798;
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -527,7 +528,7 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
     };
 
     if let Some(version) = version_number {
-        let sample_flag = match version > 25798 {
+        let sample_flag = match version > WDK_INF_NEW_VERSION {
             true => "/sample",
             false => "/msft",
         };
@@ -536,7 +537,8 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
         return Ok(());
     }
 
-    // If we get this far, we weren't able to parse the WDK version number from the path
+    // If we get this far, we weren't able to parse the WDK version number from the
+    // path
     Err(ConfigError::WDKContentRootDetectionError)
 }
 
@@ -759,16 +761,24 @@ fn forward_env_var_to_cargo_make<S: AsRef<str>>(env_var_name: S) {
 mod tests {
     use crate::ConfigError;
 
-    /// This test must be run in a WDK environment.
+    const WDK_TEST_OLD_INF_VERSION: &str = "10.0.22061.0";
+    const WDK_TEST_NEW_INF_VERSION: &str = "10.0.26100.0";
+
     #[test]
     fn check_env_passing() -> Result<(), ConfigError> {
-        let wdk_version = crate::cargo_make::setup_wdk_version()?;
-        crate::cargo_make::set_sample_infverif(wdk_version)?;
+        crate::cargo_make::set_sample_infverif(WDK_TEST_OLD_INF_VERSION)?;
         let env_string = match std::env::var_os(crate::cargo_make::SAMPLE_ENV_VAR) {
             Some(os_env_string) => os_env_string.to_string_lossy().into_owned().clone(),
             None => panic!("Couldn't get OS string"),
         };
         assert_eq!(env_string, "/msft");
+
+        crate::cargo_make::set_sample_infverif(WDK_TEST_NEW_INF_VERSION)?;
+        let env_string = match std::env::var_os(crate::cargo_make::SAMPLE_ENV_VAR) {
+            Some(os_env_string) => os_env_string.to_string_lossy().into_owned().clone(),
+            None => panic!("Couldn't get OS string"),
+        };
+        assert_eq!(env_string, "/sample");
         Ok(())
     }
 }
