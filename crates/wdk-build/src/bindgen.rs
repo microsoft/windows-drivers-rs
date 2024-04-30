@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+use std::borrow::Borrow;
+
 use bindgen::{
     callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
@@ -18,7 +20,10 @@ pub trait BuilderExt {
     ///
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
-    fn wdk_default(c_header_files: Vec<&str>, config: Config) -> Result<Builder, ConfigError>;
+    fn wdk_default(
+        c_header_files: Vec<&str>,
+        config: impl Borrow<Config>,
+    ) -> Result<Builder, ConfigError>;
 }
 
 #[derive(Debug)]
@@ -34,7 +39,12 @@ impl BuilderExt for Builder {
     ///
     /// Will return `wdk_build::ConfigError` if any of the resolved include or
     /// library paths do not exist
-    fn wdk_default(c_header_files: Vec<&str>, config: Config) -> Result<Self, ConfigError> {
+    fn wdk_default(
+        c_header_files: Vec<&str>,
+        config: impl Borrow<Config>,
+    ) -> Result<Self, ConfigError> {
+        let config = config.borrow();
+
         let mut builder = Self::default();
 
         for c_header in c_header_files {
@@ -93,14 +103,6 @@ impl BuilderExt for Builder {
     }
 }
 
-impl WDKCallbacks {
-    fn new(config: &Config) -> Self {
-        Self {
-            wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
-        }
-    }
-}
-
 impl ParseCallbacks for WDKCallbacks {
     fn generated_name_override(&self, item_info: ItemInfo) -> Option<String> {
         // Override the generated name for the WDF function table symbol, since bindgen is unable to currently translate the #define automatically: https://github.com/rust-lang/rust-bindgen/issues/2544
@@ -117,5 +119,13 @@ impl ParseCallbacks for WDKCallbacks {
             }
         }
         None
+    }
+}
+
+impl WDKCallbacks {
+    fn new(config: &Config) -> Self {
+        Self {
+            wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
+        }
     }
 }

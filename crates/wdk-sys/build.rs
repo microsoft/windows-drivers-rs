@@ -143,7 +143,7 @@ fn initialize_tracing() -> Result<(), ParseError> {
     Ok(())
 }
 
-fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config(CodegenConfig::VARS)
         .generate()
@@ -151,7 +151,7 @@ fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError
         .write_to_file(out_path.join("constants.rs"))?)
 }
 
-fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config(CodegenConfig::TYPES)
         .generate()
@@ -159,7 +159,7 @@ fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
         .write_to_file(out_path.join("types.rs"))?)
 }
 
-fn generate_base(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let outfile_name = match &config.driver_config {
         DriverConfig::WDM() | DriverConfig::KMDF(_) => "ntddk.rs",
         DriverConfig::UMDF(_) => "windows.rs",
@@ -172,7 +172,7 @@ fn generate_base(out_path: &Path, config: Config) -> Result<(), ConfigError> {
         .write_to_file(out_path.join(outfile_name))?)
 }
 
-fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     // As of NI WDK, this may generate an empty file due to no non-type and non-var
     // items in the wdf headers(i.e. functions are all inlined). This step is
     // intentionally left here in case older/newer WDKs have non-inlined functions
@@ -251,24 +251,19 @@ fn main() -> anyhow::Result<()> {
         env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
     );
 
-    // TODO: consider using references here to avoid cloning
     info_span!("bindgen").in_scope(|| {
         info!("Generating bindings to WDK");
-        generate_constants(&out_path, config.clone())?;
-        generate_types(&out_path, config.clone())?;
-        generate_base(&out_path, config.clone())?;
+        generate_constants(&out_path, &config)?;
+        generate_types(&out_path, &config)?;
+        generate_base(&out_path, &config)?;
 
-        if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) =
-            config.driver_config
-        {
-            generate_wdf(&out_path, config.clone())?;
+        if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = &config.driver_config {
+            generate_wdf(&out_path, &config)?;
         }
         Ok::<(), ConfigError>(())
     })?;
 
-    if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) =
-        config.driver_config
-    {
+    if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = config.driver_config {
         // Compile a c library to expose symbols that are not exposed because of
         // __declspec(selectany)
         info_span!("cc").in_scope(|| {
