@@ -2,9 +2,6 @@ use wdk_sys::{macros, NTSTATUS, WDFSPINLOCK, WDF_OBJECT_ATTRIBUTES};
 
 use crate::nt_success;
 
-// private module + public re-export avoids the module name repetition: https://github.com/rust-lang/rust-clippy/issues/8524
-#[allow(clippy::module_name_repetitions)]
-
 /// WDF Spin Lock.
 ///
 /// Use framework spin locks to synchronize access to driver data from code that
