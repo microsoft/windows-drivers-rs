@@ -1,13 +1,6 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-#![no_std]
-#![deny(warnings)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::cargo)]
-
 extern crate alloc;
 
 #[cfg(not(test))]

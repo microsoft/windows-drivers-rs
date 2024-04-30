@@ -25,6 +25,7 @@ use wdk_sys::{
     DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
+    PDRIVER_OBJECT,
     ULONG,
     UNICODE_STRING,
     WCHAR,
@@ -82,7 +83,7 @@ pub unsafe extern "system" fn driver_entry(
     };
 
     let driver_attributes = WDF_NO_OBJECT_ATTRIBUTES;
-    let driver_handle_output = WDF_NO_HANDLE.cast::<*mut wdk_sys::WDFDRIVER__>();
+    let driver_handle_output = WDF_NO_HANDLE.cast::<WDFDRIVER>();
 
     let wdf_driver_create_ntstatus;
     // SAFETY: This is safe because:
@@ -94,7 +95,7 @@ pub unsafe extern "system" fn driver_entry(
     unsafe {
         wdf_driver_create_ntstatus = call_unsafe_wdf_function_binding!(
             WdfDriverCreate,
-            driver as wdk_sys::PDRIVER_OBJECT,
+            driver as PDRIVER_OBJECT,
             registry_path,
             driver_attributes,
             &mut driver_config,
