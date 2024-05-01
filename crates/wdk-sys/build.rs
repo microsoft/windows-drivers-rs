@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Build script for the `wdk-sys` crate.
+
 use std::{
     env,
     path::{Path, PathBuf},

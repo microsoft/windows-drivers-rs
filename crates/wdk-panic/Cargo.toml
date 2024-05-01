@@ -8,3 +8,6 @@ readme.workspace = true
 license.workspace = true
 keywords = ["panic-handler", "panic", "panic-impl", "wdk", "windows"]
 categories = ["no-std", "hardware-support"]
+
+[lints]
+workspace = true

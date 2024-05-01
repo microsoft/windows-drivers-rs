@@ -32,3 +32,6 @@ wdk-build.workspace = true
 [features]
 default = []
 nightly = ["wdk-macros/nightly", "wdk/nightly", "wdk-sys/nightly"]
+
+[lints]
+workspace = true

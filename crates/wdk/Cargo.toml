@@ -29,3 +29,6 @@ wdk-sys = { workspace = true, features = ["test-stubs"] }
 default = ["alloc"]
 alloc = []
 nightly = ["wdk-sys/nightly"]
+
+[lints]
+workspace = true

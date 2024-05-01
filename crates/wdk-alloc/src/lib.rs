@@ -15,24 +15,6 @@
 //! ```
 
 #![no_std]
-#![deny(missing_docs)]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::cargo)]
-#![deny(clippy::multiple_unsafe_ops_per_block)]
-#![deny(clippy::undocumented_unsafe_blocks)]
-#![deny(clippy::unnecessary_safety_doc)]
-#![deny(rustdoc::broken_intra_doc_links)]
-#![deny(rustdoc::private_intra_doc_links)]
-#![deny(rustdoc::missing_crate_level_docs)]
-#![deny(rustdoc::invalid_codeblock_attributes)]
-#![deny(rustdoc::invalid_html_tags)]
-#![deny(rustdoc::invalid_rust_codeblocks)]
-#![deny(rustdoc::bare_urls)]
-#![deny(rustdoc::unescaped_backticks)]
-#![deny(rustdoc::redundant_explicit_links)]
 
 use core::alloc::{GlobalAlloc, Layout};
 

@@ -9,6 +9,7 @@ CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
 CARGO_MAKE_CLIPPY_ARGS = "--all-targets -- -D warnings"
 RUSTFLAGS = "-D warnings"
 CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "stable"
+RUSTDOCFLAGS = "-D warnings"
 
 [tasks.wdk-pre-commit-flow]
 description = "Run pre-commit tasks and checks"

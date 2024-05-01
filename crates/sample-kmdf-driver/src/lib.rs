@@ -1,15 +1,12 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! # Sample KMDF Driver
+//!
+//! This is a sample KMDF driver that demonstrates how to use the crates in
+//! windows-driver-rs to create a skeleton of a kmdf driver.
+
 #![no_std]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::cargo)]
-#![deny(clippy::undocumented_unsafe_blocks)]
-#![deny(clippy::unnecessary_safety_doc)]
-#![deny(clippy::multiple_unsafe_ops_per_block)]
 
 extern crate alloc;
 

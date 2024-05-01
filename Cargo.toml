@@ -26,3 +26,35 @@ wdk-sys = { path = "crates/wdk-sys", version = "0.2.0" }
 bindgen = "0.69.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Until https://github.com/rust-lang/cargo/issues/12208 is resolved, each package in the workspace needs to explictly
+# add the following block to its Cargo manifest in order to enable these global lint configurations:
+#
+# [lints]
+# workspace = true
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "forbid"
+
+[workspace.lints.clippy]
+# Lint Groups
+all = "deny"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+# Individual Lints
+multiple_unsafe_ops_per_block = "forbid"
+undocumented_unsafe_blocks = "forbid"
+unnecessary_safety_doc = "forbid"
+
+[workspace.lints.rustdoc]
+bare_urls = "warn"
+broken_intra_doc_links = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_html_tags = "warn"
+invalid_rust_codeblocks = "warn"
+missing_crate_level_docs = "warn"
+private_intra_doc_links = "warn"
+redundant_explicit_links = "warn"
+unescaped_backticks = "warn"
