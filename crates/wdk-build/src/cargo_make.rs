@@ -568,9 +568,9 @@ fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str
 ///
 /// # Panics
 ///
-/// This function will panic if the private validate_wdk_version_format() function is
-/// ever changed to no longer validate that each part of the version string is
-/// an i32.
+/// This function will panic if the private validate_wdk_version_format()
+/// function is ever changed to no longer validate that each part of the version
+/// string is an i32.
 pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
     let validated_version_string = validate_wdk_version_format(&version)?;
 
