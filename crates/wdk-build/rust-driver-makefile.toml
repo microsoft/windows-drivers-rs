@@ -80,7 +80,21 @@ script = '''
 
 wdk_build::cargo_make::validate_and_forward_args();
 wdk_build::cargo_make::setup_path()?;
+'''
 
+[tasks.wdk-samples-setup]
+private = true
+install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
+plugin = "rust-env-update"
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.2.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::validate_and_forward_args();
 let wdk_version = wdk_build::cargo_make::setup_wdk_version()?;
 wdk_build::cargo_make::set_sample_infverif(wdk_version)?;
 '''
@@ -184,12 +198,10 @@ args = [
 [tasks.infverif]
 private = true
 dependencies = ["stampinf"]
-condition = { env_not_set = ["WDK_INF_NEW_VERSION"] }
 command = "infverif"
 args = [
   "/v",
   "/w",
-  "@@decode(WDK_IS_SAMPLE,true,${WDK_INFVERIF_SAMPLE_FLAG})",
   "@@split(WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS, )",
   "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}.inf",
 ]

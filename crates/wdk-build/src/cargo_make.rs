@@ -20,13 +20,11 @@ use crate::{
 };
 
 const PATH_ENV_VAR: &str = "Path";
-const WDK_VERSION_ENV_VAR: &str = "WDK_VER";
-/// The name of the environment variable we store the appropriate `InfVerif`
-/// flag for samples in.
-const SAMPLE_ENV_VAR: &str = "WDK_INFVERIF_SAMPLE_FLAG";
+const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_WDK_VERISON";
 /// The first WDK version with the new `InfVerif` behavior.
 const WDK_INF_NEW_VERSION: i32 = 25798;
-const WDK_INF_NEW_VERSION_FLAG: &str = "WDK_INF_NEW_VERSION";
+const WDK_INF_ADDITIONAL_FLAGS_ENV_VAR: &str = "WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS";
+const WDK_INF_NEW_VERSION_FLAG: &str = "WDK_INF_USING_NEW_VERSION";
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -499,20 +497,65 @@ pub fn setup_path() -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// Adds the WDK version to the environment.
+/// Adds the WDK version to the environment in the full string form of
+/// 10.xxx.yyy.zzz, where x, y, and z are numerical values.
 ///
 /// # Errors
 ///
 /// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
-/// WDK content root directory could not be found.
+/// WDK content root directory could not be found, or if the WDK version is
+/// ill-formed.
 pub fn setup_wdk_version() -> Result<String, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WDKContentRootDetectionError);
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+
+    validate_wdk_version_format(&version)?;
+
     prepend_to_semicolon_delimited_env_var(WDK_VERSION_ENV_VAR, &version);
     forward_env_var_to_cargo_make(WDK_VERSION_ENV_VAR);
     Ok(version)
+}
+
+/// Validates that a given string matches the WDK version format (10.xxx.yyy.zzz
+/// where xxx, yyy, and zzz are numeric and not necessarily 3 digits long)
+/// and returns the yyy portion (the build number) if so.
+///
+/// # Errors
+///
+/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// version string provided is ill-formed.
+fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
+    let version = version_string.as_ref();
+    let mut version_parts = version.split('.');
+
+    // To make the code more readable we recreate the iterator
+    // for each validity check we do.
+
+    // First, check if we have "10" as our first value
+    if !version_parts.next().is_some_and(|first| first == "10") {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    }
+
+    // Now check that we have four entries.
+    let version_parts = version.split('.');
+    if !version_parts.count() == 4 {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    }
+
+    // Finally, confirm each part is numeric.
+    let mut version_parts = version.split('.');
+    if !version_parts.all(|version_part| version_part.parse::<i32>().is_ok()) {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    }
+
+    // Now return the actual build number from the string (the yyy in
+    // 10.xxx.yyy.zzz).
+    let mut version_parts = version.split('.');
+
+    // Safe to call unwrap here as we validated we have 4 parts above.
+    Ok(version_parts.nth(2).unwrap())
 }
 
 /// Sets the `WDK_INFVERIF_SAMPLE_FLAG` environment variable to contain the
@@ -520,34 +563,32 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
-/// WDK version is ill-formed (that is, it does not match the form
-/// 10.x.yyyyy.z).
+/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if
+/// an invalid WDK version is provided.
+///
+/// # Panics
+///
+/// This function will panic if the [`validate_wdk_version_format`] function is
+/// ever changed to no longer validate that each part of the version string is
+/// an i32.
 pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
-    let wdk_version = version.as_ref();
-    let mut version_parts = wdk_version.split('.');
-    let version_number = version_parts
-        .nth(2)
-        .and_then(|version_str| version_str.parse::<i32>().ok());
+    let validated_version_string = validate_wdk_version_format(&version)?;
 
-    if let Some(version) = version_number {
-        let sample_flag = if version > WDK_INF_NEW_VERSION {
-            "/samples"
-        } else {
-            "/msft"
-        };
-        std::env::set_var(SAMPLE_ENV_VAR, sample_flag);
-        forward_env_var_to_cargo_make(SAMPLE_ENV_VAR);
-        if version > WDK_INF_NEW_VERSION {
-            std::env::set_var(WDK_INF_NEW_VERSION_FLAG, "true");
-            forward_env_var_to_cargo_make(WDK_INF_NEW_VERSION_FLAG);
-        }
-        return Ok(());
-    }
-
-    // If we get this far, we weren't able to parse the WDK version number from the
-    // path
-    Err(ConfigError::WDKContentRootDetectionError)
+    // Safe to unwrap as we called .parse::<i32>().is_ok() in our call to
+    // validate_wdk_version_format above.
+    let version = validated_version_string
+        .parse::<i32>()
+        .expect("Unable to parse the build number of the WDK version string as an int!");
+    let sample_flag = if version > WDK_INF_NEW_VERSION {
+        std::env::set_var(WDK_INF_NEW_VERSION_FLAG, "true");
+        forward_env_var_to_cargo_make(WDK_INF_NEW_VERSION_FLAG);
+        "/samples" // Note: Not currently implemented, hence why we also set the WDK_INF_NEW_VERSION_FLAG
+    } else {
+        "/msft"
+    };
+    append_to_space_delimited_env_var(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR, sample_flag);
+    forward_env_var_to_cargo_make(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR);
+    Ok(())
 }
 
 /// Returns the path to the WDK build output directory for the current
@@ -775,18 +816,20 @@ mod tests {
     #[test]
     fn check_env_passing() -> Result<(), ConfigError> {
         crate::cargo_make::set_sample_infverif(WDK_TEST_OLD_INF_VERSION)?;
-        let env_string = std::env::var_os(crate::cargo_make::SAMPLE_ENV_VAR).map_or_else(
-            || panic!("Couldn't get OS string"),
-            |os_env_string| os_env_string.to_string_lossy().into_owned(),
-        );
-        assert_eq!(env_string, "/msft");
+        let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
+            .map_or_else(
+                || panic!("Couldn't get OS string"),
+                |os_env_string| os_env_string.to_string_lossy().into_owned(),
+            );
+        assert_eq!(env_string.split(" ").last(), Some("/msft"));
 
         crate::cargo_make::set_sample_infverif(WDK_TEST_NEW_INF_VERSION)?;
-        let env_string = std::env::var_os(crate::cargo_make::SAMPLE_ENV_VAR).map_or_else(
-            || panic!("Couldn't get OS string"),
-            |os_env_string| os_env_string.to_string_lossy().into_owned(),
-        );
-        assert_eq!(env_string, "/samples");
+        let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
+            .map_or_else(
+                || panic!("Couldn't get OS string"),
+                |os_env_string| os_env_string.to_string_lossy().into_owned(),
+            );
+        assert_eq!(env_string.split(" ").last(), Some("/samples"));
         Ok(())
     }
 }
