@@ -511,51 +511,11 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
-    validate_wdk_version_format(&version)?;
+    crate::utils::validate_wdk_version_format(&version)?;
 
     prepend_to_semicolon_delimited_env_var(WDK_VERSION_ENV_VAR, &version);
     forward_env_var_to_cargo_make(WDK_VERSION_ENV_VAR);
     Ok(version)
-}
-
-/// Validates that a given string matches the WDK version format (10.xxx.yyy.zzz
-/// where xxx, yyy, and zzz are numeric and not necessarily 3 digits long)
-/// and returns the yyy portion (the build number) if so.
-///
-/// # Errors
-///
-/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
-/// version string provided is ill-formed.
-fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
-    let version = version_string.as_ref();
-    let mut version_parts = version.split('.');
-
-    // To make the code more readable we recreate the iterator
-    // for each validity check we do.
-
-    // First, check if we have "10" as our first value
-    if !version_parts.next().is_some_and(|first| first == "10") {
-        return Err(ConfigError::WDKContentRootDetectionError);
-    }
-
-    // Now check that we have four entries.
-    let version_parts = version.split('.');
-    if !version_parts.count() == 4 {
-        return Err(ConfigError::WDKContentRootDetectionError);
-    }
-
-    // Finally, confirm each part is numeric.
-    let mut version_parts = version.split('.');
-    if !version_parts.all(|version_part| version_part.parse::<i32>().is_ok()) {
-        return Err(ConfigError::WDKContentRootDetectionError);
-    }
-
-    // Now return the actual build number from the string (the yyy in
-    // 10.xxx.yyy.zzz).
-    let mut version_parts = version.split('.');
-
-    // Safe to call unwrap here as we validated we have 4 parts above.
-    Ok(version_parts.nth(2).unwrap())
 }
 
 /// Sets the `WDK_INFVERIF_SAMPLE_FLAG` environment variable to contain the
@@ -568,11 +528,11 @@ fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str
 ///
 /// # Panics
 ///
-/// This function will panic if the private validate_wdk_version_format()
-/// function is ever changed to no longer validate that each part of the version
-/// string is an i32.
+/// This function will panic if the function for validating a WDK version string
+/// is ever changed to no longer validate that each part of the version string
+/// is an i32.
 pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
-    let validated_version_string = validate_wdk_version_format(&version)?;
+    let validated_version_string = crate::utils::validate_wdk_version_format(&version)?;
 
     // Safe to unwrap as we called .parse::<i32>().is_ok() in our call to
     // validate_wdk_version_format above.

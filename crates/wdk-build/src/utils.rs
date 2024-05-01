@@ -281,6 +281,46 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
     })
 }
 
+/// Validates that a given string matches the WDK version format (10.xxx.yyy.zzz
+/// where xxx, yyy, and zzz are numeric and not necessarily 3 digits long)
+/// and returns the yyy portion (the build number) if so.
+///
+/// # Errors
+///
+/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// version string provided is ill-formed.
+pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
+    let version = version_string.as_ref();
+    let mut version_parts = version.split('.');
+
+    // To make the code more readable we recreate the iterator
+    // for each validity check we do.
+
+    // First, check if we have "10" as our first value
+    if !version_parts.next().is_some_and(|first| first == "10") {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    }
+
+    // Now check that we have four entries.
+    let version_parts = version.split('.');
+    if version_parts.count() != 4 {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    }
+
+    // Finally, confirm each part is numeric.
+    let mut version_parts = version.split('.');
+    if !version_parts.all(|version_part| version_part.parse::<i32>().is_ok()) {
+        return Err(ConfigError::WDKContentRootDetectionError);
+    }
+
+    // Now return the actual build number from the string (the yyy in
+    // 10.xxx.yyy.zzz).
+    let mut version_parts = version.split('.');
+
+    // Safe to call unwrap here as we validated we have 4 parts above.
+    Ok(version_parts.nth(2).unwrap())
+}
+
 #[cfg(test)]
 mod tests {
     use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
@@ -342,5 +382,39 @@ mod tests {
                     .expect("Path resolved from FOLDERID_ProgramFiles should be valid UTF16.")
             )
         );
+    }
+
+    #[test]
+    fn validate_wdk_strings() {
+        assert_eq!(
+            validate_wdk_version_format(&"10.0.12345.0").ok(),
+            Some("12345")
+        );
+        assert_eq!(validate_wdk_version_format(&"10.0.5.0").ok(), Some("5"));
+        assert_eq!(validate_wdk_version_format(&"10.0.0.0").ok(), Some("0"));
+        assert!(matches!(
+            validate_wdk_version_format(&"11.0.0.0"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
+        assert!(matches!(
+            validate_wdk_version_format(&"10.0.12345.0.0"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
+        assert!(matches!(
+            validate_wdk_version_format(&"10.0.12345.a"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
+        assert!(matches!(
+            validate_wdk_version_format(&"10.0.12345"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
+        assert!(matches!(
+            validate_wdk_version_format(&"10.0.1234!5.0"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
+        assert!(matches!(
+            validate_wdk_version_format(&"Not a real version!"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
     }
 }
