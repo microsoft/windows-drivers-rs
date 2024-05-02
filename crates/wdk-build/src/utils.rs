@@ -293,9 +293,6 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<
     let version = version_string.as_ref();
     let version_parts: Vec<&str> = version.split('.').collect();
 
-    // To make the code more readable we recreate the iterator
-    // for each validity check we do.
-
     // First, check if we have "10" as our first value
     if !version_parts.first().is_some_and(|first| *first == "10") {
         return Err(ConfigError::WDKContentRootDetectionError);
