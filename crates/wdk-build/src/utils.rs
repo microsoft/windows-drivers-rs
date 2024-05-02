@@ -291,34 +291,33 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
 /// version string provided is ill-formed.
 pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
     let version = version_string.as_ref();
-    let mut version_parts = version.split('.');
+    let version_parts: Vec<&str> = version.split('.').collect();
 
     // To make the code more readable we recreate the iterator
     // for each validity check we do.
 
     // First, check if we have "10" as our first value
-    if !version_parts.next().is_some_and(|first| first == "10") {
+    if !version_parts.first().is_some_and(|first| *first == "10") {
         return Err(ConfigError::WDKContentRootDetectionError);
     }
 
     // Now check that we have four entries.
-    let version_parts = version.split('.');
-    if version_parts.count() != 4 {
+    if version_parts.len() != 4 {
         return Err(ConfigError::WDKContentRootDetectionError);
     }
 
     // Finally, confirm each part is numeric.
-    let mut version_parts = version.split('.');
-    if !version_parts.all(|version_part| version_part.parse::<i32>().is_ok()) {
+    if !version_parts
+        .iter()
+        .all(|version_part| version_part.parse::<i32>().is_ok())
+    {
         return Err(ConfigError::WDKContentRootDetectionError);
     }
 
     // Now return the actual build number from the string (the yyy in
     // 10.xxx.yyy.zzz).
-    let mut version_parts = version.split('.');
-
-    // Safe to call unwrap here as we validated we have 4 parts above.
-    Ok(version_parts.nth(2).unwrap())
+    // Safe to dereference as we validated we have 4 parts above.
+    Ok(version_parts[2])
 }
 
 #[cfg(test)]
@@ -414,6 +413,10 @@ mod tests {
         ));
         assert!(matches!(
             validate_wdk_version_format(&"Not a real version!"),
+            Err(ConfigError::WDKContentRootDetectionError)
+        ));
+        assert!(matches!(
+            validate_wdk_version_format(&""),
             Err(ConfigError::WDKContentRootDetectionError)
         ));
     }
