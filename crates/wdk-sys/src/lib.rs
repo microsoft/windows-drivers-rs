@@ -9,17 +9,18 @@
 mod constants;
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 mod types;
-
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 pub use crate::{constants::*, types::*};
 
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
-pub mod macros;
+mod macros;
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+pub use wdk_macros as __proc_macros;
+
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
 pub mod ntddk;
 #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 pub mod wdf;
-
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;

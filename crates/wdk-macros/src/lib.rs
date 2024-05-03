@@ -4,13 +4,8 @@
 //! A collection of macros that help make it easier to interact with
 //! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
 
-use std::{
-    io::{BufReader, Read},
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use std::path::PathBuf;
 
-use cargo_metadata::{Message, MetadataCommand, PackageId};
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -32,6 +27,7 @@ use syn::{
     Ident,
     Item,
     ItemType,
+    LitStr,
     Path,
     PathArguments,
     PathSegment,
@@ -45,52 +41,13 @@ use syn::{
     TypePath,
     TypePtr,
 };
-use wdk_build::{detect_enabled_cargo_features, find_top_level_cargo_manifest};
 
-/// A procedural macro that allows WDF functions to be called by name.
+/// A procedural macro that allows WDF functions to be called by name. This
+/// macro is only intended to be used in the `wdk-sys` crate. Users wanting to
+/// call WDF functions should use the macro in `wdk-sys`.
 ///
-/// This function parses the name of the WDF function, finds it function pointer
-/// from the WDF function table, and then calls it with the arguments passed to
-/// it
-///
-/// # Safety
-/// Function arguments must abide by any rules outlined in the WDF
-/// documentation. This macro does not perform any validation of the arguments
-/// passed to it., beyond type validation.
-///
-/// # Examples
-///
-/// ```rust, no_run
-/// # // main fn manual definition required because of rustdoc bug: https://github.com/rust-lang/rust/issues/85239
-/// # #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
-/// # fn main() {
-/// use wdk_sys::*;
-///
-/// // These should be replaced with valid values returned by WDF
-/// let mut driver = DRIVER_OBJECT::default();
-/// let registry_path = PCUNICODE_STRING::default();
-///
-/// let mut driver_config = WDF_DRIVER_CONFIG {
-///     Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
-///     ..WDF_DRIVER_CONFIG::default()
-/// };
-/// let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
-///
-/// let nt_status = unsafe {
-///     wdk_macros::call_unsafe_wdf_function_binding!(
-///         WdfDriverCreate,
-///         driver as PDRIVER_OBJECT,
-///         registry_path,
-///         WDF_NO_OBJECT_ATTRIBUTES,
-///         &mut driver_config,
-///         driver_handle_output,
-///     )
-/// };
-/// # }
-/// # #[cfg(not(any(driver_type = "kmdf", driver_type = "umdf")))]
-/// # fn main() {}
-/// ```
-#[allow(clippy::unnecessary_safety_doc)]
+///  This macro differs from the one in [`wdk-sys`] in that it must pass in the
+/// generated types from `wdk-sys` as an arggument to the macro.
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
@@ -106,6 +63,8 @@ trait StringExt {
 /// `call_unsafe_wdf_function_binding` macro
 #[derive(Debug, PartialEq)]
 struct Inputs {
+    /// Path to file where generated type information resides.
+    types_path: LitStr,
     /// The name of the WDF function to call. This matches the name of the
     /// function in C/C++.
     wdf_function_identifier: Ident,
@@ -175,11 +134,15 @@ impl StringExt for String {
 
 impl Parse for Inputs {
     fn parse(input: ParseStream) -> Result<Self> {
+        let types_path = input.parse::<LitStr>()?;
+
+        input.parse::<Token![,]>()?;
         let c_wdf_function_identifier = input.parse::<Ident>()?;
 
         // Support WDF apis with no arguments
         if input.is_empty() {
             return Ok(Self {
+                types_path,
                 wdf_function_identifier: c_wdf_function_identifier,
                 wdf_function_arguments: Punctuated::new(),
             });
@@ -189,6 +152,7 @@ impl Parse for Inputs {
         let wdf_function_arguments = input.parse_terminated(Expr::parse, Token![,])?;
 
         Ok(Self {
+            types_path,
             wdf_function_identifier: c_wdf_function_identifier,
             wdf_function_arguments,
         })
@@ -207,8 +171,10 @@ impl Inputs {
             wdf_function_identifier = self.wdf_function_identifier,
             span = self.wdf_function_identifier.span()
         );
+
+        let types_ast = parse_types_ast(self.types_path)?;
         let (parameters, return_type) =
-            generate_parameters_and_return_type(&function_pointer_type)?;
+            generate_parameters_and_return_type(&types_ast, &function_pointer_type)?;
         let parameter_identifiers = parameters
             .iter()
             .cloned()
@@ -344,6 +310,46 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         .assemble_final_output()
 }
 
+fn parse_types_ast(path: LitStr) -> Result<File> {
+    let types_path = PathBuf::from(path.value());
+    let types_path = match types_path.canonicalize() {
+        Ok(types_path) => types_path,
+        Err(err) => {
+            return Err(Error::new(
+                path.span(),
+                format!(
+                    "Failed to canonicalize types_path ({}): {err}",
+                    types_path.display()
+                ),
+            ));
+        }
+    };
+
+    let types_file_contents = match std::fs::read_to_string(&types_path) {
+        Ok(contents) => contents,
+        Err(err) => {
+            return Err(Error::new(
+                path.span(),
+                format!(
+                    "Failed to read wdk-sys types information from {}: {err}",
+                    types_path.display(),
+                ),
+            ));
+        }
+    };
+
+    match parse_file(&types_file_contents) {
+        Ok(wdk_sys_types_rs_abstract_syntax_tree) => Ok(wdk_sys_types_rs_abstract_syntax_tree),
+        Err(err) => Err(Error::new(
+            path.span(),
+            format!(
+                "Failed to parse wdk-sys types information from {} into AST: {err}",
+                types_path.display(),
+            ),
+        )),
+    }
+}
+
 /// Generate the function parameters and return type corresponding to the
 /// function signature of the `function_pointer_type` type alias in the AST for
 /// types.rs
@@ -363,10 +369,10 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
 fn generate_parameters_and_return_type(
+    types_ast: &File,
     function_pointer_type: &Ident,
 ) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
-    let types_rs_ast = get_type_rs_ast()?;
-    let type_alias_definition = find_type_alias_definition(&types_rs_ast, function_pointer_type)?;
+    let type_alias_definition = find_type_alias_definition(types_ast, function_pointer_type)?;
     let fn_pointer_definition =
         extract_fn_pointer_definition(type_alias_definition, function_pointer_type.span())?;
     parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())
@@ -558,10 +564,10 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId> {
 /// >;
 /// ```
 fn find_type_alias_definition<'a>(
-    file_ast: &'a File,
+    types_ast: &'a File,
     function_pointer_type: &Ident,
 ) -> Result<&'a ItemType> {
-    file_ast
+    types_ast
         .items
         .iter()
         .find_map(|item| {

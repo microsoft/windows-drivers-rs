@@ -19,13 +19,14 @@ categories = [
 [build-dependencies]
 bindgen.workspace = true
 wdk-build.workspace = true
-cc = "1.0.90"
-thiserror = "1.0.59"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 anyhow = "1.0.82"
 cargo_metadata = "0.18.1"
+cc = "1.0.90"
+lazy_static = "1.4.0"
 serde_json.workspace = true
+thiserror = "1.0.59"
 tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [dependencies]
 wdk-macros.workspace = true

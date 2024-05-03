@@ -5,53 +5,81 @@
 
 use std::{
     env,
+    io::Write,
     path::{Path, PathBuf},
 };
 
 use bindgen::CodegenConfig;
+use lazy_static::lazy_static;
 use tracing::{info, info_span};
-use tracing_subscriber::{filter::LevelFilter, EnvFilter};
+use tracing_subscriber::{
+    filter::{LevelFilter, ParseError},
+    EnvFilter,
+};
 use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError};
 
-fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
-        .with_codegen_config(CodegenConfig::VARS)
-        .generate()
-        .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("constants.rs"))?)
+const OUT_DIR_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
+// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
+lazy_static! {
+    static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
+        r#"
+/// A procedural macro that allows WDF functions to be called by name.
+///
+/// This function parses the name of the WDF function, finds it function
+/// pointer from the WDF function table, and then calls it with the
+/// arguments passed to it
+///
+/// # Safety
+/// Function arguments must abide by any rules outlined in the WDF
+/// documentation. This macro does not perform any validation of the
+/// arguments passed to it., beyond type validation.
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// # // main fn manual definition required because of rustdoc bug: https://github.com/rust-lang/rust/issues/85239
+/// # #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+/// # fn main() {{
+/// use wdk_sys::*;
+///
+/// // These should be replaced with valid values returned by WDF
+/// let mut driver = DRIVER_OBJECT::default();
+/// let registry_path = PCUNICODE_STRING::default();
+///
+/// let mut driver_config = WDF_DRIVER_CONFIG {{
+///     Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
+///     ..WDF_DRIVER_CONFIG::default()
+/// }};
+/// let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
+///
+/// let nt_status = unsafe {{
+///     wdk_macros::call_unsafe_wdf_function_binding!(
+///         WdfDriverCreate,
+///         driver as PDRIVER_OBJECT,
+///         registry_path,
+///         WDF_NO_OBJECT_ATTRIBUTES,
+///         &mut driver_config,
+///         driver_handle_output,
+///     )
+/// }};
+/// # }}
+/// # #[cfg(not(any(driver_type = "kmdf", driver_type = "umdf")))]
+/// # fn main() {{}}
+/// ```
+#[macro_export]
+macro_rules! call_unsafe_wdf_function_binding {{
+    ( $($tt:tt)* ) => {{
+        $crate::__proc_macros::call_unsafe_wdf_function_binding! {{
+            r"{OUT_DIR_PLACEHOLDER}",
+            $($tt)*
+        }}
+    }}
+}}"#
+    );
 }
 
-fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
-        .with_codegen_config(CodegenConfig::TYPES)
-        .generate()
-        .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("types.rs"))?)
-}
-
-fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
-        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-        .generate()
-        .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("ntddk.rs"))?)
-}
-
-fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
-    // As of NI WDK, this may generate an empty file due to no non-type and non-var
-    // items in the wdf headers(i.e. functions are all inlined). This step is
-    // intentionally left here in case older WDKs have non-inlined functions or new
-    // WDKs may introduce non-inlined functions.
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
-        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-        .allowlist_file("(?i).*wdf.*") // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
-        // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
-        .generate()
-        .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("wdf.rs"))?)
-}
-
-fn main() -> anyhow::Result<()> {
+fn initialize_tracing() -> Result<(), ParseError> {
     let tracing_filter = EnvFilter::default()
         // Show up to INFO level by default
         .add_directive(LevelFilter::INFO.into())
@@ -100,6 +128,72 @@ fn main() -> anyhow::Result<()> {
         .pretty()
         .with_env_filter(tracing_filter)
         .init();
+
+    Ok(())
+}
+
+fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config(CodegenConfig::VARS)
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("constants.rs"))?)
+}
+
+fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config(CodegenConfig::TYPES)
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("types.rs"))?)
+}
+
+fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("ntddk.rs"))?)
+}
+
+fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+    // As of NI WDK, this may generate an empty file due to no non-type and non-var
+    // items in the wdf headers(i.e. functions are all inlined). This step is
+    // intentionally left here in case older WDKs have non-inlined functions or new
+    // WDKs may introduce non-inlined functions.
+    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+        .allowlist_file("(?i).*wdf.*") // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
+        // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(out_path.join("wdf.rs"))?)
+}
+
+/// Generates a `macros.rs` file in `OUT_DIR` which contains a
+/// `call_unsafe_wdf_function_binding!` macro redirects to the
+/// `wdk_macros::call_unsafe_wdf_function_binding` macro . This is required
+/// in order to add an additional argument with the path to the file containing
+/// generated types
+fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
+    let macro_file = out_path.join("call_unsafe_wdf_function_binding.rs");
+    let mut file = std::fs::File::create(&macro_file)?;
+    file.write_all(
+        CALL_UNSAFE_WDF_BINDING_TEMPLATE
+            .replace(
+                OUT_DIR_PLACEHOLDER,
+                out_path.join("types.rs").to_str().expect(
+                    "path to file with generated type information should succesfully convert to a \
+                     str",
+                ),
+            )
+            .as_bytes(),
+    )?;
+    Ok(())
+}
+
+fn main() -> anyhow::Result<()> {
+    initialize_tracing()?;
 
     let config = Config {
         driver_config: match detect_driver_config() {
@@ -152,6 +246,11 @@ fn main() -> anyhow::Result<()> {
                 .file("src/wdf.c")
                 .compile("wdf");
             Ok::<(), ConfigError>(())
+        })?;
+
+        info_span!("macros.rs generation").in_scope(|| {
+            generate_call_unsafe_wdf_function_binding_macro(&out_path)?;
+            Ok::<(), std::io::Error>(())
         })?;
     }
 
