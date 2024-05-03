@@ -476,9 +476,7 @@ name = "sample-umdf-driver"
 version = "0.1.0"
 dependencies = [
  "static_assertions",
- "thiserror",
  "wdk",
- "wdk-alloc",
  "wdk-build",
  "wdk-panic",
  "wdk-sys",
@@ -685,16 +683,6 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "wdk"
-version = "0.2.0"
-dependencies = [
- "tracing",
- "tracing-subscriber",
- "wdk-build",
- "wdk-sys",
-]
-
-[[package]]
-name = "wdk-alloc"
 version = "0.2.0"
 dependencies = [
  "tracing",

@@ -22,11 +22,9 @@ test = false
 
 [dependencies]
 wdk = { path = "../../crates/wdk", version = "0.2.0" }
-wdk-alloc = { path = "../../crates/wdk-alloc", version = "0.2.0" }
 wdk-panic = { path = "../../crates/wdk-panic", version = "0.2.0" }
 wdk-sys = { path = "../../crates/wdk-sys", version = "0.2.0" }
 static_assertions = "1.1.0"
-thiserror = "1.0.56"
 
 [build-dependencies]
 wdk-build = { path = "../../crates/wdk-build", version = "0.2.0" }

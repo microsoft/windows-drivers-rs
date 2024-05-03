@@ -63,37 +63,18 @@ jobs:
   udeps:
     name: Detect Unused Cargo Dependencies
     runs-on: windows-latest
-    strategy:
-      matrix:
-        wdk:
-          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Winget
-        uses: ./.github/actions/winget-install
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install WDK (${{ matrix.wdk }})
-        run: |
-          if (!(winget list --exact --source winget --id ${{ matrix.wdk }})[-1].contains("${{ matrix.wdk }}")) {
-            winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
-          }
-
-      - name: Install Rust Toolchain (Nightly)
-        # Cargo udeps only supports running on nightly due to reliance on unstable dep-info feature: https://github.com/est31/cargo-udeps/issues/113, https://github.com/est31/cargo-udeps/issues/136
-        uses: dtolnay/rust-toolchain@nightly
-
-      - name: Install Cargo Udeps
+      - name: Install Cargo Machete
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-udeps
+          tool: cargo-machete
 
-      - name: Run Cargo Udeps
-        run: cargo +nightly udeps --locked --all-targets
-
-      - name: Run Cargo Udeps (--features nightly)
-        run: cargo +nightly udeps --locked --all-targets --features nightly
+      - name: Run Cargo Machete
+        run: cargo machete --skip-target-dir

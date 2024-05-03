@@ -59,6 +59,9 @@ _test-kmdf = ["kmdf-config"]
 _test-umdf = ["umdf-config"]
 _test-wdm = ["wdm-config"]
 
+[package.metadata.cargo-machete]
+ignored = ["kmdf-config", "umdf-config", "wdm-config"]
+
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
 # workspace = true

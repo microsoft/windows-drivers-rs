@@ -81,8 +81,12 @@ install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
 args = ["audit", "--deny", "warnings"]
 
 [tasks.unused-dependencies]
-toolchain = "nightly"
-args = ["udeps", "--all-targets"]
+workspace = false
+condition = { env_true = [
+  "CARGO_MAKE_CRATE_HAS_DEPENDENCIES",
+] }
+args = ["machete", "--skip-target-dir"]
+
 
 [tasks.nightly-test-flow]
 extend = "test-flow"

@@ -476,7 +476,6 @@ name = "sample-kmdf-driver"
 version = "0.1.0"
 dependencies = [
  "static_assertions",
- "thiserror",
  "wdk",
  "wdk-alloc",
  "wdk-build",
