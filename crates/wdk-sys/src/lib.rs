@@ -39,6 +39,7 @@ use lazy_static::lazy_static;
 pub static _fltused: () = ();
 
 // FIXME: Is there any way to avoid this stub? See https://github.com/rust-lang/rust/issues/101134
+#[cfg(panic = "abort")]
 #[allow(missing_docs)]
 #[allow(clippy::missing_const_for_fn)] // const extern is not yet supported: https://github.com/rust-lang/rust/issues/64926
 #[no_mangle]

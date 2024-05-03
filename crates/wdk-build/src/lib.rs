@@ -166,6 +166,14 @@ pub enum ConfigError {
          on WDR"
     )]
     NoWDKConfigurationsDetected,
+
+    /// Error returned when the c runtime is not configured to be statically
+    /// linked
+    #[error(
+        "the c runtime is not properly configured to be statically linked. This is required for building \
+         WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
+    )]
+    StaticCRTNotEnabled,
 }
 
 /// Errors that could result from parsing a configuration from a [`wdk-build`]
@@ -435,7 +443,9 @@ impl Config {
     }
 
     /// Returns library include paths required to build and link based off of
-    /// the configuration of `Config`
+    /// the configuration of [`Config`].
+    ///
+    /// For UMDF drivers, this assumes a "Windows-Driver" Target Platform.
     ///
     /// # Errors
     ///
@@ -557,6 +567,7 @@ impl Config {
                     let mut umdf_definitions = vec![
                         ("UMDF_VERSION_MAJOR", Some(umdf_config.umdf_version_major)),
                         ("UMDF_VERSION_MINOR", Some(umdf_config.umdf_version_minor)),
+                        ("_ATL_NO_WIN_SUPPORT", None),
                     ];
 
                     if umdf_config.umdf_version_major >= 2 {
@@ -649,9 +660,13 @@ impl Config {
     ///
     /// # Panics
     ///
-    /// Panics if the invoked from outside a Cargo build environmen
+    /// Panics if the invoked from outside a Cargo build environment
     pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
-        let library_paths = self.get_library_paths()?;
+        if !Self::is_crt_static_linked() {
+            return Err(ConfigError::StaticCRTNotEnabled);
+        }
+
+        let library_paths: Vec<PathBuf> = self.get_library_paths()?;
 
         // Emit linker search paths
         for path in library_paths {
@@ -661,45 +676,28 @@ impl Config {
         match &self.driver_config {
             DriverConfig::WDM() => {
                 // Emit WDM-specific libraries to link to
-                println!("cargo:rustc-link-lib=BufferOverflowFastFailK");
-                println!("cargo:rustc-link-lib=ntoskrnl");
-                println!("cargo:rustc-link-lib=hal");
-                println!("cargo:rustc-link-lib=wmilib");
+                println!("cargo:rustc-link-lib=static=BufferOverflowFastFailK");
+                println!("cargo:rustc-link-lib=static=ntoskrnl");
+                println!("cargo:rustc-link-lib=static=hal");
+                println!("cargo:rustc-link-lib=static=wmilib");
             }
             DriverConfig::KMDF(_) => {
                 // Emit KMDF-specific libraries to link to
-                println!("cargo:rustc-link-lib=BufferOverflowFastFailK");
-                println!("cargo:rustc-link-lib=ntoskrnl");
-                println!("cargo:rustc-link-lib=hal");
-                println!("cargo:rustc-link-lib=wmilib");
-                println!("cargo:rustc-link-lib=WdfLdr");
-                println!("cargo:rustc-link-lib=WdfDriverEntry");
+                println!("cargo:rustc-link-lib=static=BufferOverflowFastFailK");
+                println!("cargo:rustc-link-lib=static=ntoskrnl");
+                println!("cargo:rustc-link-lib=static=hal");
+                println!("cargo:rustc-link-lib=static=wmilib");
+                println!("cargo:rustc-link-lib=static=WdfLdr");
+                println!("cargo:rustc-link-lib=static=WdfDriverEntry");
             }
             DriverConfig::UMDF(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
-                match env::var("PROFILE")
-                    .expect(
-                        "Cargo should have set a valid PROFILE environment variable at build time",
-                    )
-                    .as_str()
-                {
-                    "release" => {
-                        println!("cargo:rustc-link-lib=ucrt");
-                    }
-                    "debug" => {
-                        println!("cargo:rustc-link-lib=ucrtd");
-                    }
-                    _ => {
-                        unreachable!(r#"Cargo should always set a value of "release" or "debug""#);
-                    }
-                }
-
                 if umdf_config.umdf_version_major >= 2 {
-                    println!("cargo:rustc-link-lib=WdfDriverStubUm");
-                    println!("cargo:rustc-link-lib=ntdll");
+                    println!("cargo:rustc-link-lib=static=WdfDriverStubUm");
+                    println!("cargo:rustc-link-lib=static=ntdll");
                 }
 
-                println!("cargo:rustc-link-lib=mincore");
+                println!("cargo:rustc-link-lib=static=OneCoreUAP");
             }
         }
 
@@ -775,6 +773,15 @@ impl Config {
             serde_json::to_string(self)?
         );
         Ok(())
+    }
+
+    fn is_crt_static_linked() -> bool {
+        const STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME: &str = "crt-static";
+
+        let enabled_cpu_target_features = env::var("CARGO_CFG_TARGET_FEATURE")
+            .expect("CARGO_CFG_TARGET_FEATURE should be set by Cargo");
+
+        enabled_cpu_target_features.contains(STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME)
     }
 }
 

@@ -1,6 +1,12 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! # Sample WDM Driver
+//!
+//! This is a sample WDM driver that demonstrates how to use the crates in
+//! windows-driver-rs to create a skeleton of a WDM driver.
+
+#![no_std]
 extern crate alloc;
 
 #[cfg(not(test))]

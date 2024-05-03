@@ -7,14 +7,23 @@
 
 #![no_std]
 
-#[cfg(all(feature = "alloc", any(driver_type = "wdm", driver_type = "kmdf")))]
-mod print;
-#[cfg(all(feature = "alloc", any(driver_type = "wdm", driver_type = "kmdf")))]
-pub use print::_print;
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 pub use wdk_sys::NT_SUCCESS as nt_success;
+
+#[cfg(any(
+    all(feature = "alloc", any(driver_type = "wdm", driver_type = "kmdf")),
+    driver_type = "umdf",
+))]
+mod print;
+#[cfg(any(
+    all(feature = "alloc", any(driver_type = "wdm", driver_type = "kmdf")),
+    driver_type = "umdf",
+))]
+pub use print::_print;
+
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
 pub use wdk_sys::PAGED_CODE as paged_code;
+
 #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 pub mod wdf;
 

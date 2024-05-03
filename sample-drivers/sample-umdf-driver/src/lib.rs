@@ -1,33 +1,20 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-#![no_std]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
-#![deny(clippy::cargo)]
-#![deny(clippy::undocumented_unsafe_blocks)]
-#![deny(clippy::unnecessary_safety_doc)]
-#![deny(clippy::multiple_unsafe_ops_per_block)]
+//! # Sample UMDF Driver
+//!
+//! This is a sample UMDF driver that demonstrates how to use the crates in
+//! windows-driver-rs to create a skeleton of a UMDF driver.
 
-extern crate alloc;
-
-#[cfg(not(test))]
-extern crate wdk_panic;
-
-use alloc::{ffi::CString, slice, string::String};
+use std::{ffi::CString, slice, string::String};
 
 use static_assertions::const_assert;
-// use wdk::println;
-// #[cfg(not(test))]
-// use wdk_alloc::WDKAllocator;
-use wdk_sys::call_unsafe_wdf_function_binding;
 use wdk_sys::{
-    wdk::OutputDebugString,
-    DRIVER_OBJECT,
+    call_unsafe_wdf_function_binding,
+    windows::OutputDebugStringA,
     NTSTATUS,
     PCUNICODE_STRING,
+    PDRIVER_OBJECT,
     ULONG,
     UNICODE_STRING,
     WCHAR,
@@ -38,10 +25,7 @@ use wdk_sys::{
     WDF_NO_HANDLE,
     WDF_NO_OBJECT_ATTRIBUTES,
 };
-
-#[cfg(not(test))]
-#[global_allocator]
-static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
+use wdk::println;
 
 /// `DriverEntry` function required by WDF
 ///
@@ -52,19 +36,17 @@ static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
 #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
-    driver: &mut DRIVER_OBJECT,
+    driver: PDRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-    // This is an example of directly using OutputDebugString binding to print
+    // This is an example of directly using OutputDebugStringA binding to print
     let string = CString::new("Hello World!\n").unwrap();
 
     // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
     // string
     unsafe {
-        OutputDebugString(string.as_ptr());
+        OutputDebugStringA(string.as_ptr());
     }
-
-    driver.DriverUnload = Some(driver_exit);
 
     let mut driver_config = {
         // const_assert required since clippy::cast_possible_truncation must be silenced because of a false positive (since it currently doesn't handle checking compile-time constants): https://github.com/rust-lang/rust-clippy/issues/9613
@@ -80,12 +62,13 @@ pub unsafe extern "system" fn driver_entry(
         WDF_DRIVER_CONFIG {
             Size: wdf_driver_config_size,
             EvtDriverDeviceAdd: Some(evt_driver_device_add),
+            EvtDriverUnload: Some(evt_driver_unload),
             ..WDF_DRIVER_CONFIG::default()
         }
     };
 
     let driver_attributes = WDF_NO_OBJECT_ATTRIBUTES;
-    let driver_handle_output = WDF_NO_HANDLE.cast::<*mut wdk_sys::WDFDRIVER__>();
+    let driver_handle_output = WDF_NO_HANDLE.cast::<WDFDRIVER>();
 
     let wdf_driver_create_ntstatus;
     // SAFETY: This is safe because:
@@ -95,10 +78,9 @@ pub unsafe extern "system" fn driver_entry(
     //         4. `driver_config` is a valid pointer to a valid `WDF_DRIVER_CONFIG`
     //         5. `driver_handle_output` is expected to be null
     unsafe {
-        #![allow(clippy::multiple_unsafe_ops_per_block)]
         wdf_driver_create_ntstatus = call_unsafe_wdf_function_binding!(
             WdfDriverCreate,
-            driver as wdk_sys::PDRIVER_OBJECT,
+            driver,
             registry_path,
             driver_attributes,
             &mut driver_config,
@@ -143,10 +125,10 @@ pub unsafe extern "system" fn driver_entry(
     );
 
     // It is much better to use the println macro that has an implementation in
-    // wdk::print.rs to call DbgPrint. The println! implementation in
+    // wdk::print.rs to call OutputDebugStringA. The println! implementation in
     // wdk::print.rs has the same features as the one in std (ex. format args
     // support).
-    println!("KMDF Driver Entry Complete! Driver Registry Parameter Key: {registry_path}");
+    println!("UMDF Driver Entry Complete! Driver Registry Parameter Key: {registry_path}");
 
     wdf_driver_create_ntstatus
 }
@@ -166,7 +148,6 @@ extern "C" fn evt_driver_device_add(
     //          null
     //       3. `device_handle_output` is expected to be null
     unsafe {
-        #![allow(clippy::multiple_unsafe_ops_per_block)]
         ntstatus = call_unsafe_wdf_function_binding!(
             WdfDeviceCreate,
             &mut device_init,
@@ -179,7 +160,7 @@ extern "C" fn evt_driver_device_add(
     ntstatus
 }
 
-extern "C" fn driver_exit(_driver: *mut DRIVER_OBJECT) {
+extern "C" fn evt_driver_unload(_driver: WDFDRIVER) {
     println!("Goodbye World!");
     println!("Driver Exit Complete!");
 }
