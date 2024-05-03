@@ -26,7 +26,8 @@ lazy_static! {
     static ref MACROTEST_INPUT_FOLDER_PATH: PathBuf = INPUTS_FOLDER_PATH.join("macrotest");
     static ref TRYBUILD_INPUT_FOLDER_PATH: PathBuf = INPUTS_FOLDER_PATH.join("trybuild");
     static ref OUTPUTS_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("outputs");
-    static ref TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: PathBuf = OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME);
+    static ref TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: PathBuf =
+        OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME);
     static ref MACROTEST_OUTPUT_FOLDER_PATH: PathBuf =
         TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("macrotest");
     static ref TRYBUILD_OUTPUT_FOLDER_PATH: PathBuf =
