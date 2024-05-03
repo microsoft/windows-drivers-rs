@@ -1,5 +1,5 @@
 extend = "../wdk-build/rust-driver-makefile.toml"
 
 [tasks.infverif]
-dependencies = ["wdk-samples-setup"]
+dependencies = ["wdk-samples-setup", "stampinf"]
 condition = { env_not_set = ["WDK_INF_USING_NEW_VERSION"] }

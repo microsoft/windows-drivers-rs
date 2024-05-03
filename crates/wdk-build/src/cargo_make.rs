@@ -531,7 +531,7 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
 /// This function will panic if the function for validating a WDK version string
 /// is ever changed to no longer validate that each part of the version string
 /// is an i32.
-pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
+pub fn setup_infverif_for_samples<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
     let validated_version_string = crate::utils::validate_wdk_version_format(&version)?;
 
     // Safe to unwrap as we called .parse::<i32>().is_ok() in our call to

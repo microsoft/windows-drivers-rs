@@ -289,7 +289,7 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
 ///
 /// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
 /// version string provided is ill-formed.
-pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
+pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: S) -> Result<&str, ConfigError> {
     let version = version_string.as_ref();
     let version_parts: Vec<&str> = version.split('.').collect();
 
