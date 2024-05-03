@@ -6,7 +6,7 @@ use bindgen::{
     Builder,
 };
 
-use crate::{CPUArchitecture, Config, ConfigError, DriverConfig};
+use crate::{Config, ConfigError, DriverConfig};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -59,70 +59,16 @@ impl BuilderExt for Builder {
                 )
             }))
             .clang_args(
-                match config.cpu_architecture {
-                    // Definitions sourced from `Program Files\Windows
-                    // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
-                    CPUArchitecture::AMD64 => {
-                        vec!["_WIN64", "_AMD64_", "AMD64"]
-                    }
-                    // Definitions sourced from `Program Files\Windows
-                    // Kits\10\build\10.0.22621.0\WindowsDriver.arm64.props`
-                    CPUArchitecture::ARM64 => {
-                        vec!["_ARM64_", "ARM64", "_USE_DECLSPECS_FOR_SAL=1", "STD_CALL"]
-                    }
-                }
-                .iter()
-                .map(|preprocessor_definition| format!("--define-macro={preprocessor_definition}")),
+                config
+                    .get_preprocessor_definitions_iter()
+                    .map(|(key, value)| {
+                        format!(
+                            "--define-macro={key}{}",
+                            value.map(|v| format!("={v}")).unwrap_or_default()
+                        )
+                    })
+                    .chain(config.get_compiler_flags_iter()),
             )
-            .clang_args(
-                match config.driver_config {
-                    // TODO: Add support for KMDF_MINIMUM_VERSION_REQUIRED and
-                    // UMDF_MINIMUM_VERSION_REQUIRED
-                    DriverConfig::WDM() => {
-                        vec![]
-                    }
-                    DriverConfig::KMDF(kmdf_config) => {
-                        vec![
-                            format!("KMDF_VERSION_MAJOR={}", kmdf_config.kmdf_version_major),
-                            format!("KMDF_VERSION_MINOR={}", kmdf_config.kmdf_version_minor),
-                        ]
-                    }
-                    DriverConfig::UMDF(umdf_config) => {
-                        let mut umdf_definitions = vec![
-                            format!("UMDF_VERSION_MAJOR={}", umdf_config.umdf_version_major),
-                            format!("UMDF_VERSION_MINOR={}", umdf_config.umdf_version_minor),
-                        ];
-
-                        if umdf_config.umdf_version_major >= 2 {
-                            umdf_definitions.push("UMDF_USING_NTSTATUS".to_string());
-                            umdf_definitions.push("_UNICODE".to_string());
-                            umdf_definitions.push("UNICODE".to_string());
-                        }
-
-                        umdf_definitions
-                    }
-                }
-                .iter()
-                .map(|preprocessor_definition| format!("--define-macro={preprocessor_definition}")),
-            )
-            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the file
-            // is actually driverspecs.h)
-            .clang_arg("--warn-=no-nonportable-include-path")
-            // Windows SDK & DDK use pshpack and poppack headers to change packing
-            .clang_arg("--warn-=no-pragma-pack")
-            .clang_arg("--warn-=no-ignored-attributes")
-            .clang_arg("--warn-=no-ignored-pragma-intrinsic")
-            .clang_arg("--warn-=no-visibility")
-            .clang_arg("--warn-=no-microsoft-anon-tag")
-            .clang_arg("--warn-=no-microsoft-enum-forward-reference")
-            // Don't warn for deprecated declarations. deprecated items are already blocklisted
-            // below and if there are any non-blocklisted function definitions, it will throw a
-            // -WDeprecated warning
-            .clang_arg("--warn-=no-deprecated-declarations")
-            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
-            // `_variable` are separate tokens already, and don't need `##` to concatenate them)
-            .clang_arg("--warn-=no-invalid-token-paste")
-            .clang_arg("-fms-extensions")
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated

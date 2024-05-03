@@ -21,10 +21,10 @@ pub unsafe extern "system" fn driver_entry_stub(
     0
 }
 
-/// Stubbed version of `WdfFunctions_01033` Symbol so that test targets will
+/// Stubbed version of `WdfFunctions` Symbol so that test targets will
 /// compile
 #[no_mangle]
-pub static mut WdfFunctions_01033: *const WDFFUNC = core::ptr::null();
+pub static mut WdfFunctions: *const WDFFUNC = core::ptr::null();
 
 /// Stubbed version of `WdfFunctionCount` Symbol so that test targets will
 /// compile

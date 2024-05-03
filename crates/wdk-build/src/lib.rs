@@ -314,6 +314,23 @@ impl Config {
         }
     }
 
+    /// Expose `cfg` settings based on this [`Config`] to enable conditional
+    /// compilation. This emits specially formatted prints to Cargo based on
+    /// this [`Config`].
+    fn emit_cfg_settings(&self) {
+        match &self.driver_config {
+            DriverConfig::WDM() => {
+                println!(r#"cargo:rustc-cfg=driver_type="wdm""#);
+            }
+            DriverConfig::KMDF(_) => {
+                println!(r#"cargo:rustc-cfg=driver_type="kmdf""#);
+            }
+            DriverConfig::UMDF(_) => {
+                println!(r#"cargo:rustc-cfg=driver_type="umdf""#);
+            }
+        }
+    }
+
     /// Returns header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
@@ -322,6 +339,7 @@ impl Config {
     /// This function will return an error if any of the required paths do not
     /// exist.
     pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
+        // TODO: consider deprecating in favor of iter
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");
@@ -493,13 +511,96 @@ impl Config {
         Ok(library_paths)
     }
 
-    /// Configures a Cargo build of a library that directly depends on the
-    /// WDK (i.e. not transitively via wdk-sys). This emits specially
-    /// formatted prints to Cargo based on this [`Config`].
-    ///
-    /// This includes header include paths, linker search paths, library link
-    /// directives, and WDK-specific configuration definitions. This must be
-    /// called from a Cargo build script of the library.
+    /// Returns an iterator of strings that represent compiler definitions
+    /// derived from the `Config`
+    pub fn get_preprocessor_definitions_iter(
+        &self,
+    ) -> impl Iterator<Item = (String, Option<String>)> {
+        match self.cpu_architecture {
+            // Definitions sourced from `Program Files\Windows
+            // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
+            CPUArchitecture::AMD64 => {
+                vec![("_WIN64", None), ("_AMD64_", None), ("AMD64", None)]
+            }
+            // Definitions sourced from `Program Files\Windows
+            // Kits\10\build\10.0.22621.0\WindowsDriver.arm64.props`
+            CPUArchitecture::ARM64 => {
+                vec![
+                    ("_ARM64_", None),
+                    ("ARM64", None),
+                    ("_USE_DECLSPECS_FOR_SAL", Some("1")),
+                    ("STD_CALL", None),
+                ]
+            }
+        }
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
+        .chain(
+            match self.driver_config {
+                // TODO: Add support for KMDF_MINIMUM_VERSION_REQUIRED and
+                // UMDF_MINIMUM_VERSION_REQUIRED
+                DriverConfig::WDM() => {
+                    vec![]
+                }
+                DriverConfig::KMDF(kmdf_config) => {
+                    vec![
+                        ("KMDF_VERSION_MAJOR", Some(kmdf_config.kmdf_version_major)),
+                        ("KMDF_VERSION_MINOR", Some(kmdf_config.kmdf_version_minor)),
+                    ]
+                }
+                DriverConfig::UMDF(umdf_config) => {
+                    let mut umdf_definitions = vec![
+                        ("UMDF_VERSION_MAJOR", Some(umdf_config.umdf_version_major)),
+                        ("UMDF_VERSION_MINOR", Some(umdf_config.umdf_version_minor)),
+                    ];
+
+                    if umdf_config.umdf_version_major >= 2 {
+                        umdf_definitions.push(("UMDF_USING_NTSTATUS", None));
+                        umdf_definitions.push(("_UNICODE", None));
+                        umdf_definitions.push(("UNICODE", None));
+                    }
+
+                    umdf_definitions
+                }
+            }
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
+        )
+    }
+
+    /// Returns an iterator of strings that represent compiler flags (i.e.
+    /// warnings, settings, etc.)
+    pub fn get_compiler_flags_iter(&self) -> impl Iterator<Item = String> {
+        vec![
+            // Enable Microsoft C/C++ extensions and compatibility options (https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions)
+            "-fms-compatibility",
+            "-fms-extensions",
+            "-fdelayed-template-parsing",
+            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the
+            // file is actually driverspecs.h)
+            "--warn-=no-nonportable-include-path",
+            // Windows SDK & DDK use pshpack and poppack headers to change packing
+            "--warn-=no-pragma-pack",
+            "--warn-=no-ignored-attributes",
+            "--warn-=no-ignored-pragma-intrinsic",
+            "--warn-=no-visibility",
+            "--warn-=no-microsoft-anon-tag",
+            "--warn-=no-microsoft-enum-forward-reference",
+            // Don't warn for deprecated declarations. Deprecated items should be explicitly
+            // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
+            // definitions will trigger a -WDeprecated warning
+            "--warn-=no-deprecated-declarations",
+            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
+            // `_variable` are separate tokens already, and don't need `##` to concatenate
+            // them)
+            "--warn-=no-invalid-token-paste",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+    }
+
+    /// Configures a Cargo build of a library that depends on the WDK. This
+    /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
     /// # Errors
     ///
@@ -510,6 +611,25 @@ impl Config {
     ///
     /// Panics if the invoked from outside a Cargo build environment
     pub fn configure_library_build(&self) -> Result<(), ConfigError> {
+        self.emit_cfg_settings();
+        Ok(())
+    }
+
+    /// Configures a Cargo build of a binary that depends on the WDK. This
+    /// emits specially formatted prints to Cargo based on this [`Config`].
+    ///
+    /// This consists mainly of linker setting configuration. This must be
+    /// called from a Cargo build script of the binary being built
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the required paths do not
+    /// exist.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the invoked from outside a Cargo build environmen
+    pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
         let library_paths = self.get_library_paths()?;
 
         // Emit linker search paths
@@ -562,26 +682,6 @@ impl Config {
             }
         }
 
-        Ok(())
-    }
-
-    /// Configures a Cargo build of a binary that depends on the WDK. This
-    /// emits specially formatted prints to Cargo based on this [`Config`].
-    ///
-    /// This consists mainly of linker setting configuration. This must be
-    /// called from a Cargo build script of the binary being built
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the invoked from outside a Cargo build environmen
-    pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
-        self.configure_library_build()?;
-
         // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
         println!("cargo:rustc-cdylib-link-arg=/NXCOMPAT");
         println!("cargo:rustc-cdylib-link-arg=/DYNAMICBASE");
@@ -629,6 +729,7 @@ impl Config {
             }
         }
 
+        self.emit_cfg_settings();
         Ok(())
     }
 
@@ -753,7 +854,7 @@ mod tests {
     /// # Panics
     ///
     /// Panics if called with duplicate environment variable keys.
-    fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, V)], f: F) -> R
+    pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, V)], f: F) -> R
     where
         K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
         V: AsRef<OsStr>,

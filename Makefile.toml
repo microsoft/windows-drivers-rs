@@ -39,6 +39,7 @@ toolchain = "nightly"
 [tasks.package-driver-workspace-flow]
 # by forking, a new cargo make invocation starts and by default detects it is a workspace and runs the package-driver task for each member crate
 run_task = { name = "package-driver-flow", fork = true }
+# TODO: does this work with sample drivers ??
 
 [tasks.pre-test]
 # macrotest and trybuild tests will fail when switching between nightly and stable toolchains due to trybuild/macrotest caching artifacts built with the other toolchain. Deleting the tests directory is enough to purge all test artifacts created by trybuild/macrotest.

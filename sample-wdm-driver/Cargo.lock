@@ -127,6 +127,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc"
+version = "1.0.91"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd97381a8cc6493395a5afc4c691c1084b3768db713b73aa215217aa245d153"
+
+[[package]]
 name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -478,6 +484,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "scratch"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3cf7c11c38cb994f3d40e8a8cde3bbd1f72a435e4c49e85d6553d8312306152"
+
+[[package]]
 name = "semver"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -709,9 +721,11 @@ dependencies = [
 name = "wdk-macros"
 version = "0.2.0"
 dependencies = [
- "cfg-if",
+ "cargo_metadata",
+ "itertools",
  "proc-macro2",
  "quote",
+ "scratch",
  "syn",
 ]
 
@@ -726,6 +740,7 @@ dependencies = [
  "anyhow",
  "bindgen",
  "cargo_metadata",
+ "cc",
  "lazy_static",
  "rustversion",
  "serde_json",

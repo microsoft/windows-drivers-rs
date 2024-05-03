@@ -136,6 +136,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc"
+version = "1.0.90"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cd6604a82acf3039f1144f54b8eb34e91ffba622051189e71b781822d5ee1f5"
+
+[[package]]
 name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -771,6 +777,9 @@ dependencies = [
 name = "wdk-alloc"
 version = "0.2.0"
 dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wdk-build",
  "wdk-sys",
 ]
 
@@ -822,6 +831,7 @@ dependencies = [
  "anyhow",
  "bindgen",
  "cargo_metadata",
+ "cc",
  "lazy_static",
  "rustversion",
  "serde_json",

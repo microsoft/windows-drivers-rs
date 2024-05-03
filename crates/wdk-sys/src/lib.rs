@@ -5,25 +5,25 @@
 
 #![no_std]
 
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 mod constants;
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 mod types;
 
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 pub use crate::{constants::*, types::*};
 
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 pub mod macros;
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
 pub mod ntddk;
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 pub mod wdf;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
 
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 use lazy_static::lazy_static;
 
 // This is fine because we don't actually have any floating point instruction in
@@ -68,7 +68,7 @@ lazy_static! {
     };
 }
 
-#[cfg(binding_generation)]
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
 #[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]

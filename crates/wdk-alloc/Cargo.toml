@@ -12,6 +12,11 @@ categories = ["memory-management", "no-std", "hardware-support"]
 [dependencies]
 wdk-sys.workspace = true
 
+[build-dependencies]
+wdk-build.workspace = true
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = "0.1.40"
+
 [dev-dependencies]
 wdk-sys = { workspace = true, features = ["test-stubs"] }
 

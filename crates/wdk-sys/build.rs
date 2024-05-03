@@ -9,6 +9,7 @@ use std::{
 };
 
 use bindgen::CodegenConfig;
+use tracing::{info, info_span};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError};
 
@@ -60,10 +61,12 @@ fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
 
 fn main() -> anyhow::Result<()> {
     let tracing_filter = EnvFilter::default()
-        // Show errors and warnings by default
-        .add_directive(LevelFilter::WARN.into())
+        // Show up to INFO level by default
+        .add_directive(LevelFilter::INFO.into())
         // Silence various warnings originating from bindgen that are not currently actionable
-        // FIXME: this currently sets the minimum log level to error for the listed modules. It should actually be turning off logging (level=off) for specific warnings in these modules, but a bug in the tracing crate's filtering is preventing this from working as expected. See https://github.com/tokio-rs/tracing/issues/2843.
+        // FIXME: this currently sets the minimum log level to error for the listed modules. It
+        // should actually be turning off logging (level=off) for specific warnings in these
+        // modules, but a bug in the tracing crate's filtering is preventing this from working as expected. See https://github.com/tokio-rs/tracing/issues/2843.
         .add_directive("bindgen::codegen::helpers[{message}]=error".parse()?)
         .add_directive("bindgen::codegen::struct_layout[{message}]=error".parse()?)
         .add_directive("bindgen::ir::comp[{message}]=error".parse()?)
@@ -109,8 +112,6 @@ fn main() -> anyhow::Result<()> {
     let config = Config {
         driver_config: match detect_driver_config() {
             Ok(driver_config) => {
-                println!("cargo:rustc-cfg=binding_generation");
-
                 driver_config
             }
             Err(ConfigError::NoWDKConfigurationsDetected) => {
@@ -139,12 +140,34 @@ fn main() -> anyhow::Result<()> {
         ),
     ];
 
-    for out_path in out_paths {
-        generate_constants(&out_path, config.clone())?;
-        generate_types(&out_path, config.clone())?;
-        generate_ntddk(&out_path, config.clone())?;
-        generate_wdf(&out_path, config.clone())?;
-    }
+    // TODO: consider using references here to avoid cloning
+    info_span!("bindgen").in_scope(|| {
+        info!("Generating bindings to WDK");
+        for out_path in out_paths {
+            generate_constants(&out_path, config.clone())?;
+            generate_types(&out_path, config.clone())?;
+            generate_ntddk(&out_path, config.clone())?;
+            generate_wdf(&out_path, config.clone())?;
+        }
+        Ok::<(), ConfigError>(())
+    })?;
 
+    // Compile a c library to expose symbols that are not exposed because of
+    // __declspec(selectany)
+    info_span!("cc").in_scope(|| {
+        info!("Compiling wdf.c");
+        let mut cc_builder = cc::Build::new();
+        for (key, value) in config.get_preprocessor_definitions_iter() {
+            cc_builder.define(&key, value.as_deref());
+        }
+
+        cc_builder
+            .includes(config.get_include_paths()?)
+            .file("src/wdf.c")
+            .compile("wdf");
+        Ok::<(), ConfigError>(())
+    })?;
+
+    config.configure_library_build()?;
     Ok(config.export_config()?)
 }

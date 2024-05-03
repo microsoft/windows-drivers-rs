@@ -6289,7 +6289,8 @@ extern "C" {
     pub static mut CcFastMdlReadWait: ULONG;
 }
 extern "C" {
-    pub static mut WdfFunctions_01033: *const WDFFUNC;
+    #[link_name = "\u{1}WdfFunctions_01031"]
+    pub static mut WdfFunctions: *const WDFFUNC;
 }
 extern "C" {
     pub static mut WdfDriverMiniportUnloadOverride: WDFFUNC;
@@ -6309,7 +6310,7 @@ extern "C" {
 extern "C" {
     pub static mut WdfStructures: WDF_STRUCT_INFO;
 }
-pub const WdfMinimumVersionRequired: ULONG = 33;
+pub const WdfMinimumVersionRequired: ULONG = 31;
 extern "C" {
     pub static SDDL_DEVOBJ_KERNEL_ONLY: UNICODE_STRING;
 }

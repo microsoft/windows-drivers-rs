@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,7 @@ pub struct WDKMetadata {
     driver_model: DriverModel,
 }
 
+// TODO!
 // pub struct General {
 //     target_version,
 //     driver_target_platform,
@@ -83,13 +84,16 @@ impl TryFrom<WDKMetadata> for DriverConfig {
                 kmdf_version_minor: wdk_metadata
                     .driver_model
                     .target_kmdf_version_minor
+                    // tODO: should error if not present
                     .unwrap_or(33),
             }),
             DriverType::UMDF => Self::UMDF(UMDFConfig {
+                // tODO: should error if not present
                 umdf_version_major: wdk_metadata.driver_model.kmdf_version_major.unwrap_or(2),
                 umdf_version_minor: wdk_metadata
                     .driver_model
                     .target_kmdf_version_minor
+                    // tODO: should error if not present
                     .unwrap_or(33),
             }),
         })
@@ -106,7 +110,7 @@ impl TryFrom<WDKMetadata> for DriverConfig {
 /// todo
 pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
     // TODO: check that if this auto reruns if cargo.toml's change
-    let cargo_metadata_packages_list = MetadataCommand::new()
+    let cargo_metadata_packages_list: Vec<cargo_metadata::Package> = MetadataCommand::new()
         .manifest_path(find_top_level_cargo_manifest())
         .exec()?
         .packages;
