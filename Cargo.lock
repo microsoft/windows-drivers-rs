@@ -727,9 +727,9 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.22.9"
+version = "0.22.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e40bb779c5187258fd7aad0eb68cb8706a0a81fa712fbea808ab43c4b8374c4"
+checksum = "d3328d4f68a705b2a4498da1d580585d39a6510f98318a2cec3018a7ec61ddef"
 dependencies = [
  "indexmap",
  "serde",
@@ -801,9 +801,9 @@ dependencies = [
 
 [[package]]
 name = "trybuild"
-version = "1.0.90"
+version = "1.0.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aa6f84ec205ebf87fb7a0abdbcd1467fa5af0e86878eb6d888b78ecbb10b6d5"
+checksum = "8ad7eb6319ebadebca3dacf1f85a93bc54b73dd81b9036795f73de7ddfe27d5a"
 dependencies = [
  "glob",
  "once_cell",
@@ -876,22 +876,12 @@ name = "wdk-macros"
 version = "0.2.0"
 dependencies = [
  "cargo_metadata",
- "fs4",
  "itertools",
- "lazy_static",
- "macrotest",
- "owo-colors",
- "paste",
- "pathdiff",
- "pretty_assertions",
  "proc-macro2",
  "quote",
- "rustversion",
  "scratch",
  "syn",
- "trybuild",
  "wdk-build",
- "wdk-sys",
 ]
 
 [[package]]
@@ -906,13 +896,21 @@ dependencies = [
  "bindgen",
  "cargo_metadata",
  "cc",
+ "fs4",
  "kmdf-config",
  "lazy_static",
+ "macrotest",
+ "owo-colors",
+ "paste",
+ "pathdiff",
+ "pretty_assertions",
  "rustversion",
  "serde_json",
+ "syn",
  "thiserror",
  "tracing",
  "tracing-subscriber",
+ "trybuild",
  "umdf-config",
  "wdk-build",
  "wdk-macros",

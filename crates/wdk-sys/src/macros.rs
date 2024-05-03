@@ -7,5 +7,8 @@
 
 #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 mod wdf {
-    include!(concat!(env!("OUT_DIR"), "/call_unsafe_wdf_function_binding.rs"));
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/call_unsafe_wdf_function_binding.rs"
+    ));
 }

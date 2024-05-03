@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+
 //! Snippet of a bindgen-generated file containing types information used by tests for [`wdk_macros::call_unsafe_wdf_function_binding!`]
 
 pub type PFN_WDFDRIVERCREATE = ::core::option::Option<

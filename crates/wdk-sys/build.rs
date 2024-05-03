@@ -20,6 +20,9 @@ use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError};
 
 const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
+const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR LITERAL VALUE CONTAINING WDFFUNCTIONS SYMBOL NAME>";
+
 // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
 lazy_static! {
     static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
@@ -54,7 +57,7 @@ lazy_static! {
 /// let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
 ///
 /// let nt_status = unsafe {{
-///     wdk_macros::call_unsafe_wdf_function_binding!(
+///     call_unsafe_wdf_function_binding!(
 ///         WdfDriverCreate,
 ///         driver as PDRIVER_OBJECT,
 ///         registry_path,
@@ -70,12 +73,19 @@ lazy_static! {
 #[macro_export]
 macro_rules! call_unsafe_wdf_function_binding {{
     ( $($tt:tt)* ) => {{
-        $crate::__proc_macros::call_unsafe_wdf_function_binding! {{
+        $crate::__proc_macros::call_unsafe_wdf_function_binding! (
             r"{OUT_DIR_PLACEHOLDER}",
             $($tt)*
-        }}
+        )
     }}
 }}"#
+    );
+    static ref TEST_STUBS_TEMPLATE: String = format!(
+        r#"
+/// Stubbed version of the symobl that [`WdfFunctions`] links to so that test targets will compile
+#[no_mangle]
+pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC;
+"#,
     );
 }
 
@@ -176,9 +186,9 @@ fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
 /// in order to add an additional argument with the path to the file containing
 /// generated types
 fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
-    let macro_file = out_path.join("call_unsafe_wdf_function_binding.rs");
-    let mut file = std::fs::File::create(&macro_file)?;
-    file.write_all(
+    let generated_file_path = out_path.join("call_unsafe_wdf_function_binding.rs");
+    let mut generated_file = std::fs::File::create(&generated_file_path)?;
+    generated_file.write_all(
         CALL_UNSAFE_WDF_BINDING_TEMPLATE
             .replace(
                 OUT_DIR_PLACEHOLDER,
@@ -191,6 +201,26 @@ fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::
     )?;
     Ok(())
 }
+
+fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> {
+    let stubs_file_path = out_path.join("test_stubs.rs");
+    let mut stubs_file = std::fs::File::create(&stubs_file_path)?;
+    stubs_file.write_all(
+        TEST_STUBS_TEMPLATE
+            .replace(
+                WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER,
+                &config.compute_wdffunctions_symbol_name().expect(
+                    "KMDF and UMDF configs should always have a computable WdfFunctions symbol \
+                     name",
+                ),
+            )
+            .as_bytes(),
+    )?;
+    Ok(())
+}
+
+// TODO: most wdk-sys specific code should move to wdk-build in a wdk-sys
+// specific module so it can be unit tested.
 
 fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
@@ -248,8 +278,13 @@ fn main() -> anyhow::Result<()> {
             Ok::<(), ConfigError>(())
         })?;
 
-        info_span!("macros.rs generation").in_scope(|| {
+        info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
             generate_call_unsafe_wdf_function_binding_macro(&out_path)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+
+        info_span!("test_stubs.rs generation").in_scope(|| {
+            generate_test_stubs(&out_path, &config)?;
             Ok::<(), std::io::Error>(())
         })?;
     }
