@@ -2,6 +2,9 @@
 // License: MIT OR Apache-2.0
 
 //! Build script for the `wdk-sys` crate.
+//!
+//! This parses the WDK configuration from metadata provided in the build tree,
+//! and generates the relevant bindings to WDK APIs.
 
 use std::{
     env,

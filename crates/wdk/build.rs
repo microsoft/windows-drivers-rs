@@ -2,6 +2,10 @@
 // License: MIT OR Apache-2.0
 
 //! Build script for the `wdk` crate.
+//!
+//! Based on the [`wdk_build::Config`] parsed from the build tree, this build
+//! script will provide the `wdk` crate with `cfg` settings to conditionally
+//! compile code.
 
 fn main() -> Result<(), wdk_build::ConfigError> {
     tracing_subscriber::fmt().pretty().init();
