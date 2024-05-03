@@ -523,6 +523,9 @@ impl Config {
             }
         }
 
+        // Reverse order of library paths so that paths pushed later into the vec take
+        // precedence
+        library_paths.reverse();
         Ok(library_paths)
     }
 
@@ -680,47 +683,7 @@ impl Config {
                 println!("cargo:rustc-link-lib=static=ntoskrnl");
                 println!("cargo:rustc-link-lib=static=hal");
                 println!("cargo:rustc-link-lib=static=wmilib");
-            }
-            DriverConfig::KMDF(_) => {
-                // Emit KMDF-specific libraries to link to
-                println!("cargo:rustc-link-lib=static=BufferOverflowFastFailK");
-                println!("cargo:rustc-link-lib=static=ntoskrnl");
-                println!("cargo:rustc-link-lib=static=hal");
-                println!("cargo:rustc-link-lib=static=wmilib");
-                println!("cargo:rustc-link-lib=static=WdfLdr");
-                println!("cargo:rustc-link-lib=static=WdfDriverEntry");
-            }
-            DriverConfig::UMDF(umdf_config) => {
-                // Emit UMDF-specific libraries to link to
-                if umdf_config.umdf_version_major >= 2 {
-                    println!("cargo:rustc-link-lib=static=WdfDriverStubUm");
-                    println!("cargo:rustc-link-lib=static=ntdll");
-                }
 
-                println!("cargo:rustc-link-lib=static=OneCoreUAP");
-            }
-        }
-
-        // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
-        println!("cargo:rustc-cdylib-link-arg=/NXCOMPAT");
-        println!("cargo:rustc-cdylib-link-arg=/DYNAMICBASE");
-
-        // Always generate Map file with Exports
-        println!("cargo:rustc-cdylib-link-arg=/MAP");
-        println!("cargo:rustc-cdylib-link-arg=/MAPINFO:EXPORTS");
-
-        // Force Linker Optimizations
-        println!("cargo:rustc-cdylib-link-arg=/OPT:REF,ICF");
-
-        // Enable "Forced Integrity Checking" to prevent non-signed binaries from
-        // loading
-        println!("cargo:rustc-cdylib-link-arg=/INTEGRITYCHECK");
-
-        // Disable Manifest File Generation
-        println!("cargo:rustc-cdylib-link-arg=/MANIFEST:NO");
-
-        match &self.driver_config {
-            DriverConfig::WDM() => {
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo:rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo:rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -732,6 +695,14 @@ impl Config {
                 println!("cargo:rustc-cdylib-link-arg=/ENTRY:DriverEntry");
             }
             DriverConfig::KMDF(_) => {
+                // Emit KMDF-specific libraries to link to
+                println!("cargo:rustc-link-lib=static=BufferOverflowFastFailK");
+                println!("cargo:rustc-link-lib=static=ntoskrnl");
+                println!("cargo:rustc-link-lib=static=hal");
+                println!("cargo:rustc-link-lib=static=wmilib");
+                println!("cargo:rustc-link-lib=static=WdfLdr");
+                println!("cargo:rustc-link-lib=static=WdfDriverEntry");
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo:rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo:rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -742,10 +713,41 @@ impl Config {
                 // Ni(22H2) WDK
                 println!("cargo:rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
             }
-            DriverConfig::UMDF(_) => {
+            DriverConfig::UMDF(umdf_config) => {
+                // Emit UMDF-specific libraries to link to
+                if umdf_config.umdf_version_major >= 2 {
+                    println!("cargo:rustc-link-lib=static=WdfDriverStubUm");
+                    println!("cargo:rustc-link-lib=static=ntdll");
+                }
+
+                println!("cargo:rustc-cdylib-link-arg=/NODEFAULTLIB:kernel32.lib");
+                println!("cargo:rustc-cdylib-link-arg=/NODEFAULTLIB:user32.lib");
+                println!("cargo:rustc-link-lib=static=OneCoreUAP");
+
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo:rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
+        }
+
+        // Emit linker arguments common to all configs
+        {
+            // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
+            println!("cargo:rustc-cdylib-link-arg=/NXCOMPAT");
+            println!("cargo:rustc-cdylib-link-arg=/DYNAMICBASE");
+
+            // Always generate Map file with Exports
+            println!("cargo:rustc-cdylib-link-arg=/MAP");
+            println!("cargo:rustc-cdylib-link-arg=/MAPINFO:EXPORTS");
+
+            // Force Linker Optimizations
+            println!("cargo:rustc-cdylib-link-arg=/OPT:REF,ICF");
+
+            // Enable "Forced Integrity Checking" to prevent non-signed binaries from
+            // loading
+            println!("cargo:rustc-cdylib-link-arg=/INTEGRITYCHECK");
+
+            // Disable Manifest File Generation
+            println!("cargo:rustc-cdylib-link-arg=/MANIFEST:NO");
         }
 
         self.emit_cfg_settings();
