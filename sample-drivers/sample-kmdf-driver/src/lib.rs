@@ -19,7 +19,7 @@ use static_assertions::const_assert;
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WDKAllocator;
-use wdk_macros::call_unsafe_wdf_function_binding;
+use wdk_sys::call_unsafe_wdf_function_binding;
 use wdk_sys::{
     ntddk::DbgPrint,
     DRIVER_OBJECT,
@@ -162,7 +162,7 @@ extern "C" fn evt_driver_device_add(
     //          null
     //       3. `device_handle_output` is expected to be null
     unsafe {
-        ntstatus = wdk_macros::call_unsafe_wdf_function_binding!(
+        ntstatus = call_unsafe_wdf_function_binding!(
             WdfDeviceCreate,
             &mut device_init,
             WDF_NO_OBJECT_ATTRIBUTES,

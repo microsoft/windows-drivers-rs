@@ -18,8 +18,8 @@ workspace = false
 dependencies = [
   "format-flow",
   "format-toml-conditioned-flow",
-  "build",
-  "package-driver-workspace-flow",
+  "wdk-build-flow",
+  "wdk-samples-flow",
   "test-flow",
   "clippy-flow",
   "audit-flow",
@@ -33,13 +33,35 @@ dependencies = [
   "beta-docs",
 ]
 
+# TODO: ALL the non-build tasks need to run with the different configurations
+# TODO: ALL these tasks need to be ported to the pipeline
+
 [tasks.format]
 toolchain = "nightly"
 
-[tasks.package-driver-workspace-flow]
-# by forking, a new cargo make invocation starts and by default detects it is a workspace and runs the package-driver task for each member crate
-run_task = { name = "package-driver-flow", fork = true }
-# TODO: does this work with sample drivers ??
+[tasks.wdk-build-flow]
+description = "Builds the WDR repo in several different configurations"
+workspace = false
+script = '''
+#!@duckscript
+
+exec --fail-on-error cargo make --no-workspace build
+exec --fail-on-error cargo make --no-workspace build --features _test-kmdf
+exec --fail-on-error cargo make --no-workspace build --features _test-umdf
+exec --fail-on-error cargo make --no-workspace build --features _test-wdm
+'''
+
+[tasks.wdk-samples-flow]
+description = "Builds and packages the drivers in the sample-drivers folder"
+category = "Development"
+workspace = false
+cwd = "./sample-drivers"
+# Use script instead of run_task to pass on `cwd` to the task
+script = '''
+#!@duckscript
+
+exec --fail-on-error cargo make package-driver-flow
+'''
 
 [tasks.pre-test]
 # macrotest and trybuild tests will fail when switching between nightly and stable toolchains due to trybuild/macrotest caching artifacts built with the other toolchain. Deleting the tests directory is enough to purge all test artifacts created by trybuild/macrotest.

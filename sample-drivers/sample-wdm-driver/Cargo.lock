@@ -727,6 +727,7 @@ dependencies = [
  "quote",
  "scratch",
  "syn",
+ "wdk-build",
 ]
 
 [[package]]

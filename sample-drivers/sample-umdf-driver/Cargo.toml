@@ -23,7 +23,6 @@ test = false
 [dependencies]
 wdk = { path = "../../crates/wdk", version = "0.2.0" }
 wdk-alloc = { path = "../../crates/wdk-alloc", version = "0.2.0" }
-wdk-macros= { path = "../../crates/wdk-macros", version = "0.2.0" }
 wdk-panic = { path = "../../crates/wdk-panic", version = "0.2.0" }
 wdk-sys = { path = "../../crates/wdk-sys", version = "0.2.0" }
 static_assertions = "1.1.0"
@@ -34,7 +33,7 @@ wdk-build = { path = "../../crates/wdk-build", version = "0.2.0" }
 
 [features]
 default = []
-nightly = ["wdk-macros/nightly", "wdk/nightly", "wdk-sys/nightly"]
+nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
 [profile.dev]
 panic = "abort"
@@ -43,3 +42,29 @@ lto = true
 [profile.release]
 panic = "abort"
 lto = true
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "forbid"
+
+[lints.clippy]
+# Lint Groups
+all = "deny"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+# Individual Lints
+multiple_unsafe_ops_per_block = "forbid"
+undocumented_unsafe_blocks = "forbid"
+unnecessary_safety_doc = "forbid"
+
+[lints.rustdoc]
+bare_urls = "warn"
+broken_intra_doc_links = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_html_tags = "warn"
+invalid_rust_codeblocks = "warn"
+missing_crate_level_docs = "warn"
+private_intra_doc_links = "warn"
+redundant_explicit_links = "warn"
+unescaped_backticks = "warn"
