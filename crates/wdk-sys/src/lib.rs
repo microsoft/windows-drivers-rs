@@ -5,18 +5,25 @@
 
 #![no_std]
 
+#[cfg(binding_generation)]
 mod constants;
+#[cfg(binding_generation)]
 mod types;
 
+#[cfg(binding_generation)]
 pub use crate::{constants::*, types::*};
 
+#[cfg(binding_generation)]
 pub mod macros;
+#[cfg(binding_generation)]
 pub mod ntddk;
+#[cfg(binding_generation)]
 pub mod wdf;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
 
+#[cfg(binding_generation)]
 use lazy_static::lazy_static;
 
 // This is fine because we don't actually have any floating point instruction in
@@ -37,6 +44,7 @@ pub extern "system" fn __CxxFrameHandler3() -> i32 {
 
 // FIXME: dynamically find name of this struct based off of wdk-build settings
 // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
+#[cfg(binding_generation)]
 lazy_static! {
     #[allow(missing_docs)]
     pub static ref WDF_FUNCTION_TABLE: &'static [WDFFUNC] = {
@@ -61,6 +69,7 @@ lazy_static! {
     };
 }
 
+#[cfg(binding_generation)]
 #[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
@@ -68,6 +77,7 @@ pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
     nt_status >= 0
 }
 
+#[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
 #[allow(missing_docs)]
 #[macro_export]
 #[allow(non_snake_case)]

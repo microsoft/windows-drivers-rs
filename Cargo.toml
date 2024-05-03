@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/*"]
+exclude = ["sample-kmdf-driver", "sample-umdf-driver", "sample-wdm-driver"]
 resolver = "2"
 
 [profile.dev]

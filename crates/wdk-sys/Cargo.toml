@@ -22,6 +22,9 @@ wdk-build.workspace = true
 thiserror = "1.0.59"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 anyhow = "1.0.82"
+cargo_metadata = "0.18.1"
+serde_json.workspace = true
+tracing = "0.1.40"
 
 [dependencies]
 wdk-macros.workspace = true

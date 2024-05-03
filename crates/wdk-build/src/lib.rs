@@ -13,13 +13,15 @@
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 
 mod bindgen;
+mod metadata;
 mod utils;
 
 pub mod cargo_make;
 
-use std::{env, path::PathBuf};
+use std::{collections::HashSet, env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
+pub use metadata::{detect_driver_config, TryFromWDKMetadataError, WDKMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
@@ -48,7 +50,7 @@ pub enum DriverConfig {
 }
 
 /// Driver model type
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DriverType {
     /// Windows Driver Model
     WDM,
@@ -133,6 +135,32 @@ pub enum ConfigError {
         /// package ids of the wdk-build crates detected
         package_ids: Vec<cargo_metadata::PackageId>,
     },
+
+    /// Error returned when multiple configurations of the WDK are detected
+    /// across the dependency graph
+    #[error(
+        "multiple configurations of the WDK are detected across the dependency graph, but only \
+         one configuration is allowed: {wdk_configurations:#?}"
+    )]
+    MultipleWDKConfigurationsDetected {
+        /// Vector of unique WDK metadata configurations detected
+        wdk_configurations: HashSet<metadata::WDKMetadata>,
+    },
+
+    /// Error returned when a [`metadata::WDKMetadata`] fails to be converted to
+    /// a [`Config`] due to a [`TryFromWDKMetadataError`]
+    #[error(transparent)]
+    TryFromWDKMetadataError(#[from] TryFromWDKMetadataError),
+
+    /// Error returned when no WDK configuration metadata is detected in the
+    /// dependency graph
+    #[error(
+        "no WDK configuration metadata is detected in the dependency graph. This could happen \
+         when building WDR itself, building library crates that depend on the WDK but defer wdk \
+         configuration to their consumers, or when building a driver that has a path dependency \
+         on WDR"
+    )]
+    NoWDKConfigurationsDetected,
 }
 
 /// Errors that could result from parsing a configuration from a [`wdk-build`]

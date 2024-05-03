@@ -10,16 +10,7 @@ use std::{
 
 use bindgen::CodegenConfig;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
-use wdk_build::{BuilderExt, Config, ConfigError, DriverConfig, KMDFConfig};
-
-// FIXME: feature gate the WDF version
-// FIXME: check that the features are exclusive
-// const KMDF_VERSIONS: &'static [&'static str] = &[
-//     "1.9", "1.11", "1.13", "1.15", "1.17", "1.19", "1.21", "1.23", "1.25",
-// "1.27", "1.31", "1.33", ];
-// const UMDF_VERSIONS: &'static [&'static str] = &[
-//     "2.0", "2.15", "2.17", "2.19", "2.21", "2.23", "2.25", "2.27", "2.31",
-// "2.33", ];
+use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError};
 
 fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     Ok(
@@ -116,8 +107,21 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config {
-        // FIXME: this should be based off of Cargo feature version
-        driver_config: DriverConfig::KMDF(KMDFConfig::new()),
+        driver_config: match detect_driver_config() {
+            Ok(driver_config) => {
+                println!("cargo:rustc-cfg=binding_generation");
+
+                driver_config
+            }
+            Err(ConfigError::NoWDKConfigurationsDetected) => {
+                // When building wdk-sys standalone, skip binding generation
+                tracing::warn!("No WDK configurations detected. Skipping WDK binding generation.");
+                return Ok(());
+            }
+            Err(error) => {
+                return Err(error.into());
+            }
+        },
         ..Config::default()
     };
 

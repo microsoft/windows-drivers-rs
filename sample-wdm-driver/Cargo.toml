@@ -1,0 +1,35 @@
+[package]
+edition = "2021"
+name = "sample-wdm-driver"
+version = "0.0.0"
+description = "A sample WDM driver that demonstrates WDM in RUST"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["windows", "driver", "sample", "example", "wdm"]
+categories = ["hardware-support"]
+publish = false
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wdk-alloc = { path = "../crates/wdk-alloc", version = "0.2.0" }
+wdk = { path = "../crates/wdk", version = "0.2.0" }
+wdk-panic = { path = "../crates/wdk-panic", version = "0.2.0" }
+wdk-sys = { path = "../crates/wdk-sys", version = "0.2.0" }
+thiserror = "1.0.48"
+
+[build-dependencies]
+wdk-build = { path = "../crates/wdk-build", version = "0.2.0" }
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true

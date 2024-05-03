@@ -5,5 +5,9 @@
 
 fn main() -> Result<(), wdk_build::ConfigError> {
     // Re-export config from wdk-sys
+    #[cfg(binding_generation)]
     Ok(wdk_build::Config::from_env_auto()?.export_config()?)
+
+    #[cfg(not(binding_generation))]
+    Ok(())
 }
