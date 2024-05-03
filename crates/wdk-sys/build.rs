@@ -41,34 +41,30 @@ lazy_static! {
 /// # Examples
 ///
 /// ```rust, no_run
-/// # // main fn manual definition required because of rustdoc bug: https://github.com/rust-lang/rust/issues/85239
-/// # #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
-/// # fn main() {{
 /// use wdk_sys::*;
+/// 
+/// pub unsafe extern "system" fn driver_entry(
+///     driver: &mut DRIVER_OBJECT,
+///     registry_path: PCUNICODE_STRING,
+/// ) -> NTSTATUS {{
+/// 
+///     let mut driver_config = WDF_DRIVER_CONFIG {{
+///         Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
+///         ..WDF_DRIVER_CONFIG::default()
+///     }};
+///     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
 ///
-/// // These should be replaced with valid values returned by WDF
-/// let mut driver = DRIVER_OBJECT::default();
-/// let registry_path = PCUNICODE_STRING::default();
-///
-/// let mut driver_config = WDF_DRIVER_CONFIG {{
-///     Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
-///     ..WDF_DRIVER_CONFIG::default()
-/// }};
-/// let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
-///
-/// let nt_status = unsafe {{
-///     call_unsafe_wdf_function_binding!(
-///         WdfDriverCreate,
-///         driver as PDRIVER_OBJECT,
-///         registry_path,
-///         WDF_NO_OBJECT_ATTRIBUTES,
-///         &mut driver_config,
-///         driver_handle_output,
-///     )
-/// }};
-/// # }}
-/// # #[cfg(not(any(driver_type = "kmdf", driver_type = "umdf")))]
-/// # fn main() {{}}
+///     unsafe {{
+///         call_unsafe_wdf_function_binding!(
+///             WdfDriverCreate,
+///             driver as PDRIVER_OBJECT,
+///             registry_path,
+///             WDF_NO_OBJECT_ATTRIBUTES,
+///             &mut driver_config,
+///             driver_handle_output,
+///         )
+///     }}
+/// }}
 /// ```
 #[macro_export]
 macro_rules! call_unsafe_wdf_function_binding {{
@@ -82,9 +78,11 @@ macro_rules! call_unsafe_wdf_function_binding {{
     );
     static ref TEST_STUBS_TEMPLATE: String = format!(
         r#"
-/// Stubbed version of the symobl that [`WdfFunctions`] links to so that test targets will compile
+use crate::WDFFUNC;
+
+/// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
 #[no_mangle]
-pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC;
+pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
 "#,
     );
 }

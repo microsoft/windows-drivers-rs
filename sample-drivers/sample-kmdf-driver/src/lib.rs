@@ -19,8 +19,8 @@ use static_assertions::const_assert;
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WDKAllocator;
-use wdk_sys::call_unsafe_wdf_function_binding;
 use wdk_sys::{
+    call_unsafe_wdf_function_binding,
     ntddk::DbgPrint,
     DRIVER_OBJECT,
     NTSTATUS,

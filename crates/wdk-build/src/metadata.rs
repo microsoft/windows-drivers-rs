@@ -13,13 +13,6 @@ use crate::{ConfigError, DriverConfig, DriverType, KMDFConfig, UMDFConfig};
 // "This is a false-positive of this lint since metadata is a private module and WDKMetadata is re-exported to be at the crate root. See https://github.com/rust-lang/rust-clippy/issues/8524"
 #[allow(clippy::module_name_repetitions)]
 
-// pub trait MetadataExt {
-//     type MetadataError;
-
-//     fn get_package_id(&self, package_name: impl AsRef<str>) -> Result<cargo_metadata::PackageId, Self::MetadataError>;
-
-// }
-
 /// Metadata specified in the `package.metadata.wdk` section of the `Cargo.toml`
 /// of a crate that depends on the WDK. This corresponds with the settings in
 /// the `Driver Settings` property pages for WDK projects in Visual Studio
@@ -80,14 +73,6 @@ pub enum TryFromWDKMetadataError {
         missing_metadata_field: String,
     },
 }
-
-// impl MetadataExt for cargo_metadata::Metadata {
-//     type MetadataError = ();
-    
-//     fn get_package_id(&self, package_name: impl AsRef<str>) -> Result<cargo_metadata::PackageId, Self::MetadataError> {
-//         todo!("Implement this")
-//     }
-// }
 
 impl TryFrom<WDKMetadata> for DriverConfig {
     type Error = TryFromWDKMetadataError;
@@ -181,11 +166,13 @@ pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
 
 /// Find the path the the toplevel Cargo manifest of the currently executing
 /// Cargo subcommand. This should resolve to either:
-/// 1. the `Cargo.toml` of the package where the Cargo subcommand (build, check, etc.) was run
-/// 2. the `Cargo.toml` provided to the `--manifest-path` argument to the Cargo subcommand
+/// 1. the `Cargo.toml` of the package where the Cargo subcommand (build, check,
+///    etc.) was run
+/// 2. the `Cargo.toml` provided to the `--manifest-path` argument to the Cargo
+///    subcommand
 /// 3. the `Cargo.toml` of the workspace that contains the package pointed to by
 ///    1 or 2
-/// 
+///
 /// The returned path should be a manifest in the same directory of the
 /// lockfile. This does not support invokations that use non-default target
 /// directories (ex. via `--target-dir`).
@@ -215,7 +202,7 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 /// `CARGO_FEATURE_<FEATURE_NAME>` to the feature name: https://github.com/rust-lang/cargo/issues/3702
 ///
 /// This function will also panic if called from outside a Cargo build script.
-pub fn detect_enabled_cargo_features<P>(manifest_path: P) -> Result<Vec<String>, ConfigError>
+fn detect_enabled_cargo_features<P>(manifest_path: P) -> Result<Vec<String>, ConfigError>
 where
     P: AsRef<Path>,
 {
@@ -256,7 +243,6 @@ where
         })
         .collect())
 }
-
 
 /// Creates a HashMap that maps Cargo's `CARGO_FEATURE_<FEATURE NAME>`
 /// environment variable names to Cargo Feature names
