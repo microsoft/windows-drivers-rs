@@ -1,0 +1,19 @@
+[package]
+edition = "2021"
+name = "umdf-config"
+version = "0.1.0"
+description = "An empty package that sets the `package.metadata` required for wdk-build to generate UMDF bindings for Rust"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["windows", "driver", "sample", "example", "wdf"]
+categories = ["hardware-support"]
+publish = false
+
+[package.metadata.wdk.driver-model]
+driver-type = "UMDF"
+umdf-version-major = 1
+target-umdf-version-minor = 31
+
+[lib]
+crate-type = ["cdylib"]

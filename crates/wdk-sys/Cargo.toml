@@ -31,11 +31,19 @@ tracing = "0.1.40"
 wdk-macros.workspace = true
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 rustversion = "1.0.14"
+kmdf-config = { path = "../../tests/kmdf-config", optional = true }
+umdf-config = { path = "../../tests/umdf-config", optional = true }
+wdm-config = { path = "../../tests/wdm-config", optional = true }
 
 [features]
 default = []
 nightly = ["wdk-macros/nightly"]
 test-stubs = []
+
+# Unstable features used to facilitate testing of WDR. Enabling one of these features allows for testing features dependent on generated bindings
+_test-kmdf = ["kmdf-config"]
+_test-umdf = ["umdf-config"]
+_test-wdm = ["wdm-config"]
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]

@@ -1,8 +1,8 @@
 [package]
 edition = "2021"
-name = "sample-kmdf-driver"
+name = "sample-umdf-driver"
 version = "0.1.0"
-description = "A sample KMDF driver that demonstrates KMDF in RUST"
+description = "A sample UMDF driver that demonstrates UMDF in RUST"
 repository = "https://github.com/microsoft/windows-drivers-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
@@ -11,9 +11,9 @@ categories = ["hardware-support"]
 publish = false
 
 [package.metadata.wdk.driver-model]
-driver-type = "KMDF"
-kmdf-version-major = 1
-target-kmdf-version-minor = 31
+driver-type = "UMDF"
+umdf-version-major = 2
+target-umdf-version-minor = 31
 
 [lib]
 crate-type = ["cdylib"]
@@ -21,16 +21,16 @@ crate-type = ["cdylib"]
 test = false
 
 [dependencies]
-wdk = { path = "../crates/wdk", version = "0.2.0" }
-wdk-alloc = { path = "../crates/wdk-alloc", version = "0.2.0" }
-wdk-macros= { path = "../crates/wdk-macros", version = "0.2.0" }
-wdk-panic = { path = "../crates/wdk-panic", version = "0.2.0" }
-wdk-sys = { path = "../crates/wdk-sys", version = "0.2.0" }
+wdk = { path = "../../crates/wdk", version = "0.2.0" }
+wdk-alloc = { path = "../../crates/wdk-alloc", version = "0.2.0" }
+wdk-macros= { path = "../../crates/wdk-macros", version = "0.2.0" }
+wdk-panic = { path = "../../crates/wdk-panic", version = "0.2.0" }
+wdk-sys = { path = "../../crates/wdk-sys", version = "0.2.0" }
 static_assertions = "1.1.0"
-thiserror = "1.0.59"
+thiserror = "1.0.56"
 
 [build-dependencies]
-wdk-build = { path = "../crates/wdk-build", version = "0.2.0" }
+wdk-build = { path = "../../crates/wdk-build", version = "0.2.0" }
 
 [features]
 default = []
@@ -43,6 +43,3 @@ lto = true
 [profile.release]
 panic = "abort"
 lto = true
-
-[lints]
-workspace = true

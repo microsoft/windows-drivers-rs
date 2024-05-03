@@ -19,6 +19,7 @@ categories = [
 proc-macro = true
 
 [dependencies]
+wdk-build.workspace = true
 cargo_metadata = "0.18.1"
 itertools = "0.12.1"
 proc-macro2 = "1.0.78"
@@ -38,12 +39,6 @@ pretty_assertions = "1.4.0"
 rustversion = "1.0.14"
 syn = { version = "2.0.58", features = ["extra-traits"] }
 trybuild = "1.0.89"
-
-[package.metadata.cargo-udeps.ignore]
-development = [
-  # macrotest and trybuild use dev-dependencies in when compiling their respective tests
-  "wdk-sys",
-]
 
 [features]
 default = []

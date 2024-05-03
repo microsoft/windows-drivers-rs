@@ -148,6 +148,47 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
     None
 }
 
+/// Searches a directory and determines the latest windows SDK version in that
+/// directory
+pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
+    Ok(path_to_search
+        .read_dir()?
+        .filter_map(std::result::Result::ok)
+        .map(|valid_directory_entry| valid_directory_entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path.file_name().is_some_and(|directory_name| {
+                    directory_name
+                        .to_str()
+                        .is_some_and(|directory_name| directory_name.starts_with("10."))
+                })
+        })
+        .max() // Get the latest SDK folder in case there are multiple installed
+        .ok_or(ConfigError::DirectoryNotFound {
+            directory: format!(
+                "Windows SDK Directory in {}",
+                path_to_search.to_string_lossy()
+            ),
+        })?
+        .file_name()
+        .expect("path should never terminate in ..")
+        .to_str()
+        .expect("directory name should always be valid Unicode")
+        .to_string())
+}
+
+/// Detect architecture based on cargo TARGET variable.
+pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
+    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect(
+        "Cargo should have set the CARGO_CFG_TARGET_ARCH environment variable when executing \
+         build.rs",
+    );
+
+    CPUArchitecture::try_from_cargo_str(&target_arch).unwrap_or_else(|| {
+        panic!("The target architecture, {target_arch}, is currently not supported.")
+    })
+}
+
 /// Read a string value from a registry key
 ///
 /// # Arguments
@@ -240,107 +281,78 @@ fn read_registry_key_string_value(
     None
 }
 
-/// Searches a directory and determines the latest windows SDK version in that
-/// directory
-pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
-    Ok(path_to_search
-        .read_dir()?
-        .filter_map(std::result::Result::ok)
-        .map(|valid_directory_entry| valid_directory_entry.path())
-        .filter(|path| {
-            path.is_dir()
-                && path.file_name().is_some_and(|directory_name| {
-                    directory_name
-                        .to_str()
-                        .is_some_and(|directory_name| directory_name.starts_with("10."))
-                })
-        })
-        .max() // Get the latest SDK folder in case there are multiple installed
-        .ok_or(ConfigError::DirectoryNotFound {
-            directory: format!(
-                "Windows SDK Directory in {}",
-                path_to_search.to_string_lossy()
-            ),
-        })?
-        .file_name()
-        .expect("path should never terminate in ..")
-        .to_str()
-        .expect("directory name should always be valid Unicode")
-        .to_string())
-}
-
-/// Detect architecture based on cargo TARGET variable.
-pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
-    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect(
-        "Cargo should have set the CARGO_CFG_TARGET_ARCH environment variable when executing \
-         build.rs",
-    );
-
-    CPUArchitecture::try_from_cargo_str(&target_arch).unwrap_or_else(|| {
-        panic!("The target architecture, {target_arch}, is currently not supported.")
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
-
     use super::*;
 
-    #[test]
-    fn strip_prefix_successfully() -> Result<(), StripExtendedPathPrefixError> {
-        assert_eq!(
-            PathBuf::from(r"\\?\C:\Program Files")
-                .strip_extended_length_path_prefix()?
-                .to_str(),
-            Some(r"C:\Program Files")
-        );
-        Ok(())
+    mod strip_extended_length_path_prefix {
+        use super::*;
+
+        #[test]
+        fn strip_prefix_successfully() -> Result<(), StripExtendedPathPrefixError> {
+            assert_eq!(
+                PathBuf::from(r"\\?\C:\Program Files")
+                    .strip_extended_length_path_prefix()?
+                    .to_str(),
+                Some(r"C:\Program Files")
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn empty_path() {
+            assert_eq!(
+                PathBuf::from("").strip_extended_length_path_prefix(),
+                Err(StripExtendedPathPrefixError::EmptyPath)
+            );
+        }
+
+        #[test]
+        fn path_too_short() {
+            assert_eq!(
+                PathBuf::from(r"C:\").strip_extended_length_path_prefix(),
+                Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
+            );
+        }
+
+        #[test]
+        fn no_prefix_to_strip() {
+            assert_eq!(
+                PathBuf::from(r"C:\Program Files").strip_extended_length_path_prefix(),
+                Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
+            );
+        }
     }
 
-    #[test]
-    fn empty_path() {
-        assert_eq!(
-            PathBuf::from("").strip_extended_length_path_prefix(),
-            Err(StripExtendedPathPrefixError::EmptyPath)
-        );
-    }
+    mod read_registry_key_string_value {
+        use windows::Win32::UI::Shell::{
+            FOLDERID_ProgramFiles,
+            SHGetKnownFolderPath,
+            KF_FLAG_DEFAULT,
+        };
 
-    #[test]
-    fn path_too_short() {
-        assert_eq!(
-            PathBuf::from(r"C:\").strip_extended_length_path_prefix(),
-            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
-        );
-    }
+        use super::*;
 
-    #[test]
-    fn no_prefix_to_strip() {
-        assert_eq!(
-            PathBuf::from(r"C:\Program Files").strip_extended_length_path_prefix(),
-            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
-        );
-    }
+        #[test]
+        fn read_reg_key_programfilesdir() {
+            let program_files_dir =
+                // SAFETY: FOLDERID_ProgramFiles is a constant from the windows crate, so the pointer (resulting from its reference being coerced) is always valid to be dereferenced
+                unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }
+                    .expect("Program Files Folder should always resolve via SHGetKnownFolderPath.");
 
-    #[test]
-    fn read_reg_key_programfilesdir() {
-        let program_files_dir =
-            // SAFETY: FOLDERID_ProgramFiles is a constant from the windows crate, so the pointer (resulting from its reference being coerced) is always valid to be dereferenced
-            unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }
-                .expect("Program Files Folder should always resolve via SHGetKnownFolderPath.");
-
-        assert_eq!(
-            read_registry_key_string_value(
-                HKEY_LOCAL_MACHINE,
-                s!(r"SOFTWARE\Microsoft\Windows\CurrentVersion"),
-                s!("ProgramFilesDir")
-            ),
-            Some(
-                // SAFETY: program_files_dir pointer stays valid for reads up until and including
-                // its terminating null
-                unsafe { program_files_dir.to_string() }
-                    .expect("Path resolved from FOLDERID_ProgramFiles should be valid UTF16.")
-            )
-        );
+            assert_eq!(
+                read_registry_key_string_value(
+                    HKEY_LOCAL_MACHINE,
+                    s!(r"SOFTWARE\Microsoft\Windows\CurrentVersion"),
+                    s!("ProgramFilesDir")
+                ),
+                Some(
+                    // SAFETY: program_files_dir pointer stays valid for reads up until and
+                    // including its terminating null
+                    unsafe { program_files_dir.to_string() }
+                        .expect("Path resolved from FOLDERID_ProgramFiles should be valid UTF16.")
+                )
+            );
+        }
     }
 }

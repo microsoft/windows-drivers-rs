@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+#![cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+
 use std::{
     fs::File,
     path::{Path, PathBuf},

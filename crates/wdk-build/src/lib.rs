@@ -21,7 +21,14 @@ pub mod cargo_make;
 use std::{collections::HashSet, env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
-pub use metadata::{detect_driver_config, TryFromWDKMetadataError, WDKMetadata};
+pub use metadata::{
+    detect_driver_config,
+    detect_enabled_cargo_features,
+    find_top_level_cargo_manifest,
+    // MetadataExt,
+    TryFromWDKMetadataError,
+    WDKMetadata,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;

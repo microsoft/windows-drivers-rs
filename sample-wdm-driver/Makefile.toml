@@ -1,1 +1,0 @@
-extend = "../crates/wdk-build/rust-driver-makefile.toml"

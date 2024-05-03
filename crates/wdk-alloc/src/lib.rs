@@ -6,10 +6,11 @@
 //!
 //! # Example
 //! ```rust, no_run
-//! #[cfg(not(test))]
+//! // todo: fix this doctest
+//! #[cfg(all(any(driver_type = "wdm", driver_type = "kmdf"), not(test)))]
 //! use wdk_alloc::WDKAllocator;
 //!
-//! #[cfg(not(test))]
+//! #[cfg(all(any(driver_type = "wdm", driver_type = "kmdf"), not(test)))]
 //! #[global_allocator]
 //! static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
 //! ```

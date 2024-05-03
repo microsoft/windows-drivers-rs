@@ -45,6 +45,7 @@ use syn::{
     TypePath,
     TypePtr,
 };
+use wdk_build::{detect_enabled_cargo_features, find_top_level_cargo_manifest};
 
 /// A procedural macro that allows WDF functions to be called by name.
 ///
@@ -60,30 +61,34 @@ use syn::{
 /// # Examples
 ///
 /// ```rust, no_run
+/// # // main fn manual definition required because of rustdoc bug: https://github.com/rust-lang/rust/issues/85239
+/// # #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+/// # fn main() {
 /// use wdk_sys::*;
 ///
-/// #[export_name = "DriverEntry"]
-/// pub extern "system" fn driver_entry(
-///     driver: &mut DRIVER_OBJECT,
-///     registry_path: PCUNICODE_STRING,
-/// ) -> NTSTATUS {
-///     let mut driver_config = WDF_DRIVER_CONFIG {
-///         Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
-///         ..WDF_DRIVER_CONFIG::default()
-///     };
-///     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
+/// // These should be replaced with valid values returned by WDF
+/// let mut driver = DRIVER_OBJECT::default();
+/// let registry_path = PCUNICODE_STRING::default();
 ///
-///     unsafe {
-///         wdk_macros::call_unsafe_wdf_function_binding!(
-///             WdfDriverCreate,
-///             driver as PDRIVER_OBJECT,
-///             registry_path,
-///             WDF_NO_OBJECT_ATTRIBUTES,
-///             &mut driver_config,
-///             driver_handle_output,
-///         )
-///     }
-/// }
+/// let mut driver_config = WDF_DRIVER_CONFIG {
+///     Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
+///     ..WDF_DRIVER_CONFIG::default()
+/// };
+/// let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
+///
+/// let nt_status = unsafe {
+///     wdk_macros::call_unsafe_wdf_function_binding!(
+///         WdfDriverCreate,
+///         driver as PDRIVER_OBJECT,
+///         registry_path,
+///         WDF_NO_OBJECT_ATTRIBUTES,
+///         &mut driver_config,
+///         driver_handle_output,
+///     )
+/// };
+/// # }
+/// # #[cfg(not(any(driver_type = "kmdf", driver_type = "umdf")))]
+/// # fn main() {}
 /// ```
 #[allow(clippy::unnecessary_safety_doc)]
 #[proc_macro]
@@ -401,21 +406,31 @@ fn get_type_rs_ast() -> Result<File> {
 /// `--message-format=json` and parsing its output using [`cargo_metadata`]
 fn find_wdk_sys_out_dir() -> Result<PathBuf> {
     let scratch_path = scratch::path(env!("CARGO_PKG_NAME"));
+
+    let manifest_path  = find_top_level_cargo_manifest();
     let mut cargo_check_process_handle = match Command::new("cargo")
-        .args([
-            "check",
-            "--message-format=json",
-            "--package",
-            "wdk-sys",
-            // must have a seperate target directory to prevent deadlock from cargo holding a
-            // file lock on build output directory since this proc_macro causes
-            // cargo build to invoke cargo check
-            "--target-dir",
-            scratch_path
-                .as_os_str()
-                .to_str()
-                .expect("scratch::path should be valid UTF-8"),
-        ])
+        .args(
+            [
+                "check",
+                "--message-format=json",
+                "--package",
+                "wdk-sys",
+                "--manifest-path",//TODO: needs to be manifest path of wdk-sys ONLY when metadata driver metadata isnt found (so you can find wdk-sys features and enable it)
+                &manifest_path.to_str().expect("manifest_path should be valid UTF-8"),
+                // must have a seperate target directory to prevent deadlock from cargo holding a
+                // file lock on build output directory since this proc_macro causes
+                // cargo build to invoke cargo check
+                "--target-dir",
+                scratch_path
+                    .as_os_str()
+                    .to_str()
+                    .expect("scratch::path should be valid UTF-8"),
+                "--features",
+                "_test-kmdf"
+            ]
+            .into_iter()
+            // .chain(detect_enabled_cargo_features(&manifest_path).expect("enabled features should be detected successfully").iter().map(|feature| feature.as_str())),
+        )
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -445,19 +460,7 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf> {
         None
     })
     .collect::<Vec<_>>();
-    let wdk_sys_out_dir = match wdk_sys_out_dir.len() {
-        1 => &wdk_sys_out_dir[0],
-        _ => {
-            return Err(Error::new(
-                Span::call_site(),
-                format!(
-                    "Expected exactly one instance of wdk-sys in dependency graph when running \
-                     `cargo check`, found {}",
-                    wdk_sys_out_dir.len()
-                ),
-            ));
-        }
-    };
+
     match cargo_check_process_handle.wait() {
         Ok(exit_status) => {
             if !exit_status.success() {
@@ -486,6 +489,20 @@ fn find_wdk_sys_out_dir() -> Result<PathBuf> {
             ));
         }
     }
+
+    let wdk_sys_out_dir = match wdk_sys_out_dir.len() {
+        1 => &wdk_sys_out_dir[0],
+        _ => {
+            return Err(Error::new(
+                Span::call_site(),
+                format!(
+                    "Expected exactly one instance of wdk-sys in dependency graph when running \
+                     `cargo check`, found {}",
+                    wdk_sys_out_dir.len()
+                ),
+            ));
+        }
+    };
 
     Ok(wdk_sys_out_dir.to_owned().into())
 }
@@ -1084,6 +1101,7 @@ mod tests {
             }
         }
 
+        #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
         mod generate_derived_ast_fragments {
             use super::*;
 
@@ -1151,6 +1169,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
     mod generate_parameters_and_return_type {
         use super::*;
 

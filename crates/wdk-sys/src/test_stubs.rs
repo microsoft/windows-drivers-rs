@@ -6,8 +6,10 @@
 //! into scope by introducing `wdk-sys` with the `test-stubs` feature in the
 //! `dev-dependencies` of the crate's `Cargo.toml`
 
+#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+use crate::ULONG;
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
-use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, ULONG, WDFFUNC};
+use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
 
 /// Stubbed version of `DriverEntry` Symbol so that test targets will compile
 ///
@@ -23,14 +25,8 @@ pub unsafe extern "system" fn driver_entry_stub(
     0
 }
 
-/// Stubbed version of `WdfFunctions` Symbol so that test targets will
-/// compile
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
-#[no_mangle]
-pub static mut WdfFunctions: *const WDFFUNC = core::ptr::null();
-
 /// Stubbed version of `WdfFunctionCount` Symbol so that test targets will
 /// compile
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
 #[no_mangle]
 pub static mut WdfFunctionCount: ULONG = 0;

@@ -292,6 +292,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
 
 [[package]]
+name = "kmdf-config"
+version = "0.1.0"
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -746,6 +750,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "umdf-config"
+version = "0.1.0"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -817,6 +825,7 @@ dependencies = [
  "scratch",
  "syn",
  "trybuild",
+ "wdk-build",
  "wdk-sys",
 ]
 
@@ -832,15 +841,22 @@ dependencies = [
  "bindgen",
  "cargo_metadata",
  "cc",
+ "kmdf-config",
  "lazy_static",
  "rustversion",
  "serde_json",
  "thiserror",
  "tracing",
  "tracing-subscriber",
+ "umdf-config",
  "wdk-build",
  "wdk-macros",
+ "wdm-config",
 ]
+
+[[package]]
+name = "wdm-config"
+version = "0.1.0"
 
 [[package]]
 name = "which"

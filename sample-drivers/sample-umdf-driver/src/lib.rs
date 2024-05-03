@@ -2,7 +2,6 @@
 // License: MIT OR Apache-2.0
 
 #![no_std]
-#![cfg_attr(feature = "nightly", feature(hint_must_use))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
@@ -20,12 +19,12 @@ extern crate wdk_panic;
 use alloc::{ffi::CString, slice, string::String};
 
 use static_assertions::const_assert;
-use wdk::println;
-#[cfg(not(test))]
-use wdk_alloc::WDKAllocator;
+// use wdk::println;
+// #[cfg(not(test))]
+// use wdk_alloc::WDKAllocator;
 use wdk_macros::call_unsafe_wdf_function_binding;
 use wdk_sys::{
-    ntddk::DbgPrint,
+    wdk::OutputDebugString,
     DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
@@ -56,13 +55,13 @@ pub unsafe extern "system" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-    // This is an example of directly using DbgPrint binding to print
+    // This is an example of directly using OutputDebugString binding to print
     let string = CString::new("Hello World!\n").unwrap();
 
     // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
     // string
     unsafe {
-        DbgPrint(string.as_ptr());
+        OutputDebugString(string.as_ptr());
     }
 
     driver.DriverUnload = Some(driver_exit);

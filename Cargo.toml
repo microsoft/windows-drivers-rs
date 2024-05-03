@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/*"]
-exclude = ["sample-kmdf-driver", "sample-umdf-driver", "sample-wdm-driver"]
+exclude = ["sample-drivers/sample-kmdf-driver", "sample-drivers/sample-umdf-driver", "sample-drivers/sample-wdm-driver", "tests/kmdf-config", "tests/umdf-config", "tests/wdm-config"] # TODO: can i just glob this?
 resolver = "2"
 
 [profile.dev]

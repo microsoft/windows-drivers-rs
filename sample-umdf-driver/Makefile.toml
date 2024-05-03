@@ -1,4 +1,0 @@
-extend = "../crates/wdk-build/rust-driver-makefile.toml"
-
-[env]
-WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS = "/msft"
