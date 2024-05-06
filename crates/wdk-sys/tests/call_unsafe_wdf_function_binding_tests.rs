@@ -28,7 +28,7 @@ const TOOLCHAIN_CHANNEL_NAME: &str = "nightly";
 const TEST_FEATURE_NAME: &str = "_test-kmdf";
 
 #[cfg(driver_type = "umdf")]
-const TEST_FEATURE_NAME: &str = "_test-kmdf";
+const TEST_FEATURE_NAME: &str = "_test-umdf";
 
 lazy_static! {
     static ref TESTS_FOLDER_PATH: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect();

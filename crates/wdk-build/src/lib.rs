@@ -21,12 +21,7 @@ pub mod cargo_make;
 use std::{collections::HashSet, env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
-pub use metadata::{
-    detect_driver_config,
-    find_top_level_cargo_manifest,
-    TryFromWDKMetadataError,
-    WDKMetadata,
-};
+pub use metadata::{detect_driver_config, TryFromWDKMetadataError, WDKMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
@@ -44,7 +39,7 @@ pub struct Config {
 }
 
 /// The driver type with its associated configuration parameters
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DriverConfig {
     /// Windows Driver Model
     WDM(),
@@ -75,7 +70,7 @@ pub enum CPUArchitecture {
 }
 
 /// The configuration parameters for KMDF drivers
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct KMDFConfig {
     /// Major KMDF Version
     pub kmdf_version_major: u8,
@@ -84,7 +79,7 @@ pub struct KMDFConfig {
 }
 
 /// The configuration parameters for UMDF drivers
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct UMDFConfig {
     /// Major UMDF Version
     pub umdf_version_major: u8,
@@ -148,8 +143,8 @@ pub enum ConfigError {
          one configuration is allowed: {wdk_configurations:#?}"
     )]
     MultipleWDKConfigurationsDetected {
-        /// Vector of unique WDK metadata configurations detected
-        wdk_configurations: HashSet<metadata::WDKMetadata>,
+        /// [`HashSet`] of unique [`DriverConfig`] derived from detected WDK metadata
+        wdk_configurations: HashSet<DriverConfig>,
     },
 
     /// Error returned when a [`metadata::WDKMetadata`] fails to be converted to

@@ -1,17 +1,15 @@
 use std::{
+    borrow::Borrow,
     collections::{HashMap, HashSet},
     env,
     path::{Path, PathBuf},
 };
 
-use cargo_metadata::{CargoOpt, MetadataCommand};
+use cargo_metadata::{CargoOpt, Metadata, MetadataCommand};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{ConfigError, DriverConfig, DriverType, KMDFConfig, UMDFConfig};
-
-// "This is a false-positive of this lint since metadata is a private module and WDKMetadata is re-exported to be at the crate root. See https://github.com/rust-lang/rust-clippy/issues/8524"
-#[allow(clippy::module_name_repetitions)]
 
 /// Metadata specified in the `package.metadata.wdk` section of the `Cargo.toml`
 /// of a crate that depends on the WDK. This corresponds with the settings in
@@ -117,51 +115,88 @@ pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
     // TODO: check that if this auto reruns if cargo.toml's change
     let manifest_path = find_top_level_cargo_manifest();
 
-    // TODO: should all metadata commands be operating on the resolved section
-    // instead of the packages?
-    let cargo_metadata_packages_list: Vec<cargo_metadata::Package> = MetadataCommand::new()
+    let metadata = MetadataCommand::new()
         .manifest_path(&manifest_path)
-        .features(CargoOpt::SomeFeatures(detect_enabled_cargo_features(
-            manifest_path,
-        )?))
-        .exec()?
-        .packages;
+        .exec()?;
 
-    // TODO: handle workspace metadata
+    let driver_config_from_workspace_manifest =
+        parse_workspace_metadata_for_driver_config(&metadata);
+    let driver_config_from_package_manifests = parse_package_metadata_for_driver_config(&metadata);
 
-    // Only one configuration of WDK is allowed per dependency graph
-    let wdk_metadata_configurations = cargo_metadata_packages_list
-        .into_iter()
-        .filter_map(|package| {
-            println!("{:?}", package.name);
-            if let Some(wdk_metadata) = package.metadata.get("wdk") {
-                // TODO: error handling
-                return Some(serde_json::from_value::<WDKMetadata>(wdk_metadata.clone()).unwrap());
-            };
-            None
-        })
-        .collect::<HashSet<_>>();
+    // TODO: add ws level test:
+    //////////////ws level tests: https://stackoverflow.com/a/71461114/10173605
 
-    Ok(match wdk_metadata_configurations.len() {
-        0 => {
-            // TODO: add a test for this
-            return Err(ConfigError::NoWDKConfigurationsDetected {});
+    match (
+        driver_config_from_workspace_manifest,
+        driver_config_from_package_manifests,
+    ) {
+        // Either the workspace or package manifest has a driver configuration
+        (Ok(driver_config), Err(ConfigError::NoWDKConfigurationsDetected))
+        | (Err(ConfigError::NoWDKConfigurationsDetected), Ok(driver_config)) => Ok(driver_config),
+
+        // Both the workspace and package manifest have a driver configuration. This is only allowed
+        // if they are the same
+        (Ok(workspace_driver_config), Ok(packages_driver_config)) => {
+            if workspace_driver_config != packages_driver_config {
+                return Err(ConfigError::MultipleWDKConfigurationsDetected {
+                    wdk_configurations: [workspace_driver_config, packages_driver_config]
+                        .into_iter()
+                        .collect(),
+                });
+            }
+
+            Ok(workspace_driver_config)
         }
-        1 => wdk_metadata_configurations
-            .into_iter()
-            .next()
-            .expect(
-                "wdk_metadata_configurations should have exactly one element because of the \
-                 .len() check above",
-            )
-            .try_into()?,
-        _ => {
-            // TODO: add a test for this
-            return Err(ConfigError::MultipleWDKConfigurationsDetected {
-                wdk_configurations: wdk_metadata_configurations,
-            });
+
+        // Workspace has a driver configuration, and multiple conflicting driver configurations were
+        // detected in the package manifests. This is a special case so that the error can list all
+        // the offending driver configurations
+        (
+            Ok(workspace_driver_config),
+            Err(ConfigError::MultipleWDKConfigurationsDetected {
+                mut wdk_configurations,
+            }),
+        ) => {
+            wdk_configurations.insert(workspace_driver_config);
+            Err(ConfigError::MultipleWDKConfigurationsDetected { wdk_configurations })
         }
-    })
+
+        // No driver configurations were detected in the workspace or package manifests. In this
+        // situation, detect driver configurations enabled by features(i.e. a feature brings in a
+        // crate which contains a wdk metadata section). This is supported to enable scenerios where
+        // a wdk-dependent library author may want to use features to enable running builds/tests
+        // with different WDK configurations. Note: bringing in a wdk configuration via a feature
+        // will affect the entire build graph
+
+        // (Err(ConfigError::NoWDKConfigurationsDetected),
+        // Err(ConfigError::NoWDKConfigurationsDetected)) => { if metadata
+        //     .workspace_packages()
+        //     .iter()
+        //     .find(|package| package.name == current_package_name)
+        //     .is_some()
+        // {
+        //     let enabled_features = get_enabled_cargo_features_in_current_package(
+        //         current_package_name,
+        //         metadata,
+        //     )?;
+
+        //     if !enabled_features.is_empty() {
+        //         info!(
+        //             "0 driver configurations found. Attempting to find driver \
+        //                 configurations brought in by features. Currently enable features: \
+        //                 {enabled_features:#?}"
+        //         );
+
+        //         let metadata = MetadataCommand::new()
+        //             .manifest_path(&manifest_path)
+        //             .features(CargoOpt::SomeFeatures(enabled_features))
+        //             .exec()?;
+
+        //         return parse_metadata_for_driver_config(metadata, manifest_path);
+        //     }
+        // }
+        (unhandled_error @ Err(_), _) | (_, unhandled_error @ Err(_)) => unhandled_error,
+    }
 }
 
 /// Find the path the the toplevel Cargo manifest of the currently executing
@@ -176,7 +211,7 @@ pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
 /// The returned path should be a manifest in the same directory of the
 /// lockfile. This does not support invokations that use non-default target
 /// directories (ex. via `--target-dir`).
-pub fn find_top_level_cargo_manifest() -> PathBuf {
+fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
         PathBuf::from(std::env::var("OUT_DIR").expect(
             "Cargo should have set the OUT_DIR environment variable when executing build.rs",
@@ -192,8 +227,73 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
     // TODO: error handling
 }
 
-/// Detect the currently enabled cargo features of the crate that is being built
-/// and return them as a list of strings
+/// todo
+fn parse_package_metadata_for_driver_config(
+    metadata: impl Borrow<Metadata>,
+) -> Result<DriverConfig, ConfigError> {
+    let metadata = metadata.borrow();
+
+    let wdk_configurations = metadata
+        .packages
+        .iter()
+        .filter_map(|package| {
+            if let Some(wdk_metadata) = package.metadata.get("wdk") {
+                // TODO: error handling
+                return Some(
+                    serde_json::from_value::<WDKMetadata>(wdk_metadata.clone())
+                        .unwrap()
+                        .try_into()
+                        .unwrap(),
+                );
+            };
+            None
+        })
+        .collect::<HashSet<_>>();
+
+    // Only one configuration of WDK is allowed per dependency graph
+    match wdk_configurations.len() {
+        1 => {
+            return Ok(wdk_configurations.into_iter().next().expect(
+                "wdk_configurations should have exactly one element because of the .len() check \
+                 above",
+            ));
+        }
+
+        0 => {
+            // TODO: add a test for this
+            return Err(ConfigError::NoWDKConfigurationsDetected {});
+        }
+
+        _ => {
+            // TODO: add a test for this
+            return Err(ConfigError::MultipleWDKConfigurationsDetected {
+                wdk_configurations: wdk_configurations,
+            });
+        }
+    }
+}
+
+fn parse_workspace_metadata_for_driver_config(
+    metadata: impl Borrow<Metadata>,
+) -> Result<DriverConfig, ConfigError> {
+    let metadata = metadata.borrow();
+
+    if let Some(wdk_metadata) = metadata.workspace_metadata.get("wdk") {
+        // TODO: error handling for this unwrap when failure to parse json value into
+        // wdkmetadata
+        return Ok(serde_json::from_value::<WDKMetadata>(wdk_metadata.clone())
+            .unwrap()
+            .try_into()?);
+    }
+
+    return Err(ConfigError::NoWDKConfigurationsDetected);
+}
+
+/// Returns a `Vec<String>` of all the feature names that are enabled for the
+/// currently compiling crate. This function relies on the
+/// `CARGO_FEATURE_<FEATURE_NAME>` environment variables that Cargo exposes in
+/// build scripts, so it only functions when `current_package_name` is the same
+/// as the package currently being compiled.
 ///
 /// # Panics
 ///
@@ -202,30 +302,26 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 /// `CARGO_FEATURE_<FEATURE_NAME>` to the feature name: https://github.com/rust-lang/cargo/issues/3702
 ///
 /// This function will also panic if called from outside a Cargo build script.
-fn detect_enabled_cargo_features<P>(manifest_path: P) -> Result<Vec<String>, ConfigError>
-where
-    P: AsRef<Path>,
-{
-    let current_package = env::var("CARGO_PKG_NAME")
-        .expect("CARGO_PKG_NAME should be set by Cargo and be valid UTF-8");
+fn get_enabled_cargo_features_in_current_package(
+    current_package_name: impl AsRef<str>,
+    metadata: impl Borrow<Metadata>,
+) -> Result<Vec<String>, ConfigError> {
+    let current_package_name = current_package_name.as_ref();
+    let metadata = metadata.borrow();
 
-    let cargo_metadata_packages_list: Vec<cargo_metadata::Package> = MetadataCommand::new()
-        .manifest_path(manifest_path.as_ref())
-        .exec()?
-        .packages;
-
-    let current_package_features = cargo_metadata_packages_list
-        .into_iter()
+    let current_package_features = metadata
+        .packages
+        .iter()
         .find_map(|package| {
-            if package.name == current_package {
-                return Some(package.features.into_keys());
+            if package.name == current_package_name {
+                return Some(package.features.keys());
             }
             None
         })
         .unwrap_or_else(|| {
             panic!(
                 "Could not find {} package in Cargo Metadata output",
-                current_package
+                current_package_name
             )
         });
 
@@ -234,9 +330,7 @@ where
 
     Ok(env::vars()
         .filter_map(|(env_var, _)| {
-            dbg!(&env_var);
             if let Some(feature_name) = env_var_to_feature_name_hashmap.get(&env_var) {
-                dbg!(feature_name);
                 return Some(feature_name.clone());
             }
             None
