@@ -8,7 +8,7 @@
 
 #[rustversion::nightly]
 fn main() {
-    println!("cargo:rustc-cfg=nightly_toolchain");
+    println!("cargo::rustc-cfg=nightly_toolchain");
 }
 
 #[rustversion::not(nightly)]
