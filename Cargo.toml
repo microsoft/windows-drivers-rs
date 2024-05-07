@@ -1,14 +1,21 @@
 [workspace]
 members = ["crates/*"]
-exclude = ["sample-drivers/sample-kmdf-driver", "sample-drivers/sample-umdf-driver", "sample-drivers/sample-wdm-driver", "tests/kmdf-config", "tests/umdf-config", "tests/wdm-config"] # TODO: can i just glob this?
+# examples and tests must be excluded from the workspace since only one WDK configuration per build graph is supported.
+exclude = [
+  "examples/sample-kmdf-driver",
+  "examples/sample-umdf-driver",
+  "examples/sample-wdm-driver",
+  "tests/config-kmdf",
+  "tests/config-umdf",
+  "tests/config-wdm",
+  "tests/wdk-macros-tests",
+]
 resolver = "2"
 
 [profile.dev]
-panic = "abort"
 lto = true
 
 [profile.release]
-panic = "abort"
 lto = true
 
 [workspace.package]
@@ -27,6 +34,24 @@ wdk-sys = { path = "crates/wdk-sys", version = "0.2.0" }
 bindgen = "0.69.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# The following workspace.metadata.wdk sections can be uncommented to configure the workspace for a specific WDK configuration (ex. for rust-analyzer to resolve things for a specific configuration)
+
+# Uncomment the section below for KMDF
+# [workspace.metadata.wdk]
+# driver-type = "KMDF"
+# umdf-version-major = 1
+# target-umdf-version-minor = 33
+
+# Uncomment the section below for UMDF
+# [workspace.metadata.wdk]
+# driver-type = "UMDF"
+# umdf-version-major = 1
+# target-umdf-version-minor = 33
+
+# WDM
+# [workspace.metadata.wdk]
+# driver-type = "WDM"
 
 # Until https://github.com/rust-lang/cargo/issues/12208 is resolved, each package in the workspace needs to explictly
 # add the following block to its Cargo manifest in order to enable these global lint configurations:

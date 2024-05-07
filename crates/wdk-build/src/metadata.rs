@@ -1,11 +1,6 @@
-use std::{
-    borrow::Borrow,
-    collections::{HashMap, HashSet},
-    env,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Borrow, collections::HashSet, path::PathBuf};
 
-use cargo_metadata::{CargoOpt, Metadata, MetadataCommand};
+use cargo_metadata::{Metadata, MetadataCommand};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -161,40 +156,6 @@ pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
             Err(ConfigError::MultipleWDKConfigurationsDetected { wdk_configurations })
         }
 
-        // No driver configurations were detected in the workspace or package manifests. In this
-        // situation, detect driver configurations enabled by features(i.e. a feature brings in a
-        // crate which contains a wdk metadata section). This is supported to enable scenerios where
-        // a wdk-dependent library author may want to use features to enable running builds/tests
-        // with different WDK configurations. Note: bringing in a wdk configuration via a feature
-        // will affect the entire build graph
-
-        // (Err(ConfigError::NoWDKConfigurationsDetected),
-        // Err(ConfigError::NoWDKConfigurationsDetected)) => { if metadata
-        //     .workspace_packages()
-        //     .iter()
-        //     .find(|package| package.name == current_package_name)
-        //     .is_some()
-        // {
-        //     let enabled_features = get_enabled_cargo_features_in_current_package(
-        //         current_package_name,
-        //         metadata,
-        //     )?;
-
-        //     if !enabled_features.is_empty() {
-        //         info!(
-        //             "0 driver configurations found. Attempting to find driver \
-        //                 configurations brought in by features. Currently enable features: \
-        //                 {enabled_features:#?}"
-        //         );
-
-        //         let metadata = MetadataCommand::new()
-        //             .manifest_path(&manifest_path)
-        //             .features(CargoOpt::SomeFeatures(enabled_features))
-        //             .exec()?;
-
-        //         return parse_metadata_for_driver_config(metadata, manifest_path);
-        //     }
-        // }
         (unhandled_error @ Err(_), _) | (_, unhandled_error @ Err(_)) => unhandled_error,
     }
 }
@@ -287,132 +248,4 @@ fn parse_workspace_metadata_for_driver_config(
     }
 
     return Err(ConfigError::NoWDKConfigurationsDetected);
-}
-
-/// Returns a `Vec<String>` of all the feature names that are enabled for the
-/// currently compiling crate. This function relies on the
-/// `CARGO_FEATURE_<FEATURE_NAME>` environment variables that Cargo exposes in
-/// build scripts, so it only functions when `current_package_name` is the same
-/// as the package currently being compiled.
-///
-/// # Panics
-///
-/// This function will panic if it cannot determine the name of the feature
-/// being enabled. This is due to the non-unique mapping of
-/// `CARGO_FEATURE_<FEATURE_NAME>` to the feature name: https://github.com/rust-lang/cargo/issues/3702
-///
-/// This function will also panic if called from outside a Cargo build script.
-fn get_enabled_cargo_features_in_current_package(
-    current_package_name: impl AsRef<str>,
-    metadata: impl Borrow<Metadata>,
-) -> Result<Vec<String>, ConfigError> {
-    let current_package_name = current_package_name.as_ref();
-    let metadata = metadata.borrow();
-
-    let current_package_features = metadata
-        .packages
-        .iter()
-        .find_map(|package| {
-            if package.name == current_package_name {
-                return Some(package.features.keys());
-            }
-            None
-        })
-        .unwrap_or_else(|| {
-            panic!(
-                "Could not find {} package in Cargo Metadata output",
-                current_package_name
-            )
-        });
-
-    let env_var_to_feature_name_hashmap =
-        create_env_var_to_feature_name_hashmap(current_package_features);
-
-    Ok(env::vars()
-        .filter_map(|(env_var, _)| {
-            if let Some(feature_name) = env_var_to_feature_name_hashmap.get(&env_var) {
-                return Some(feature_name.clone());
-            }
-            None
-        })
-        .collect())
-}
-
-/// Creates a HashMap that maps Cargo's `CARGO_FEATURE_<FEATURE NAME>`
-/// environment variable names to Cargo Feature names
-///
-/// # Panics
-///
-/// This function will panic if two or more feature names resolve to the same
-/// environment variable name
-fn create_env_var_to_feature_name_hashmap(
-    features: impl IntoIterator<Item = impl Into<String>>,
-) -> HashMap<String, String> {
-    let mut hashmap = HashMap::new();
-    for feature_name in features.into_iter().map(|feature| feature.into()) {
-        let env_var_name = format!(
-            "CARGO_FEATURE_{}",
-            feature_name.to_uppercase().replace('-', "_")
-        );
-        if let Some(existing_feature_name) =
-            hashmap.insert(env_var_name.clone(), feature_name.clone())
-        {
-            panic!(
-                "Two or more feature names resolve to the same env var:\nenv_var: \
-                 {env_var_name}\noffending feature names: [{existing_feature_name}, \
-                 {feature_name}]"
-            );
-        }
-    }
-    hashmap
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod create_env_var_to_feature_name_hashmap {
-        use super::*;
-
-        #[test]
-        fn unique_feature_names() {
-            let feature_names = vec!["feature-name-1", "feature-name-2", "feature-name-3"];
-            let env_var_to_feature_name_hashmap: HashMap<String, String> =
-                create_env_var_to_feature_name_hashmap(feature_names);
-
-            assert_eq!(env_var_to_feature_name_hashmap.len(), 3);
-            assert_eq!(
-                env_var_to_feature_name_hashmap["CARGO_FEATURE_FEATURE_NAME_1"],
-                "feature-name-1".to_string()
-            );
-            assert_eq!(
-                env_var_to_feature_name_hashmap["CARGO_FEATURE_FEATURE_NAME_2"],
-                "feature-name-2".to_string()
-            );
-            assert_eq!(
-                env_var_to_feature_name_hashmap["CARGO_FEATURE_FEATURE_NAME_3"],
-                "feature-name-3".to_string()
-            );
-        }
-
-        #[test]
-        #[should_panic(expected = "Two or more feature names resolve to the same env \
-                                   var:\nenv_var: CARGO_FEATURE_FEATURE_NAME\noffending feature \
-                                   names: [feature-name, feature_name]")]
-        fn duplicate_feature_names_because_of_hyphen_conversion() {
-            let feature_names = vec!["feature-name", "feature_name"];
-            let _env_var_to_feature_name_hashmap =
-                create_env_var_to_feature_name_hashmap(feature_names);
-        }
-
-        #[test]
-        #[should_panic(expected = "Two or more feature names resolve to the same env \
-                                   var:\nenv_var: CARGO_FEATURE_FEAT_FOO\noffending feature \
-                                   names: [FEAT_FOO, feat_foo]")]
-        fn duplicate_feature_names_because_of_case_conversion() {
-            let feature_names = vec!["FEAT_FOO", "feat_foo"];
-            let _env_var_to_feature_name_hashmap =
-                create_env_var_to_feature_name_hashmap(feature_names);
-        }
-    }
 }

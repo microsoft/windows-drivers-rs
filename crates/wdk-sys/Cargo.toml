@@ -33,34 +33,10 @@ wdk-macros.workspace = true
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 rustversion = "1.0.14"
 
-# Empty Crates that define a package.metadata.wdk section in their Cargo.toml to enable driver-model-dependent testing
-kmdf-config = { path = "../../tests/kmdf-config", optional = true }
-umdf-config = { path = "../../tests/umdf-config", optional = true }
-wdm-config = { path = "../../tests/wdm-config", optional = true }
-
-[dev-dependencies]
-fs4 = { version = "0.8.2", features = ["sync"] }
-pathdiff = "0.2.0"
-lazy_static = "1.4.0"
-macrotest = "1.0.11"
-owo-colors = "4.0.0"
-paste = "1.0.14"
-rustversion = "1.0.14"
-syn = { version = "2.0.48", features = ["extra-traits"] }
-trybuild = "1.0.89"
-
 [features]
 default = []
 nightly = ["wdk-macros/nightly"]
 test-stubs = []
-
-# Unstable features used to facilitate testing of WDR. Enabling one of these features allows for testing features dependent on generated bindings
-_test-kmdf = ["kmdf-config"]
-_test-umdf = ["umdf-config"]
-_test-wdm = ["wdm-config"]
-
-[package.metadata.cargo-machete]
-ignored = ["kmdf-config", "umdf-config", "wdm-config"]
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
