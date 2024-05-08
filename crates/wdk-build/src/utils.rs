@@ -287,7 +287,7 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// This function returns a [`ConfigError::WDKVersionStringFormatError`] if the
 /// version string provided is ill-formed.
 pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
     let version = version_string.as_ref();
@@ -295,12 +295,12 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<
 
     // First, check if we have "10" as our first value
     if !version_parts.first().is_some_and(|first| *first == "10") {
-        return Err(ConfigError::WDKContentRootDetectionError);
+        return Err(ConfigError::WDKVersionStringFormatError);
     }
 
     // Now check that we have four entries.
     if version_parts.len() != 4 {
-        return Err(ConfigError::WDKContentRootDetectionError);
+        return Err(ConfigError::WDKVersionStringFormatError);
     }
 
     // Finally, confirm each part is numeric.
@@ -308,7 +308,7 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<
         .iter()
         .all(|version_part| version_part.parse::<i32>().is_ok())
     {
-        return Err(ConfigError::WDKContentRootDetectionError);
+        return Err(ConfigError::WDKVersionStringFormatError);
     }
 
     // Now return the actual build number from the string (the yyy in
@@ -390,31 +390,31 @@ mod tests {
         assert_eq!(validate_wdk_version_format(&"10.0.0.0").ok(), Some("0"));
         assert!(matches!(
             validate_wdk_version_format(&"11.0.0.0"),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
             validate_wdk_version_format(&"10.0.12345.0.0"),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
             validate_wdk_version_format(&"10.0.12345.a"),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
             validate_wdk_version_format(&"10.0.12345"),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
             validate_wdk_version_format(&"10.0.1234!5.0"),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
             validate_wdk_version_format(&"Not a real version!"),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
             validate_wdk_version_format(&""),
-            Err(ConfigError::WDKContentRootDetectionError)
+            Err(ConfigError::WDKVersionStringFormatError)
         ));
     }
 }

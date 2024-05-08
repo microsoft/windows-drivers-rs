@@ -20,7 +20,9 @@ use crate::{
 };
 
 const PATH_ENV_VAR: &str = "Path";
-const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_WDK_VERISON";
+/// The environment variable that [`setup_wdk_version`] stores the WDK version
+/// in.
+pub const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_WDK_VERSION";
 /// The first WDK version with the new `InfVerif` behavior.
 const WDK_INF_NEW_VERSION: i32 = 25798;
 const WDK_INF_ADDITIONAL_FLAGS_ENV_VAR: &str = "WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS";
@@ -511,9 +513,10 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
+    println!("FORWARDING ARGS TO CARGO-MAKE:");
     crate::utils::validate_wdk_version_format(&version)?;
 
-    prepend_to_semicolon_delimited_env_var(WDK_VERSION_ENV_VAR, &version);
+    append_to_space_delimited_env_var(WDK_VERSION_ENV_VAR, &version);
     forward_env_var_to_cargo_make(WDK_VERSION_ENV_VAR);
     Ok(version)
 }
@@ -532,7 +535,15 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
 /// is ever changed to no longer validate that each part of the version string
 /// is an i32.
 pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
-    let validated_version_string = crate::utils::validate_wdk_version_format(&version)?;
+    // The below two lines are just to unblock while debugging an issue with
+    // multiple versions populating the environment variable
+    let version = version.as_ref().split(' ').collect::<Vec<&str>>();
+    let version = version.first().unwrap_or(&"No version provided");
+    let validated_version_string = crate::utils::validate_wdk_version_format(version)?;
+    // This print signifies the start of the forwarding and signals to the
+    // `rust-env-update` plugin that it should forward args. This is also used to
+    // signal that the auto-generated help from `clap` was not executed.
+    println!("FORWARDING ARGS TO CARGO-MAKE:");
 
     // Safe to unwrap as we called .parse::<i32>().is_ok() in our call to
     // validate_wdk_version_format above.
@@ -548,6 +559,7 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
     };
     append_to_space_delimited_env_var(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR, sample_flag);
     forward_env_var_to_cargo_make(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR);
+    // println!("{{{WDK_INF_ADDITIONAL_FLAGS_ENV_VAR}}}={}", sample_flag);
     Ok(())
 }
 

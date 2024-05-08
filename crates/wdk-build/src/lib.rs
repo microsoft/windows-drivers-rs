@@ -119,6 +119,11 @@ pub enum ConfigError {
     )]
     WDKContentRootDetectionError,
 
+    /// Error returned when the WDK version string does not match the expected
+    /// format
+    #[error("The WDK version string provided was not in a valid format.")]
+    WDKVersionStringFormatError,
+
     /// Error returned when `cargo_metadata` execution or parsing fails
     #[error(transparent)]
     CargoMetadataError(#[from] cargo_metadata::Error),
