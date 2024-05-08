@@ -198,7 +198,6 @@ args = [
   "1.33",
 ]
 
-
 [tasks.infverif]
 private = true
 dependencies = ["stampinf"]

@@ -534,7 +534,7 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
 /// This function will panic if the function for validating a WDK version string
 /// is ever changed to no longer validate that each part of the version string
 /// is an i32.
-pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
+pub fn setup_infverif_for_samples<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
     // The below two lines are just to unblock while debugging an issue with
     // multiple versions populating the environment variable
     let version = version.as_ref().split(' ').collect::<Vec<&str>>();
@@ -544,7 +544,6 @@ pub fn set_sample_infverif<S: AsRef<str>>(version: S) -> Result<(), ConfigError>
     // `rust-env-update` plugin that it should forward args. This is also used to
     // signal that the auto-generated help from `clap` was not executed.
     println!("FORWARDING ARGS TO CARGO-MAKE:");
-
     // Safe to unwrap as we called .parse::<i32>().is_ok() in our call to
     // validate_wdk_version_format above.
     let version = validated_version_string
