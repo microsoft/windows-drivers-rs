@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 
 //! Direct FFI bindings to WDF APIs from the Windows Driver Kit (WDK)
-//! 
+//!
 //! This module contains all bindings to functions, constants, methods,
 //! constructors and destructors in `wdf.h`. Types are not included in this
 //! module, but are available in the top-level `wdk_sys` module.

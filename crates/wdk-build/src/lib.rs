@@ -143,7 +143,8 @@ pub enum ConfigError {
          one configuration is allowed: {wdk_configurations:#?}"
     )]
     MultipleWDKConfigurationsDetected {
-        /// [`HashSet`] of unique [`DriverConfig`] derived from detected WDK metadata
+        /// [`HashSet`] of unique [`DriverConfig`] derived from detected WDK
+        /// metadata
         wdk_configurations: HashSet<DriverConfig>,
     },
 

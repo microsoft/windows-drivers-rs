@@ -28,9 +28,8 @@ taskjson = json_parse ${task.as_json}
 out = exec --fail-on-error cargo install ${taskjson.install_crate.crate_name} --version ${taskjson.install_crate.min_version}
 assert_eq ${out.code} 0 "[tasks.${task.name}]'s install_crate failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}"
 
-# Execute rust-script
-taskjson = json_parse ${task.as_json}
-filepath = set "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs"
+# Enable rust-env-update's rust-script cache (Note: when developing locally on WDR itself, rust-script.exe --clear-cache can be used to force a rebuild of the script's wdk-build dependency)
+filepath = set "${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/rust-env-update.rs"
 # If a file already exists, only overwrite it if the script has changed (so that rust-script caching can be leveraged)
 if is_file ${filepath}
     old_hash = digest --algo sha256 --file ${filepath}
@@ -41,28 +40,54 @@ if is_file ${filepath}
 else
     writefile ${filepath} ${taskjson.script}
 end
+
+# Append cli args to task args
+task_args = array_join ${task.args} " "
 cli_args = array_join ${flow.cli.args} " "
-# rust-script will try to consume --help, so help must be passed via TRIGGER_HELP env var in order to provide clap help output
-trigger_help = get_env TRIGGER_HELP
-if not is_empty ${trigger_help}
-    cli_args = concat ${cli_args} " --help"
+combined_args = concat ${cli_args} " " ${task_args}
+combined_args = trim ${combined_args}
+
+# Execute rust-script
+out = exec --fail-on-error rust-script --base-path ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/rust-env-update.rs %{combined_args}
+assert_eq ${out.code} 0 "[tasks.${task.name}]'s script failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/rust-env-update.rs"
+
+if contains ${combined_args} "--help"
+    println ${out.stdout}
+
+    # If help was triggered, exit with code 1 to prevent the rest of the makefile from running
+    exit 1
 end
-out = exec --fail-on-error rust-script --base-path ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs %{cli_args}
-assert_eq ${out.code} 0 "[tasks.${task.name}]'s script failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs"
 
 # Set cargo-make env vars based on output of rust-script
 script_output = trim ${out.stdout}
 if not is_empty ${script_output}
     script_output_array = split ${script_output} \n
-    stdout_first_line = array_get ${script_output_array} 0
-    assert_eq ${stdout_first_line} "FORWARDING ARGS TO CARGO-MAKE:" "[tasks.${task.name}]'s script output did not begin with \"FORWARDING ARGS TO CARGO-MAKE:\". Was `--help` passed as one of the arguments?\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/main.rs"
-    array_remove ${script_output_array} 0
+
+    # Search the stdout output of the script, with the following behaviours for each line:
+    # 1. If the line is between the "FORWARDING ARGS TO CARGO-MAKE:" start delimited and the "END OF FORWARDING ARGS TO CARGO-MAKE" end delimiter, update the cargo-make process' environment variables based on the key-value pairs in the line.
+    # 2. If the line is not between the start and end delimiters, print the line normally.
+    looking_for_start_delimiter = set true
     for line in ${script_output_array}
-        parts = split ${line} =
-        key = array_get ${parts} 0
-        value = array_get ${parts} 1
-        set_env ${key} ${value}
+        if ${looking_for_start_delimiter}
+            if eq ${line} "FORWARDING ARGS TO CARGO-MAKE:"
+                looking_for_start_delimiter = set false
+            else
+                # Any output not surrounded by the start and end delimiter lines should be printed normally
+                println ${line}
+            end
+        else
+            if eq ${line} "END OF FORWARDING ARGS TO CARGO-MAKE"
+                looking_for_start_delimiter = set true
+            else
+                # Set cargo-make env_var based on line output
+                parts = split ${line} =
+                key = array_get ${parts} 0
+                value = array_get ${parts} 1
+                set_env ${key} ${value}
+            end
+        end
     end
+    assert ${looking_for_start_delimiter} "A matching \"END OF FORWARDING ARGS TO CARGO-MAKE\" for a \"FORWARDING ARGS TO CARGO-MAKE:\" was not found in script output."
 end
 '''
 
@@ -78,9 +103,14 @@ script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-wdk_build::cargo_make::validate_and_forward_args();
-wdk_build::cargo_make::setup_path()?;
+let cli_env_vars = wdk_build::cargo_make::validate_command_line_args();
+let path_env_vars = wdk_build::cargo_make::setup_path()?;
+wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
+    cli_env_vars.into_iter().chain(path_env_vars),
+);
+
 '''
+args = []
 
 [tasks.copy-inx-to-output]
 private = true
@@ -445,9 +475,10 @@ end
 run_task = "package-driver"
 
 [tasks.help]
+extend = "wdk-build-init"
+private = false
 workspace = false
-env = { "TRIGGER_HELP" = "1" }
-run_task = "wdk-build-init"
+args = ["--help"]
 
 [tasks.default]
 alias = "package-driver-flow"

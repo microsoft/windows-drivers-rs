@@ -27,6 +27,7 @@ const CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR: &str = "CARGO_MAKE_CARGO_BUILD_
 
 const CARGO_MAKE_PROFILE_ENV_VAR: &str = "CARGO_MAKE_PROFILE";
 const CARGO_MAKE_CARGO_PROFILE_ENV_VAR: &str = "CARGO_MAKE_CARGO_PROFILE";
+const CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_TRIPLE";
 const CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY";
 const CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR: &str = "CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN";
@@ -303,7 +304,7 @@ impl ParseCargoArg for CompilationOptions {
             }
         };
 
-        println!("{CARGO_MAKE_CARGO_PROFILE_ENV_VAR}={cargo_make_cargo_profile}");
+        std::env::set_var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR, &cargo_make_cargo_profile);
 
         if let Some(jobs) = &self.jobs {
             append_to_space_delimited_env_var(
@@ -313,7 +314,7 @@ impl ParseCargoArg for CompilationOptions {
         }
 
         if let Some(target) = &self.target {
-            println!("CARGO_MAKE_CRATE_TARGET_TRIPLE={target}");
+            std::env::set_var(CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR, target);
             append_to_space_delimited_env_var(
                 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
                 format!("--target {target}").as_str(),
@@ -367,14 +368,16 @@ impl ParseCargoArg for ManifestOptions {
 }
 
 /// Parses the command line arguments, validates that they are supported by
-/// `rust-driver-makefile.toml`, and forwards them to `cargo-make` by printing
-/// them to stdout.
+/// `rust-driver-makefile.toml`, and then returns a list of environment variable
+/// names that were updated. These environment variable names should be passed
+/// to [`forward_printed_env_vars_to_cargo_make`] to forward values to
+/// cargo-make.
 ///
 /// # Panics
 ///
 /// This function will panic if there's an internal error (i.e. bug) in its
 /// argument processing.
-pub fn validate_and_forward_args() {
+pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     const TOOLCHAIN_ARG_POSITION: usize = 1;
 
     let mut env_args = std::env::args_os().collect::<Vec<_>>();
@@ -398,13 +401,9 @@ pub fn validate_and_forward_args() {
 
     let command_line_interface: CommandLineInterface =
         CommandLineInterface::parse_from(env_args.iter());
-    // This print signifies the start of the forwarding and signals to the
-    // `rust-env-update` plugin that it should forward args. This is also used to
-    // signal that the auto-generated help from `clap` was not executed.
-    println!("FORWARDING ARGS TO CARGO-MAKE:");
 
     if let Some(toolchain) = toolchain_arg {
-        println!("{CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR}={toolchain}");
+        std::env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
     command_line_interface.base.parse_cargo_arg();
@@ -413,8 +412,15 @@ pub fn validate_and_forward_args() {
     command_line_interface.compilation_options.parse_cargo_arg();
     command_line_interface.manifest_options.parse_cargo_arg();
 
-    forward_env_var_to_cargo_make(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR);
-    forward_env_var_to_cargo_make(WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR);
+    [
+        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+        CARGO_MAKE_CARGO_PROFILE_ENV_VAR,
+        CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR,
+        CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR,
+        WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR,
+    ]
+    .into_iter()
+    .map(|s| s.to_string())
 }
 
 /// Prepends the path variable with the necessary paths to access WDK tools
@@ -429,7 +435,7 @@ pub fn validate_and_forward_args() {
 /// This function will panic if the CPU architecture cannot be determined from
 /// `std::env::consts::ARCH` or if the PATH variable contains non-UTF8
 /// characters.
-pub fn setup_path() -> Result<(), ConfigError> {
+pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WDKContentRootDetectionError);
     };
@@ -488,8 +494,36 @@ pub fn setup_path() -> Result<(), ConfigError> {
             .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
     );
 
-    forward_env_var_to_cargo_make(PATH_ENV_VAR);
-    Ok(())
+    Ok([PATH_ENV_VAR].map(|s| s.to_string()))
+}
+
+/// Forwards the specified environment variables in this process to the parent
+/// cargo-make. This is facilitated by printing to `stdout`, and having the
+/// `rust-env-update` plugin parse the printed output.
+pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item = impl AsRef<str>>) {
+    // This print signifies the start of the forwarding and signals to the
+    // `rust-env-update` plugin that it should forward args
+    println!("FORWARDING ARGS TO CARGO-MAKE:");
+
+    for env_var_name in env_vars.into_iter() {
+        let env_var_name = env_var_name.as_ref();
+
+        // Since this executes in a child process to cargo-make, we need to forward the
+        // values we want to change to duckscript, in order to get it to modify the
+        // parent process (ie. cargo-make)
+        if let Some(env_var_value) = std::env::var_os(env_var_name) {
+            println!(
+                "{env_var_name}={}",
+                env_var_value
+                    .to_str()
+                    .expect("env var value should be valid UTF-8")
+            );
+        }
+    }
+
+    // This print signifies the end of the forwarding and signals to the
+    // `rust-env-update` plugin that it should stop forwarding args
+    println!("END OF FORWARDING ARGS TO CARGO-MAKE");
 }
 
 /// Returns the path to the WDK build output directory for the current
@@ -689,20 +723,4 @@ where
     env_var_value.push(';');
     env_var_value.push_str(std::env::var(env_var_name).unwrap_or_default().as_str());
     std::env::set_var(env_var_name, env_var_value);
-}
-
-fn forward_env_var_to_cargo_make<S: AsRef<str>>(env_var_name: S) {
-    let env_var_name = env_var_name.as_ref();
-
-    // Since this executes in a child process to cargo-make, we need to forward the
-    // values we want to change to duckscript, in order to get it to modify the
-    // parent process (ie. cargo-make)
-    if let Some(env_var_value) = std::env::var_os(env_var_name) {
-        println!(
-            "{env_var_name}={}",
-            env_var_value
-                .to_str()
-                .expect("env var value should be valid UTF-8")
-        );
-    }
 }

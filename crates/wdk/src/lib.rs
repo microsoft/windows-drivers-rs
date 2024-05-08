@@ -20,7 +20,6 @@ mod print;
     driver_type = "umdf",
 ))]
 pub use print::_print;
-
 #[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
 pub use wdk_sys::PAGED_CODE as paged_code;
 
