@@ -217,6 +217,7 @@ fn read_registry_key_string_value(
                 // SAFETY: `opened_key_handle` is valid opened key that was opened by
                 // `RegOpenKeyExA`
                 unsafe { RegCloseKey(opened_key_handle) }
+                    .ok()
                     .expect("opened_key_handle should be successfully closed");
                 return Some(
                     CStr::from_bytes_with_nul(&buffer[..len as usize])
@@ -235,7 +236,8 @@ fn read_registry_key_string_value(
         // SAFETY: `opened_key_handle` is valid opened key that was opened by
         // `RegOpenKeyExA`
         unsafe { RegCloseKey(opened_key_handle) }
-            .expect(r"opened_key_handle should be successfully closed");
+            .ok()
+            .expect("opened_key_handle should be successfully closed");
     }
     None
 }

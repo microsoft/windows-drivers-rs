@@ -90,7 +90,7 @@ jobs:
       - name: Install Cargo Udeps
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-udeps
+          tool: cargo-udeps@0.1.48
 
       - name: Run Cargo Udeps
         run: cargo +nightly udeps --locked --all-targets
