@@ -53,7 +53,7 @@ condition_script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-// This range is inclusive of 25798. Will update with range end after /sample flag is added to InfVerif CLI
+// This range is inclusive of 25798. FIXME: update with range end after /sample flag is added to InfVerif CLI
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: u32 = 25798..;
 
 std::panic::catch_unwind(|| {
