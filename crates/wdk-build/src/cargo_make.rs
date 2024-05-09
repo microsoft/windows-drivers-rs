@@ -27,11 +27,10 @@ pub const RUST_DRIVER_SAMPLE_MAKEFILE_NAME: &str = "rust-driver-sample-makefile.
 const PATH_ENV_VAR: &str = "Path";
 /// The environment variable that [`setup_wdk_version`] stores the WDK version
 /// in.
-pub const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_WDK_VERSION";
+pub const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_VERSION";
 /// The first WDK version with the new `InfVerif` behavior.
 const MINIMUM_SAMPLES_FLAG_WDK_VERSION: i32 = 25798;
 const WDK_INF_ADDITIONAL_FLAGS_ENV_VAR: &str = "WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS";
-const WDK_INF_NEW_VERSION_FLAG_ENV_VAR: &str = "WDK_INF_USING_NEW_VERSION";
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -557,15 +556,12 @@ pub fn setup_infverif_for_samples<S: AsRef<str>>(version: S) -> Result<(), Confi
         .parse::<i32>()
         .expect("Unable to parse the build number of the WDK version string as an int!");
     let sample_flag = if version > MINIMUM_SAMPLES_FLAG_WDK_VERSION {
-        std::env::set_var(WDK_INF_NEW_VERSION_FLAG_ENV_VAR, "true");
-        forward_env_var_to_cargo_make(WDK_INF_NEW_VERSION_FLAG_ENV_VAR);
-        "/samples" // Note: Not currently implemented, hence why we also set the MINIMUM_SAMPLES_FLAG_WDK_VERSION_FLAG
+        "/samples" // Note: Not currently implemented, so in samples TOML we currently skip infverif
     } else {
         "/msft"
     };
     append_to_space_delimited_env_var(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR, sample_flag);
     forward_env_var_to_cargo_make(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR);
-    // println!("{{{WDK_INF_ADDITIONAL_FLAGS_ENV_VAR}}}={}", sample_flag);
     Ok(())
 }
 
@@ -653,9 +649,9 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
     load_rust_driver_makefile_internal(RUST_DRIVER_MAKEFILE_NAME)
 }
 
-/// Symlinks `rust-driversample-makefiletoml` to the `target` folder where it can be
-/// extended from a `Makefile.toml`. This is necessary so that paths in the
-/// `rust-driver-sample-makefile.toml` can to be relative to
+/// Symlinks `rust-driversample-makefiletoml` to the `target` folder where it
+/// can be extended from a `Makefile.toml`. This is necessary so that paths in
+/// the `rust-driver-sample-makefile.toml` can to be relative to
 /// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
@@ -689,7 +685,7 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 /// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
 ///   versions of the WDK build crate detected
 /// - [`ConfigError::IoError`] if there is an error creating or updating the
-///   symlink to `rust-driver-toolchain.toml`
+///   symlink to the makefile.
 ///
 /// # Panics
 ///

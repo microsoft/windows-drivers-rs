@@ -83,26 +83,6 @@ wdk_build::cargo_make::setup_path()?;
 wdk_build::cargo_make::setup_wdk_version()?;
 '''
 
-[tasks.wdk-samples-setup]
-private = true
-dependencies = ["wdk-build-init"]
-install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
-plugin = "rust-env-update"
-script_runner = "@rust"
-script = '''
-//! ```cargo
-//! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
-//! ```
-#![allow(unused_doc_comments)]
-let env_string = std::env::var_os(wdk_build::cargo_make::WDK_VERSION_ENV_VAR)
-    .map_or_else(
-        || panic!("Couldn't read WDK build version that should have been set in init"),
-        |os_env_string| os_env_string.to_string_lossy().into_owned(),
-    );
-wdk_build::cargo_make::setup_infverif_for_samples(env_string)?;
-'''
-
 [tasks.copy-inx-to-output]
 private = true
 script_runner = "@rust"
