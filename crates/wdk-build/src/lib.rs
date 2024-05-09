@@ -486,25 +486,25 @@ impl Config {
 
         // Emit linker search paths
         for path in library_paths {
-            println!("cargo:rustc-link-search={}", path.display());
+            println!("cargo::rustc-link-search={}", path.display());
         }
 
         match &self.driver_config {
             DriverConfig::WDM() => {
                 // Emit WDM-specific libraries to link to
-                println!("cargo:rustc-link-lib=BufferOverflowFastFailK");
-                println!("cargo:rustc-link-lib=ntoskrnl");
-                println!("cargo:rustc-link-lib=hal");
-                println!("cargo:rustc-link-lib=wmilib");
+                println!("cargo::rustc-link-lib=BufferOverflowFastFailK");
+                println!("cargo::rustc-link-lib=ntoskrnl");
+                println!("cargo::rustc-link-lib=hal");
+                println!("cargo::rustc-link-lib=wmilib");
             }
             DriverConfig::KMDF(_) => {
                 // Emit KMDF-specific libraries to link to
-                println!("cargo:rustc-link-lib=BufferOverflowFastFailK");
-                println!("cargo:rustc-link-lib=ntoskrnl");
-                println!("cargo:rustc-link-lib=hal");
-                println!("cargo:rustc-link-lib=wmilib");
-                println!("cargo:rustc-link-lib=WdfLdr");
-                println!("cargo:rustc-link-lib=WdfDriverEntry");
+                println!("cargo::rustc-link-lib=BufferOverflowFastFailK");
+                println!("cargo::rustc-link-lib=ntoskrnl");
+                println!("cargo::rustc-link-lib=hal");
+                println!("cargo::rustc-link-lib=wmilib");
+                println!("cargo::rustc-link-lib=WdfLdr");
+                println!("cargo::rustc-link-lib=WdfDriverEntry");
             }
             DriverConfig::UMDF(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
@@ -515,10 +515,10 @@ impl Config {
                     .as_str()
                 {
                     "release" => {
-                        println!("cargo:rustc-link-lib=ucrt");
+                        println!("cargo::rustc-link-lib=ucrt");
                     }
                     "debug" => {
-                        println!("cargo:rustc-link-lib=ucrtd");
+                        println!("cargo::rustc-link-lib=ucrtd");
                     }
                     _ => {
                         unreachable!(r#"Cargo should always set a value of "release" or "debug""#);
@@ -526,11 +526,11 @@ impl Config {
                 }
 
                 if umdf_config.umdf_version_major >= 2 {
-                    println!("cargo:rustc-link-lib=WdfDriverStubUm");
-                    println!("cargo:rustc-link-lib=ntdll");
+                    println!("cargo::rustc-link-lib=WdfDriverStubUm");
+                    println!("cargo::rustc-link-lib=ntdll");
                 }
 
-                println!("cargo:rustc-link-lib=mincore");
+                println!("cargo::rustc-link-lib=mincore");
             }
         }
 
@@ -555,49 +555,49 @@ impl Config {
         self.configure_library_build()?;
 
         // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
-        println!("cargo:rustc-cdylib-link-arg=/NXCOMPAT");
-        println!("cargo:rustc-cdylib-link-arg=/DYNAMICBASE");
+        println!("cargo::rustc-cdylib-link-arg=/NXCOMPAT");
+        println!("cargo::rustc-cdylib-link-arg=/DYNAMICBASE");
 
         // Always generate Map file with Exports
-        println!("cargo:rustc-cdylib-link-arg=/MAP");
-        println!("cargo:rustc-cdylib-link-arg=/MAPINFO:EXPORTS");
+        println!("cargo::rustc-cdylib-link-arg=/MAP");
+        println!("cargo::rustc-cdylib-link-arg=/MAPINFO:EXPORTS");
 
         // Force Linker Optimizations
-        println!("cargo:rustc-cdylib-link-arg=/OPT:REF,ICF");
+        println!("cargo::rustc-cdylib-link-arg=/OPT:REF,ICF");
 
         // Enable "Forced Integrity Checking" to prevent non-signed binaries from
         // loading
-        println!("cargo:rustc-cdylib-link-arg=/INTEGRITYCHECK");
+        println!("cargo::rustc-cdylib-link-arg=/INTEGRITYCHECK");
 
         // Disable Manifest File Generation
-        println!("cargo:rustc-cdylib-link-arg=/MANIFEST:NO");
+        println!("cargo::rustc-cdylib-link-arg=/MANIFEST:NO");
 
         match &self.driver_config {
             DriverConfig::WDM() => {
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
-                println!("cargo:rustc-cdylib-link-arg=/DRIVER");
-                println!("cargo:rustc-cdylib-link-arg=/NODEFAULTLIB");
-                println!("cargo:rustc-cdylib-link-arg=/SUBSYSTEM:NATIVE");
-                println!("cargo:rustc-cdylib-link-arg=/KERNEL");
+                println!("cargo::rustc-cdylib-link-arg=/DRIVER");
+                println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
+                println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:NATIVE");
+                println!("cargo::rustc-cdylib-link-arg=/KERNEL");
 
                 // Linker arguments derived from WindowsDriver.KernelMode.WDM.props in Ni(22H2)
                 // WDK
-                println!("cargo:rustc-cdylib-link-arg=/ENTRY:DriverEntry");
+                println!("cargo::rustc-cdylib-link-arg=/ENTRY:DriverEntry");
             }
             DriverConfig::KMDF(_) => {
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
-                println!("cargo:rustc-cdylib-link-arg=/DRIVER");
-                println!("cargo:rustc-cdylib-link-arg=/NODEFAULTLIB");
-                println!("cargo:rustc-cdylib-link-arg=/SUBSYSTEM:NATIVE");
-                println!("cargo:rustc-cdylib-link-arg=/KERNEL");
+                println!("cargo::rustc-cdylib-link-arg=/DRIVER");
+                println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
+                println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:NATIVE");
+                println!("cargo::rustc-cdylib-link-arg=/KERNEL");
 
                 // Linker arguments derived from WindowsDriver.KernelMode.KMDF.props in
                 // Ni(22H2) WDK
-                println!("cargo:rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
+                println!("cargo::rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
             }
             DriverConfig::UMDF(_) => {
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
-                println!("cargo:rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
+                println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
         }
 
@@ -620,7 +620,7 @@ impl Config {
             return Err(ExportError::MissingLinksValue(var_error));
         }
         println!(
-            "cargo:{}={}",
+            "cargo::metadata={}={}",
             Self::CARGO_CONFIG_KEY,
             serde_json::to_string(self)?
         );
