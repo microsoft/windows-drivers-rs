@@ -8,7 +8,10 @@
 //! provide a CLI very close to cargo's own, but only exposes the arguments
 //! supported by `rust-driver-makefile.toml`.
 
-use std::path::{Path, PathBuf};
+use std::{
+    panic::UnwindSafe,
+    path::{Path, PathBuf},
+};
 
 use cargo_metadata::MetadataCommand;
 use clap::{Args, Parser};
@@ -34,6 +37,7 @@ const CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR: &str = "CARGO_MAKE_RUST_DEFAULT
 const CARGO_MAKE_CRATE_FS_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_FS_NAME";
 const CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY";
+const CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR: &str = "CARGO_MAKE_CURRENT_TASK_NAME";
 const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
@@ -259,7 +263,7 @@ impl ParseCargoArg for CompilationOptions {
             std::process::exit(CLAP_USAGE_EXIT_CODE);
         }
         let cargo_make_cargo_profile = match std::env::var(CARGO_MAKE_PROFILE_ENV_VAR)
-            .unwrap_or_else(|_| panic!("{CARGO_MAKE_PROFILE_ENV_VAR} should be set by cargo-make."))
+            .unwrap_or_else(|_| panic!("{CARGO_MAKE_PROFILE_ENV_VAR} should be set by cargo-make"))
             .as_str()
         {
             "release" => {
@@ -298,7 +302,7 @@ impl ParseCargoArg for CompilationOptions {
                     profile.into()
                 } else {
                     std::env::var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR).unwrap_or_else(|_| {
-                        panic!("{CARGO_MAKE_CARGO_PROFILE_ENV_VAR} should be set by cargo-make.")
+                        panic!("{CARGO_MAKE_CARGO_PROFILE_ENV_VAR} should be set by cargo-make")
                     })
                 }
             }
@@ -631,7 +635,7 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
 
     let cargo_make_workspace_working_directory =
         std::env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
-            panic!("{CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make.")
+            panic!("{CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make")
         });
 
     let destination_path =
@@ -656,6 +660,36 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
 
     // Symlink is already up to date
     Ok(())
+}
+
+/// Execute a `FnOnce` closure, and handle its contents in a way compatible with
+/// `cargo-make`'s `condition_script`:
+/// 1. If the closure panics, the panic is caught and it returns an `Ok(())`.
+///    This ensures that panics encountered in `condition_script_closure` will
+///    not default to skipping the task.
+/// 2. If the closure executes without panicking, forward the result to
+///    `cargo-make`. `Ok` types will result in the task being run, and `Err`
+///    types will print the `Err` contents and then skip the task.
+///
+/// If you want your task to be skipped, return an `Err` from
+/// `condition_script_closure`. If you want the task to execute, return an
+/// `Ok(())` from `condition_script_closure`
+pub fn condition_script<F, E>(condition_script_closure: F) -> anyhow::Result<(), E>
+where
+    F: FnOnce() -> anyhow::Result<(), E> + UnwindSafe,
+{
+    std::panic::catch_unwind(condition_script_closure).unwrap_or_else(|_| {
+        // Note: Any panic messages has already been printed by this point
+
+        let cargo_make_task_name = std::env::var(CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR)
+            .expect("CARGO_MAKE_CURRENT_TASK_NAME should be set by cargo-make");
+
+        eprintln!(
+            "`condition_script` for {cargo_make_task_name} task panicked while executing. \
+             Defaulting to running {cargo_make_task_name} task."
+        );
+        Ok(())
+    })
 }
 
 fn configure_wdf_build_output_dir(target_arg: &Option<String>, cargo_make_cargo_profile: &str) {

@@ -19,7 +19,14 @@ use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
     EnvFilter,
 };
-use wdk_build::{detect_driver_config, BuilderExt, Config, ConfigError, DriverConfig};
+use wdk_build::{
+    detect_driver_config,
+    find_top_level_cargo_manifest,
+    BuilderExt,
+    Config,
+    ConfigError,
+    DriverConfig,
+};
 
 const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
@@ -233,7 +240,7 @@ fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
 
     let config = Config {
-        driver_config: match detect_driver_config() {
+        driver_config: match detect_driver_config(find_top_level_cargo_manifest()) {
             Ok(driver_config) => driver_config,
             Err(ConfigError::NoWDKConfigurationsDetected) => {
                 // When building wdk-sys standalone, skip binding generation

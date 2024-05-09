@@ -1,4 +1,8 @@
-use std::{borrow::Borrow, collections::HashSet, path::PathBuf};
+use std::{
+    borrow::Borrow,
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use cargo_metadata::{Metadata, MetadataCommand};
 use serde::{Deserialize, Serialize};
@@ -106,9 +110,9 @@ impl TryFrom<WDKMetadata> for DriverConfig {
 /// # Errors
 ///
 /// todo
-pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
+pub fn detect_driver_config(manifest_path: impl AsRef<Path>) -> Result<DriverConfig, ConfigError> {
     // TODO: check that if this auto reruns if cargo.toml's change
-    let manifest_path = find_top_level_cargo_manifest();
+    let manifest_path = manifest_path.as_ref();
 
     let metadata = MetadataCommand::new()
         .manifest_path(&manifest_path)
@@ -171,8 +175,9 @@ pub fn detect_driver_config() -> Result<DriverConfig, ConfigError> {
 ///
 /// The returned path should be a manifest in the same directory of the
 /// lockfile. This does not support invokations that use non-default target
-/// directories (ex. via `--target-dir`).
-fn find_top_level_cargo_manifest() -> PathBuf {
+/// directories (ex. via `--target-dir`). This function only works when called
+/// from a `build.rs` file
+pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
         PathBuf::from(std::env::var("OUT_DIR").expect(
             "Cargo should have set the OUT_DIR environment variable when executing build.rs",
