@@ -1,4 +1,4 @@
-# This file is used to extend the standarrd rust-driver-makefile to build official sample drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
+# This file is used to extend the standard rust-driver-makefile to build official sample drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
 # Using this file requires extending both the standard makefile and this makefile in order, as follows:
 # extend = [ { path =  "target/rust-driver-makefile.toml" }, { path = "target/rust-driver-sample-makefile.toml" } ]
 
@@ -33,7 +33,7 @@ condition_script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-// This range is inclusive of 25798. Will update with range end after /sample flag is added to InfVerif CLI
+// This range is inclusive of 25798. FIXME: update with range end after /sample flag is added to InfVerif CLI
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: u32 = 25798..;
 
 std::panic::catch_unwind(|| {

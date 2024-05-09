@@ -649,7 +649,7 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
     load_rust_driver_makefile_internal(RUST_DRIVER_MAKEFILE_NAME)
 }
 
-/// Symlinks `rust-driversample-makefiletoml` to the `target` folder where it
+/// Symlinks `rust-driver-sample-makefile.toml` to the `target` folder where it
 /// can be extended from a `Makefile.toml`. This is necessary so that paths in
 /// the `rust-driver-sample-makefile.toml` can to be relative to
 /// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
@@ -672,9 +672,9 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
     load_rust_driver_makefile_internal(RUST_DRIVER_SAMPLE_MAKEFILE_NAME)
 }
 
-/// Symlinks a given Windows Driver rust makefile to the `target` folder where
-/// it can be extended from a `Makefile.toml`. This is necessary so that paths
-/// in the Windows Driver makefile can to be relative to
+/// Symlinks a [`wdk_build`] `cargo-make` makefile to the `target` folder where
+/// it can be extended from a downstream `Makefile.toml`. This is necessary so that paths
+/// in the [`wdk_build`] makefile can be relative to
 /// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
@@ -691,7 +691,7 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 ///
 /// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
 /// environment variable is not set
-fn load_rust_driver_makefile_internal<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
+fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
     makefile_name: S,
 ) -> Result<(), ConfigError> {
     let cargo_metadata = MetadataCommand::new().exec()?;
