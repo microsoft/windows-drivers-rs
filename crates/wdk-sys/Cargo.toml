@@ -31,7 +31,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 [dependencies]
 wdk-macros.workspace = true
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-rustversion = "1.0.14"
+rustversion = "1.0.15"
 
 [features]
 default = []

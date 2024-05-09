@@ -19,13 +19,13 @@ proc-macro = true
 
 [dependencies]
 itertools = "0.12.1"
-proc-macro2 = "1.0.78"
+proc-macro2 = "1.0.81"
 quote = "1.0.35"
 syn = { version = "2.0.58", features = ["full"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
-syn = { version = "2.0.48", features = ["extra-traits"] }
+syn = { version = "2.0.58", features = ["extra-traits"] }
 
 [features]
 default = []

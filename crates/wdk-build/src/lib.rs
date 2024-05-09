@@ -771,7 +771,7 @@ impl Config {
             return Err(ExportError::MissingLinksValue(var_error));
         }
         println!(
-            "cargo::{}={}",
+            "cargo::metadata={}={}",
             Self::CARGO_CONFIG_KEY,
             serde_json::to_string(self)?
         );

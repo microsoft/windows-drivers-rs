@@ -6,10 +6,16 @@
 //! This provides a `nightly_feature` to the `wdk-build` crate, so that it can
 //! conditionally enable nightly features.
 
-#[rustversion::nightly]
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(nightly_toolchain)");
+    setup_nightly_cfgs();
+}
+
+// Custom attributes cannot be applied to expressions yet, so separate functions are required for nightly/non-nightly: https://github.com/rust-lang/rust/issues/15701
+#[rustversion::nightly]
+fn setup_nightly_cfgs() {
     println!("cargo::rustc-cfg=nightly_toolchain");
 }
 
 #[rustversion::not(nightly)]
-fn main() {}
+const fn setup_nightly_cfgs() {}
