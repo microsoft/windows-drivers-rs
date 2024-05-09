@@ -282,25 +282,19 @@ pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
 }
 
 /// Validates that a given string matches the WDK version format (10.xxx.yyy.zzz
-/// where xxx, yyy, and zzz are numeric and not necessarily 3 digits long)
-/// and returns the yyy portion (the build number) if so.
-///
-/// # Errors
-///
-/// This function returns a [`ConfigError::WDKVersionStringFormatError`] if the
-/// version string provided is ill-formed.
-pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<&str, ConfigError> {
+/// where xxx, yyy, and zzz are numeric and not necessarily 3 digits long).
+pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: S) -> bool {
     let version = version_string.as_ref();
     let version_parts: Vec<&str> = version.split('.').collect();
 
     // First, check if we have "10" as our first value
     if !version_parts.first().is_some_and(|first| *first == "10") {
-        return Err(ConfigError::WDKVersionStringFormatError);
+        return false;
     }
 
     // Now check that we have four entries.
     if version_parts.len() != 4 {
-        return Err(ConfigError::WDKVersionStringFormatError);
+        return false;
     }
 
     // Finally, confirm each part is numeric.
@@ -308,13 +302,35 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: &S) -> Result<
         .iter()
         .all(|version_part| version_part.parse::<i32>().is_ok())
     {
+        return false;
+    }
+
+    true
+}
+
+/// Returns the version number from a full WDK version string.
+///
+/// # Errors
+///
+/// This function returns a [`ConfigError::WDKVersionStringFormatError`] if the
+/// version string provided is ill-formed.
+///
+/// # Panics
+///
+/// If the WDK version format validation function is ever changed not to
+/// validate that there are 4 substrings in the WDK version string, this
+/// function will panic.
+pub fn get_wdk_version_number<S: AsRef<str>>(version_string: S) -> Result<String, ConfigError> {
+    if !validate_wdk_version_format(&version_string) {
         return Err(ConfigError::WDKVersionStringFormatError);
     }
 
-    // Now return the actual build number from the string (the yyy in
-    // 10.xxx.yyy.zzz).
-    // Safe to dereference as we validated we have 4 parts above.
-    Ok(version_parts[2])
+    let version_substrings = version_string.as_ref().split('.').collect::<Vec<&str>>();
+    let version_substring = version_substrings.get(2).expect(
+        "WDK version string was validated to be well-formatted, but we couldn't get the \
+         appropriate substring!",
+    );
+    Ok((*version_substring).to_string())
 }
 
 #[cfg(test)]
@@ -383,37 +399,43 @@ mod tests {
     #[test]
     fn validate_wdk_strings() {
         assert_eq!(
-            validate_wdk_version_format(&"10.0.12345.0").ok(),
-            Some("12345")
+            get_wdk_version_number("10.0.12345.0").ok(),
+            Some("12345".to_string())
         );
-        assert_eq!(validate_wdk_version_format(&"10.0.5.0").ok(), Some("5"));
-        assert_eq!(validate_wdk_version_format(&"10.0.0.0").ok(), Some("0"));
+        assert_eq!(
+            get_wdk_version_number("10.0.5.0").ok(),
+            Some("5".to_string())
+        );
+        assert_eq!(
+            get_wdk_version_number("10.0.0.0").ok(),
+            Some("0".to_string())
+        );
         assert!(matches!(
-            validate_wdk_version_format(&"11.0.0.0"),
+            get_wdk_version_number("11.0.0.0"),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
-            validate_wdk_version_format(&"10.0.12345.0.0"),
+            get_wdk_version_number("10.0.12345.0.0"),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
-            validate_wdk_version_format(&"10.0.12345.a"),
+            get_wdk_version_number("10.0.12345.a"),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
-            validate_wdk_version_format(&"10.0.12345"),
+            get_wdk_version_number("10.0.12345"),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
-            validate_wdk_version_format(&"10.0.1234!5.0"),
+            get_wdk_version_number("10.0.1234!5.0"),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
-            validate_wdk_version_format(&"Not a real version!"),
+            get_wdk_version_number("Not a real version!"),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
         assert!(matches!(
-            validate_wdk_version_format(&""),
+            get_wdk_version_number(""),
             Err(ConfigError::WDKVersionStringFormatError)
         ));
     }

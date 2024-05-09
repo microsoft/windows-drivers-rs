@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-use cargo_metadata::MetadataCommand;
+use cargo_metadata::{camino::Utf8Path, MetadataCommand};
 use clap::{Args, Parser};
 
 use crate::{
@@ -19,14 +19,19 @@ use crate::{
     ConfigError,
 };
 
+/// The filename of the main makefile for Rust Windows drivers.
+pub const RUST_DRIVER_MAKEFILE_NAME: &str = "rust-driver-makefile.toml";
+/// The filename of the samples makefile for Rust Windows drivers.
+pub const RUST_DRIVER_SAMPLE_MAKEFILE_NAME: &str = "rust-driver-sample-makefile.toml";
+
 const PATH_ENV_VAR: &str = "Path";
 /// The environment variable that [`setup_wdk_version`] stores the WDK version
 /// in.
 pub const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_WDK_VERSION";
 /// The first WDK version with the new `InfVerif` behavior.
-const WDK_INF_NEW_VERSION: i32 = 25798;
+const MINIMUM_SAMPLES_FLAG_WDK_VERSION: i32 = 25798;
 const WDK_INF_ADDITIONAL_FLAGS_ENV_VAR: &str = "WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS";
-const WDK_INF_NEW_VERSION_FLAG: &str = "WDK_INF_USING_NEW_VERSION";
+const WDK_INF_NEW_VERSION_FLAG_ENV_VAR: &str = "WDK_INF_USING_NEW_VERSION";
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -514,7 +519,9 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
     println!("FORWARDING ARGS TO CARGO-MAKE:");
-    crate::utils::validate_wdk_version_format(&version)?;
+    if !crate::utils::validate_wdk_version_format(&version) {
+        return Err(ConfigError::WDKVersionStringFormatError);
+    }
 
     append_to_space_delimited_env_var(WDK_VERSION_ENV_VAR, &version);
     forward_env_var_to_cargo_make(WDK_VERSION_ENV_VAR);
@@ -539,7 +546,7 @@ pub fn setup_infverif_for_samples<S: AsRef<str>>(version: S) -> Result<(), Confi
     // multiple versions populating the environment variable
     let version = version.as_ref().split(' ').collect::<Vec<&str>>();
     let version = version.first().unwrap_or(&"No version provided");
-    let validated_version_string = crate::utils::validate_wdk_version_format(version)?;
+    let validated_version_string = crate::utils::get_wdk_version_number(version)?;
     // This print signifies the start of the forwarding and signals to the
     // `rust-env-update` plugin that it should forward args. This is also used to
     // signal that the auto-generated help from `clap` was not executed.
@@ -549,10 +556,10 @@ pub fn setup_infverif_for_samples<S: AsRef<str>>(version: S) -> Result<(), Confi
     let version = validated_version_string
         .parse::<i32>()
         .expect("Unable to parse the build number of the WDK version string as an int!");
-    let sample_flag = if version > WDK_INF_NEW_VERSION {
-        std::env::set_var(WDK_INF_NEW_VERSION_FLAG, "true");
-        forward_env_var_to_cargo_make(WDK_INF_NEW_VERSION_FLAG);
-        "/samples" // Note: Not currently implemented, hence why we also set the WDK_INF_NEW_VERSION_FLAG
+    let sample_flag = if version > MINIMUM_SAMPLES_FLAG_WDK_VERSION {
+        std::env::set_var(WDK_INF_NEW_VERSION_FLAG_ENV_VAR, "true");
+        forward_env_var_to_cargo_make(WDK_INF_NEW_VERSION_FLAG_ENV_VAR);
+        "/samples" // Note: Not currently implemented, hence why we also set the MINIMUM_SAMPLES_FLAG_WDK_VERSION_FLAG
     } else {
         "/msft"
     };
@@ -623,9 +630,55 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
     Ok(())
 }
 
-/// Symlinks `rust-driver-toolchain.toml` to the `target` folder where it can be
+/// Symlinks `rust-driver-makefile.toml` to the `target` folder where it can be
 /// extended from a `Makefile.toml`. This is necessary so that paths in the
-/// `rust-driver-toolchain.toml` can to be relative to
+/// `rust-driver-makefile.toml` can to be relative to
+/// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+///
+/// # Errors
+///
+/// This function returns:
+/// - [`ConfigError::CargoMetadataError`] if there is an error executing or
+///   parsing `cargo_metadata`
+/// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
+///   versions of the WDK build crate detected
+/// - [`ConfigError::IoError`] if there is an error creating or updating the
+///   symlink to `rust-driver-makefile.toml`
+///
+/// # Panics
+///
+/// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
+/// environment variable is not set
+pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
+    load_rust_driver_makefile_internal(RUST_DRIVER_MAKEFILE_NAME)
+}
+
+/// Symlinks `rust-driversample-makefiletoml` to the `target` folder where it can be
+/// extended from a `Makefile.toml`. This is necessary so that paths in the
+/// `rust-driver-sample-makefile.toml` can to be relative to
+/// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+///
+/// # Errors
+///
+/// This function returns:
+/// - [`ConfigError::CargoMetadataError`] if there is an error executing or
+///   parsing `cargo_metadata`
+/// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
+///   versions of the WDK build crate detected
+/// - [`ConfigError::IoError`] if there is an error creating or updating the
+///   symlink to `rust-driver-sample-makefile.toml`
+///
+/// # Panics
+///
+/// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
+/// environment variable is not set
+pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
+    load_rust_driver_makefile_internal(RUST_DRIVER_SAMPLE_MAKEFILE_NAME)
+}
+
+/// Symlinks a given Windows Driver rust makefile to the `target` folder where
+/// it can be extended from a `Makefile.toml`. This is necessary so that paths
+/// in the Windows Driver makefile can to be relative to
 /// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
@@ -642,7 +695,9 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
 ///
 /// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
 /// environment variable is not set
-pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
+fn load_rust_driver_makefile_internal<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
+    makefile_name: S,
+) -> Result<(), ConfigError> {
     let cargo_metadata = MetadataCommand::new().exec()?;
 
     let wdk_build_package_matches = cargo_metadata
@@ -663,15 +718,16 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
         .manifest_path
         .parent()
         .expect("The parsed manifest_path should have a valid parent directory")
-        .join("rust-driver-makefile.toml");
+        .join(&makefile_name);
 
     let cargo_make_workspace_working_directory =
         std::env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
             panic!("{CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make.")
         });
 
-    let destination_path =
-        Path::new(&cargo_make_workspace_working_directory).join("target/rust-driver-makefile.toml");
+    let destination_path = Path::new(&cargo_make_workspace_working_directory)
+        .join("target")
+        .join(&makefile_name);
 
     // Only create a new symlink if the existing one is not already pointing to the
     // correct file
@@ -786,7 +842,7 @@ mod tests {
 
     #[test]
     fn check_env_passing() -> Result<(), ConfigError> {
-        crate::cargo_make::set_sample_infverif(WDK_TEST_OLD_INF_VERSION)?;
+        crate::cargo_make::setup_infverif_for_samples(WDK_TEST_OLD_INF_VERSION)?;
         let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
             .map_or_else(
                 || panic!("Couldn't get OS string"),
@@ -794,7 +850,7 @@ mod tests {
             );
         assert_eq!(env_string.split(' ').last(), Some("/msft"));
 
-        crate::cargo_make::set_sample_infverif(WDK_TEST_NEW_INF_VERSION)?;
+        crate::cargo_make::setup_infverif_for_samples(WDK_TEST_NEW_INF_VERSION)?;
         let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
             .map_or_else(
                 || panic!("Couldn't get OS string"),
