@@ -646,7 +646,7 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
 /// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
 /// environment variable is not set
 pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
-    load_rust_driver_makefile_internal(RUST_DRIVER_MAKEFILE_NAME)
+    load_wdk_build_makefile(RUST_DRIVER_MAKEFILE_NAME)
 }
 
 /// Symlinks `rust-driver-sample-makefile.toml` to the `target` folder where it
@@ -669,12 +669,12 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
 /// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
 /// environment variable is not set
 pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
-    load_rust_driver_makefile_internal(RUST_DRIVER_SAMPLE_MAKEFILE_NAME)
+    load_wdk_build_makefile(RUST_DRIVER_SAMPLE_MAKEFILE_NAME)
 }
 
 /// Symlinks a [`wdk_build`] `cargo-make` makefile to the `target` folder where
-/// it can be extended from a downstream `Makefile.toml`. This is necessary so that paths
-/// in the [`wdk_build`] makefile can be relative to
+/// it can be extended from a downstream `Makefile.toml`. This is necessary so
+/// that paths in the [`wdk_build`] makefile can be relative to
 /// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
