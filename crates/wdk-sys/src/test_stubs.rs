@@ -5,7 +5,7 @@
 //! provide symobols to successfully compile and run tests. They can be brought
 //! into scope by introducing `wdk-sys` with the `test-stubs` feature in the
 //! `dev-dependencies` of the crate's `Cargo.toml`
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
 
 /// Stubbed version of `DriverEntry` Symbol so that test targets will compile
@@ -13,7 +13,7 @@ use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
 /// # Safety
 ///
 /// This function should never be called, so its safety is irrelevant
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry_stub(
     _driver: &mut DRIVER_OBJECT,
@@ -22,7 +22,7 @@ pub unsafe extern "system" fn driver_entry_stub(
     0
 }
 
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 mod wdf {
     use crate::ULONG;
 
@@ -33,5 +33,5 @@ mod wdf {
 
     include!(concat!(env!("OUT_DIR"), "/test_stubs.rs"));
 }
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 pub use wdf::*;

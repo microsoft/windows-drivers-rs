@@ -25,7 +25,7 @@ mod bindings {
 }
 pub use bindings::*;
 
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 mod wdf {
     use crate::types::{PVOID, PWDF_OBJECT_ATTRIBUTES};
 
@@ -35,10 +35,10 @@ mod wdf {
     pub const WDF_NO_CONTEXT: PVOID = core::ptr::null_mut();
     pub const WDF_NO_SEND_OPTIONS: PVOID = core::ptr::null_mut();
 }
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 pub use wdf::*;
 
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
 mod kernel_mode {
     use crate::types::POOL_FLAGS;
 
@@ -60,7 +60,7 @@ mod kernel_mode {
     pub const POOL_FLAG_SPECIAL_POOL: POOL_FLAGS = 0x0000_0001_0000_0000; // Make special pool allocation
     pub const POOL_FLAG_OPTIONAL_END: POOL_FLAGS = 0x8000_0000_0000_0000;
 }
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
 pub use kernel_mode::*;
 
 // Due to linker issues with windows_sys, these definitions are manually

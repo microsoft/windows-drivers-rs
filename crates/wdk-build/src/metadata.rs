@@ -1,14 +1,20 @@
 use std::{
-    borrow::Borrow,
-    collections::HashSet,
-    path::{Path, PathBuf},
+    borrow::Borrow, collections::HashSet, env, path::{Path, PathBuf}
 };
 
 use cargo_metadata::{Metadata, MetadataCommand};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{ConfigError, DriverConfig, DriverType, KMDFConfig, UMDFConfig};
+use crate::{DriverConfig, KMDFConfig, UMDFConfig};
+
+pub trait TryFromCargoMetadata {
+    type Error;
+
+    fn try_from_cargo_metadata(manifest_path: impl AsRef<Path>) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
+}
 
 /// Metadata specified in the `package.metadata.wdk` section of the `Cargo.toml`
 /// of a crate that depends on the WDK. This corresponds with the settings in
@@ -16,41 +22,43 @@ use crate::{ConfigError, DriverConfig, DriverType, KMDFConfig, UMDFConfig};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(deny_unknown_fields)]
 pub struct WDKMetadata {
+    // #[serde(rename = "general")]
+    // general: General,
+
     #[serde(rename = "driver-model")]
-    driver_model: DriverModel,
+    driver_model: DriverConfig,
 }
 
-// TODO!
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 // pub struct General {
-//     target_version,
-//     driver_target_platform,
-//     _NT_TARGET_VERSION
+//     //       <PreprocessorDefinitions Condition="'$(OverrideTargetVersionDefines)' != 'true'">_WIN32_WINNT=$(WIN32_WINNT_VERSION);WINVER=$(WINVER_VERSION);WINNT=1;NTDDI_VERSION=$(NTDDI_VERSION);%(ClCompile.PreprocessorDefinitions)</PreprocessorDefinitions>
+// //       <PreprocessorDefinitions Condition="'$(IsKernelModeToolset)' != 'true'">WIN32_LEAN_AND_MEAN=1;%(ClCompile.PreprocessorDefinitions)</PreprocessorDefinitions>
+
+//     t_os_version,
+//     driver_target_platform: 
+//     nt_target_version: u32
 // }
 
 /// Metadata corresponding to the driver model page property page for WDK
 /// projects in Visual Studio
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(deny_unknown_fields)]
-pub struct DriverModel {
-    #[serde(rename = "driver-type")]
-    driver_type: DriverType,
+// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+// #[serde(deny_unknown_fields, rename_all = "kebab-case")]
+// pub struct DriverModel {
 
-    // KMDF-specific metadata
-    #[serde(rename = "kmdf-version-major")]
-    kmdf_version_major: Option<u8>,
-    #[serde(rename = "target-kmdf-version-minor")]
-    target_kmdf_version_minor: Option<u8>,
-    #[serde(rename = "minimum-kmdf-version-minor")]
-    minimum_kmdf_version_minor: Option<u8>,
 
-    // UMDF-specific metadata
-    #[serde(rename = "umdf-version-major")]
-    umdf_version_major: Option<u8>,
-    #[serde(rename = "target-umdf-version-minor")]
-    target_umdf_version_minor: Option<u8>,
-    #[serde(rename = "minimum-umdf-version-minor")]
-    minimum_umdf_version_minor: Option<u8>,
-}
+//     driver_type: DriverType,
+
+//     // KMDF-specific metadata
+//     kmdf_version_major: Option<u8>,
+//     target_kmdf_version_minor: Option<u8>,
+//     minimum_kmdf_version_minor: Option<u8>,
+
+//     // UMDF-specific metadata
+//     umdf_version_major: Option<u8>,
+//     target_umdf_version_minor: Option<u8>,
+//     minimum_umdf_version_minor: Option<u8>,
+// }
 
 // #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 // #[serde(deny_unknown_fields)]
@@ -58,109 +66,206 @@ pub struct DriverModel {
 
 /// Errors that could result from trying to convert a [`WDKMetadata`] to a
 /// [`DriverConfig`]
+// #[derive(Debug, Error)]
+// pub enum TryFromWDKMetadataError {
+//     /// Error returned when the [`WDKMetadata`] is missing KMDF metadata
+//     #[error(
+//         "missing KMDF metadata needed to convert from wdk_build::WDKMetadata to \
+//          wdk_build::DriverConfig::KMDF: {missing_metadata_field}"
+//     )]
+//     MissingKMDFMetadata {
+//         /// Missing KMDF metadata
+//         missing_metadata_field: String,
+//     },
+// }
+
+/// Errors that could result from trying to construct a [`WDKMetadata`] from
+/// information parsed by `cargo metadata`
 #[derive(Debug, Error)]
-pub enum TryFromWDKMetadataError {
-    /// Error returned when the [`WDKMetadata`] is missing KMDF metadata
+pub enum TryFromCargoMetadataError {
+    /// Error returned when `cargo_metadata` execution or parsing fails
+    #[error(transparent)]
+    CargoMetadataError(#[from] cargo_metadata::Error),
+
+    /// Error returned when no WDK configuration metadata is detected in the
+    /// dependency graph
     #[error(
-        "missing KMDF metadata needed to convert from wdk_build::WDKMetadata to \
-         wdk_build::DriverConfig::KMDF: {missing_metadata_field}"
+        "no WDK configuration metadata is detected in the dependency graph. This could happen \
+         when building WDR itself, building library crates that depend on the WDK but defer wdk \
+         configuration to their consumers, or when building a driver that has a path dependency \
+         on WDR"
     )]
-    MissingKMDFMetadata {
-        /// Missing KMDF metadata
-        missing_metadata_field: String,
+    NoWDKConfigurationsDetected,
+
+    /// Error returned when multiple configurations of the WDK are detected
+    /// across the dependency graph
+    #[error(
+        "multiple configurations of the WDK are detected across the dependency graph, but only \
+         one configuration is allowed: {wdk_metadata_configurations:#?}"
+    )]
+    MultipleWDKConfigurationsDetected {
+        /// [`HashSet`] of unique [`WDKMetadata`] derived from detected WDK
+        /// metadata
+        wdk_metadata_configurations: HashSet<WDKMetadata>,
     },
 }
 
-impl TryFrom<WDKMetadata> for DriverConfig {
-    type Error = TryFromWDKMetadataError;
-
-    fn try_from(wdk_metadata: WDKMetadata) -> Result<Self, Self::Error> {
-        Ok(match wdk_metadata.driver_model.driver_type {
-            DriverType::WDM => Self::WDM(),
-            DriverType::KMDF => Self::KMDF(KMDFConfig {
-                kmdf_version_major: wdk_metadata.driver_model.kmdf_version_major.ok_or_else(
-                    || TryFromWDKMetadataError::MissingKMDFMetadata {
-                        missing_metadata_field: stringify!(WDKMetadata.d).to_string(),
-                    },
-                )?,
-                kmdf_version_minor: wdk_metadata
-                    .driver_model
-                    .target_kmdf_version_minor
-                    // tODO: should error if not present
-                    .unwrap_or(33),
-            }),
-            DriverType::UMDF => Self::UMDF(UMDFConfig {
-                // tODO: should error if not present
-                umdf_version_major: wdk_metadata.driver_model.kmdf_version_major.unwrap_or(2),
-                umdf_version_minor: wdk_metadata
-                    .driver_model
-                    .target_kmdf_version_minor
-                    // tODO: should error if not present
-                    .unwrap_or(33),
-            }),
-        })
+impl From<WDKMetadata> for DriverConfig {
+    fn from(wdk_metadata: WDKMetadata) -> Self {
+        // Ok(match wdk_metadata.driver_model.driver_type {
+        //     DriverType::WDM => Self::WDM(),
+        //     DriverType::KMDF => Self::KMDF(KMDFConfig {
+        //         kmdf_version_major: wdk_metadata.driver_model.kmdf_version_major.ok_or_else(
+        //             || TryFromWDKMetadataError::MissingKMDFMetadata {
+        //                 // TODO: fix population
+        //                 missing_metadata_field: stringify!(WDKMetadata.d).to_string(),
+        //             },
+        //         )?,
+        //         kmdf_version_minor: wdk_metadata
+        //             .driver_model
+        //             .target_kmdf_version_minor
+        //             // tODO: should error if not present
+        //             .unwrap_or(33),
+        //     }),
+        //     DriverType::UMDF => Self::UMDF(UMDFConfig {
+        //         // tODO: should error if not present
+        //         umdf_version_major: wdk_metadata.driver_model.kmdf_version_major.unwrap_or(2),
+        //         umdf_version_minor: wdk_metadata
+        //             .driver_model
+        //             .target_kmdf_version_minor
+        //             // tODO: should error if not present
+        //             .unwrap_or(33),
+        //     }),
+        // })
+        wdk_metadata.driver_model
     }
 }
 
-/// TODO: add docs
-/// # Panics
-///
-/// todo
-///
-/// # Errors
-///
-/// todo
-pub fn detect_driver_config(manifest_path: impl AsRef<Path>) -> Result<DriverConfig, ConfigError> {
-    // TODO: check that if this auto reruns if cargo.toml's change
-    let manifest_path = manifest_path.as_ref();
+impl TryFromCargoMetadata for WDKMetadata {
+    type Error = TryFromCargoMetadataError;
 
-    let metadata = MetadataCommand::new()
-        .manifest_path(&manifest_path)
-        .exec()?;
+    /// TODO: add docs
+    /// # Panics
+    ///
+    /// todo
+    ///
+    /// # Errors
+    ///
+    /// todo
+    fn try_from_cargo_metadata(manifest_path: impl AsRef<Path>) -> Result<Self, Self::Error> {
+        let manifest_path = manifest_path.as_ref();
 
-    let driver_config_from_workspace_manifest =
-        parse_workspace_metadata_for_driver_config(&metadata);
-    let driver_config_from_package_manifests = parse_package_metadata_for_driver_config(&metadata);
+        // TODO: this works for the top level manifest, but it needs to be emitted for any toml in the workspace
+        println!("cargo::rerun-if-changed={}", manifest_path.display());
 
-    // TODO: add ws level test:
-    //////////////ws level tests: https://stackoverflow.com/a/71461114/10173605
+        let metadata = MetadataCommand::new()
+            .manifest_path(&manifest_path)
+            .exec()?;
 
-    match (
-        driver_config_from_workspace_manifest,
-        driver_config_from_package_manifests,
-    ) {
-        // Either the workspace or package manifest has a driver configuration
-        (Ok(driver_config), Err(ConfigError::NoWDKConfigurationsDetected))
-        | (Err(ConfigError::NoWDKConfigurationsDetected), Ok(driver_config)) => Ok(driver_config),
+        let wdk_metadata_from_workspace_manifest = parse_workspace_wdk_metadata(&metadata);
+        let wdk_metadata_from_package_manifests = parse_packages_wdk_metadata(&metadata);
 
-        // Both the workspace and package manifest have a driver configuration. This is only allowed
-        // if they are the same
-        (Ok(workspace_driver_config), Ok(packages_driver_config)) => {
-            if workspace_driver_config != packages_driver_config {
-                return Err(ConfigError::MultipleWDKConfigurationsDetected {
-                    wdk_configurations: [workspace_driver_config, packages_driver_config]
-                        .into_iter()
-                        .collect(),
-                });
+        // TODO: add ws level test:
+        //////////////ws level tests: https://stackoverflow.com/a/71461114/10173605
+
+        match (
+            wdk_metadata_from_workspace_manifest,
+            wdk_metadata_from_package_manifests,
+        ) {
+            // Either the workspace or package manifest has a driver configuration
+            (Ok(wdk_metadata), Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected))
+            | (Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected), Ok(wdk_metadata)) => {
+                Ok(wdk_metadata)
             }
 
-            Ok(workspace_driver_config)
-        }
+            // Both the workspace and package manifest have a driver configuration. This is only
+            // allowed if they are the same
+            (Ok(workspace_wdk_metadata), Ok(packages_wdk_metadata)) => {
+                if workspace_wdk_metadata != packages_wdk_metadata {
+                    return Err(
+                        TryFromCargoMetadataError::MultipleWDKConfigurationsDetected {
+                            wdk_metadata_configurations: [
+                                workspace_wdk_metadata,
+                                packages_wdk_metadata,
+                            ]
+                            .into_iter()
+                            .collect(),
+                        },
+                    );
+                }
 
-        // Workspace has a driver configuration, and multiple conflicting driver configurations were
-        // detected in the package manifests. This is a special case so that the error can list all
-        // the offending driver configurations
-        (
-            Ok(workspace_driver_config),
-            Err(ConfigError::MultipleWDKConfigurationsDetected {
-                mut wdk_configurations,
-            }),
-        ) => {
-            wdk_configurations.insert(workspace_driver_config);
-            Err(ConfigError::MultipleWDKConfigurationsDetected { wdk_configurations })
-        }
+                Ok(workspace_wdk_metadata)
+            }
 
-        (unhandled_error @ Err(_), _) | (_, unhandled_error @ Err(_)) => unhandled_error,
+            // Workspace has a driver configuration, and multiple conflicting driver configurations
+            // were detected in the package manifests. This is a special case so that
+            // the error can list all the offending driver configurations
+            (
+                Ok(workspace_wdk_metadata),
+                Err(TryFromCargoMetadataError::MultipleWDKConfigurationsDetected {
+                    mut wdk_metadata_configurations,
+                }),
+            ) => {
+                wdk_metadata_configurations.insert(workspace_wdk_metadata);
+                Err(
+                    TryFromCargoMetadataError::MultipleWDKConfigurationsDetected {
+                        wdk_metadata_configurations,
+                    },
+                )
+            }
+
+            (unhandled_error @ Err(_), _) | (_, unhandled_error @ Err(_)) => unhandled_error,
+        }
+    }
+}
+
+impl WDKMetadata {
+    // TODO: convert this to a SERDE Serializer
+    pub fn to_env_vars(&self) -> impl IntoIterator<Item = String> {
+        match self {
+            Self {driver_model} => {
+                let mut env_var_names = vec![];
+
+                const DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE";
+                
+                match driver_model {
+                    DriverConfig::WDM => {
+
+                        env::set_var(DRIVER_TYPE_ENV_VAR, "WDM");
+                        env_var_names.push(DRIVER_TYPE_ENV_VAR);
+
+                    },
+                    DriverConfig::KMDF(KMDFConfig{ kmdf_version_major, target_kmdf_version_minor, minimum_kmdf_version_minor }) => {
+                        const KMDF_VERSION_MAJOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR";
+                        const TARGET_KMDF_VERSION_MINOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR";
+
+                        env::set_var(DRIVER_TYPE_ENV_VAR, "KMDF");
+                        env_var_names.push(DRIVER_TYPE_ENV_VAR);
+
+                        env::set_var(KMDF_VERSION_MAJOR_ENV_VAR, kmdf_version_major.to_string());
+                        env_var_names.push(KMDF_VERSION_MAJOR_ENV_VAR);
+                        
+                        env::set_var(TARGET_KMDF_VERSION_MINOR_ENV_VAR, target_kmdf_version_minor.to_string());
+                        env_var_names.push(TARGET_KMDF_VERSION_MINOR_ENV_VAR);
+                    },
+                    DriverConfig::UMDF(UMDFConfig { umdf_version_major, target_umdf_version_minor, minimum_umdf_version_minor }) => {
+                        const UMDF_VERSION_MAJOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR";
+                        const TARGET_UMDF_VERSION_MINOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR";
+
+                        env::set_var(DRIVER_TYPE_ENV_VAR, "UMDF");
+                        env_var_names.push(DRIVER_TYPE_ENV_VAR);
+
+                        env::set_var(UMDF_VERSION_MAJOR_ENV_VAR, umdf_version_major.to_string());
+                        env_var_names.push(UMDF_VERSION_MAJOR_ENV_VAR);
+                        
+                        env::set_var(TARGET_UMDF_VERSION_MINOR_ENV_VAR, target_umdf_version_minor.to_string());
+                        env_var_names.push(TARGET_UMDF_VERSION_MINOR_ENV_VAR);
+                    },
+                }
+
+                env_var_names
+            }
+        }.into_iter().map(|s| s.to_string())
     }
 }
 
@@ -194,63 +299,58 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 }
 
 /// todo
-fn parse_package_metadata_for_driver_config(
+fn parse_packages_wdk_metadata(
     metadata: impl Borrow<Metadata>,
-) -> Result<DriverConfig, ConfigError> {
+) -> Result<WDKMetadata, TryFromCargoMetadataError> {
     let metadata = metadata.borrow();
 
-    let wdk_configurations = metadata
+    let wdk_metadata_configurations = metadata
         .packages
         .iter()
         .filter_map(|package| {
             if let Some(wdk_metadata) = package.metadata.get("wdk") {
-                // TODO: error handling
-                return Some(
-                    serde_json::from_value::<WDKMetadata>(wdk_metadata.clone())
-                        .unwrap()
-                        .try_into()
-                        .unwrap(),
-                );
+                // TODO: error handling for unwrap
+                return Some(serde_json::from_value::<WDKMetadata>(wdk_metadata.clone()).unwrap());
             };
             None
         })
         .collect::<HashSet<_>>();
 
     // Only one configuration of WDK is allowed per dependency graph
-    match wdk_configurations.len() {
+    match wdk_metadata_configurations.len() {
         1 => {
-            return Ok(wdk_configurations.into_iter().next().expect(
-                "wdk_configurations should have exactly one element because of the .len() check \
-                 above",
+            return Ok(wdk_metadata_configurations.into_iter().next().expect(
+                "wdk_metadata_configurations should have exactly one element because of the \
+                 .len() check above",
             ));
         }
 
         0 => {
             // TODO: add a test for this
-            return Err(ConfigError::NoWDKConfigurationsDetected {});
+            return Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected {});
         }
 
         _ => {
             // TODO: add a test for this
-            return Err(ConfigError::MultipleWDKConfigurationsDetected {
-                wdk_configurations: wdk_configurations,
-            });
+            return Err(
+                TryFromCargoMetadataError::MultipleWDKConfigurationsDetected {
+                    wdk_metadata_configurations,
+                },
+            );
         }
     }
 }
 
-fn parse_workspace_metadata_for_driver_config(
+fn parse_workspace_wdk_metadata(
     metadata: impl Borrow<Metadata>,
-) -> Result<DriverConfig, ConfigError> {
+) -> Result<WDKMetadata, TryFromCargoMetadataError> {
     let metadata = metadata.borrow();
 
     if let Some(wdk_metadata) = metadata.workspace_metadata.get("wdk") {
         // TODO: error handling for this unwrap when failure to parse json value into
         // wdkmetadata
-        return Ok(serde_json::from_value::<WDKMetadata>(wdk_metadata.clone())
-            .unwrap()
-            .try_into()?);
+        return Ok(serde_json::from_value::<WDKMetadata>(wdk_metadata.clone()).unwrap());
     }
 
-    return Err(ConfigError::NoWDKConfigurationsDetected);
+    return Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected);
 }

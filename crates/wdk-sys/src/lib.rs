@@ -5,29 +5,29 @@
 
 #![no_std]
 
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 mod constants;
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 mod types;
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 pub use crate::{constants::*, types::*};
 
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 mod macros;
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 pub use wdk_macros as __proc_macros;
 
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
 pub mod ntddk;
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 pub mod wdf;
-#[cfg(driver_type = "umdf")]
+#[cfg(driver_type = "UMDF")]
 pub mod windows;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
 
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 use lazy_static::lazy_static;
 
 // This is fine because we don't actually have any floating point instruction in
@@ -41,14 +41,14 @@ pub static _fltused: () = ();
 // FIXME: Is there any way to avoid this stub? See https://github.com/rust-lang/rust/issues/101134
 #[cfg(panic = "abort")]
 #[allow(missing_docs)]
-#[allow(clippy::missing_const_for_fn)] // const extern is not yet supported: https://github.com/rust-lang/rust/issues/64926
+#[allow(clippy::missing_const_for_fn)]// const extern is not yet supported: https://github.com/rust-lang/rust/issues/64926
 #[no_mangle]
 pub extern "system" fn __CxxFrameHandler3() -> i32 {
     0
 }
 
 // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(any(driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 lazy_static! {
     #[allow(missing_docs)]
     pub static ref WDF_FUNCTION_TABLE: &'static [WDFFUNC] = {
@@ -73,7 +73,7 @@ lazy_static! {
     };
 }
 
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf", driver_type = "umdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
 #[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
@@ -81,7 +81,7 @@ pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
     nt_status >= 0
 }
 
-#[cfg(any(driver_type = "wdm", driver_type = "kmdf"))]
+#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
 #[allow(missing_docs)]
 #[macro_export]
 #[allow(non_snake_case)]

@@ -38,19 +38,19 @@ serde_json = "1.0"
 # The following workspace.metadata.wdk sections can be uncommented to configure the workspace for a specific WDK configuration (ex. for rust-analyzer to resolve things for a specific configuration)
 
 # Uncomment the section below for KMDF
-# [workspace.metadata.wdk]
+# [workspace.metadata.wdk.driver-model]
 # driver-type = "KMDF"
 # umdf-version-major = 1
 # target-umdf-version-minor = 33
 
 # Uncomment the section below for UMDF
-# [workspace.metadata.wdk]
+# [workspace.metadata.wdk.driver-model]
 # driver-type = "UMDF"
 # umdf-version-major = 1
 # target-umdf-version-minor = 33
 
 # WDM
-# [workspace.metadata.wdk]
+# [workspace.metadata.wdk.driver-model]
 # driver-type = "WDM"
 
 # Until https://github.com/rust-lang/cargo/issues/12208 is resolved, each package in the workspace needs to explictly

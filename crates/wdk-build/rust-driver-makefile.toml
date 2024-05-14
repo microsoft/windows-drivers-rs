@@ -1,6 +1,5 @@
-# This file can be leveraged to build downstream drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
+# This file is leveraged to build downstream drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
 
-# FIXME: this flow is based on the signing process of a KMDF PNP driver. There should be different flows available for different types of drivers as outlined in https://learn.microsoft.com/en-us/windows-hardware/drivers/install/test-signing-driver-packages 
 [config]
 min_version = "0.37.8"
 init_task = "wdk-build-init"
@@ -13,6 +12,8 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 # CARGO_MAKE_CARGO_BUILD_TEST_FLAGS is set to "--all-features" by default in cargo-make: https://github.com/sagiegurari/cargo-make/blob/c0abc4d0ae1bcc03adde22b63fa0accc4af2b3bc/src/lib/descriptor/makefiles/stable.toml#L31
 # This is set to "" here to match the default behavior of Cargo. 
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true }
+
+WDK_BUILD_BASE_INFVERIF_FLAGS = "/v"
 
 [plugins.impl.rust-env-update]
 script = '''
@@ -91,6 +92,25 @@ if not is_empty ${script_output}
 end
 '''
 
+# This plugin replaces the embedded `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY` in the rust-script doc comment with its evaluated value. See https://github.com/sagiegurari/cargo-make/issues/1081 for more context.
+[plugins.impl.rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution]
+script = '''
+# Parse task json into variables
+taskjson = json_parse ${task.as_json}
+
+# Convert backslashes to forward slashes
+rust-driver-toolchian-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
+
+# Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchian-path
+taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchian-path}"
+
+# Reencode variables into json
+taskjson = json_encode taskjson
+
+# Run the invoking task, with the modified condition_script
+cm_plugin_run_custom_task ${taskjson}
+'''
+
 [tasks.wdk-build-init]
 private = true
 install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
@@ -105,12 +125,42 @@ script = '''
 
 let cli_env_vars = wdk_build::cargo_make::validate_command_line_args();
 let path_env_vars = wdk_build::cargo_make::setup_path()?;
+
 wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
     cli_env_vars.into_iter().chain(path_env_vars),
 );
-
 '''
 args = []
+
+[tasks.setup-wdk-config-env-vars]
+# This exists as a seperate task outside of `wdk-build-init` so that any wdk-metadata-detection errors can be a hard error, without failing every task flow that executes on non-driver crates in the workspace.
+private = true
+install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
+plugin = "rust-env-update"
+script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.2.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+use wdk_build::TryFromCargoMetadata;
+
+let manifest_path = std::path::PathBuf::from(
+    std::env::var("CARGO_MAKE_WORKING_DIRECTORY")
+        .expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make"),
+)
+.join("Cargo.toml");
+
+wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
+    wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path)?.to_env_vars()
+);
+'''
 
 [tasks.copy-inx-to-output]
 private = true
@@ -156,15 +206,32 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 ));
 '''
 
-[tasks.generate-sys-file]
+[tasks.generate-driver-binary-file]
 private = true
-dependencies = ["build"]
-script_runner = "@rust"
+dependencies = ["setup-wdk-config-env-vars", "build"]
+# TODO: consider turning this into a rustscript
+condition_script = '''
+#!@duckscript
+
+is_wdm = eq ${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE} "WDM"
+is_kmdf = eq ${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE} "KMDF"
+is_kernel_mode = set ${is_wdm} or ${is_kmdf}
+
+if ${is_kernel_mode}
+    # Run Task
+    exit 0
+else
+    # Skip Task
+    exit 1
+endif
+'''
 script_runner_args = [
   "--base-path",
   "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
 ]
 script = '''
+#!@rust
+
 //! ```cargo
 //! [dependencies]
 //! wdk-build = { path = ".", version = "0.2.0" }
@@ -190,7 +257,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 
 [tasks.stampinf]
 private = true
-dependencies = ["copy-inx-to-output"]
+dependencies = ["setup-wdk-config-env-vars", "copy-inx-to-output"]
 command = "stampinf"
 args = [
   "-f",
@@ -203,24 +270,33 @@ args = [
   "${CARGO_MAKE_CRATE_FS_NAME}.cat",
   "-v",
   "*",
-  "-k",
-  "1.33",
+  "@@split(WDK_BUILD_STAMPINF_WDF_FLAGS, ,remove-empty)",
 ]
+
+[tasks.stampinf.env."WDK_BUILD_STAMPINF_WDF_FLAGS"]
+source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}"
+default_value = ""
+
+[tasks.stampinf.env."WDK_BUILD_STAMPINF_WDF_FLAGS".mapping]
+"KMDF" = "-k ${WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}"
+"UMDF" = "-u ${WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0"
 
 [tasks.infverif]
 private = true
-dependencies = ["stampinf"]
+dependencies = ["setup-wdk-config-env-vars", "stampinf"]
+# TODO: This should be if WDK <= GE && DRIVER_MODEL == UMDF
+env = { "WDK_BUILD_BASE_INFVERIF_FLAGS" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /w", mapping = { "UMDF" = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /u" } } }
 command = "infverif"
 args = [
-  "/v",
-  "/w",
-  "@@split(WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS, )",
+  "@@split(WDK_BUILD_BASE_INFVERIF_FLAGS, ,remove-empty)",
+  "@@split(WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS, ,remove-empty)",
   "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}.inf",
 ]
 
-[tasks.copy-sys-to-package]
+[tasks.copy-driver-binary-to-package]
 private = true
-dependencies = ["generate-sys-file"]
+dependencies = ["setup-wdk-config-env-vars", "generate-driver-binary-file"]
+env = { "WDK_BUILD_DRIVER_EXTENSION" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "UNKNOWN_EXTENSION", mapping = { "WDM" = "sys", "KMDF" = "sys", "UMDF" = "dll" } } }
 script_runner = "@rust"
 script_runner_args = [
   "--base-path",
@@ -233,9 +309,13 @@ script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
+eprintln!("WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE: {}", std::env::var("WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE").unwrap());
+eprintln!("WDK_BUILD_DRIVER_EXTENSION: {}", std::env::var("WDK_BUILD_DRIVER_EXTENSION").unwrap());
+let driver_binary_extension = std::env::var("WDK_BUILD_DRIVER_EXTENSION").expect("WDK_BUILD_DRIVER_EXTENSION should be set by cargo-make");
+println!("{driver_binary_extension}");
 wdk_build::cargo_make::copy_to_driver_package_folder(
     wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
-        "{}.sys",
+        "{}.{driver_binary_extension}",
         wdk_build::cargo_make::get_current_package_name()
     )),
 )?
@@ -312,7 +392,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 
 [tasks.inf2cat]
 private = true
-dependencies = ["copy-sys-to-package", "copy-inf-to-package"]
+dependencies = ["copy-driver-binary-to-package", "copy-inf-to-package"]
 command = "inf2cat"
 args = [
   "/driver:${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package",
@@ -387,15 +467,15 @@ args = [
   "${WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE}",
 ]
 
-[tasks.sign-sys]
+[tasks.sign-driver-binary]
 private = true
-dependencies = ["copy-sys-to-package"]
-env = { "WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.sys" }
+dependencies = ["setup-wdk-config-env-vars", "copy-driver-binary-to-package"]
+env = { "WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.${WDK_BUILD_DRIVER_EXTENSION}" }
 run_task = "signtool-sign"
 
 [tasks.sign-cat]
 private = true
-dependencies = ["inf2cat", "sign-sys"]
+dependencies = ["inf2cat", "sign-driver-binary"]
 env = { "WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.cat" }
 run_task = "signtool-sign"
 
@@ -405,10 +485,10 @@ condition = { env_true = ["WDK_BUILD_ENABLE_SIGNTOOL_VERIFY"] }
 command = "signtool"
 args = ["verify", "/v", "/pa", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
 
-[tasks.verify-signature-sys]
+[tasks.verify-signature-driver-binary]
 private = true
-dependencies = ["sign-sys"]
-env = { "WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.sys" }
+dependencies = ["setup-wdk-config-env-vars", "sign-driver-binary"]
+env = { "WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.${WDK_BUILD_DRIVER_EXTENSION}" }
 run_task = "signtool-verify"
 
 [tasks.verify-signature-cat]
@@ -420,13 +500,13 @@ run_task = "signtool-verify"
 [tasks.package-driver]
 private = true
 dependencies = [
-  "copy-sys-to-package",
+  "copy-driver-binary-to-package",
   "copy-pdb-to-package",
   "copy-inf-to-package",
   "copy-map-to-package",
   "copy-certificate-to-package",
-  "sign-sys",
-  "verify-signature-sys",
+  "sign-driver-binary",
+  "verify-signature-driver-binary",
   "sign-cat",
   "verify-signature-cat",
   "infverif",
@@ -434,43 +514,40 @@ dependencies = [
 
 [tasks.package-driver-flow]
 # Only run flow if the current package is marked as a driver
+plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
 condition_script = '''
-#!@duckscript
+#!@rust
 
-# Execute Cargo Metadata to get Package information
-out = exec --fail-on-error cargo metadata --no-deps --format-version 1 --manifest-path ${CARGO_MAKE_WORKING_DIRECTORY}/Cargo.toml
-assert_eq ${out.code} 0 "cargo metadata failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}"
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! ```
+#![allow(unused_doc_comments)]
+use wdk_build::TryFromCargoMetadata;
 
-manifest_metadata = json_parse --collection ${out.stdout}
-packages = map_get ${manifest_metadata} packages
-contains_wdk_metadata = set false
+wdk_build::cargo_make::condition_script(|| {
+    let manifest_path = std::path::PathBuf::from(
+        std::env::var("CARGO_MAKE_WORKING_DIRECTORY")
+            .expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make"),
+    )
+    .join("Cargo.toml");
+    match wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path) {
+        Err(err @ <wdk_build::WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
+            // Skip task only if no WDK configurations are detected
+            Err(err)
+        }
 
-for package in ${packages}
-    package_name = map_get ${package} name
-    
-    # Find metadata for the current package
-    if eq ${package_name} ${CARGO_MAKE_CRATE_NAME}
-        package_metadata = map_get ${package} metadata
+        Ok(_) => {
+            Ok(())
+        }
 
-        # Check if the package contains a metadata section
-        if is_map ${package_metadata}
-
-            # Check if the package contains a package.metadata.wdk section
-            contains_wdk_metadata = map_contains_key ${package_metadata} wdk
-        end
-    end
-end
-
-release --recursive ${manifest_metadata}
-
-# Run driver package-driver task if the package contains a package.metadata.wdk section
-if ${contains_wdk_metadata}
-    echo Building and packaging driver: ${CARGO_MAKE_CRATE_NAME}...
-    exit 0
-else
-    echo ${CARGO_MAKE_CRATE_NAME} does not contain a package.metadata.wdk section in its manifest. Skipping package-driver task.
-    exit 1
-end
+        Err(unexpected_error) => {
+            eprintln!("Unexpected error: {unexpected_error:#?}");
+            // Do not silently skip task if unexpected error occurs
+            Ok(())
+        }
+    }
+})?
 '''
 run_task = "package-driver"
 

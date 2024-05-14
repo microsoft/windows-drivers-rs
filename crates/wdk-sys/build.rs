@@ -20,12 +20,13 @@ use tracing_subscriber::{
     EnvFilter,
 };
 use wdk_build::{
-    detect_driver_config,
     find_top_level_cargo_manifest,
     BuilderExt,
     Config,
     ConfigError,
     DriverConfig,
+    TryFromCargoMetadata,
+    WDKMetadata
 };
 
 const OUT_DIR_PLACEHOLDER: &str =
@@ -168,7 +169,7 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
 fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let outfile_name = match &config.driver_config {
-        DriverConfig::WDM() | DriverConfig::KMDF(_) => "ntddk.rs",
+        DriverConfig::WDM | DriverConfig::KMDF(_) => "ntddk.rs",
         DriverConfig::UMDF(_) => "windows.rs",
     };
 
@@ -240,10 +241,10 @@ fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
 
     let config = Config {
-        driver_config: match detect_driver_config(find_top_level_cargo_manifest()) {
-            Ok(driver_config) => driver_config,
-            Err(ConfigError::NoWDKConfigurationsDetected) => {
-                // When building wdk-sys standalone, skip binding generation
+        driver_config: match WDKMetadata::try_from_cargo_metadata(find_top_level_cargo_manifest()) {
+            Ok(wdk_metadata_configuration) => wdk_metadata_configuration.try_into()?,
+            Err(<WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
+                // When building `wdk-sys`` standalone (i.e. without a driver crate), skip binding generation
                 tracing::warn!("No WDK configurations detected. Skipping WDK binding generation.");
                 return Ok(());
             }

@@ -9,6 +9,7 @@
 //! supported by `rust-driver-makefile.toml`.
 
 use std::{
+    env,
     panic::UnwindSafe,
     path::{Path, PathBuf},
 };
@@ -43,8 +44,8 @@ const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
 const CLAP_USAGE_EXIT_CODE: i32 = 2;
 
-trait ParseCargoArg {
-    fn parse_cargo_arg(&self);
+trait ParseCargoArgs {
+    fn parse_cargo_args(&self);
 }
 
 #[derive(Parser, Debug)]
@@ -129,244 +130,322 @@ struct ManifestOptions {
     offline: bool,
 }
 
-impl ParseCargoArg for BaseOptions {
-    fn parse_cargo_arg(&self) {
-        if self.quiet && self.verbose > 0 {
-            eprintln!("Cannot specify both --quiet and --verbose");
-            std::process::exit(CLAP_USAGE_EXIT_CODE);
-        }
-
-        if self.quiet {
-            append_to_space_delimited_env_var(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR, "--quiet");
-        }
-
-        if self.verbose > 0 {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                format!("-{}", "v".repeat(self.verbose.into())).as_str(),
-            );
-        }
-    }
-}
-
-impl ParseCargoArg for clap_cargo::Workspace {
-    fn parse_cargo_arg(&self) {
-        if !self.package.is_empty() {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                self.package
-                    .iter()
-                    .fold(
-                        String::with_capacity({
-                            const MINIMUM_PACKAGE_SPEC_LENGTH: usize = 1;
-                            const MINIMUM_PACKAGE_ARG_LENGTH: usize =
-                                "--package ".len() + MINIMUM_PACKAGE_SPEC_LENGTH + " ".len();
-                            self.package.len() * MINIMUM_PACKAGE_ARG_LENGTH
-                        }),
-                        |mut package_args, package_spec| {
-                            package_args.push_str("--package ");
-                            package_args.push_str(package_spec);
-                            package_args.push(' ');
-                            package_args
-                        },
-                    )
-                    .trim_end(),
-            );
-        }
-
-        if self.workspace {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                "--workspace",
-            );
-        }
-
-        if !self.exclude.is_empty() {
-            if !self.workspace {
-                eprintln!("--exclude can only be used together with --workspace");
-                std::process::exit(CLAP_USAGE_EXIT_CODE);
+impl ParseCargoArgs for CommandLineInterface {
+    fn parse_cargo_args(&self) {
+        match self {
+            Self {
+                base,
+                workspace,
+                features,
+                compilation_options,
+                manifest_options,
+            } => {
+                base.parse_cargo_args();
+                workspace.parse_cargo_args();
+                features.parse_cargo_args();
+                compilation_options.parse_cargo_args();
+                manifest_options.parse_cargo_args();
             }
-
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                self.exclude
-                    .iter()
-                    .fold(
-                        String::with_capacity({
-                            const MINIMUM_PACKAGE_SPEC_LENGTH: usize = 1;
-                            const MINIMUM_EXCLUDE_ARG_LENGTH: usize =
-                                "--exclude ".len() + MINIMUM_PACKAGE_SPEC_LENGTH + " ".len();
-                            self.package.len() * MINIMUM_EXCLUDE_ARG_LENGTH
-                        }),
-                        |mut exclude_args, package_spec| {
-                            exclude_args.push_str("--exclude ");
-                            exclude_args.push_str(package_spec);
-                            exclude_args.push(' ');
-                            exclude_args
-                        },
-                    )
-                    .trim_end(),
-            );
-        }
-
-        if self.all {
-            append_to_space_delimited_env_var(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR, "--all");
         }
     }
 }
 
-impl ParseCargoArg for clap_cargo::Features {
-    fn parse_cargo_arg(&self) {
-        if self.all_features {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                "--all-features",
-            );
-        }
+impl ParseCargoArgs for BaseOptions {
+    fn parse_cargo_args(&self) {
+        match self {
+            Self { quiet, verbose } => {
+                if *quiet && *verbose > 0 {
+                    eprintln!("Cannot specify both --quiet and --verbose");
+                    std::process::exit(CLAP_USAGE_EXIT_CODE);
+                }
 
-        if self.no_default_features {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                "--no-default-features",
-            );
-        }
+                if *quiet {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--quiet",
+                    );
+                }
 
-        if !self.features.is_empty() {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                self.features
-                    .iter()
-                    .fold(
-                        String::with_capacity({
-                            const MINIMUM_FEATURE_NAME_LENGTH: usize = 1;
-                            const MINIMUM_FEATURE_ARG_LENGTH: usize =
-                                "--features ".len() + MINIMUM_FEATURE_NAME_LENGTH + " ".len();
-                            self.features.len() * MINIMUM_FEATURE_ARG_LENGTH
-                        }),
-                        |mut feature_args: String, feature| {
-                            feature_args.push_str("--features ");
-                            feature_args.push_str(feature);
-                            feature_args.push(' ');
-                            feature_args
-                        },
-                    )
-                    .trim_end(),
-            );
+                if *verbose > 0 {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        format!("-{}", "v".repeat((*verbose).into())).as_str(),
+                    );
+                }
+            }
         }
     }
 }
 
-impl ParseCargoArg for CompilationOptions {
-    fn parse_cargo_arg(&self) {
-        if self.release && self.profile.is_some() {
-            eprintln!("the `--release` flag should not be specified with the `--profile` flag");
-            std::process::exit(CLAP_USAGE_EXIT_CODE);
-        }
-        let cargo_make_cargo_profile = match std::env::var(CARGO_MAKE_PROFILE_ENV_VAR)
-            .unwrap_or_else(|_| panic!("{CARGO_MAKE_PROFILE_ENV_VAR} should be set by cargo-make"))
-            .as_str()
-        {
-            "release" => {
-                // cargo-make release profile sets the `--profile release` flag
-                if let Some(profile) = &self.profile {
-                    if profile != "release" {
-                        eprintln!(
-                            "Specifying `--profile release` for cargo-make conflicts with the \
-                             setting `--profile {profile}` to forward to tasks"
-                        );
+impl ParseCargoArgs for clap_cargo::Workspace {
+    fn parse_cargo_args(&self) {
+        match self {
+            Self {
+                package,
+                workspace,
+                all,
+                exclude,
+                ..
+            } => {
+                if !package.is_empty() {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        package
+                            .iter()
+                            .fold(
+                                String::with_capacity({
+                                    const MINIMUM_PACKAGE_SPEC_LENGTH: usize = 1;
+                                    const MINIMUM_PACKAGE_ARG_LENGTH: usize = "--package ".len()
+                                        + MINIMUM_PACKAGE_SPEC_LENGTH
+                                        + " ".len();
+                                    package.len() * MINIMUM_PACKAGE_ARG_LENGTH
+                                }),
+                                |mut package_args, package_spec| {
+                                    package_args.push_str("--package ");
+                                    package_args.push_str(package_spec);
+                                    package_args.push(' ');
+                                    package_args
+                                },
+                            )
+                            .trim_end(),
+                    );
+                }
+
+                if *workspace {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--workspace",
+                    );
+                }
+
+                if !exclude.is_empty() {
+                    if !*workspace {
+                        eprintln!("--exclude can only be used together with --workspace");
                         std::process::exit(CLAP_USAGE_EXIT_CODE);
                     }
+
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        exclude
+                            .iter()
+                            .fold(
+                                String::with_capacity({
+                                    const MINIMUM_PACKAGE_SPEC_LENGTH: usize = 1;
+                                    const MINIMUM_EXCLUDE_ARG_LENGTH: usize = "--exclude ".len()
+                                        + MINIMUM_PACKAGE_SPEC_LENGTH
+                                        + " ".len();
+                                    package.len() * MINIMUM_EXCLUDE_ARG_LENGTH
+                                }),
+                                |mut exclude_args, package_spec| {
+                                    exclude_args.push_str("--exclude ");
+                                    exclude_args.push_str(package_spec);
+                                    exclude_args.push(' ');
+                                    exclude_args
+                                },
+                            )
+                            .trim_end(),
+                    );
                 }
 
-                append_to_space_delimited_env_var(
-                    CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                    "--profile release",
-                );
-                "release".to_string()
-            }
-            _ => {
-                // All other cargo-make profiles do not set a specific cargo profile. Cargo
-                // profiles set by --release, --profile <PROFILE>, or -p <PROFILE> (after the
-                // cargo-make task name) are forwarded to cargo commands
-                if self.release {
+                if *all {
                     append_to_space_delimited_env_var(
                         CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                        "--release",
+                        "--all",
                     );
-                    "release".to_string()
-                } else if let Some(profile) = &self.profile {
-                    append_to_space_delimited_env_var(
-                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                        format!("--profile {profile}").as_str(),
-                    );
-                    profile.into()
-                } else {
-                    std::env::var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR).unwrap_or_else(|_| {
-                        panic!("{CARGO_MAKE_CARGO_PROFILE_ENV_VAR} should be set by cargo-make")
-                    })
                 }
             }
-        };
-
-        std::env::set_var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR, &cargo_make_cargo_profile);
-
-        if let Some(jobs) = &self.jobs {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                format!("--jobs {jobs}").as_str(),
-            );
-        }
-
-        if let Some(target) = &self.target {
-            std::env::set_var(CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR, target);
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                format!("--target {target}").as_str(),
-            );
-        }
-
-        configure_wdf_build_output_dir(&self.target, &cargo_make_cargo_profile);
-
-        if let Some(timings_option) = &self.timings {
-            timings_option.as_ref().map_or_else(
-                || {
-                    append_to_space_delimited_env_var(
-                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                        "--timings",
-                    );
-                },
-                |timings_value| {
-                    append_to_space_delimited_env_var(
-                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                        format!("--timings {timings_value}").as_str(),
-                    );
-                },
-            );
         }
     }
 }
 
-impl ParseCargoArg for ManifestOptions {
-    fn parse_cargo_arg(&self) {
-        if self.frozen {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                "--frozen",
-            );
-        }
+impl ParseCargoArgs for clap_cargo::Features {
+    fn parse_cargo_args(&self) {
+        match self {
+            Self {
+                all_features,
+                no_default_features,
+                features,
+                ..
+            } => {
+                if *all_features {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--all-features",
+                    );
+                }
 
-        if self.locked {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                "--locked",
-            );
-        }
+                if *no_default_features {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--no-default-features",
+                    );
+                }
 
-        if self.offline {
-            append_to_space_delimited_env_var(
-                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
-                "--offline",
-            );
+                if !features.is_empty() {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        features
+                            .iter()
+                            .fold(
+                                String::with_capacity({
+                                    const MINIMUM_FEATURE_NAME_LENGTH: usize = 1;
+                                    const MINIMUM_FEATURE_ARG_LENGTH: usize = "--features ".len()
+                                        + MINIMUM_FEATURE_NAME_LENGTH
+                                        + " ".len();
+                                    features.len() * MINIMUM_FEATURE_ARG_LENGTH
+                                }),
+                                |mut feature_args: String, feature| {
+                                    feature_args.push_str("--features ");
+                                    feature_args.push_str(feature);
+                                    feature_args.push(' ');
+                                    feature_args
+                                },
+                            )
+                            .trim_end(),
+                    );
+                }
+            }
+        }
+    }
+}
+
+impl ParseCargoArgs for CompilationOptions {
+    fn parse_cargo_args(&self) {
+        match self {
+            Self {
+                release,
+                profile,
+                jobs,
+                target,
+                timings,
+            } => {
+                if *release && profile.is_some() {
+                    eprintln!(
+                        "the `--release` flag should not be specified with the `--profile` flag"
+                    );
+                    std::process::exit(CLAP_USAGE_EXIT_CODE);
+                }
+                let cargo_make_cargo_profile = match env::var(CARGO_MAKE_PROFILE_ENV_VAR)
+                    .unwrap_or_else(|_| {
+                        panic!("{CARGO_MAKE_PROFILE_ENV_VAR} should be set by cargo-make")
+                    })
+                    .as_str()
+                {
+                    "release" => {
+                        // cargo-make release profile sets the `--profile release` flag
+                        if let Some(profile) = &profile {
+                            if profile != "release" {
+                                eprintln!(
+                                    "Specifying `--profile release` for cargo-make conflicts with \
+                                     the setting `--profile {profile}` to forward to tasks"
+                                );
+                                std::process::exit(CLAP_USAGE_EXIT_CODE);
+                            }
+                        }
+
+                        append_to_space_delimited_env_var(
+                            CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                            "--profile release",
+                        );
+                        "release".to_string()
+                    }
+                    _ => {
+                        // All other cargo-make profiles do not set a specific cargo profile. Cargo
+                        // profiles set by --release, --profile <PROFILE>, or -p <PROFILE> (after
+                        // the cargo-make task name) are forwarded to cargo
+                        // commands
+                        if *release {
+                            append_to_space_delimited_env_var(
+                                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                                "--release",
+                            );
+                            "release".to_string()
+                        } else if let Some(profile) = &profile {
+                            append_to_space_delimited_env_var(
+                                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                                format!("--profile {profile}").as_str(),
+                            );
+                            profile.into()
+                        } else {
+                            env::var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR).unwrap_or_else(|_| {
+                                panic!(
+                                    "{CARGO_MAKE_CARGO_PROFILE_ENV_VAR} should be set by \
+                                     cargo-make"
+                                )
+                            })
+                        }
+                    }
+                };
+
+                env::set_var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR, &cargo_make_cargo_profile);
+
+                if let Some(jobs) = &jobs {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        format!("--jobs {jobs}").as_str(),
+                    );
+                }
+
+                if let Some(target) = &target {
+                    env::set_var(CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR, target);
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        format!("--target {target}").as_str(),
+                    );
+                }
+
+                configure_wdf_build_output_dir(&target, &cargo_make_cargo_profile);
+
+                if let Some(timings_option) = &timings {
+                    timings_option.as_ref().map_or_else(
+                        || {
+                            append_to_space_delimited_env_var(
+                                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                                "--timings",
+                            );
+                        },
+                        |timings_value| {
+                            append_to_space_delimited_env_var(
+                                CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                                format!("--timings {timings_value}").as_str(),
+                            );
+                        },
+                    );
+                }
+            }
+        }
+    }
+}
+
+impl ParseCargoArgs for ManifestOptions {
+    fn parse_cargo_args(&self) {
+        match self {
+            Self {
+                frozen,
+                locked,
+                offline,
+            } => {
+                if *frozen {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--frozen",
+                    );
+                }
+
+                if *locked {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--locked",
+                    );
+                }
+
+                if *offline {
+                    append_to_space_delimited_env_var(
+                        CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
+                        "--offline",
+                    );
+                }
+            }
         }
     }
 }
@@ -384,7 +463,7 @@ impl ParseCargoArg for ManifestOptions {
 pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     const TOOLCHAIN_ARG_POSITION: usize = 1;
 
-    let mut env_args = std::env::args_os().collect::<Vec<_>>();
+    let mut env_args = env::args_os().collect::<Vec<_>>();
 
     // +<toolchain> is a special argument that can't currently be handled by clap parsing: https://github.com/clap-rs/clap/issues/2468
     let toolchain_arg = if env_args
@@ -403,18 +482,11 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         None
     };
 
-    let command_line_interface: CommandLineInterface =
-        CommandLineInterface::parse_from(env_args.iter());
-
     if let Some(toolchain) = toolchain_arg {
-        std::env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
+        env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
-    command_line_interface.base.parse_cargo_arg();
-    command_line_interface.workspace.parse_cargo_arg();
-    command_line_interface.features.parse_cargo_arg();
-    command_line_interface.compilation_options.parse_cargo_arg();
-    command_line_interface.manifest_options.parse_cargo_arg();
+    CommandLineInterface::parse_from(env_args.iter()).parse_cargo_args();
 
     [
         CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
@@ -424,6 +496,9 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR,
     ]
     .into_iter()
+    .filter(|env_var_name| {
+        env::var_os(env_var_name).is_some()
+    })
     .map(|s| s.to_string())
 }
 
@@ -437,15 +512,15 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 /// # Panics
 ///
 /// This function will panic if the CPU architecture cannot be determined from
-/// `std::env::consts::ARCH` or if the PATH variable contains non-UTF8
+/// [`env::consts::ARCH`] or if the PATH variable contains non-UTF8
 /// characters.
 pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WDKContentRootDetectionError);
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
-    let host_arch = CPUArchitecture::try_from_cargo_str(std::env::consts::ARCH)
-        .expect("The rust standard library should always set std::env::consts::ARCH");
+    let host_arch = CPUArchitecture::try_from_cargo_str(env::consts::ARCH)
+        .expect("The rust standard library should always set env::consts::ARCH");
 
     let wdk_bin_root = wdk_content_root
         .join(format!("bin/{version}"))
@@ -515,14 +590,16 @@ pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item =
         // Since this executes in a child process to cargo-make, we need to forward the
         // values we want to change to duckscript, in order to get it to modify the
         // parent process (ie. cargo-make)
-        if let Some(env_var_value) = std::env::var_os(env_var_name) {
-            println!(
-                "{env_var_name}={}",
-                env_var_value
-                    .to_str()
-                    .expect("env var value should be valid UTF-8")
-            );
-        }
+        println!(
+            "{env_var_name}={}",
+            env::var(env_var_name).expect(
+                format!(
+                    "{env_var_name} should be the name of an environment variable that is set and \
+                     contains a valid UTF-8 value"
+                )
+                .as_str()
+            )
+        );
     }
 
     // This print signifies the end of the forwarding and signals to the
@@ -540,7 +617,7 @@ pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item =
 #[must_use]
 pub fn get_wdk_build_output_directory() -> PathBuf {
     PathBuf::from(
-        std::env::var("WDK_BUILD_OUTPUT_DIRECTORY")
+        env::var("WDK_BUILD_OUTPUT_DIRECTORY")
             .expect("WDK_BUILD_OUTPUT_DIRECTORY should have been set by the wdk-build-init task"),
     )
 }
@@ -553,7 +630,7 @@ pub fn get_wdk_build_output_directory() -> PathBuf {
 /// variable is not set
 #[must_use]
 pub fn get_current_package_name() -> String {
-    std::env::var(CARGO_MAKE_CRATE_FS_NAME_ENV_VAR).unwrap_or_else(|_| {
+    env::var(CARGO_MAKE_CRATE_FS_NAME_ENV_VAR).unwrap_or_else(|_| {
         panic!(
             "{} should be set by cargo-make",
             &CARGO_MAKE_CRATE_FS_NAME_ENV_VAR
@@ -634,7 +711,7 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
         .join("rust-driver-makefile.toml");
 
     let cargo_make_workspace_working_directory =
-        std::env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
+        env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
             panic!("{CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make")
         });
 
@@ -681,7 +758,7 @@ where
     std::panic::catch_unwind(condition_script_closure).unwrap_or_else(|_| {
         // Note: Any panic messages has already been printed by this point
 
-        let cargo_make_task_name = std::env::var(CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR)
+        let cargo_make_task_name = env::var(CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR)
             .expect("CARGO_MAKE_CURRENT_TASK_NAME should be set by cargo-make");
 
         eprintln!(
@@ -693,15 +770,13 @@ where
 }
 
 fn configure_wdf_build_output_dir(target_arg: &Option<String>, cargo_make_cargo_profile: &str) {
-    let cargo_make_crate_custom_triple_target_directory = std::env::var(
-        CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR,
-    )
-    .unwrap_or_else(|_| {
-        panic!(
-            "{CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR} should be set by \
-             cargo-make."
-        )
-    });
+    let cargo_make_crate_custom_triple_target_directory =
+        env::var(CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
+            panic!(
+                "{CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR} should be set by \
+                 cargo-make."
+            )
+        });
 
     let wdk_build_output_directory = {
         let mut output_dir = cargo_make_crate_custom_triple_target_directory;
@@ -725,7 +800,7 @@ fn configure_wdf_build_output_dir(target_arg: &Option<String>, cargo_make_cargo_
 
         output_dir
     };
-    std::env::set_var(
+    env::set_var(
         WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR,
         wdk_build_output_directory,
     );
@@ -739,10 +814,10 @@ where
     let env_var_name: &str = env_var_name.as_ref();
     let string_to_append: &str = string_to_append.as_ref();
 
-    let mut env_var_value: String = std::env::var(env_var_name).unwrap_or_default();
+    let mut env_var_value: String = env::var(env_var_name).unwrap_or_default();
     env_var_value.push(' ');
     env_var_value.push_str(string_to_append);
-    std::env::set_var(env_var_name, env_var_value.trim());
+    env::set_var(env_var_name, env_var_value.trim());
 }
 
 fn prepend_to_semicolon_delimited_env_var<S, T>(env_var_name: S, string_to_prepend: T)
@@ -755,6 +830,6 @@ where
 
     let mut env_var_value = string_to_prepend.to_string();
     env_var_value.push(';');
-    env_var_value.push_str(std::env::var(env_var_name).unwrap_or_default().as_str());
-    std::env::set_var(env_var_name, env_var_value);
+    env_var_value.push_str(env::var(env_var_name).unwrap_or_default().as_str());
+    env::set_var(env_var_name, env_var_value);
 }

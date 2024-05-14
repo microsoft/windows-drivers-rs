@@ -18,13 +18,12 @@ mod utils;
 
 pub mod cargo_make;
 
-use std::{collections::HashSet, env, path::PathBuf};
+use std::{env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
 pub use metadata::{
-    detect_driver_config,
     find_top_level_cargo_manifest,
-    TryFromWDKMetadataError,
+    TryFromCargoMetadata,
     WDKMetadata,
 };
 use serde::{Deserialize, Serialize};
@@ -45,24 +44,14 @@ pub struct Config {
 
 /// The driver type with its associated configuration parameters
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(deny_unknown_fields, tag = "driver-type")]
 pub enum DriverConfig {
     /// Windows Driver Model
-    WDM(),
+    WDM,
     /// Kernel Mode Driver Framework
     KMDF(KMDFConfig),
     /// User Mode Driver Framework
     UMDF(UMDFConfig),
-}
-
-/// Driver model type
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum DriverType {
-    /// Windows Driver Model
-    WDM,
-    /// Kernel Mode Driver Framework
-    KMDF,
-    /// User Mode Driver Framework
-    UMDF,
 }
 
 /// The CPU architecture that's configured to be compiled for
@@ -76,20 +65,26 @@ pub enum CPUArchitecture {
 
 /// The configuration parameters for KMDF drivers
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "kebab-case")]
 pub struct KMDFConfig {
     /// Major KMDF Version
     pub kmdf_version_major: u8,
-    /// Minor KMDF Version
-    pub kmdf_version_minor: u8,
+    /// Minor KMDF Version (Target Version)
+    pub target_kmdf_version_minor: u8,
+    /// Minor KMDF Version (Minimum Required)
+    pub minimum_kmdf_version_minor: Option<u8>,
 }
 
 /// The configuration parameters for UMDF drivers
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "kebab-case")]
 pub struct UMDFConfig {
     /// Major UMDF Version
     pub umdf_version_major: u8,
-    /// Minor UMDF Version
-    pub umdf_version_minor: u8,
+    /// Minor UMDF Version (Target Version)
+    pub target_umdf_version_minor: u8,
+    /// Minor UMDF Version (Minimum Required)
+    pub minimum_umdf_version_minor: Option<u8>,
 }
 
 /// Errors that could result from configuring a build via [`wdk-build`]
@@ -140,33 +135,6 @@ pub enum ConfigError {
         /// package ids of the wdk-build crates detected
         package_ids: Vec<cargo_metadata::PackageId>,
     },
-
-    /// Error returned when multiple configurations of the WDK are detected
-    /// across the dependency graph
-    #[error(
-        "multiple configurations of the WDK are detected across the dependency graph, but only \
-         one configuration is allowed: {wdk_configurations:#?}"
-    )]
-    MultipleWDKConfigurationsDetected {
-        /// [`HashSet`] of unique [`DriverConfig`] derived from detected WDK
-        /// metadata
-        wdk_configurations: HashSet<DriverConfig>,
-    },
-
-    /// Error returned when a [`metadata::WDKMetadata`] fails to be converted to
-    /// a [`Config`] due to a [`TryFromWDKMetadataError`]
-    #[error(transparent)]
-    TryFromWDKMetadataError(#[from] TryFromWDKMetadataError),
-
-    /// Error returned when no WDK configuration metadata is detected in the
-    /// dependency graph
-    #[error(
-        "no WDK configuration metadata is detected in the dependency graph. This could happen \
-         when building WDR itself, building library crates that depend on the WDK but defer wdk \
-         configuration to their consumers, or when building a driver that has a path dependency \
-         on WDR"
-    )]
-    NoWDKConfigurationsDetected,
 
     /// Error returned when the c runtime is not configured to be statically
     /// linked
@@ -238,7 +206,7 @@ impl Default for Config {
                 "WDKContentRoot should be able to be detected. Ensure that the WDK is installed, \
                  or that the environment setup scripts in the eWDK have been run.",
             ),
-            driver_config: DriverConfig::WDM(),
+            driver_config: DriverConfig::WDM,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
         }
     }
@@ -332,15 +300,17 @@ impl Config {
     /// compilation. This emits specially formatted prints to Cargo based on
     /// this [`Config`].
     fn emit_cfg_settings(&self) {
+        println!(r#"cargo::rustc-check-cfg=cfg(driver_type, values("WDM", "KMDF", "UMDF"))"#);
+
         match &self.driver_config {
-            DriverConfig::WDM() => {
-                println!(r#"cargo::rustc-cfg=driver_type="wdm""#);
+            DriverConfig::WDM => {
+                println!(r#"cargo::rustc-cfg=driver_type="WDM""#);
             }
             DriverConfig::KMDF(_) => {
-                println!(r#"cargo::rustc-cfg=driver_type="kmdf""#);
+                println!(r#"cargo::rustc-cfg=driver_type="KMDF""#);
             }
             DriverConfig::UMDF(_) => {
-                println!(r#"cargo::rustc-cfg=driver_type="umdf""#);
+                println!(r#"cargo::rustc-cfg=driver_type="UMDF""#);
             }
         }
     }
@@ -377,7 +347,7 @@ impl Config {
         );
 
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
-            DriverConfig::WDM() | DriverConfig::KMDF(_) => "km",
+            DriverConfig::WDM | DriverConfig::KMDF(_) => "km",
             DriverConfig::UMDF(_) => "um",
         });
         if !km_or_um_include_path.is_dir() {
@@ -405,11 +375,11 @@ impl Config {
 
         // Add other driver type-specific include paths
         match &self.driver_config {
-            DriverConfig::WDM() => {}
+            DriverConfig::WDM => {}
             DriverConfig::KMDF(kmdf_config) => {
                 let kmdf_include_path = include_directory.join(format!(
                     "wdf/kmdf/{}.{}",
-                    kmdf_config.kmdf_version_major, kmdf_config.kmdf_version_minor
+                    kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ));
                 if !kmdf_include_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -425,7 +395,7 @@ impl Config {
             DriverConfig::UMDF(umdf_config) => {
                 let umdf_include_path = include_directory.join(format!(
                     "wdf/umdf/{}.{}",
-                    umdf_config.umdf_version_major, umdf_config.umdf_version_minor
+                    umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
                 ));
                 if !umdf_include_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -465,7 +435,7 @@ impl Config {
             library_directory
                 .join(sdk_version)
                 .join(match self.driver_config {
-                    DriverConfig::WDM() | DriverConfig::KMDF(_) => {
+                    DriverConfig::WDM | DriverConfig::KMDF(_) => {
                         format!("km/{}", self.cpu_architecture.as_windows_str(),)
                     }
                     DriverConfig::UMDF(_) => {
@@ -485,13 +455,13 @@ impl Config {
 
         // Add other driver type-specific library paths
         match &self.driver_config {
-            DriverConfig::WDM() => (),
+            DriverConfig::WDM => (),
             DriverConfig::KMDF(kmdf_config) => {
                 let kmdf_library_path = library_directory.join(format!(
                     "wdf/kmdf/{}/{}.{}",
                     self.cpu_architecture.as_windows_str(),
                     kmdf_config.kmdf_version_major,
-                    kmdf_config.kmdf_version_minor
+                    kmdf_config.target_kmdf_version_minor
                 ));
                 if !kmdf_library_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -509,7 +479,7 @@ impl Config {
                     "wdf/umdf/{}/{}.{}",
                     self.cpu_architecture.as_windows_str(),
                     umdf_config.umdf_version_major,
-                    umdf_config.umdf_version_minor
+                    umdf_config.target_umdf_version_minor,
                 ));
                 if !umdf_library_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -535,6 +505,22 @@ impl Config {
     pub fn get_preprocessor_definitions_iter(
         &self,
     ) -> impl Iterator<Item = (String, Option<String>)> {
+        // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
+        // WINVER=$(WINVER_VERSION);
+        // WINNT=1;
+        // NTDDI_VERSION=$(NTDDI_VERSION);
+
+        // Definition sourced from: Program Files\Windows
+        // Kits\10\build\10.0.26040.0\WindowsDriver.Shared.Props
+        // vec![ //from driver.os.props //D:\EWDK\rsprerelease\content\Program
+        // Files\Windows Kits\10\build\10.0.26040.0\WindowsDriver.OS.Props
+        // ("_WIN32_WINNT", Some()),CURRENT_WIN32_WINNT_VERSION
+        // ("WINVER", Some()), = CURRENT_WIN32_WINNT_VERSION
+        // ("WINNT", Some(1)),1
+        // ("NTDDI_VERSION", Some()),CURRENT_NTDDI_VERSION
+        // ]
+        // .into_iter()
+        // .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
         match self.cpu_architecture {
             // Definitions sourced from `Program Files\Windows
             // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
@@ -547,7 +533,7 @@ impl Config {
                 vec![
                     ("_ARM64_", None),
                     ("ARM64", None),
-                    ("_USE_DECLSPECS_FOR_SAL", Some("1")),
+                    ("_USE_DECLSPECS_FOR_SAL", Some(1)),
                     ("STD_CALL", None),
                 ]
             }
@@ -556,23 +542,43 @@ impl Config {
         .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
         .chain(
             match self.driver_config {
-                // TODO: Add support for KMDF_MINIMUM_VERSION_REQUIRED and
-                // UMDF_MINIMUM_VERSION_REQUIRED
-                DriverConfig::WDM() => {
+                DriverConfig::WDM => {
                     vec![]
                 }
                 DriverConfig::KMDF(kmdf_config) => {
-                    vec![
+                    let mut kmdf_definitions = vec![
                         ("KMDF_VERSION_MAJOR", Some(kmdf_config.kmdf_version_major)),
-                        ("KMDF_VERSION_MINOR", Some(kmdf_config.kmdf_version_minor)),
-                    ]
+                        (
+                            "KMDF_VERSION_MINOR",
+                            Some(kmdf_config.target_kmdf_version_minor),
+                        ),
+                    ];
+
+                    if let Some(minimum_minor_version) = kmdf_config.minimum_kmdf_version_minor {
+                        kmdf_definitions
+                            .push(("KMDF_MINIMUM_VERSION_REQUIRED", Some(minimum_minor_version)));
+                    }
+                    kmdf_definitions
                 }
                 DriverConfig::UMDF(umdf_config) => {
                     let mut umdf_definitions = vec![
                         ("UMDF_VERSION_MAJOR", Some(umdf_config.umdf_version_major)),
-                        ("UMDF_VERSION_MINOR", Some(umdf_config.umdf_version_minor)),
+                        (
+                            "UMDF_VERSION_MINOR",
+                            Some(umdf_config.target_umdf_version_minor),
+                        ),
+                        // Definition sourced from: Program Files\Windows
+                        // Kits\10\build\10.0.26040.0\Windows.UserMode.props
                         ("_ATL_NO_WIN_SUPPORT", None),
+                        // Definition sourced from: Program Files\Windows
+                        // Kits\10\build\10.0.26040.0\WindowsDriver.Shared.Props
+                        ("WIN32_LEAN_AND_MEAN", Some(1)),
                     ];
+
+                    if let Some(minimum_minor_version) = umdf_config.minimum_umdf_version_minor {
+                        umdf_definitions
+                            .push(("UMDF_MINIMUM_VERSION_REQUIRED", Some(minimum_minor_version)));
+                    }
 
                     if umdf_config.umdf_version_major >= 2 {
                         umdf_definitions.push(("UMDF_USING_NTSTATUS", None));
@@ -640,9 +646,13 @@ impl Config {
     /// model is [`DriverConfig::WDM`]
     pub fn compute_wdffunctions_symbol_name(&self) -> Option<String> {
         let (wdf_major_version, wdf_minor_version) = match self.driver_config {
-            DriverConfig::KMDF(config) => (config.kmdf_version_major, config.kmdf_version_minor),
-            DriverConfig::UMDF(config) => (config.umdf_version_major, config.umdf_version_minor),
-            DriverConfig::WDM() => return None,
+            DriverConfig::KMDF(config) => {
+                (config.kmdf_version_major, config.target_kmdf_version_minor)
+            }
+            DriverConfig::UMDF(config) => {
+                (config.umdf_version_major, config.target_umdf_version_minor)
+            }
+            DriverConfig::WDM => return None,
         };
 
         Some(format!(
@@ -678,7 +688,7 @@ impl Config {
         }
 
         match &self.driver_config {
-            DriverConfig::WDM() => {
+            DriverConfig::WDM => {
                 // Emit WDM-specific libraries to link to
                 println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
                 println!("cargo::rustc-link-lib=static=ntoskrnl");
@@ -794,7 +804,8 @@ impl Default for KMDFConfig {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
             kmdf_version_major: 1,
-            kmdf_version_minor: 33,
+            target_kmdf_version_minor: 33,
+            minimum_kmdf_version_minor: None,
         }
     }
 }
@@ -813,7 +824,8 @@ impl Default for UMDFConfig {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
             umdf_version_major: 2,
-            umdf_version_minor: 33,
+            target_umdf_version_minor: 33,
+            minimum_umdf_version_minor: None,
         }
     }
 }
@@ -960,7 +972,7 @@ mod tests {
             config.driver_config,
             DriverConfig::KMDF(KMDFConfig {
                 kmdf_version_major: 1,
-                kmdf_version_minor: 33
+                target_kmdf_version_minor: 33
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
@@ -971,7 +983,7 @@ mod tests {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
             driver_config: DriverConfig::KMDF(KMDFConfig {
                 kmdf_version_major: 1,
-                kmdf_version_minor: 15,
+                target_kmdf_version_minor: 15,
             }),
             ..Config::default()
         });
@@ -981,7 +993,7 @@ mod tests {
             config.driver_config,
             DriverConfig::KMDF(KMDFConfig {
                 kmdf_version_major: 1,
-                kmdf_version_minor: 15
+                target_kmdf_version_minor: 15
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
@@ -1048,7 +1060,7 @@ mod tests {
             let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
                 driver_config: DriverConfig::KMDF(KMDFConfig {
                     kmdf_version_major: 1,
-                    kmdf_version_minor: 15,
+                    target_kmdf_version_minor: 15,
                 }),
                 ..Default::default()
             });
