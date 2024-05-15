@@ -23,7 +23,7 @@ windows = { version = "0.56.0", features = [
 cargo_metadata = "0.18.1"
 
 [build-dependencies]
-rustversion = "1.0.15"
+rustversion = "1.0.17"
 
 [dev-dependencies]
 windows = { version = "0.56.0", features = ["Win32_UI_Shell"] }
