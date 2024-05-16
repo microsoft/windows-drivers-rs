@@ -13,7 +13,8 @@
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 
 mod bindgen;
-mod utils;
+/// Module for utility code related to the cargo-make experience for building drivers.
+pub mod utils;
 
 pub mod cargo_make;
 

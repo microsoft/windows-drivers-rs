@@ -26,14 +26,20 @@ use crate::{CPUArchitecture, ConfigError};
 /// Errors that may occur when stripping the extended path prefix from a path
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StripExtendedPathPrefixError {
+    /// Error raised when the provided path is empty.
     #[error("provided path is empty")]
     EmptyPath,
+    /// Error raised when the provided path has no extended path prefix to strip.
     #[error("provided path has no extended path prefix to strip")]
     NoExtendedPathPrefix,
 }
+
+/// A trait for dealing with paths with extended-length prefixes.
 pub trait PathExt {
+    /// The kinds of errors that can be returned when trying to deal with an extended path prefix.
     type Error;
 
+    /// Strips the extended length path prefix from a given path.
     fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error>;
 }
 
