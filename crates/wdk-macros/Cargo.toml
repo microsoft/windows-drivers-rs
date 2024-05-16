@@ -21,7 +21,7 @@ proc-macro = true
 [dependencies]
 cargo_metadata = "0.18.1"
 itertools = "0.12.1"
-proc-macro2 = "1.0.81"
+proc-macro2 = "1.0.82"
 quote = "1.0.35"
 scratch = "1.0"
 syn = { version = "2.0.58", features = ["full"] }
@@ -33,7 +33,7 @@ pathdiff = "0.2.0"
 lazy_static = "1.4.0"
 macrotest = "1.0.12"
 owo-colors = "4.0.0"
-paste = "1.0.14"
+paste = "1.0.15"
 pretty_assertions = "1.4.0"
 rustversion = "1.0.15"
 syn = { version = "2.0.58", features = ["extra-traits"] }
