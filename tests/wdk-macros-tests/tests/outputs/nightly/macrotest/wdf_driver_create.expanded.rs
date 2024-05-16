@@ -1,28 +1,28 @@
 #![no_main]
 #![deny(warnings)]
-use wdk_sys::*;
 #[export_name = "DriverEntry"]
 pub extern "system" fn driver_entry(
-    driver: PDRIVER_OBJECT,
-    registry_path: PCUNICODE_STRING,
-) -> NTSTATUS {
-    let mut driver_config = WDF_DRIVER_CONFIG {
-        Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
-        ..WDF_DRIVER_CONFIG::default()
+    driver: wdk_sys::PDRIVER_OBJECT,
+    registry_path: wdk_sys::PCUNICODE_STRING,
+) -> wdk_sys::NTSTATUS {
+    let mut driver_config = wdk_sys::WDF_DRIVER_CONFIG {
+        Size: core::mem::size_of::<wdk_sys::WDF_DRIVER_CONFIG>() as wdk_sys::ULONG,
+        ..Default::default()
     };
-    let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
+    let driver_handle_output = wdk_sys::WDF_NO_HANDLE as *mut wdk_sys::WDFDRIVER;
     unsafe {
         {
+            use wdk_sys::*;
             #[must_use]
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_driver_create_impl(
-                DriverObject: wdk_sys::PDRIVER_OBJECT,
-                RegistryPath: wdk_sys::PCUNICODE_STRING,
-                DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                Driver: *mut wdk_sys::WDFDRIVER,
-            ) -> wdk_sys::NTSTATUS {
+                DriverObject: PDRIVER_OBJECT,
+                RegistryPath: PCUNICODE_STRING,
+                DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                DriverConfig: PWDF_DRIVER_CONFIG,
+                Driver: *mut WDFDRIVER,
+            ) -> NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(unsafe {
                     core::mem::transmute(
                         wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDriverCreateTableIndex
@@ -54,7 +54,7 @@ pub extern "system" fn driver_entry(
             wdf_driver_create_impl(
                 driver,
                 registry_path,
-                WDF_NO_OBJECT_ATTRIBUTES,
+                wdk_sys::WDF_NO_OBJECT_ATTRIBUTES,
                 &mut driver_config,
                 driver_handle_output,
             )

@@ -3,19 +3,17 @@
 #![no_main]
 #![deny(warnings)]
 
-use wdk_sys::*;
-
 extern "C" fn evt_driver_device_add(
-    _driver: WDFDRIVER,
-    mut device_init: *mut WDFDEVICE_INIT,
-) -> NTSTATUS {
-    let mut device_handle_output: WDFDEVICE = WDF_NO_HANDLE.cast();
+    _driver: wdk_sys::WDFDRIVER,
+    mut device_init: *mut wdk_sys::WDFDEVICE_INIT,
+) -> wdk_sys::NTSTATUS {
+    let mut device_handle_output: wdk_sys::WDFDEVICE = wdk_sys::WDF_NO_HANDLE.cast();
 
     unsafe {
-        call_unsafe_wdf_function_binding!(
+        wdk_sys::call_unsafe_wdf_function_binding!(
             WdfDeviceCreate,
             &mut device_init,
-            WDF_NO_OBJECT_ATTRIBUTES,
+            wdk_sys::WDF_NO_OBJECT_ATTRIBUTES,
             &mut device_handle_output,
         )
     }

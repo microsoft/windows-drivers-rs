@@ -282,6 +282,8 @@ impl IntermediateOutputASTFragments {
 
         quote! {
             {
+                use wdk_sys::*;
+
                 #conditional_must_use_attribute
                 #[inline(always)]
                 #[allow(non_snake_case)]
@@ -505,7 +507,7 @@ fn parse_fn_pointer_definition(
 ) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
     let bare_fn_type = extract_bare_fn_type(fn_pointer_typepath, error_span)?;
     let fn_parameters = compute_fn_parameters(bare_fn_type, error_span)?;
-    let return_type = compute_return_type(bare_fn_type, error_span)?;
+    let return_type = compute_return_type(bare_fn_type);
 
     Ok((fn_parameters, return_type))
 }
@@ -587,8 +589,7 @@ fn extract_bare_fn_type(fn_pointer_typepath: &TypePath, error_span: Span) -> Res
     Ok(bare_fn_type)
 }
 
-/// Compute the function parameters based on the function definition. Prepends
-/// `wdk_sys::` to the parameter types
+/// Compute the function parameters based on the function definition
 ///
 /// # Examples
 ///
@@ -654,66 +655,13 @@ fn compute_fn_parameters(
         ));
     }
 
-    // discard the PWDF_DRIVER_GLOBALS parameter and prepend wdk_sys to the rest of
-    // the parameters
-    let parameters = bare_fn_type
-        .inputs
-        .iter()
-        .skip(1)
-        .cloned()
-        .map(|mut bare_fn_arg| {
-            let parameter_type_path_segments: &mut Punctuated<PathSegment, syn::token::PathSep> =
-                match &mut bare_fn_arg.ty {
-                    Type::Path(TypePath {
-                        path:
-                            Path {
-                                ref mut segments, ..
-                            },
-                        ..
-                    }) => segments,
-
-                    Type::Ptr(TypePtr { elem: ty, .. }) => {
-                        let Type::Path(TypePath {
-                            path:
-                                Path {
-                                    ref mut segments, ..
-                                },
-                            ..
-                        }) = **ty
-                        else {
-                            return Err(Error::new(
-                                error_span,
-                                format!(
-                                    "Failed to parse PathSegments out of TypePtr function \
-                                     parameter:\n{bare_fn_arg:#?}"
-                                ),
-                            ));
-                        };
-                        segments
-                    }
-
-                    _ => {
-                        return Err(Error::new(
-                            error_span,
-                            format!(
-                                "Unexpected Type encountered when parsing function \
-                                 parameter:\n{bare_fn_arg:#?}",
-                            ),
-                        ));
-                    }
-                };
-
-            parameter_type_path_segments
-                .insert(0, syn::PathSegment::from(format_ident!("wdk_sys")));
-            Ok(bare_fn_arg)
-        })
-        .collect::<Result<_>>()?;
-
-    Ok(parameters)
+    Ok(
+        // discard the PWDF_DRIVER_GLOBALS parameter
+        bare_fn_type.inputs.iter().skip(1).cloned().collect(),
+    )
 }
 
-/// Compute the return type based on the function defintion. Prepends the return
-/// type with `wdk_sys::`
+/// Compute the return type based on the function defintion
 ///
 /// # Examples
 ///
@@ -731,42 +679,8 @@ fn compute_fn_parameters(
 /// ```
 ///
 /// would return the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
-fn compute_return_type(bare_fn_type: &syn::TypeBareFn, error_span: Span) -> Result<ReturnType> {
-    let return_type = match &bare_fn_type.output {
-        ReturnType::Default => ReturnType::Default,
-        ReturnType::Type(right_arrow_token, ty) => ReturnType::Type(
-            *right_arrow_token,
-            Box::new(Type::Path(TypePath {
-                qself: None,
-                path: Path {
-                    leading_colon: None,
-                    segments: {
-                        // prepend wdk_sys to existing TypePath
-                        let Type::Path(TypePath {
-                            path: Path { ref segments, .. },
-                            ..
-                        }) = **ty
-                        else {
-                            return Err(Error::new(
-                                error_span,
-                                format!("Failed to parse ReturnType TypePath:\n{ty:#?}"),
-                            ));
-                        };
-                        let mut segments = segments.clone();
-                        segments.insert(
-                            0,
-                            PathSegment {
-                                ident: format_ident!("wdk_sys"),
-                                arguments: PathArguments::None,
-                            },
-                        );
-                        segments
-                    },
-                },
-            })),
-        ),
-    };
-    Ok(return_type)
+fn compute_return_type(bare_fn_type: &syn::TypeBareFn) -> ReturnType {
+    bare_fn_type.output.clone()
 }
 
 /// Generate the `#[must_use]` attribute if the return type is not `()`
@@ -969,11 +883,11 @@ mod tests {
                     function_pointer_type: format_ident!("PFN_WDFDRIVERCREATE"),
                     function_table_index: format_ident!("WdfDriverCreateTableIndex"),
                     parameters: parse_quote! {
-                        DriverObject: wdk_sys::PDRIVER_OBJECT,
-                        RegistryPath: wdk_sys::PCUNICODE_STRING,
-                        DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                        DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                        Driver: *mut wdk_sys::WDFDRIVER
+                        DriverObject: PDRIVER_OBJECT,
+                        RegistryPath: PCUNICODE_STRING,
+                        DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                        DriverConfig: PWDF_DRIVER_CONFIG,
+                        Driver: *mut WDFDRIVER
                     },
                     parameter_identifiers: parse_quote! {
                         DriverObject,
@@ -982,7 +896,7 @@ mod tests {
                         DriverConfig,
                         Driver
                     },
-                    return_type: parse_quote! { -> wdk_sys::NTSTATUS },
+                    return_type: parse_quote! { -> NTSTATUS },
                     arguments: parse_quote! {
                         driver,
                         registry_path,
@@ -1033,7 +947,7 @@ mod tests {
             let function_pointer_type = format_ident!("PFN_WDFIOQUEUEPURGESYNCHRONOUSLY");
             let expected = (
                 parse_quote! {
-                    Queue: wdk_sys::WDFQUEUE
+                    Queue: WDFQUEUE
                 },
                 ReturnType::Default,
             );
@@ -1159,15 +1073,15 @@ mod tests {
             };
             let expected = (
                 parse_quote! {
-                    DriverObject: wdk_sys::PDRIVER_OBJECT,
-                    RegistryPath: wdk_sys::PCUNICODE_STRING,
-                    DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                    DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                    Driver: *mut wdk_sys::WDFDRIVER
+                    DriverObject: PDRIVER_OBJECT,
+                    RegistryPath: PCUNICODE_STRING,
+                    DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                    DriverConfig: PWDF_DRIVER_CONFIG,
+                    Driver: *mut WDFDRIVER
                 },
                 ReturnType::Type(
                     Token![->](Span::call_site()),
-                    Box::new(Type::Path(parse_quote! { wdk_sys::NTSTATUS })),
+                    Box::new(Type::Path(parse_quote! { NTSTATUS })),
                 ),
             );
 
@@ -1245,11 +1159,11 @@ mod tests {
                 ) -> NTSTATUS
             };
             let expected = parse_quote! {
-                DriverObject: wdk_sys::PDRIVER_OBJECT,
-                RegistryPath: wdk_sys::PCUNICODE_STRING,
-                DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                Driver: *mut wdk_sys::WDFDRIVER
+                DriverObject: PDRIVER_OBJECT,
+                RegistryPath: PCUNICODE_STRING,
+                DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
+                DriverConfig: PWDF_DRIVER_CONFIG,
+                Driver: *mut WDFDRIVER
             };
 
             pretty_assert_eq!(
@@ -1291,13 +1205,10 @@ mod tests {
             };
             let expected = ReturnType::Type(
                 Token![->](Span::call_site()),
-                Box::new(Type::Path(parse_quote! { wdk_sys::NTSTATUS })),
+                Box::new(Type::Path(parse_quote! { NTSTATUS })),
             );
 
-            pretty_assert_eq!(
-                compute_return_type(&bare_fn_type, Span::call_site()).unwrap(),
-                expected
-            );
+            pretty_assert_eq!(compute_return_type(&bare_fn_type), expected);
         }
 
         #[test]
@@ -1311,10 +1222,7 @@ mod tests {
             };
             let expected = ReturnType::Default;
 
-            pretty_assert_eq!(
-                compute_return_type(&bare_fn_type, Span::call_site()).unwrap(),
-                expected
-            );
+            pretty_assert_eq!(compute_return_type(&bare_fn_type), expected);
         }
     }
 

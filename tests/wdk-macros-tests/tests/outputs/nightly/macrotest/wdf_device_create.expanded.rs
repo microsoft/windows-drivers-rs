@@ -1,21 +1,21 @@
 #![no_main]
 #![deny(warnings)]
-use wdk_sys::*;
 extern "C" fn evt_driver_device_add(
-    _driver: WDFDRIVER,
-    mut device_init: *mut WDFDEVICE_INIT,
-) -> NTSTATUS {
-    let mut device_handle_output: WDFDEVICE = WDF_NO_HANDLE.cast();
+    _driver: wdk_sys::WDFDRIVER,
+    mut device_init: *mut wdk_sys::WDFDEVICE_INIT,
+) -> wdk_sys::NTSTATUS {
+    let mut device_handle_output: wdk_sys::WDFDEVICE = wdk_sys::WDF_NO_HANDLE.cast();
     unsafe {
         {
+            use wdk_sys::*;
             #[must_use]
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_device_create_impl(
-                DeviceInit: *mut wdk_sys::PWDFDEVICE_INIT,
-                DeviceAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                Device: *mut wdk_sys::WDFDEVICE,
-            ) -> wdk_sys::NTSTATUS {
+                DeviceInit: *mut PWDFDEVICE_INIT,
+                DeviceAttributes: PWDF_OBJECT_ATTRIBUTES,
+                Device: *mut WDFDEVICE,
+            ) -> NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDEVICECREATE = Some(unsafe {
                     core::mem::transmute(
                         wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateTableIndex
@@ -44,7 +44,7 @@ extern "C" fn evt_driver_device_add(
             }
             wdf_device_create_impl(
                 &mut device_init,
-                WDF_NO_OBJECT_ATTRIBUTES,
+                wdk_sys::WDF_NO_OBJECT_ATTRIBUTES,
                 &mut device_handle_output,
             )
         }

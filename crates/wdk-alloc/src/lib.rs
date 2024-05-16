@@ -9,7 +9,7 @@
 //! // todo: fix this doctest
 //! #[cfg(all(any(driver_type = "WDM", driver_type = "KMDF"), not(test)))]
 //! use wdk_alloc::WDKAllocator;
-//!     
+//!
 //! #[cfg(all(any(driver_type = "WDM", driver_type = "KMDF"), not(test)))]
 //! #[global_allocator]
 //! static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;

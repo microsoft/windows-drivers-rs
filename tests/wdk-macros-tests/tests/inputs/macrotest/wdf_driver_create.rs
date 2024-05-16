@@ -3,25 +3,23 @@
 #![no_main]
 #![deny(warnings)]
 
-use wdk_sys::*;
-
 #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
 pub extern "system" fn driver_entry(
-    driver: PDRIVER_OBJECT,
-    registry_path: PCUNICODE_STRING,
-) -> NTSTATUS {
-    let mut driver_config = WDF_DRIVER_CONFIG {
-        Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
-        ..WDF_DRIVER_CONFIG::default()
+    driver: wdk_sys::PDRIVER_OBJECT,
+    registry_path: wdk_sys::PCUNICODE_STRING,
+) -> wdk_sys::NTSTATUS {
+    let mut driver_config = wdk_sys::WDF_DRIVER_CONFIG {
+        Size: core::mem::size_of::<wdk_sys::WDF_DRIVER_CONFIG>() as wdk_sys::ULONG,
+        ..Default::default()
     };
-    let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
+    let driver_handle_output = wdk_sys::WDF_NO_HANDLE as *mut wdk_sys::WDFDRIVER;
 
     unsafe {
-        call_unsafe_wdf_function_binding!(
+        wdk_sys::call_unsafe_wdf_function_binding!(
             WdfDriverCreate,
             driver,
             registry_path,
-            WDF_NO_OBJECT_ATTRIBUTES,
+            wdk_sys::WDF_NO_OBJECT_ATTRIBUTES,
             &mut driver_config,
             driver_handle_output,
         )

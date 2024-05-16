@@ -1,24 +1,23 @@
 #![no_main]
 #![deny(warnings)]
-extern "C" fn evt_driver_device_add(
-    _driver: wdk_sys::WDFDRIVER,
-    mut device_init: *mut wdk_sys::WDFDEVICE_INIT,
-) -> wdk_sys::NTSTATUS {
-    let mut device_handle_output: wdk_sys::WDFDEVICE = wdk_sys::WDF_NO_HANDLE.cast();
-    unsafe {
+fn process_wdf_request(request: wdk_sys::WDFREQUEST) {
+    let minimum_required_buffer_size = 32;
+    let mut output_buffer_ptr = std::ptr::null_mut();
+    let _nt_status = unsafe {
         {
             use wdk_sys::*;
             #[must_use]
             #[inline(always)]
             #[allow(non_snake_case)]
-            unsafe fn wdf_device_create_impl(
-                DeviceInit: *mut PWDFDEVICE_INIT,
-                DeviceAttributes: PWDF_OBJECT_ATTRIBUTES,
-                Device: *mut WDFDEVICE,
+            unsafe fn wdf_request_retrieve_output_buffer_impl(
+                Request: WDFREQUEST,
+                MinimumRequiredSize: usize,
+                Buffer: *mut PVOID,
+                Length: *mut usize,
             ) -> NTSTATUS {
-                let wdf_function: wdk_sys::PFN_WDFDEVICECREATE = Some(unsafe {
+                let wdf_function: wdk_sys::PFN_WDFREQUESTRETRIEVEOUTPUTBUFFER = Some(unsafe {
                     core::mem::transmute(
-                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateTableIndex
+                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfRequestRetrieveOutputBufferTableIndex
                             as usize],
                     )
                 });
@@ -26,9 +25,10 @@ extern "C" fn evt_driver_device_add(
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,
-                            DeviceInit,
-                            DeviceAttributes,
-                            Device,
+                            Request,
+                            MinimumRequiredSize,
+                            Buffer,
+                            Length,
                         )
                     }
                 } else {
@@ -42,11 +42,12 @@ extern "C" fn evt_driver_device_add(
                     };
                 }
             }
-            wdf_device_create_impl(
-                &mut device_init,
-                wdk_sys::WDF_NO_OBJECT_ATTRIBUTES,
-                &mut device_handle_output,
+            wdf_request_retrieve_output_buffer_impl(
+                request,
+                minimum_required_buffer_size,
+                &mut output_buffer_ptr,
+                std::ptr::null_mut(),
             )
         }
-    }
+    };
 }

@@ -496,9 +496,7 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR,
     ]
     .into_iter()
-    .filter(|env_var_name| {
-        env::var_os(env_var_name).is_some()
-    })
+    .filter(|env_var_name| env::var_os(env_var_name).is_some())
     .map(|s| s.to_string())
 }
 

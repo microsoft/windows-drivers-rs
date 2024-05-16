@@ -1,12 +1,12 @@
 #![no_main]
 #![deny(warnings)]
-use wdk_sys::*;
-fn acquire_lock(wdf_spin_lock: WDFSPINLOCK) {
+fn acquire_lock(wdf_spin_lock: wdk_sys::WDFSPINLOCK) {
     unsafe {
         {
+            use wdk_sys::*;
             #[inline(always)]
             #[allow(non_snake_case)]
-            unsafe fn wdf_spin_lock_acquire_impl(SpinLock: wdk_sys::WDFSPINLOCK) {
+            unsafe fn wdf_spin_lock_acquire_impl(SpinLock: WDFSPINLOCK) {
                 let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(unsafe {
                     core::mem::transmute(
                         wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfSpinLockAcquireTableIndex

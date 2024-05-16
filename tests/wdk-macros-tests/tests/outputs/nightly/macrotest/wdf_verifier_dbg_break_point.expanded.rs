@@ -1,10 +1,9 @@
 #![no_main]
 #![deny(warnings)]
-#[allow(unused_imports)]
-use wdk_sys::*;
 fn foo() {
     unsafe {
         {
+            use wdk_sys::*;
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_verifier_dbg_break_point_impl() {

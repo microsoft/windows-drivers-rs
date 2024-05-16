@@ -45,8 +45,8 @@ lazy_static! {
 ///
 /// Note: Due to limitations in `trybuild`, a successful compilation
 /// test will include output that looks similar to the following:
-/// ```
-/// test D:\git-repos\windows-drivers-rs\crates\wdk-sys\tests\outputs\stable\macrotest\wdf_driver_create.rs ... error
+/// ```ignore
+/// test D:\windows-drivers-rs\crates\wdk-sys\tests\outputs\stable\macrotest\wdf_driver_create.rs ... error
 /// Expected test case to fail to compile, but it succeeded.
 /// ```
 /// This is because `trybuild` will run `cargo check` when calling
@@ -211,6 +211,7 @@ macro_rules! generate_call_unsafe_wdf_binding_tests {
             wdf_driver_create,
             wdf_device_create,
             wdf_device_create_device_interface,
+            wdf_request_retrieve_output_buffer,
             wdf_spin_lock_acquire,
             wdf_verifier_dbg_break_point
         );

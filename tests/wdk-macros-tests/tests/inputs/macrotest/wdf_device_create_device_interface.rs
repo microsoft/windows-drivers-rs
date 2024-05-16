@@ -3,10 +3,8 @@
 #![no_main]
 #![deny(warnings)]
 
-use wdk_sys::*;
-
 // {86E0D1E0-8089-11D0-9CE4-08003E301F73}
-const GUID_DEVINTERFACE_COMPORT: GUID = GUID {
+const GUID_DEVINTERFACE_COMPORT: wdk_sys::GUID = wdk_sys::GUID {
     Data1: 0x86E0D1E0u32,
     Data2: 0x8089u16,
     Data3: 0x11D0u16,
@@ -15,9 +13,9 @@ const GUID_DEVINTERFACE_COMPORT: GUID = GUID {
     ],
 };
 
-fn create_device_interface(wdf_device: WDFDEVICE) -> NTSTATUS {
+fn create_device_interface(wdf_device: wdk_sys::WDFDEVICE) -> wdk_sys::NTSTATUS {
     unsafe {
-        call_unsafe_wdf_function_binding!(
+        wdk_sys::call_unsafe_wdf_function_binding!(
             WdfDeviceCreateDeviceInterface,
             wdf_device,
             &GUID_DEVINTERFACE_COMPORT,
