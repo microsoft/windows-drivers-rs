@@ -29,17 +29,24 @@ pub enum StripExtendedPathPrefixError {
     /// Error raised when the provided path is empty.
     #[error("provided path is empty")]
     EmptyPath,
-    /// Error raised when the provided path has no extended path prefix to strip.
+    /// Error raised when the provided path has no extended path prefix to
+    /// strip.
     #[error("provided path has no extended path prefix to strip")]
     NoExtendedPathPrefix,
 }
 
 /// A trait for dealing with paths with extended-length prefixes.
 pub trait PathExt {
-    /// The kinds of errors that can be returned when trying to deal with an extended path prefix.
+    /// The kinds of errors that can be returned when trying to deal with an
+    /// extended path prefix.
     type Error;
 
     /// Strips the extended length path prefix from a given path.
+    ///  # Errors
+    ///
+    /// Returns an error defined by the implementer if unable to strip the
+    /// extended path length prefix.
+
     fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error>;
 }
 
@@ -74,6 +81,7 @@ where
 
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
 /// NI(22H2) WDK
+#[must_use]
 pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // If WDKContentRoot is present in environment(ex. running in an eWDK prompt),
     // use it
@@ -250,6 +258,15 @@ fn read_registry_key_string_value(
 
 /// Searches a directory and determines the latest windows SDK version in that
 /// directory
+///
+/// # Errors
+///
+/// Returns a `ConfigError::DirectoryNotFound` error if the directory provided
+/// does not exist.
+///
+/// # Panics
+///
+/// Panics if the path provided is not valid Unicode.
 pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
     Ok(path_to_search
         .read_dir()?
@@ -278,6 +295,12 @@ pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, C
 }
 
 /// Detect architecture based on cargo TARGET variable.
+///
+/// # Panics
+///
+/// Panics if the `CARGO_CFG_TARGET_ARCH` environment variable is not set,
+/// or if the cargo architecture is unsupported.
+#[must_use]
 pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect(
         "Cargo should have set the CARGO_CFG_TARGET_ARCH environment variable when executing \

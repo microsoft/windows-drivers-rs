@@ -517,16 +517,14 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
-    let existing_version = std::env::var(WDK_VERSION_ENV_VAR).ok();
-    if existing_version.is_some() {
-        if version == existing_version.unwrap() {
+    if let Ok(existing_version) = std::env::var(WDK_VERSION_ENV_VAR) {
+        if version == existing_version {
             // Skip updating.  This can happen in certain recursive
             // cargo-make cases.
             return Ok(version);
-        } else {
-            // We have a bad version string set somehow.  Return an error.
-            return Err(ConfigError::WDKContentRootDetectionError);
         }
+        // We have a bad version string set somehow.  Return an error.
+        return Err(ConfigError::WDKContentRootDetectionError);
     }
 
     println!("FORWARDING ARGS TO CARGO-MAKE:");
