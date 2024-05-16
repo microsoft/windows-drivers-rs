@@ -21,14 +21,14 @@ pub use wdk_macros as __proc_macros;
 pub mod ntddk;
 #[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
 pub mod wdf;
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
+pub use wdf::WDF_FUNCTION_TABLE;
+
 #[cfg(driver_type = "UMDF")]
 pub mod windows;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
-
-#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
-use lazy_static::lazy_static;
 
 // This is fine because we don't actually have any floating point instruction in
 // our binary, thanks to our target defining soft-floats. fltused symbol is
@@ -45,32 +45,6 @@ pub static _fltused: () = ();
 #[no_mangle]
 pub extern "system" fn __CxxFrameHandler3() -> i32 {
     0
-}
-
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
-lazy_static! {
-    #[allow(missing_docs)]
-    pub static ref WDF_FUNCTION_TABLE: &'static [WDFFUNC] = {
-        // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_table = unsafe { WdfFunctions };
-
-        // SAFETY: `WdfFunctionCount` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_count = unsafe { WdfFunctionCount } as usize;
-
-        // SAFETY: This is safe because:
-        //         1. `WdfFunctions` is valid for reads for `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`
-        //            bytes, and is guaranteed to be aligned and it must be properly aligned.
-        //         2. `WdfFunctions` points to `WdfFunctionCount` consecutive properly initialized values of
-        //            type `WDFFUNC`.
-        //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
-        //         4. The total size, `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
-        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
-        unsafe {
-            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<WDFFUNC>()).is_ok());
-            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
-        }
-    };
 }
 
 #[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]

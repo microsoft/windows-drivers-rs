@@ -25,17 +25,56 @@ use wdk_build::{
     Config,
     ConfigError,
     DriverConfig,
+    KMDFConfig,
     TryFromCargoMetadata,
-    WDKMetadata
+    UMDFConfig,
+    WDKMetadata,
 };
 
+const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR IDENTIFIER FOR VARIABLE CORRESPONDING TO NUMBER OF WDF FUNCTIONS>";
+const WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR DECLARATION OF wdf_function_count VARIABLE>";
 const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
 const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING WDFFUNCTIONS SYMBOL NAME>";
 
+const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
+        // SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
+                                                              to be ever mutated by WDF.
+        let wdf_function_count = unsafe { crate::WdfFunctionCount } as usize;";
+const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
+        let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
+
 // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
 lazy_static! {
+    static ref WDF_FUNCTION_TABLE_TEMPLATE: String = format!(
+        r#"
+// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
+#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
+lazy_static::lazy_static! {{
+    #[allow(missing_docs)]
+    pub static ref WDF_FUNCTION_TABLE: &'static [crate::WDFFUNC] = {{
+        // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
+        let wdf_function_table = unsafe {{ crate::WdfFunctions }};
+{WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
+
+        // SAFETY: This is safe because:
+        //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
+        //            bytes, and is guaranteed to be aligned and it must be properly aligned.
+        //         2. `WdfFunctions` points to `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` consecutive properly initialized values of
+        //            type `WDFFUNC`.
+        //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
+        //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
+        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
+        unsafe {{
+            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<crate::WDFFUNC>()).is_ok());
+            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
+        }}
+    }};
+}}"#
+    );
     static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
         r#"
 /// A procedural macro that allows WDF functions to be called by name.
@@ -195,6 +234,69 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .write_to_file(out_path.join("wdf.rs"))?)
 }
 
+fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Result<()> {
+    const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
+
+    let generated_file_path = out_path.join("wdf_function_table.rs");
+    let mut generated_file = std::fs::File::create(&generated_file_path)?;
+
+    let is_wdf_function_count_generated = match *config {
+        Config {
+            driver_config:
+                DriverConfig::KMDF(KMDFConfig {
+                    kmdf_version_major,
+                    target_kmdf_version_minor,
+                    ..
+                }),
+            ..
+        } => {
+            kmdf_version_major >= 1
+                && target_kmdf_version_minor >= MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT
+        }
+
+        Config {
+            driver_config:
+                DriverConfig::UMDF(UMDFConfig {
+                    umdf_version_major,
+                    target_umdf_version_minor,
+                    ..
+                }),
+            ..
+        } => {
+            umdf_version_major >= 2
+                && target_umdf_version_minor >= MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT
+        }
+
+        _ => {
+            unreachable!(
+                "generate_wdf_function_table is only called with WDF driver configurations"
+            )
+        }
+    };
+
+    let wdf_function_table_code_snippet = if is_wdf_function_count_generated {
+        WDF_FUNCTION_TABLE_TEMPLATE
+            .replace(NUM_WDF_FUNCTIONS_PLACEHOLDER, "crate::WdfFunctionCount")
+            .replace(
+                WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER,
+                WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL,
+            )
+    } else {
+        WDF_FUNCTION_TABLE_TEMPLATE
+            .replace(
+                NUM_WDF_FUNCTIONS_PLACEHOLDER,
+                "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries",
+            )
+            .replace(
+                WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER,
+                WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX,
+            )
+    };
+
+    generated_file.write_all(wdf_function_table_code_snippet.as_bytes())?;
+    Ok(())
+}
+
 /// Generates a `macros.rs` file in `OUT_DIR` which contains a
 /// `call_unsafe_wdf_function_binding!` macro redirects to the
 /// `wdk_macros::call_unsafe_wdf_function_binding` macro . This is required
@@ -244,7 +346,8 @@ fn main() -> anyhow::Result<()> {
         driver_config: match WDKMetadata::try_from_cargo_metadata(find_top_level_cargo_manifest()) {
             Ok(wdk_metadata_configuration) => wdk_metadata_configuration.try_into()?,
             Err(<WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
-                // When building `wdk-sys`` standalone (i.e. without a driver crate), skip binding generation
+                // When building `wdk-sys`` standalone (i.e. without a driver crate), skip
+                // binding generation
                 tracing::warn!("No WDK configurations detected. Skipping WDK binding generation.");
                 return Ok(());
             }
@@ -286,6 +389,11 @@ fn main() -> anyhow::Result<()> {
                 .file("src/wdf.c")
                 .compile("wdf");
             Ok::<(), ConfigError>(())
+        })?;
+
+        info_span!("wdf_function_table.rs generation").in_scope(|| {
+            generate_wdf_function_table(&out_path, &config)?;
+            Ok::<(), std::io::Error>(())
         })?;
 
         info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {

@@ -18,3 +18,5 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/wdf.rs"));
 }
 pub use bindings::*;
+
+include!(concat!(env!("OUT_DIR"), "/wdf_function_table.rs"));

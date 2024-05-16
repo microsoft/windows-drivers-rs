@@ -99,10 +99,10 @@ script = '''
 taskjson = json_parse ${task.as_json}
 
 # Convert backslashes to forward slashes
-rust-driver-toolchian-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
+rust-driver-toolchain-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
 
-# Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchian-path
-taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchian-path}"
+# Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchain-path
+taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchain-path}"
 
 # Reencode variables into json
 taskjson = json_encode taskjson
