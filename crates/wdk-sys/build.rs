@@ -136,11 +136,10 @@ fn main() -> anyhow::Result<()> {
         ),
     ];
 
-    let export_config = config.clone();
-    let mut handles = Vec::<JoinHandle<_>>::new();
+    let mut handles = Vec::<JoinHandle<Result<(), ConfigError>>>::new();
     for out_path in out_paths {
         let temp_config = config.clone();
-        let handle = thread::spawn(move || {
+        let handle : JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             if let Err(err) = generate_constants(&out_path, &temp_config) {
                 return Err(err);
             }
@@ -159,8 +158,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     for handle in handles {
-        handle.join().unwrap();
+        if let Err(e) = handle.join().unwrap() {
+			return Err(e.into());
+		}
     }
 
-    Ok(export_config.export_config()?)
+    Ok(config.export_config()?)
 }
