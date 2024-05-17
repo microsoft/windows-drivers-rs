@@ -6,6 +6,7 @@
 use std::{
     env,
     path::{Path, PathBuf},
+    thread::{self, JoinHandle},
 };
 
 use bindgen::CodegenConfig;
@@ -21,7 +22,7 @@ use wdk_build::{BuilderExt, Config, ConfigError, DriverConfig, KMDFConfig};
 //     "2.0", "2.15", "2.17", "2.19", "2.21", "2.23", "2.25", "2.27", "2.31",
 // "2.33", ];
 
-fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(
         bindgen::Builder::wdk_default(vec!["src/ntddk-input.h", "src/wdf-input.h"], config)?
             .with_codegen_config(CodegenConfig::VARS)
@@ -31,7 +32,7 @@ fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError
     )
 }
 
-fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(
         bindgen::Builder::wdk_default(vec!["src/ntddk-input.h", "src/wdf-input.h"], config)?
             .with_codegen_config(CodegenConfig::TYPES)
@@ -41,7 +42,7 @@ fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     )
 }
 
-fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_ntddk(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(
         bindgen::Builder::wdk_default(vec!["src/ntddk-input.h"], config)?
             .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
@@ -51,7 +52,7 @@ fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     )
 }
 
-fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     // As of NI WDK, this may generate an empty file due to no non-type and non-var
     // items in the wdf headers(i.e. functions are all inlined). This step is
     // intentionally left here in case older WDKs have non-inlined functions or new
@@ -135,12 +136,31 @@ fn main() -> anyhow::Result<()> {
         ),
     ];
 
+    let export_config = config.clone();
+    let mut handles = Vec::<JoinHandle<_>>::new();
     for out_path in out_paths {
-        generate_constants(&out_path, config.clone())?;
-        generate_types(&out_path, config.clone())?;
-        generate_ntddk(&out_path, config.clone())?;
-        generate_wdf(&out_path, config.clone())?;
+        let temp_config = config.clone();
+        let handle = thread::spawn(move || {
+            if let Err(err) = generate_constants(&out_path, &temp_config) {
+                return Err(err);
+            }
+            if let Err(err) = generate_types(&out_path, &temp_config) {
+                return Err(err);
+            }
+            if let Err(err) = generate_ntddk(&out_path, &temp_config) {
+                return Err(err);
+            }
+            if let Err(err) = generate_wdf(&out_path, &temp_config) {
+                return Err(err);
+            }
+            Ok(())
+        });
+        handles.push(handle);
     }
 
-    Ok(config.export_config()?)
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    Ok(export_config.export_config()?)
 }
