@@ -139,11 +139,30 @@ fn main() -> anyhow::Result<()> {
     let mut handles = Vec::<JoinHandle<Result<(), ConfigError>>>::new();
     for out_path in out_paths {
         let temp_config = config.clone();
+        let temp_path = out_path.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
-            generate_constants(&out_path, &temp_config)?;
-            generate_types(&out_path, &temp_config)?;
-            generate_ntddk(&out_path, &temp_config)?;
-            generate_wdf(&out_path, &temp_config)?;
+            generate_constants(&temp_path, &temp_config)?;
+            Ok(())
+        });
+        handles.push(handle);
+        let temp_config = config.clone();
+        let temp_path = out_path.clone();
+        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
+            generate_types(&temp_path, &temp_config)?;
+            Ok(())
+        });
+        handles.push(handle);
+        let temp_config = config.clone();
+        let temp_path = out_path.clone();
+        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
+            generate_ntddk(&temp_path, &temp_config)?;
+            Ok(())
+        });
+        handles.push(handle);
+        let temp_config = config.clone();
+        let temp_path = out_path.clone();
+        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
+            generate_wdf(&temp_path, &temp_config)?;
             Ok(())
         });
         handles.push(handle);
