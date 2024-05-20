@@ -69,6 +69,15 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     )
 }
 
+type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
+
+const GENERATE_FUNCTIONS: [GenerateFn; 4] = [
+    generate_constants,
+    generate_types,
+    generate_ntddk,
+    generate_wdf,
+];
+
 fn main() -> anyhow::Result<()> {
     let tracing_filter = EnvFilter::default()
         // Show errors and warnings by default
@@ -139,36 +148,18 @@ fn main() -> anyhow::Result<()> {
 
     let mut handles = Vec::<JoinHandle<Result<(), ConfigError>>>::new();
     let config_arc = Arc::new(config);
+
     for out_path in out_paths {
         let path_arc = Arc::new(out_path);
-        let temp_path = path_arc.clone();
-        let temp_config = config_arc.clone();
-        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
-            generate_constants(&temp_path, &temp_config)?;
-            Ok(())
-        });
-        handles.push(handle);
-        let temp_path = path_arc.clone();
-        let temp_config = config_arc.clone();
-        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
-            generate_types(&temp_path, &temp_config)?;
-            Ok(())
-        });
-        handles.push(handle);
-        let temp_path = path_arc.clone();
-        let temp_config = config_arc.clone();
-        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
-            generate_ntddk(&temp_path, &temp_config)?;
-            Ok(())
-        });
-        handles.push(handle);
-        let temp_path = path_arc.clone();
-        let temp_config = config_arc.clone();
-        let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
-            generate_wdf(&temp_path, &temp_config)?;
-            Ok(())
-        });
-        handles.push(handle);
+        for generate_function in GENERATE_FUNCTIONS {
+            let temp_path = path_arc.clone();
+            let temp_config = config_arc.clone();
+            let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
+                generate_function(&temp_path, &temp_config)?;
+                Ok(())
+            });
+            handles.push(handle);
+        }
     }
 
     for handle in handles {
