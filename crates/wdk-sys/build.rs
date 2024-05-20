@@ -6,8 +6,8 @@
 use std::{
     env,
     path::{Path, PathBuf},
-    thread::{self, JoinHandle},
     sync::Arc,
+    thread::{self, JoinHandle},
 };
 
 use bindgen::CodegenConfig;
@@ -148,22 +148,22 @@ fn main() -> anyhow::Result<()> {
             Ok(())
         });
         handles.push(handle);
-        let temp_config = config_arc.clone();
         let temp_path = path_arc.clone();
+        let temp_config = config_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_types(&temp_path, &temp_config)?;
             Ok(())
         });
         handles.push(handle);
-        let temp_config = config_arc.clone();
         let temp_path = path_arc.clone();
+        let temp_config = config_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_ntddk(&temp_path, &temp_config)?;
             Ok(())
         });
         handles.push(handle);
-        let temp_config = config_arc.clone();
         let temp_path = path_arc.clone();
+        let temp_config = config_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_wdf(&temp_path, &temp_config)?;
             Ok(())
