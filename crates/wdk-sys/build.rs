@@ -7,6 +7,7 @@ use std::{
     env,
     path::{Path, PathBuf},
     thread::{self, JoinHandle},
+    sync::Arc,
 };
 
 use bindgen::CodegenConfig;
@@ -137,30 +138,32 @@ fn main() -> anyhow::Result<()> {
     ];
 
     let mut handles = Vec::<JoinHandle<Result<(), ConfigError>>>::new();
+    let config_arc = Arc::new(config);
     for out_path in out_paths {
-        let temp_config = config.clone();
-        let temp_path = out_path.clone();
+        let path_arc = Arc::new(out_path);
+        let temp_path = path_arc.clone();
+        let temp_config = config_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_constants(&temp_path, &temp_config)?;
             Ok(())
         });
         handles.push(handle);
-        let temp_config = config.clone();
-        let temp_path = out_path.clone();
+        let temp_config = config_arc.clone();
+        let temp_path = path_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_types(&temp_path, &temp_config)?;
             Ok(())
         });
         handles.push(handle);
-        let temp_config = config.clone();
-        let temp_path = out_path.clone();
+        let temp_config = config_arc.clone();
+        let temp_path = path_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_ntddk(&temp_path, &temp_config)?;
             Ok(())
         });
         handles.push(handle);
-        let temp_config = config.clone();
-        let temp_path = out_path.clone();
+        let temp_config = config_arc.clone();
+        let temp_path = path_arc.clone();
         let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
             generate_wdf(&temp_path, &temp_config)?;
             Ok(())
@@ -174,5 +177,5 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    Ok(config.export_config()?)
+    Ok(config_arc.export_config()?)
 }
