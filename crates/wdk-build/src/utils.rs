@@ -351,9 +351,13 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: S) -> bool {
 /// If the WDK version format validation function is ever changed not to
 /// validate that there are 4 substrings in the WDK version string, this
 /// function will panic.
-pub fn get_wdk_version_number<S: AsRef<str>>(version_string: S) -> Result<String, ConfigError> {
-    if !validate_wdk_version_format(&version_string) {
-        return Err(ConfigError::WDKVersionStringFormatError);
+pub fn get_wdk_version_number<S: AsRef<str> + ToString + ?Sized>(
+    version_string: &S,
+) -> Result<String, ConfigError> {
+    if !validate_wdk_version_format(version_string) {
+        return Err(ConfigError::WDKVersionStringFormatError {
+            version: version_string.to_string(),
+        });
     }
 
     let version_substrings = version_string.as_ref().split('.').collect::<Vec<&str>>();
@@ -429,45 +433,76 @@ mod tests {
 
     #[test]
     fn validate_wdk_strings() {
+        let test_string = "10.0.12345.0";
         assert_eq!(
-            get_wdk_version_number("10.0.12345.0").ok(),
+            get_wdk_version_number(test_string).ok(),
             Some("12345".to_string())
         );
+        let test_string = "10.0.5.0";
         assert_eq!(
-            get_wdk_version_number("10.0.5.0").ok(),
+            get_wdk_version_number(test_string).ok(),
             Some("5".to_string())
         );
+        let test_string = "10.0.0.0";
         assert_eq!(
-            get_wdk_version_number("10.0.0.0").ok(),
+            get_wdk_version_number(test_string).ok(),
             Some("0".to_string())
         );
-        assert!(matches!(
-            get_wdk_version_number("11.0.0.0"),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
-        assert!(matches!(
-            get_wdk_version_number("10.0.12345.0.0"),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
-        assert!(matches!(
-            get_wdk_version_number("10.0.12345.a"),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
-        assert!(matches!(
-            get_wdk_version_number("10.0.12345"),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
-        assert!(matches!(
-            get_wdk_version_number("10.0.1234!5.0"),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
-        assert!(matches!(
-            get_wdk_version_number("Not a real version!"),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
-        assert!(matches!(
-            get_wdk_version_number(""),
-            Err(ConfigError::WDKVersionStringFormatError)
-        ));
+        let test_string = "11.0.0.0";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
+        let test_string = "10.0.12345.0.0";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
+        let test_string = "10.0.12345.a";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
+        let test_string = "10.0.12345";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
+        let test_string = "10.0.1234!5.0";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
+        let test_string = "Not a real version!";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
+        let test_string = "";
+        assert_eq!(
+            format!("{}", get_wdk_version_number(test_string).err().unwrap()),
+            format!(
+                "The WDK version string provided ({}) was not in a valid format.",
+                test_string
+            )
+        );
     }
 }

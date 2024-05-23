@@ -529,7 +529,7 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
 
     println!("FORWARDING ARGS TO CARGO-MAKE:");
     if !crate::utils::validate_wdk_version_format(&version) {
-        return Err(ConfigError::WDKVersionStringFormatError);
+        return Err(ConfigError::WDKVersionStringFormatError { version });
     }
 
     append_to_space_delimited_env_var(WDK_VERSION_ENV_VAR, &version);
@@ -550,11 +550,9 @@ pub fn setup_wdk_version() -> Result<String, ConfigError> {
 /// This function will panic if the function for validating a WDK version string
 /// is ever changed to no longer validate that each part of the version string
 /// is an i32.
-pub fn setup_infverif_for_samples<S: AsRef<str>>(version: S) -> Result<(), ConfigError> {
-    // The below two lines are just to unblock while debugging an issue with
-    // multiple versions populating the environment variable
-    let version = version.as_ref().split(' ').collect::<Vec<&str>>();
-    let version = version.first().unwrap_or(&"No version provided");
+pub fn setup_infverif_for_samples<S: AsRef<str> + ToString + ?Sized>(
+    version: &S,
+) -> Result<(), ConfigError> {
     let validated_version_string = crate::utils::get_wdk_version_number(version)?;
     // This print signifies the start of the forwarding and signals to the
     // `rust-env-update` plugin that it should forward args. This is also used to
