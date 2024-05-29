@@ -15,7 +15,7 @@ pub trait BuilderExt {
     ///
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
-    fn wdk_default(c_header_files: Vec<&str>, config: Config) -> Result<Builder, ConfigError>;
+    fn wdk_default(c_header_files: Vec<&str>, config: &Config) -> Result<Builder, ConfigError>;
 }
 
 impl BuilderExt for Builder {
@@ -26,7 +26,7 @@ impl BuilderExt for Builder {
     ///
     /// Will return `wdk_build::ConfigError` if any of the resolved include or
     /// library paths do not exist
-    fn wdk_default(c_header_files: Vec<&str>, config: Config) -> Result<Self, ConfigError> {
+    fn wdk_default(c_header_files: Vec<&str>, config: &Config) -> Result<Self, ConfigError> {
         let mut builder = Self::default();
 
         for c_header in c_header_files {

@@ -6,6 +6,8 @@
 use std::{
     env,
     path::{Path, PathBuf},
+    sync::Arc,
+    thread::{self, JoinHandle},
 };
 
 use bindgen::CodegenConfig;
@@ -21,7 +23,7 @@ use wdk_build::{BuilderExt, Config, ConfigError, DriverConfig, KMDFConfig};
 //     "2.0", "2.15", "2.17", "2.19", "2.21", "2.23", "2.25", "2.27", "2.31",
 // "2.33", ];
 
-fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(
         bindgen::Builder::wdk_default(vec!["src/ntddk-input.h", "src/wdf-input.h"], config)?
             .with_codegen_config(CodegenConfig::VARS)
@@ -31,7 +33,7 @@ fn generate_constants(out_path: &Path, config: Config) -> Result<(), ConfigError
     )
 }
 
-fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(
         bindgen::Builder::wdk_default(vec!["src/ntddk-input.h", "src/wdf-input.h"], config)?
             .with_codegen_config(CodegenConfig::TYPES)
@@ -41,7 +43,7 @@ fn generate_types(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     )
 }
 
-fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_ntddk(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(
         bindgen::Builder::wdk_default(vec!["src/ntddk-input.h"], config)?
             .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
@@ -51,7 +53,7 @@ fn generate_ntddk(out_path: &Path, config: Config) -> Result<(), ConfigError> {
     )
 }
 
-fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
+fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     // As of NI WDK, this may generate an empty file due to no non-type and non-var
     // items in the wdf headers(i.e. functions are all inlined). This step is
     // intentionally left here in case older WDKs have non-inlined functions or new
@@ -66,6 +68,15 @@ fn generate_wdf(out_path: &Path, config: Config) -> Result<(), ConfigError> {
             .write_to_file(out_path.join("wdf.rs"))?,
     )
 }
+
+type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
+
+const GENERATE_FUNCTIONS: [GenerateFn; 4] = [
+    generate_constants,
+    generate_types,
+    generate_ntddk,
+    generate_wdf,
+];
 
 fn main() -> anyhow::Result<()> {
     let tracing_filter = EnvFilter::default()
@@ -135,12 +146,27 @@ fn main() -> anyhow::Result<()> {
         ),
     ];
 
+    let mut handles = Vec::<JoinHandle<Result<(), ConfigError>>>::new();
+    let config_arc = Arc::new(config);
+
     for out_path in out_paths {
-        generate_constants(&out_path, config.clone())?;
-        generate_types(&out_path, config.clone())?;
-        generate_ntddk(&out_path, config.clone())?;
-        generate_wdf(&out_path, config.clone())?;
+        let path_arc = Arc::new(out_path);
+        for generate_function in GENERATE_FUNCTIONS {
+            let temp_path = path_arc.clone();
+            let temp_config = config_arc.clone();
+            let handle: JoinHandle<Result<(), ConfigError>> = thread::spawn(move || {
+                generate_function(&temp_path, &temp_config)?;
+                Ok(())
+            });
+            handles.push(handle);
+        }
     }
 
-    Ok(config.export_config()?)
+    for handle in handles {
+        if let Err(e) = handle.join().unwrap() {
+            return Err(e.into());
+        }
+    }
+
+    Ok(config_arc.export_config()?)
 }
