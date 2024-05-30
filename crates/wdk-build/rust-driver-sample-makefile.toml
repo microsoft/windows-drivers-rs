@@ -63,7 +63,7 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 
 std::panic::catch_unwind(|| {
 	let wdk_version = std::env::var(wdk_build::cargo_make::WDK_VERSION_ENV_VAR).expect("WDK_BUILD_DETECTED_VERSION should always be set by wdk-build-init cargo make task");
-	let wdk_build_number = str::parse::<u32>(&wdk_build::utils::get_wdk_version_number(wdk_version.clone()).expect(&format!("Couldn't get WDK version number!  Version number: {}", wdk_version))).expect("Couldn't parse WDK version number!");
+	let wdk_build_number = str::parse::<u32>(&wdk_build::utils::get_wdk_version_number(&wdk_version).unwrap()).expect(&format!("Couldn't parse WDK version number!  Version number: {}", wdk_version));
 
 	if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
 		// cargo_make will interpret returning an error from the rust-script condition_script as skipping the task

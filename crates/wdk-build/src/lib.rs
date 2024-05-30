@@ -15,7 +15,7 @@
 mod bindgen;
 /// Module for utility code related to the cargo-make experience for building
 /// drivers.
-mod utils;
+pub mod utils;
 
 pub mod cargo_make;
 
