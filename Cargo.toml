@@ -39,10 +39,10 @@ unsafe_op_in_unsafe_fn = "forbid"
 
 [workspace.lints.clippy]
 # Lint Groups
-all = "deny"
-pedantic = "warn"
-nursery = "warn"
-cargo = "warn"
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 # Individual Lints
 multiple_unsafe_ops_per_block = "forbid"
 undocumented_unsafe_blocks = "forbid"
