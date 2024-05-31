@@ -1,0 +1,78 @@
+# This file is used to extend the standard rust-driver-makefile to build official sample drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
+# Using this file requires extending both the standard makefile and this makefile in order, as follows:
+# extend = [ { path =  "target/rust-driver-makefile.toml" }, { path = "target/rust-driver-sample-makefile.toml" } ]
+
+# This plugin replaces the embedded `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY` in the rust-script doc comment with its evaluated value. See https://github.com/sagiegurari/cargo-make/issues/1081 for more context.
+[plugins.impl.rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution]
+script = '''
+# Parse task json into variables
+taskjson = json_parse ${task.as_json}
+
+# Convert backslashes to forward slashes
+rust-driver-toolchain-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
+
+# Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchain-path
+taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchain-path}"
+
+# Unset the private flag since it breaks cm_plugin_run_custom_task
+unset taskjson.private
+
+# Reencode variables into json
+taskjson = json_encode taskjson
+
+# Run the invoking task, with the modified condition_script
+cm_plugin_run_custom_task ${taskjson}
+'''
+
+
+[tasks.wdk-samples-setup]
+private = true
+install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
+plugin = "rust-env-update"
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.2.0" }
+//! ```
+#![allow(unused_doc_comments)]
+let env_string = std::env::var_os(wdk_build::cargo_make::WDK_VERSION_ENV_VAR)
+    .map_or_else(
+        || panic!("Couldn't read WDK build version that should have been set in init"),
+        |os_env_string| os_env_string.to_string_lossy().into_owned(),
+    );
+wdk_build::cargo_make::setup_infverif_for_samples(&env_string)?;
+'''
+
+[tasks.infverif]
+dependencies = ["wdk-samples-setup", "stampinf"]
+plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
+condition_script = '''
+#!@rust
+
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+use core::ops::RangeFrom;
+
+// This range is inclusive of 25798. FIXME: update with range end after /sample flag is added to InfVerif CLI
+const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
+
+std::panic::catch_unwind(|| {
+	let wdk_version = std::env::var(wdk_build::cargo_make::WDK_VERSION_ENV_VAR).expect("WDK_BUILD_DETECTED_VERSION should always be set by wdk-build-init cargo make task");
+	let wdk_build_number = str::parse::<u32>(&wdk_build::utils::get_wdk_version_number(&wdk_version).unwrap()).expect(&format!("Couldn't parse WDK version number!  Version number: {}", wdk_version));
+
+	if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
+		// cargo_make will interpret returning an error from the rust-script condition_script as skipping the task
+		return Err::<(), String>(format!("Skipping InfVerif. InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the /samples flag.").into());
+	}
+	Ok(())
+}).unwrap_or_else(|_|{
+	// panic contents would have already been printed to console
+	eprintln!("condition_script for infverif task panicked while executing. Defaulting to running inverif task.");
+	Ok(())
+})?
+'''

@@ -13,7 +13,9 @@
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 
 mod bindgen;
-mod utils;
+/// Module for utility code related to the cargo-make experience for building
+/// drivers.
+pub mod utils;
 
 pub mod cargo_make;
 
@@ -118,6 +120,14 @@ pub enum ConfigError {
          the environment setup scripts in the eWDK have been run."
     )]
     WDKContentRootDetectionError,
+
+    /// Error returned when the WDK version string does not match the expected
+    /// format
+    #[error("The WDK version string provided ({version}) was not in a valid format.")]
+    WDKVersionStringFormatError {
+        /// The incorrect WDK version string.
+        version: String,
+    },
 
     /// Error returned when `cargo_metadata` execution or parsing fails
     #[error(transparent)]
