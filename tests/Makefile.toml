@@ -6,6 +6,7 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
   "config-kmdf",
   "config-umdf",
   "config-wdm",
-  "umdf-driver-workspace"
-  "wdk-macros-test",
+  "kmdf-driver-workspace",
+  "umdf-driver-workspace",
+  "wdk-macros-tests",
 ]
