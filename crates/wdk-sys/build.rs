@@ -10,6 +10,8 @@ use std::{
     env,
     io::Write,
     path::{Path, PathBuf},
+    sync::Arc,
+    thread::{self, JoinHandle},
 };
 
 use bindgen::CodegenConfig;
@@ -137,6 +139,15 @@ pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::pt
     );
 }
 
+type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
+
+const BINDGEN_GENERATE_FUNCTIONS: [GenerateFn; 4] = [
+    generate_constants,
+    generate_types,
+    generate_base,
+    generate_wdf,
+];
+
 fn initialize_tracing() -> Result<(), ParseError> {
     let tracing_filter = EnvFilter::default()
         // Show up to INFO level by default
@@ -191,6 +202,8 @@ fn initialize_tracing() -> Result<(), ParseError> {
 }
 
 fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    info!("Generating bindings to WDK: constants.rs");
+
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config(CodegenConfig::VARS)
         .generate()
@@ -199,6 +212,8 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
 }
 
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    info!("Generating bindings to WDK: types.rs");
+
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config(CodegenConfig::TYPES)
         .generate()
@@ -211,6 +226,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         DriverConfig::WDM | DriverConfig::KMDF(_) => "ntddk.rs",
         DriverConfig::UMDF(_) => "windows.rs",
     };
+    info!("Generating bindings to WDK: {outfile_name}.rs");
 
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
         .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
@@ -220,18 +236,24 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    // As of NI WDK, this may generate an empty file due to no non-type and non-var
-    // items in the wdf headers(i.e. functions are all inlined). This step is
-    // intentionally left here in case older/newer WDKs have non-inlined functions
-    // or new WDKs may introduce non-inlined functions.
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
-        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-        // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
-        // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
-        .allowlist_file("(?i).*wdf.*")
-        .generate()
-        .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("wdf.rs"))?)
+    if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = &config.driver_config {
+        info!("Generating bindings to WDK: wdf.rs");
+
+        // As of NI WDK, this may generate an empty file due to no non-type and non-var
+        // items in the wdf headers(i.e. functions are all inlined). This step is
+        // intentionally left here in case older/newer WDKs have non-inlined functions
+        // or new WDKs may introduce non-inlined functions.
+        Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
+            // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
+            .allowlist_file("(?i).*wdf.*")
+            .generate()
+            .expect("Bindings should succeed to generate")
+            .write_to_file(out_path.join("wdf.rs"))?)
+    } else {
+        Ok(())
+    }
 }
 
 fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Result<()> {
@@ -362,14 +384,26 @@ fn main() -> anyhow::Result<()> {
         env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
     );
 
-    info_span!("bindgen").in_scope(|| {
-        info!("Generating bindings to WDK");
-        generate_constants(&out_path, &config)?;
-        generate_types(&out_path, &config)?;
-        generate_base(&out_path, &config)?;
+    thread::scope(|s| {
+        let mut thread_join_handles = Vec::new();
 
-        if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = &config.driver_config {
-            generate_wdf(&out_path, &config)?;
+        info_span!("bindgen").in_scope(|| {
+            for generate_function in BINDGEN_GENERATE_FUNCTIONS.iter() {
+                thread_join_handles.push(
+                    thread::Builder::new()
+                        .name("THREAD NAE".to_string())
+                        .spawn_scoped(s, || generate_function(&out_path, &config))
+                        .expect("Scoped Thread should spawn succesfully"),
+                );
+            }
+
+            Ok::<(), ConfigError>(())
+        })?;
+
+        for join_handle in thread_join_handles.drain(..) {
+            join_handle
+                .join()
+                .expect("Thread should complete without panicking")?;
         }
         Ok::<(), ConfigError>(())
     })?;

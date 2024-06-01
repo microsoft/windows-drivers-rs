@@ -22,8 +22,9 @@ This project was built with support of WDM, KMDF, and UMDF drivers in mind, as w
 ### Build Requirements
 
 * Binding generation via `bindgen` requires `libclang`. The easiest way to acquire this is via `winget`
-  * `winget install -i LLVM.LLVM`
-    * Ensure you select the GUI option to add LLVM to the PATH 
+  * `winget install -i LLVM.LLVM --version 17.0.6 --force`
+    * Ensure you select the GUI option to add LLVM to the PATH
+    * LLVM 18 has a bug that causes bindings to fail to generate for ARM64. Continue using LLVM 17 until LLVM 19 comes out with [the fix](https://github.com/llvm/llvm-project/pull/93235). See [this](https://github.com/rust-lang/rust-bindgen/issues/2842) for more details.
 * To execute post-build tasks (ie. `inf2cat`, `infverif`, etc.), `cargo make` is used
   * `cargo install --locked cargo-make --no-default-features --features tls-native`
 
