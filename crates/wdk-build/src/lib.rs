@@ -622,7 +622,7 @@ impl Config {
             "--warn-=no-invalid-token-paste",
         ]
         .into_iter()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
     }
 
     /// Configures a Cargo build of a library that depends on the WDK. This
@@ -641,9 +641,10 @@ impl Config {
         Ok(())
     }
 
-    /// Computes the name of the WdfFunctions symbol used for WDF function
+    /// Computes the name of the `WdfFunctions` symbol used for WDF function
     /// dispatching based off of the [`Config`]. Returns `None` if the driver
     /// model is [`DriverConfig::WDM`]
+    #[must_use]
     pub fn compute_wdffunctions_symbol_name(&self) -> Option<String> {
         let (wdf_major_version, wdf_minor_version) = match self.driver_config {
             DriverConfig::KMDF(config) => {
@@ -656,8 +657,7 @@ impl Config {
         };
 
         Some(format!(
-            "WdfFunctions_{:02}0{:02}",
-            wdf_major_version, wdf_minor_version
+            "WdfFunctions_{wdf_major_version:02}0{wdf_minor_version:02}"
         ))
     }
 
@@ -944,7 +944,7 @@ mod tests {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], Config::new);
 
         #[cfg(nightly_toolchain)]
-        assert_matches!(config.driver_config, DriverConfig::WDM());
+        assert_matches!(config.driver_config, DriverConfig::WDM);
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
     }
 
@@ -956,7 +956,7 @@ mod tests {
         });
 
         #[cfg(nightly_toolchain)]
-        assert_matches!(config.driver_config, DriverConfig::WDM());
+        assert_matches!(config.driver_config, DriverConfig::WDM);
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
     }
 
@@ -972,7 +972,8 @@ mod tests {
             config.driver_config,
             DriverConfig::KMDF(KMDFConfig {
                 kmdf_version_major: 1,
-                target_kmdf_version_minor: 33
+                target_kmdf_version_minor: 33,
+                minimum_kmdf_version_minor: None
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
@@ -984,6 +985,7 @@ mod tests {
             driver_config: DriverConfig::KMDF(KMDFConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 15,
+                minimum_kmdf_version_minor: None,
             }),
             ..Config::default()
         });
@@ -993,7 +995,8 @@ mod tests {
             config.driver_config,
             DriverConfig::KMDF(KMDFConfig {
                 kmdf_version_major: 1,
-                target_kmdf_version_minor: 15
+                target_kmdf_version_minor: 15,
+                minimum_kmdf_version_minor: None
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
@@ -1011,7 +1014,8 @@ mod tests {
             config.driver_config,
             DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 33
+                umdf_version_minor: 33,
+                minimum_kmdf_version_minor: None
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
@@ -1023,6 +1027,7 @@ mod tests {
             driver_config: DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
                 umdf_version_minor: 15,
+                minimum_umdf_version_minor: None
             }),
             ..Config::default()
         });
@@ -1032,7 +1037,8 @@ mod tests {
             config.driver_config,
             DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 15
+                umdf_version_minor: 15,
+                minimum_umdf_version_minor: None
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::ARM64);
@@ -1061,6 +1067,7 @@ mod tests {
                 driver_config: DriverConfig::KMDF(KMDFConfig {
                     kmdf_version_major: 1,
                     target_kmdf_version_minor: 15,
+                    minimum_kmdf_version_minor: None
                 }),
                 ..Default::default()
             });
@@ -1076,6 +1083,7 @@ mod tests {
                 driver_config: DriverConfig::UMDF(UMDFConfig {
                     umdf_version_major: 2,
                     umdf_version_minor: 33,
+                    minimum_umdf_version_minor: None
                 }),
                 ..Default::default()
             });
@@ -1088,7 +1096,7 @@ mod tests {
         #[test]
         fn wdm() {
             let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-                driver_config: DriverConfig::WDM(),
+                driver_config: DriverConfig::WDM,
                 ..Default::default()
             });
 

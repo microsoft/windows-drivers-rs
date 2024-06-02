@@ -394,7 +394,7 @@ impl ParseCargoArgs for CompilationOptions {
                     );
                 }
 
-                configure_wdf_build_output_dir(&target, &cargo_make_cargo_profile);
+                configure_wdf_build_output_dir(target, &cargo_make_cargo_profile);
 
                 if let Some(timings_option) = &timings {
                     timings_option.as_ref().map_or_else(
@@ -460,6 +460,7 @@ impl ParseCargoArgs for ManifestOptions {
 ///
 /// This function will panic if there's an internal error (i.e. bug) in its
 /// argument processing.
+#[must_use]
 pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     const TOOLCHAIN_ARG_POSITION: usize = 1;
 
@@ -497,7 +498,7 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     ]
     .into_iter()
     .filter(|env_var_name| env::var_os(env_var_name).is_some())
-    .map(|s| s.to_string())
+    .map(std::string::ToString::to_string)
 }
 
 /// Prepends the path variable with the necessary paths to access WDK tools
@@ -571,7 +572,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
     );
 
-    Ok([PATH_ENV_VAR].map(|s| s.to_string()))
+    Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
 }
 
 /// Forwards the specified environment variables in this process to the parent
@@ -582,7 +583,7 @@ pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item =
     // `rust-env-update` plugin that it should forward args
     println!("FORWARDING ARGS TO CARGO-MAKE:");
 
-    for env_var_name in env_vars.into_iter() {
+    for env_var_name in env_vars {
         let env_var_name = env_var_name.as_ref();
 
         // Since this executes in a child process to cargo-make, we need to forward the
@@ -590,13 +591,10 @@ pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item =
         // parent process (ie. cargo-make)
         println!(
             "{env_var_name}={}",
-            env::var(env_var_name).expect(
-                format!(
-                    "{env_var_name} should be the name of an environment variable that is set and \
-                     contains a valid UTF-8 value"
-                )
-                .as_str()
-            )
+            env::var(env_var_name).unwrap_or_else(|_| panic!(
+                "{env_var_name} should be the name of an environment variable that is set and \
+                 contains a valid UTF-8 value"
+            ))
         );
     }
 

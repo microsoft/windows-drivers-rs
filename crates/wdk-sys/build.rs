@@ -396,7 +396,7 @@ fn main() -> anyhow::Result<()> {
             let out_path = &out_path;
             let config = &config;
 
-            for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES.iter() {
+            for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
                 let current_span = Span::current();
 
                 thread_join_handles.push(
@@ -404,7 +404,7 @@ fn main() -> anyhow::Result<()> {
                         .name(format!("bindgen {file_name} generator"))
                         .spawn_scoped(thread_scope, move || {
                             // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                            info_span!(parent: current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(&out_path, &config))
+                            info_span!(parent: current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
                         })
                         .expect("Scoped Thread should spawn successfully"),
                 );

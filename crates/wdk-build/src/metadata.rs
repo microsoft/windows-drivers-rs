@@ -1,5 +1,8 @@
 use std::{
-    borrow::Borrow, collections::HashSet, env, path::{Path, PathBuf}
+    borrow::Borrow,
+    collections::HashSet,
+    env,
+    path::{Path, PathBuf},
 };
 
 use cargo_metadata::{Metadata, MetadataCommand};
@@ -24,28 +27,34 @@ pub trait TryFromCargoMetadata {
 pub struct WDKMetadata {
     // #[serde(rename = "general")]
     // general: General,
-
     #[serde(rename = "driver-model")]
     driver_model: DriverConfig,
 }
 
+// TODO: move all metadata to one source of truth
+
 // #[derive(Debug, Clone, Serialize, Deserialize)]
 // #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 // pub struct General {
-//     //       <PreprocessorDefinitions Condition="'$(OverrideTargetVersionDefines)' != 'true'">_WIN32_WINNT=$(WIN32_WINNT_VERSION);WINVER=$(WINVER_VERSION);WINNT=1;NTDDI_VERSION=$(NTDDI_VERSION);%(ClCompile.PreprocessorDefinitions)</PreprocessorDefinitions>
-// //       <PreprocessorDefinitions Condition="'$(IsKernelModeToolset)' != 'true'">WIN32_LEAN_AND_MEAN=1;%(ClCompile.PreprocessorDefinitions)</PreprocessorDefinitions>
+//     //       <PreprocessorDefinitions
+// Condition="'$(OverrideTargetVersionDefines)' !=
+// 'true'">_WIN32_WINNT=$(WIN32_WINNT_VERSION);WINVER=$(WINVER_VERSION);WINNT=1;
+// NTDDI_VERSION=$(NTDDI_VERSION);%(ClCompile.PreprocessorDefinitions)</
+// PreprocessorDefinitions> //       <PreprocessorDefinitions
+// Condition="'$(IsKernelModeToolset)' !=
+// 'true'">WIN32_LEAN_AND_MEAN=1;%(ClCompile.PreprocessorDefinitions)</
+// PreprocessorDefinitions>
 
 //     t_os_version,
-//     driver_target_platform: 
+//     driver_target_platform:
 //     nt_target_version: u32
 // }
 
-/// Metadata corresponding to the driver model page property page for WDK
-/// projects in Visual Studio
+// Metadata corresponding to the driver model page property page for WDK
+// projects in Visual Studio
 // #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 // #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 // pub struct DriverModel {
-
 
 //     driver_type: DriverType,
 
@@ -115,11 +124,11 @@ impl From<WDKMetadata> for DriverConfig {
         // Ok(match wdk_metadata.driver_model.driver_type {
         //     DriverType::WDM => Self::WDM(),
         //     DriverType::KMDF => Self::KMDF(KMDFConfig {
-        //         kmdf_version_major: wdk_metadata.driver_model.kmdf_version_major.ok_or_else(
-        //             || TryFromWDKMetadataError::MissingKMDFMetadata {
+        //         kmdf_version_major:
+        // wdk_metadata.driver_model.kmdf_version_major.ok_or_else(             || TryFromWDKMetadataError::MissingKMDFMetadata {
         //                 // TODO: fix population
-        //                 missing_metadata_field: stringify!(WDKMetadata.d).to_string(),
-        //             },
+        //                 missing_metadata_field:
+        // stringify!(WDKMetadata.d).to_string(),             },
         //         )?,
         //         kmdf_version_minor: wdk_metadata
         //             .driver_model
@@ -129,7 +138,8 @@ impl From<WDKMetadata> for DriverConfig {
         //     }),
         //     DriverType::UMDF => Self::UMDF(UMDFConfig {
         //         // tODO: should error if not present
-        //         umdf_version_major: wdk_metadata.driver_model.kmdf_version_major.unwrap_or(2),
+        //         umdf_version_major:
+        // wdk_metadata.driver_model.kmdf_version_major.unwrap_or(2),
         //         umdf_version_minor: wdk_metadata
         //             .driver_model
         //             .target_kmdf_version_minor
@@ -155,12 +165,11 @@ impl TryFromCargoMetadata for WDKMetadata {
     fn try_from_cargo_metadata(manifest_path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let manifest_path = manifest_path.as_ref();
 
-        // TODO: this works for the top level manifest, but it needs to be emitted for any toml in the workspace
+        // TODO: this works for the top level manifest, but it needs to be emitted for
+        // any toml in the workspace
         println!("cargo::rerun-if-changed={}", manifest_path.display());
 
-        let metadata = MetadataCommand::new()
-            .manifest_path(&manifest_path)
-            .exec()?;
+        let metadata = MetadataCommand::new().manifest_path(manifest_path).exec()?;
 
         let wdk_metadata_from_workspace_manifest = parse_workspace_wdk_metadata(&metadata);
         let wdk_metadata_from_package_manifests = parse_packages_wdk_metadata(&metadata);
@@ -221,51 +230,70 @@ impl TryFromCargoMetadata for WDKMetadata {
 
 impl WDKMetadata {
     // TODO: convert this to a SERDE Serializer
+    #[must_use]
     pub fn to_env_vars(&self) -> impl IntoIterator<Item = String> {
         match self {
-            Self {driver_model} => {
+            Self { driver_model } => {
                 let mut env_var_names = vec![];
 
                 const DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE";
-                
+
                 match driver_model {
                     DriverConfig::WDM => {
-
                         env::set_var(DRIVER_TYPE_ENV_VAR, "WDM");
                         env_var_names.push(DRIVER_TYPE_ENV_VAR);
-
-                    },
-                    DriverConfig::KMDF(KMDFConfig{ kmdf_version_major, target_kmdf_version_minor, minimum_kmdf_version_minor }) => {
-                        const KMDF_VERSION_MAJOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR";
-                        const TARGET_KMDF_VERSION_MINOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR";
+                    }
+                    DriverConfig::KMDF(KMDFConfig {
+                        kmdf_version_major,
+                        target_kmdf_version_minor,
+                        minimum_kmdf_version_minor: _,
+                    }) => {
+                        const KMDF_VERSION_MAJOR_ENV_VAR: &str =
+                            "WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR";
+                        const TARGET_KMDF_VERSION_MINOR_ENV_VAR: &str =
+                            "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR";
 
                         env::set_var(DRIVER_TYPE_ENV_VAR, "KMDF");
                         env_var_names.push(DRIVER_TYPE_ENV_VAR);
 
                         env::set_var(KMDF_VERSION_MAJOR_ENV_VAR, kmdf_version_major.to_string());
                         env_var_names.push(KMDF_VERSION_MAJOR_ENV_VAR);
-                        
-                        env::set_var(TARGET_KMDF_VERSION_MINOR_ENV_VAR, target_kmdf_version_minor.to_string());
+
+                        env::set_var(
+                            TARGET_KMDF_VERSION_MINOR_ENV_VAR,
+                            target_kmdf_version_minor.to_string(),
+                        );
                         env_var_names.push(TARGET_KMDF_VERSION_MINOR_ENV_VAR);
-                    },
-                    DriverConfig::UMDF(UMDFConfig { umdf_version_major, target_umdf_version_minor, minimum_umdf_version_minor }) => {
-                        const UMDF_VERSION_MAJOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR";
-                        const TARGET_UMDF_VERSION_MINOR_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR";
+                    }
+                    DriverConfig::UMDF(UMDFConfig {
+                        umdf_version_major,
+                        target_umdf_version_minor,
+                        minimum_umdf_version_minor: _,
+                    }) => {
+                        const UMDF_VERSION_MAJOR_ENV_VAR: &str =
+                            "WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR";
+                        const TARGET_UMDF_VERSION_MINOR_ENV_VAR: &str =
+                            "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR";
 
                         env::set_var(DRIVER_TYPE_ENV_VAR, "UMDF");
                         env_var_names.push(DRIVER_TYPE_ENV_VAR);
 
                         env::set_var(UMDF_VERSION_MAJOR_ENV_VAR, umdf_version_major.to_string());
                         env_var_names.push(UMDF_VERSION_MAJOR_ENV_VAR);
-                        
-                        env::set_var(TARGET_UMDF_VERSION_MINOR_ENV_VAR, target_umdf_version_minor.to_string());
+
+                        env::set_var(
+                            TARGET_UMDF_VERSION_MINOR_ENV_VAR,
+                            target_umdf_version_minor.to_string(),
+                        );
                         env_var_names.push(TARGET_UMDF_VERSION_MINOR_ENV_VAR);
-                    },
+                    }
                 }
 
                 env_var_names
             }
-        }.into_iter().map(|s| s.to_string())
+        }
+        .into_iter()
+        .map(std::string::ToString::to_string)
     }
 }
 
@@ -282,6 +310,7 @@ impl WDKMetadata {
 /// lockfile. This does not support invokations that use non-default target
 /// directories (ex. via `--target-dir`). This function only works when called
 /// from a `build.rs` file
+#[must_use]
 pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
         PathBuf::from(std::env::var("OUT_DIR").expect(
@@ -318,25 +347,23 @@ fn parse_packages_wdk_metadata(
 
     // Only one configuration of WDK is allowed per dependency graph
     match wdk_metadata_configurations.len() {
-        1 => {
-            return Ok(wdk_metadata_configurations.into_iter().next().expect(
-                "wdk_metadata_configurations should have exactly one element because of the \
-                 .len() check above",
-            ));
-        }
+        1 => Ok(wdk_metadata_configurations.into_iter().next().expect(
+            "wdk_metadata_configurations should have exactly one element because of the .len() \
+             check above",
+        )),
 
         0 => {
             // TODO: add a test for this
-            return Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected {});
+            Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected {})
         }
 
         _ => {
             // TODO: add a test for this
-            return Err(
+            Err(
                 TryFromCargoMetadataError::MultipleWDKConfigurationsDetected {
                     wdk_metadata_configurations,
                 },
-            );
+            )
         }
     }
 }
@@ -352,5 +379,5 @@ fn parse_workspace_wdk_metadata(
         return Ok(serde_json::from_value::<WDKMetadata>(wdk_metadata.clone()).unwrap());
     }
 
-    return Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected);
+    Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected)
 }

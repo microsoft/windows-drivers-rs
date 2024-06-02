@@ -39,7 +39,6 @@ use syn::{
     Type,
     TypeBareFn,
     TypePath,
-    TypePtr,
 };
 
 /// A procedural macro that allows WDF functions to be called by name. This
@@ -172,7 +171,7 @@ impl Inputs {
             span = self.wdf_function_identifier.span()
         );
 
-        let types_ast = parse_types_ast(self.types_path)?;
+        let types_ast = parse_types_ast(&self.types_path)?;
         let (parameters, return_type) =
             generate_parameters_and_return_type(&types_ast, &function_pointer_type)?;
         let parameter_identifiers = parameters
@@ -313,7 +312,7 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         .assemble_final_output()
 }
 
-fn parse_types_ast(path: LitStr) -> Result<File> {
+fn parse_types_ast(path: &LitStr) -> Result<File> {
     let types_path = PathBuf::from(path.value());
     let types_path = match types_path.canonicalize() {
         Ok(types_path) => types_path,

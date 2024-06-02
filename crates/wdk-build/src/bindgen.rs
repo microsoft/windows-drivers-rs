@@ -96,7 +96,7 @@ impl BuilderExt for Builder {
             // is EnumVariation::Consts which generates enums as global constants)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-            .parse_callbacks(Box::new(WDKCallbacks::new(&config)))
+            .parse_callbacks(Box::new(WDKCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease);
 
         Ok(builder)
