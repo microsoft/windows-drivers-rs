@@ -337,8 +337,8 @@ fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::
             .replace(
                 OUT_DIR_PLACEHOLDER,
                 out_path.join("types.rs").to_str().expect(
-                    "path to file with generated type information should successfully convert to a \
-                     str",
+                    "path to file with generated type information should successfully convert to \
+                     a str",
                 ),
             )
             .as_bytes(),
@@ -371,7 +371,7 @@ fn main() -> anyhow::Result<()> {
 
     let config = Config {
         driver_config: match WDKMetadata::try_from_cargo_metadata(find_top_level_cargo_manifest()) {
-            Ok(wdk_metadata_configuration) => wdk_metadata_configuration.try_into()?,
+            Ok(wdk_metadata_configuration) => wdk_metadata_configuration.into(),
             Err(<WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
                 // When building `wdk-sys`` standalone (i.e. without a driver crate), skip
                 // binding generation
@@ -458,7 +458,9 @@ fn main() -> anyhow::Result<()> {
             join_handle
                 .join()
                 .expect("Thread should complete without panicking")
-                .with_context(|| format!(r#""{thread_name}" thread failed to exit successfully"#))?;
+                .with_context(|| {
+                    format!(r#""{thread_name}" thread failed to exit successfully"#)
+                })?;
         }
         Ok::<(), anyhow::Error>(())
     })?;

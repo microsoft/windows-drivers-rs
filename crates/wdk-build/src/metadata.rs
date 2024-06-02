@@ -73,14 +73,14 @@ pub struct WDKMetadata {
 // #[serde(deny_unknown_fields)]
 // pub struct KMDFDriverModel {}
 
-/// Errors that could result from trying to convert a [`WDKMetadata`] to a
-/// [`DriverConfig`]
+// Errors that could result from trying to convert a [`WDKMetadata`] to a
+// [`DriverConfig`]
 // #[derive(Debug, Error)]
 // pub enum TryFromWDKMetadataError {
 //     /// Error returned when the [`WDKMetadata`] is missing KMDF metadata
 //     #[error(
-//         "missing KMDF metadata needed to convert from wdk_build::WDKMetadata to \
-//          wdk_build::DriverConfig::KMDF: {missing_metadata_field}"
+//         "missing KMDF metadata needed to convert from wdk_build::WDKMetadata
+// to \          wdk_build::DriverConfig::KMDF: {missing_metadata_field}"
 //     )]
 //     MissingKMDFMetadata {
 //         /// Missing KMDF metadata
@@ -125,9 +125,9 @@ impl From<WDKMetadata> for DriverConfig {
         //     DriverType::WDM => Self::WDM(),
         //     DriverType::KMDF => Self::KMDF(KMDFConfig {
         //         kmdf_version_major:
-        // wdk_metadata.driver_model.kmdf_version_major.ok_or_else(             || TryFromWDKMetadataError::MissingKMDFMetadata {
-        //                 // TODO: fix population
-        //                 missing_metadata_field:
+        // wdk_metadata.driver_model.kmdf_version_major.ok_or_else(             ||
+        // TryFromWDKMetadataError::MissingKMDFMetadata {                 //
+        // TODO: fix population                 missing_metadata_field:
         // stringify!(WDKMetadata.d).to_string(),             },
         //         )?,
         //         kmdf_version_minor: wdk_metadata
@@ -232,68 +232,66 @@ impl WDKMetadata {
     // TODO: convert this to a SERDE Serializer
     #[must_use]
     pub fn to_env_vars(&self) -> impl IntoIterator<Item = String> {
-        match self {
-            Self { driver_model } => {
-                let mut env_var_names = vec![];
+        let Self { driver_model } = self;
 
-                const DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE";
+        let mut env_var_names = vec![];
 
-                match driver_model {
-                    DriverConfig::WDM => {
-                        env::set_var(DRIVER_TYPE_ENV_VAR, "WDM");
-                        env_var_names.push(DRIVER_TYPE_ENV_VAR);
-                    }
-                    DriverConfig::KMDF(KMDFConfig {
-                        kmdf_version_major,
-                        target_kmdf_version_minor,
-                        minimum_kmdf_version_minor: _,
-                    }) => {
-                        const KMDF_VERSION_MAJOR_ENV_VAR: &str =
-                            "WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR";
-                        const TARGET_KMDF_VERSION_MINOR_ENV_VAR: &str =
-                            "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR";
+        const DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE";
 
-                        env::set_var(DRIVER_TYPE_ENV_VAR, "KMDF");
-                        env_var_names.push(DRIVER_TYPE_ENV_VAR);
+        match driver_model {
+            DriverConfig::WDM => {
+                env::set_var(DRIVER_TYPE_ENV_VAR, "WDM");
+                env_var_names.push(DRIVER_TYPE_ENV_VAR);
+            }
+            DriverConfig::KMDF(KMDFConfig {
+                kmdf_version_major,
+                target_kmdf_version_minor,
+                minimum_kmdf_version_minor: _,
+            }) => {
+                const KMDF_VERSION_MAJOR_ENV_VAR: &str =
+                    "WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR";
+                const TARGET_KMDF_VERSION_MINOR_ENV_VAR: &str =
+                    "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR";
 
-                        env::set_var(KMDF_VERSION_MAJOR_ENV_VAR, kmdf_version_major.to_string());
-                        env_var_names.push(KMDF_VERSION_MAJOR_ENV_VAR);
+                env::set_var(DRIVER_TYPE_ENV_VAR, "KMDF");
+                env_var_names.push(DRIVER_TYPE_ENV_VAR);
 
-                        env::set_var(
-                            TARGET_KMDF_VERSION_MINOR_ENV_VAR,
-                            target_kmdf_version_minor.to_string(),
-                        );
-                        env_var_names.push(TARGET_KMDF_VERSION_MINOR_ENV_VAR);
-                    }
-                    DriverConfig::UMDF(UMDFConfig {
-                        umdf_version_major,
-                        target_umdf_version_minor,
-                        minimum_umdf_version_minor: _,
-                    }) => {
-                        const UMDF_VERSION_MAJOR_ENV_VAR: &str =
-                            "WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR";
-                        const TARGET_UMDF_VERSION_MINOR_ENV_VAR: &str =
-                            "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR";
+                env::set_var(KMDF_VERSION_MAJOR_ENV_VAR, kmdf_version_major.to_string());
+                env_var_names.push(KMDF_VERSION_MAJOR_ENV_VAR);
 
-                        env::set_var(DRIVER_TYPE_ENV_VAR, "UMDF");
-                        env_var_names.push(DRIVER_TYPE_ENV_VAR);
+                env::set_var(
+                    TARGET_KMDF_VERSION_MINOR_ENV_VAR,
+                    target_kmdf_version_minor.to_string(),
+                );
+                env_var_names.push(TARGET_KMDF_VERSION_MINOR_ENV_VAR);
+            }
+            DriverConfig::UMDF(UMDFConfig {
+                umdf_version_major,
+                target_umdf_version_minor,
+                minimum_umdf_version_minor: _,
+            }) => {
+                const UMDF_VERSION_MAJOR_ENV_VAR: &str =
+                    "WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR";
+                const TARGET_UMDF_VERSION_MINOR_ENV_VAR: &str =
+                    "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR";
 
-                        env::set_var(UMDF_VERSION_MAJOR_ENV_VAR, umdf_version_major.to_string());
-                        env_var_names.push(UMDF_VERSION_MAJOR_ENV_VAR);
+                env::set_var(DRIVER_TYPE_ENV_VAR, "UMDF");
+                env_var_names.push(DRIVER_TYPE_ENV_VAR);
 
-                        env::set_var(
-                            TARGET_UMDF_VERSION_MINOR_ENV_VAR,
-                            target_umdf_version_minor.to_string(),
-                        );
-                        env_var_names.push(TARGET_UMDF_VERSION_MINOR_ENV_VAR);
-                    }
-                }
+                env::set_var(UMDF_VERSION_MAJOR_ENV_VAR, umdf_version_major.to_string());
+                env_var_names.push(UMDF_VERSION_MAJOR_ENV_VAR);
 
-                env_var_names
+                env::set_var(
+                    TARGET_UMDF_VERSION_MINOR_ENV_VAR,
+                    target_umdf_version_minor.to_string(),
+                );
+                env_var_names.push(TARGET_UMDF_VERSION_MINOR_ENV_VAR);
             }
         }
-        .into_iter()
-        .map(std::string::ToString::to_string)
+
+        env_var_names
+            .into_iter()
+            .map(std::string::ToString::to_string)
     }
 }
 
@@ -320,8 +318,7 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 
     out_dir
         .ancestors()
-        .skip_while(|path| !path.join("Cargo.lock").exists())
-        .next()
+        .find(|path| path.join("Cargo.lock").exists())
         .unwrap()
         .join("Cargo.toml")
     // TODO: error handling

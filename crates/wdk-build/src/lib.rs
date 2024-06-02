@@ -21,11 +21,7 @@ pub mod cargo_make;
 use std::{env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
-pub use metadata::{
-    find_top_level_cargo_manifest,
-    TryFromCargoMetadata,
-    WDKMetadata,
-};
+pub use metadata::{find_top_level_cargo_manifest, TryFromCargoMetadata, WDKMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
@@ -1027,7 +1023,7 @@ mod tests {
             driver_config: DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
                 umdf_version_minor: 15,
-                minimum_umdf_version_minor: None
+                minimum_umdf_version_minor: None,
             }),
             ..Config::default()
         });
@@ -1067,7 +1063,7 @@ mod tests {
                 driver_config: DriverConfig::KMDF(KMDFConfig {
                     kmdf_version_major: 1,
                     target_kmdf_version_minor: 15,
-                    minimum_kmdf_version_minor: None
+                    minimum_kmdf_version_minor: None,
                 }),
                 ..Default::default()
             });
@@ -1083,7 +1079,7 @@ mod tests {
                 driver_config: DriverConfig::UMDF(UMDFConfig {
                     umdf_version_major: 2,
                     umdf_version_minor: 33,
-                    minimum_umdf_version_minor: None
+                    minimum_umdf_version_minor: None,
                 }),
                 ..Default::default()
             });
