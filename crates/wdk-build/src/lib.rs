@@ -139,7 +139,7 @@ pub enum ConfigError {
     /// Error returned when the c runtime is not configured to be statically
     /// linked
     #[error(
-        "the c runtime is not properly configured to be statically linked. This is required for building \
+        "the C runtime is not properly configured to be statically linked. This is required for building \
          WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
     )]
     StaticCRTNotEnabled,
