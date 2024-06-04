@@ -261,7 +261,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 [tasks.stampinf]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "copy-inx-to-output"]
-env = { "WDK_BUILD_STAMPINF_WDF_FLAGS" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "", mapping = { "KMDF" = "-k ${WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}", "UMDF" = "-u ${WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0" } } , "WDK_BUILD_STAMPINF_ARCH" = { source = "${CARGO_MAKE_RUST_TARGET_ARCH}", default_value = "${CARGO_MAKE_RUST_TARGET_ARCH}", mapping = { "x86_64" = "amd64", "aarch64" = "arm64" } } }
+env = { "WDK_BUILD_STAMPINF_WDF_FLAGS" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "", mapping = { "KMDF" = "-k ${WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}", "UMDF" = "-u ${WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0" } } , "WDK_BUILD_STAMPINF_ARCH" = { source = "${CARGO_MAKE_CRATE_TARGET_TRIPLE}", default_value = "UNKNOWN", mapping = { "x86_64-pc-windows-msvc" = "amd64", "aarch64-pc-windows-msvc" = "arm64" } } }
 command = "stampinf"
 args = [
   "-f",
@@ -389,7 +389,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 [tasks.inf2cat]
 private = true
 dependencies = ["copy-driver-binary-to-package", "copy-inf-to-package"]
-env = { "WDK_BUILD_INF2CAT_OS" = { source = "${CARGO_MAKE_RUST_TARGET_ARCH}", default_value = "${CARGO_MAKE_RUST_TARGET_ARCH}", mapping = { "x86_64" = "10_x64", "aarch64" = "Server10_arm64" } } }
+env = { "WDK_BUILD_INF2CAT_OS" = { source = "${CARGO_MAKE_CRATE_TARGET_TRIPLE}", default_value = "UNKNOWN", mapping = { "x86_64-pc-windows-msvc" = "10_x64", "aarch64-pc-windows-msvc" = "Server10_arm64" } } }
 command = "inf2cat"
 args = [
   "/driver:${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package",
