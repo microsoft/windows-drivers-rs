@@ -104,6 +104,9 @@ rust-driver-toolchain-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INIT
 # Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchain-path
 taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchain-path}"
 
+# Unset the private flag since it breaks cm_plugin_run_custom_task: https://github.com/sagiegurari/cargo-make/issues/1084
+unset taskjson.private
+
 # Reencode variables into json
 taskjson = json_encode taskjson
 
@@ -125,12 +128,12 @@ script = '''
 
 let cli_env_vars = wdk_build::cargo_make::validate_command_line_args();
 let path_env_vars = wdk_build::cargo_make::setup_path()?;
+let wdk_version_env_vars = wdk_build::cargo_make::setup_wdk_version()?;
 
 wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
-    cli_env_vars.into_iter().chain(path_env_vars),
+    cli_env_vars.into_iter().chain(path_env_vars).chain(wdk_version_env_vars),
 );
 '''
-args = []
 
 [tasks.setup-wdk-config-env-vars]
 # This exists as a seperate task outside of `wdk-build-init` so that any wdk-metadata-detection errors can be a hard error, without failing every task flow that executes on non-driver crates in the workspace.
