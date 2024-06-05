@@ -2,6 +2,7 @@
 name = "driver_2"
 version = "0.0.0"
 edition = "2021"
+publish = false
 
 [package.metadata.wdk.driver-model]
 driver-type = "KMDF"
@@ -14,7 +15,3 @@ crate-type = ["cdylib"]
 test = false
 
 [dependencies]
-wdk.workspace = true
-wdk-alloc.workspace = true
-wdk-panic.workspace = true
-wdk-sys.workspace = true
