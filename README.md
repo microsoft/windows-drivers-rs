@@ -183,7 +183,7 @@ For release builds:
 
 To specify specific features:
 
-`cargo make default --feature <FEATURES>`
+`cargo make default --features <FEATURES>`
 
 To specify a specific rust toolchain:
 
