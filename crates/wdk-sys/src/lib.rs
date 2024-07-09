@@ -64,8 +64,33 @@ lazy_static! {
 #[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
 pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
-    nt_status >= 0
+    nt_status as u32 <= 0x7FFF_FFFF
+}
+
+#[allow(missing_docs)]
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+pub const fn NT_INFORMATION(nt_status: NTSTATUS) -> bool {
+    nt_status as u32 >= 0x4000_0000 && nt_status as u32 <= 0x7FFF_FFFF
+}
+
+#[allow(missing_docs)]
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+pub const fn NT_WARNING(nt_status: NTSTATUS) -> bool {
+    nt_status as u32 >= 0x8000_0000 && nt_status as u32 <= 0xBFFF_FFFF
+}
+
+#[allow(missing_docs)]
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+pub const fn NT_ERROR(nt_status: NTSTATUS) -> bool {
+    nt_status as u32 >= 0xC000_0000
 }
 
 #[allow(missing_docs)]
