@@ -15,16 +15,21 @@
 mod bindgen;
 mod metadata;
 
+pub mod cargo_make;
 /// Module for utility code related to the cargo-make experience for building
 /// drivers.
 pub mod utils;
 
-pub mod cargo_make;
-
 use std::{env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
-pub use metadata::{find_top_level_cargo_manifest, TryFromCargoMetadata, WDKMetadata};
+pub use metadata::{
+    find_top_level_cargo_manifest,
+    to_map,
+    to_map_with_prefix,
+    TryFromCargoMetadata,
+    WDKMetadata,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
@@ -34,22 +39,45 @@ use utils::PathExt;
 pub struct Config {
     /// Path to root of WDK. Corresponds with `WDKContentRoot` environment
     /// variable in eWDK
-    pub wdk_content_root: PathBuf,
+    pub wdk_content_root: PathBuf, //TODO: private
     /// Build configuration of driver
     pub driver_config: DriverConfig,
     /// CPU architecture to target
-    pub cpu_architecture: CPUArchitecture,
+    pub cpu_architecture: CPUArchitecture, //TODO: private
 }
 
 /// The driver type with its associated configuration parameters
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(deny_unknown_fields, tag = "driver-type")]
+#[serde(
+    tag = "DRIVER_TYPE",
+    deny_unknown_fields,
+    from = "DeserializableDriverConfig"
+)]
 pub enum DriverConfig {
     /// Windows Driver Model
     WDM,
     /// Kernel Mode Driver Framework
     KMDF(KMDFConfig),
     /// User Mode Driver Framework
+    UMDF(UMDFConfig),
+}
+/// Private enum identical to [`DriverConfig`] but with different tag name to
+/// deserialize from.
+///
+/// [`serde_derive`] doesn't support different tag names for serialization vs.
+/// deserialization, and also doesn't support aliases for tag names, so the
+/// `from` attribute is used in conjunction with this type to facilitate a
+/// different tag name for deserialization.
+///
+/// Relevant Github Issues:
+/// * https://github.com/serde-rs/serde/issues/2776
+/// * https://github.com/serde-rs/serde/issues/2324
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
+#[serde(tag = "driver-type", deny_unknown_fields)]
+enum DeserializableDriverConfig {
+    WDM,
+    KMDF(KMDFConfig),
     UMDF(UMDFConfig),
 }
 
@@ -64,7 +92,10 @@ pub enum CPUArchitecture {
 
 /// The configuration parameters for KMDF drivers
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "kebab-case")]
+#[serde(
+    deny_unknown_fields,
+    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
+)]
 pub struct KMDFConfig {
     /// Major KMDF Version
     pub kmdf_version_major: u8,
@@ -76,7 +107,10 @@ pub struct KMDFConfig {
 
 /// The configuration parameters for UMDF drivers
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "kebab-case")]
+#[serde(
+    deny_unknown_fields,
+    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
+)]
 pub struct UMDFConfig {
     /// Major UMDF Version
     pub umdf_version_major: u8,
@@ -160,33 +194,37 @@ pub enum ConfigFromEnvError {
     #[error(transparent)]
     EnvError(#[from] std::env::VarError),
 
-    /// Error returned when [`serde_json`] fails to deserialize the [`Config`]
-    #[error(transparent)]
-    DeserializeError(#[from] serde_json::Error),
+    // TODO: clean up error handling
+    // /// Error returned when [`serde_json`] fails to deserialize the [`Config`]
+    // #[error(transparent)]
+    // DeserializeError(#[from] serde_json::Error),
 
-    /// Error returned when the config from one WDK dependency does not match
-    /// the config from another
-    #[error(
-        "config from {config_1_source} does not match config from {config_2_source}:\nconfig_1: \
-         {config_1:?}\nconfig_2: {config_2:?}"
-    )]
-    ConfigMismatch {
-        /// Config from the first dependency
-        config_1: Box<Config>,
-        /// DEP_ environment variable name indicating the source of the first
-        /// dependency
-        config_1_source: String,
-        /// Config from the second dependency
-        config_2: Box<Config>,
-        /// DEP_ environment variable name indicating the source of the second
-        /// dependency
-        config_2_source: String,
-    },
+    // /// Error returned when the config from one WDK dependency does not match
+    // /// the config from another
+    // #[error(
+    //     "config from {config_1_source} does not match config from {config_2_source}:\nconfig_1: \
+    //      {config_1:?}\nconfig_2: {config_2:?}"
+    // )]
+    // ConfigMismatch {
+    //     /// Config from the first dependency
+    //     config_1: Box<Config>,
+    //     /// DEP_ environment variable name indicating the source of the first
+    //     /// dependency
+    //     config_1_source: String,
+    //     /// Config from the second dependency
+    //     config_2: Box<Config>,
+    //     /// DEP_ environment variable name indicating the source of the second
+    //     /// dependency
+    //     config_2_source: String,
+    // },
 
     /// Error returned when no WDK configs exported from dependencies could be
     /// found
     #[error("no WDK configs exported from dependencies could be found")]
     ConfigNotFound,
+
+    #[error(transparent)]
+    TryFromCargoMetadataError(#[from] metadata::TryFromCargoMetadataError),
 }
 
 /// Errors that could result from exporting a [`wdk-build`] build configuration
@@ -228,30 +266,6 @@ impl Config {
         Self::default()
     }
 
-    /// Creates a [`Config`] from a config exported from a dependency. The
-    /// dependency must have exported a [`Config`] via
-    /// [`Config::export_config`], and the dependency must have set a `links`
-    /// value in its Cargo manifiest to export the
-    /// `DEP_<CARGO_MANIFEST_LINKS>_WDK_CONFIG` to downstream crates
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the provided `links_value` does
-    /// not correspond with a links value specified in the Cargo
-    /// manifest of one of the dependencies of the crate who's build script
-    /// invoked this function.
-    pub fn from_env<S: AsRef<str> + std::fmt::Display>(
-        links_value: S,
-    ) -> Result<Self, ConfigFromEnvError> {
-        Ok(serde_json::from_str::<Self>(
-            std::env::var(format!(
-                "DEP_{links_value}_{}",
-                Self::CARGO_CONFIG_KEY.to_ascii_uppercase()
-            ))?
-            .as_str(),
-        )?)
-    }
-
     /// Creates a [`Config`] from a config exported from [`wdk`](https://docs.rs/wdk/latest/wdk/) or
     /// [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/) crates.
     ///
@@ -263,44 +277,15 @@ impl Config {
     ///       be found
     ///     * there is a config mismatch between [`wdk`](https://docs.rs/wdk/latest/wdk/)
     ///       and [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/)
+    /// TODO
     pub fn from_env_auto() -> Result<Self, ConfigFromEnvError> {
-        let wdk_sys_crate_dep_key =
-            format!("DEP_WDK_{}", Self::CARGO_CONFIG_KEY.to_ascii_uppercase());
-        let wdk_crate_dep_key = format!(
-            "DEP_WDK-SYS_{}",
-            Self::CARGO_CONFIG_KEY.to_ascii_uppercase()
-        );
+        let manifest_path = metadata::find_top_level_cargo_manifest();
+        let metadata = WDKMetadata::try_from_cargo_metadata(manifest_path)?;
 
-        let wdk_sys_crate_config_serialized = std::env::var(&wdk_sys_crate_dep_key);
-        let wdk_crate_config_serialized = std::env::var(&wdk_crate_dep_key);
-
-        if let (Ok(wdk_sys_crate_config_serialized), Ok(wdk_crate_config_serialized)) = (
-            wdk_sys_crate_config_serialized.clone(),
-            wdk_crate_config_serialized.clone(),
-        ) {
-            let wdk_sys_crate_config =
-                serde_json::from_str::<Self>(&wdk_sys_crate_config_serialized)?;
-            let wdk_crate_config = serde_json::from_str::<Self>(&wdk_crate_config_serialized)?;
-
-            if wdk_sys_crate_config == wdk_crate_config {
-                Ok(wdk_sys_crate_config)
-            } else {
-                Err(ConfigFromEnvError::ConfigMismatch {
-                    config_1: Box::from(wdk_sys_crate_config),
-                    config_1_source: wdk_sys_crate_dep_key,
-                    config_2: Box::from(wdk_crate_config),
-                    config_2_source: wdk_crate_dep_key,
-                })
-            }
-        } else if let Ok(wdk_sys_crate_config_serialized) = wdk_sys_crate_config_serialized {
-            Ok(serde_json::from_str::<Self>(
-                &wdk_sys_crate_config_serialized,
-            )?)
-        } else if let Ok(wdk_crate_config_serialized) = wdk_crate_config_serialized {
-            Ok(serde_json::from_str::<Self>(&wdk_crate_config_serialized)?)
-        } else {
-            Err(ConfigFromEnvError::ConfigNotFound)
-        }
+        Ok(Self {
+            driver_config: metadata.driver_model,
+            ..Default::default()
+        })
     }
 
     /// Expose `cfg` settings based on this [`Config`] to enable conditional
@@ -805,6 +790,16 @@ impl Config {
     }
 }
 
+impl From<DeserializableDriverConfig> for DriverConfig {
+    fn from(config: DeserializableDriverConfig) -> Self {
+        match config {
+            DeserializableDriverConfig::WDM => DriverConfig::WDM,
+            DeserializableDriverConfig::KMDF(kmdf_config) => DriverConfig::KMDF(kmdf_config),
+            DeserializableDriverConfig::UMDF(umdf_config) => DriverConfig::UMDF(umdf_config),
+        }
+    }
+}
+
 impl Default for KMDFConfig {
     #[must_use]
     fn default() -> Self {
@@ -958,7 +953,7 @@ mod tests {
     #[test]
     fn wdm_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-            driver_config: DriverConfig::WDM(),
+            driver_config: DriverConfig::WDM,
             ..Config::default()
         });
 
@@ -1021,8 +1016,8 @@ mod tests {
             config.driver_config,
             DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 33,
-                minimum_kmdf_version_minor: None
+                target_umdf_version_minor: 33,
+                minimum_umdf_version_minor: None
             })
         );
         assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
@@ -1033,7 +1028,7 @@ mod tests {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
             driver_config: DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 15,
+                target_umdf_version_minor: 15,
                 minimum_umdf_version_minor: None,
             }),
             ..Config::default()
@@ -1044,7 +1039,7 @@ mod tests {
             config.driver_config,
             DriverConfig::UMDF(UMDFConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 15,
+                target_umdf_version_minor: 15,
                 minimum_umdf_version_minor: None
             })
         );
@@ -1089,7 +1084,7 @@ mod tests {
             let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
                 driver_config: DriverConfig::UMDF(UMDFConfig {
                     umdf_version_major: 2,
-                    umdf_version_minor: 33,
+                    target_umdf_version_minor: 33,
                     minimum_umdf_version_minor: None,
                 }),
                 ..Default::default()

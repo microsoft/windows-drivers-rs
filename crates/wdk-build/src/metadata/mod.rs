@@ -1,15 +1,19 @@
+mod error;
+mod map;
+mod ser;
+
 use std::{
     borrow::Borrow,
     collections::HashSet,
-    env,
     path::{Path, PathBuf},
 };
 
 use cargo_metadata::{Metadata, MetadataCommand};
+pub use ser::{to_map, to_map_with_prefix};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{DriverConfig, KMDFConfig, UMDFConfig};
+use crate::DriverConfig;
 
 pub trait TryFromCargoMetadata {
     type Error;
@@ -23,12 +27,13 @@ pub trait TryFromCargoMetadata {
 /// of a crate that depends on the WDK. This corresponds with the settings in
 /// the `Driver Settings` property pages for WDK projects in Visual Studio
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(deny_unknown_fields)]
+#[serde(
+    deny_unknown_fields,
+    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
+)]
 pub struct WDKMetadata {
-    // #[serde(rename = "general")]
     // general: General,
-    #[serde(rename = "driver-model")]
-    driver_model: DriverConfig,
+    pub driver_model: DriverConfig,
 }
 
 // TODO: move all metadata to one source of truth
@@ -225,73 +230,6 @@ impl TryFromCargoMetadata for WDKMetadata {
 
             (unhandled_error @ Err(_), _) | (_, unhandled_error @ Err(_)) => unhandled_error,
         }
-    }
-}
-
-impl WDKMetadata {
-    // TODO: convert this to a SERDE Serializer
-    #[must_use]
-    pub fn to_env_vars(&self) -> impl IntoIterator<Item = String> {
-        let Self { driver_model } = self;
-
-        let mut env_var_names = vec![];
-
-        const DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE";
-
-        match driver_model {
-            DriverConfig::WDM => {
-                env::set_var(DRIVER_TYPE_ENV_VAR, "WDM");
-                env_var_names.push(DRIVER_TYPE_ENV_VAR);
-            }
-            DriverConfig::KMDF(KMDFConfig {
-                kmdf_version_major,
-                target_kmdf_version_minor,
-                minimum_kmdf_version_minor: _,
-            }) => {
-                const KMDF_VERSION_MAJOR_ENV_VAR: &str =
-                    "WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR";
-                const TARGET_KMDF_VERSION_MINOR_ENV_VAR: &str =
-                    "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR";
-
-                env::set_var(DRIVER_TYPE_ENV_VAR, "KMDF");
-                env_var_names.push(DRIVER_TYPE_ENV_VAR);
-
-                env::set_var(KMDF_VERSION_MAJOR_ENV_VAR, kmdf_version_major.to_string());
-                env_var_names.push(KMDF_VERSION_MAJOR_ENV_VAR);
-
-                env::set_var(
-                    TARGET_KMDF_VERSION_MINOR_ENV_VAR,
-                    target_kmdf_version_minor.to_string(),
-                );
-                env_var_names.push(TARGET_KMDF_VERSION_MINOR_ENV_VAR);
-            }
-            DriverConfig::UMDF(UMDFConfig {
-                umdf_version_major,
-                target_umdf_version_minor,
-                minimum_umdf_version_minor: _,
-            }) => {
-                const UMDF_VERSION_MAJOR_ENV_VAR: &str =
-                    "WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR";
-                const TARGET_UMDF_VERSION_MINOR_ENV_VAR: &str =
-                    "WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR";
-
-                env::set_var(DRIVER_TYPE_ENV_VAR, "UMDF");
-                env_var_names.push(DRIVER_TYPE_ENV_VAR);
-
-                env::set_var(UMDF_VERSION_MAJOR_ENV_VAR, umdf_version_major.to_string());
-                env_var_names.push(UMDF_VERSION_MAJOR_ENV_VAR);
-
-                env::set_var(
-                    TARGET_UMDF_VERSION_MINOR_ENV_VAR,
-                    target_umdf_version_minor.to_string(),
-                );
-                env_var_names.push(TARGET_UMDF_VERSION_MINOR_ENV_VAR);
-            }
-        }
-
-        env_var_names
-            .into_iter()
-            .map(std::string::ToString::to_string)
     }
 }
 

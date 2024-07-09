@@ -160,8 +160,18 @@ let manifest_path = std::path::PathBuf::from(
 )
 .join("Cargo.toml");
 
+let serialized_wdk_metadata_map = wdk_build::to_map_with_prefix(
+    "WDK_BUILD_METADATA",
+    &wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path)?,
+)?;
+for (key, value) in &serialized_wdk_metadata_map {
+    std::env::set_var(key, value);
+}
+
 wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
-    wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path)?.to_env_vars()
+    serialized_wdk_metadata_map
+        .into_iter()
+        .map(|(key, _)| (key)),
 );
 '''
 
@@ -216,8 +226,8 @@ dependencies = ["setup-wdk-config-env-vars", "build"]
 condition_script = '''
 #!@duckscript
 
-is_wdm = eq ${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE} "WDM"
-is_kmdf = eq ${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE} "KMDF"
+is_wdm = eq ${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE} "WDM"
+is_kmdf = eq ${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE} "KMDF"
 is_kernel_mode = set ${is_wdm} or ${is_kmdf}
 
 if ${is_kernel_mode}
@@ -261,7 +271,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 [tasks.stampinf]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "copy-inx-to-output"]
-env = { "WDK_BUILD_STAMPINF_WDF_FLAGS" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "", mapping = { "KMDF" = "-k ${WDK_BUILD_CONFIG-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}", "UMDF" = "-u ${WDK_BUILD_CONFIG-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_CONFIG-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0" } } , "WDK_BUILD_STAMPINF_ARCH" = { source = "${CARGO_MAKE_CRATE_TARGET_TRIPLE}", default_value = "UNKNOWN", mapping = { "x86_64-pc-windows-msvc" = "amd64", "aarch64-pc-windows-msvc" = "arm64" } } }
+env = { "WDK_BUILD_STAMPINF_WDF_FLAGS" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "", mapping = { "KMDF" = "-k ${WDK_BUILD_METADATA-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}", "UMDF" = "-u ${WDK_BUILD_METADATA-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0" } } , "WDK_BUILD_STAMPINF_ARCH" = { source = "${CARGO_MAKE_CRATE_TARGET_TRIPLE}", default_value = "UNKNOWN", mapping = { "x86_64-pc-windows-msvc" = "amd64", "aarch64-pc-windows-msvc" = "arm64" } } }
 command = "stampinf"
 args = [
   "-f",
@@ -281,7 +291,7 @@ args = [
 private = true
 dependencies = ["setup-wdk-config-env-vars", "stampinf"]
 # TODO: This should be if WDK <= GE && DRIVER_MODEL == UMDF
-env = { "WDK_BUILD_BASE_INFVERIF_FLAGS" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /w", mapping = { "UMDF" = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /u" } } }
+env = { "WDK_BUILD_BASE_INFVERIF_FLAGS" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /w", mapping = { "UMDF" = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /u" } } }
 command = "infverif"
 args = [
   "@@split(WDK_BUILD_BASE_INFVERIF_FLAGS, ,remove-empty)",
@@ -292,7 +302,7 @@ args = [
 [tasks.copy-driver-binary-to-package]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "generate-driver-binary-file"]
-env = { "WDK_BUILD_DRIVER_EXTENSION" = { source = "${WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE}", default_value = "UNKNOWN_EXTENSION", mapping = { "WDM" = "sys", "KMDF" = "sys", "UMDF" = "dll" } } }
+env = { "WDK_BUILD_DRIVER_EXTENSION" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "UNKNOWN_EXTENSION", mapping = { "WDM" = "sys", "KMDF" = "sys", "UMDF" = "dll" } } }
 script_runner = "@rust"
 script_runner_args = [
   "--base-path",
@@ -305,7 +315,7 @@ script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-eprintln!("WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE: {}", std::env::var("WDK_BUILD_CONFIG-DRIVER_MODEL-DRIVER_TYPE").unwrap());
+eprintln!("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE: {}", std::env::var("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE").unwrap());
 eprintln!("WDK_BUILD_DRIVER_EXTENSION: {}", std::env::var("WDK_BUILD_DRIVER_EXTENSION").unwrap());
 let driver_binary_extension = std::env::var("WDK_BUILD_DRIVER_EXTENSION").expect("WDK_BUILD_DRIVER_EXTENSION should be set by cargo-make");
 println!("{driver_binary_extension}");
