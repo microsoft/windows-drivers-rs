@@ -1,86 +1,48 @@
-use std::{borrow::Borrow, collections::HashMap, fmt, hash::Hash, ops::Index};
+use std::{
+    collections::{btree_map, hash_map, BTreeMap, HashMap},
+    hash::Hash,
+};
 
-pub struct Map<K, V>(MapType<K, V>);
-/// Map-like type that is used by [`Serializer`].
-///
-/// Currently this is a `HashMap`, but its subject to change (ex. to
-/// `BTreeMap``).
-type MapType<K, V> = HashMap<K, V>;
 
-impl<K, V> Default for Map<K, V> {
-    fn default() -> Self {
-        Self::new()
+/// Trait for map-like type that is returned by [`crate::to_map`] and
+/// [`crate::to_map_with_prefix`].
+pub trait Map<K, V>: Default {
+    /// Creates a new, empty map
+    fn new() -> Self {
+        Self::default()
     }
+
+    fn insert_or_else<F, E>(&mut self, key: K, value: V, f: F) -> Result<(), E>
+    where F: FnMut(&K, &V, V) -> Result<(), E>;
 }
 
-impl<K, V> Map<K, V> {
-    pub fn new() -> Self {
-        Self(MapType::new())
-    }
-
-    pub(crate) fn entry(&mut self, k: K) -> std::collections::hash_map::Entry<K, V>
-    where
-        K: Eq + Hash,
+impl<K: Eq + Hash, V> Map<K, V> for HashMap<K, V> {
+    fn insert_or_else<F, E>(&mut self, key: K, value: V, mut f: F) -> Result<(), E>
+    where F: FnMut(&K, &V, V) -> Result<(), E>
     {
-        self.0.entry(k)
+        match self.entry(key) {
+            hash_map::Entry::Occupied(entry) => {
+                f(entry.key(), entry.get(), value)
+            },
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(value);
+                Ok(())
+            }
+        }
     }
 }
 
-impl<K, V> core::fmt::Debug for Map<K, V>
-where
-    K: core::fmt::Debug,
-    V: core::fmt::Debug,
-{
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-        self.0.fmt(formatter)
-    }
-}
-
-impl<K, V> IntoIterator for Map<K, V> {
-    type IntoIter = std::collections::hash_map::IntoIter<K, V>;
-    type Item = (K, V);
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<'a, K, V> IntoIterator for &'a Map<K, V> {
-    type IntoIter = std::collections::hash_map::Iter<'a, K, V>;
-    type Item = (&'a K, &'a V);
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-impl<'a, K, V> IntoIterator for &'a mut Map<K, V> {
-    type IntoIter = std::collections::hash_map::IterMut<'a, K, V>;
-    type Item = (&'a K, &'a mut V);
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
-    }
-}
-
-impl<K, Q, V> Index<&Q> for Map<K, V>
-where
-    K: Borrow<Q> + Eq + Hash + Ord,
-    Q: Eq + Hash + Ord + ?Sized,
-{
-    type Output = V;
-
-    fn index(&self, index: &Q) -> &Self::Output {
-        self.0.index(index)
-    }
-}
-
-impl<K, V> Map<K, V> {
-    pub fn get<Q>(&self, key: &Q) -> Option<&V>
-    where
-        K: Borrow<Q> + Eq + Hash + Ord,
-        Q: Eq + Hash + Ord + ?Sized,
-    {
-        self.0.get(key)
+impl<K: Ord, V> Map<K, V> for BTreeMap<K, V> {
+    fn insert_or_else<F, E>(&mut self, key: K, value: V, mut f: F) -> Result<(), E>
+    where F: FnMut(&K, &V, V) -> Result<(), E> {
+        match self.entry(key) {
+            btree_map::Entry::Occupied(entry) => {
+                f(entry.key(), entry.get(), value)
+            },
+            btree_map::Entry::Vacant(entry) => {
+                entry.insert(value);
+                Ok(())
+            }
+        }
     }
 }

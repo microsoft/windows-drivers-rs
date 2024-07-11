@@ -160,7 +160,7 @@ let manifest_path = std::path::PathBuf::from(
 )
 .join("Cargo.toml");
 
-let serialized_wdk_metadata_map = wdk_build::to_map_with_prefix(
+let serialized_wdk_metadata_map = wdk_build::to_map_with_prefix::<std::collections::BTreeMap<_, _>>(
     "WDK_BUILD_METADATA",
     &wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path)?,
 )?;

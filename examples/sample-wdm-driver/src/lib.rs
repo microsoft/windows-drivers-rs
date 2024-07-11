@@ -44,8 +44,6 @@ pub unsafe extern "system" fn driver_entry(
     driver.DriverUnload = Some(driver_exit);
 
     // Translate UTF16 string to rust string
-    // TODO: consider leveraging Windows::core::strings types and their associated
-    // functions
     let registry_path = String::from_utf16_lossy(unsafe {
         slice::from_raw_parts(
             (*registry_path).Buffer,

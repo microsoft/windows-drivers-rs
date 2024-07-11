@@ -13,57 +13,40 @@ use super::{
 /// as a separator between different node names.
 const ENV_VAR_NAME_SEPARATOR: char = '-';
 
-pub fn to_map<T>(value: &T) -> Result<Map<String, String>>
+pub fn to_map<M>(value: &impl Serialize) -> Result<M>
 where
-    T: Serialize,
-{
-    serialize_to_map_with_optional_prefix(None, value)
-}
-
-pub fn to_map_with_prefix<S, T>(prefix: S, value: &T) -> Result<Map<String, String>>
-where
-    S: Into<String>,
-    T: Serialize,
-{
-    serialize_to_map_with_optional_prefix(Some(prefix.into()), value)
-}
-
-fn serialize_to_map_with_optional_prefix<T>(
-    prefix: Option<String>,
-    value: &T,
-) -> Result<Map<String, String>>
-where
-    T: Serialize,
+    M: Map<String, String>,
 {
     let mut serialization_buffer: Vec<(String, String)> = Vec::new();
+    value.serialize(&mut Serializer::new(&mut serialization_buffer))?;
+    convert_serialized_output_to_map(serialization_buffer)
+}
 
-    match prefix {
-        Some(prefix) => {
-            value.serialize(&mut Serializer::with_prefix(
-                prefix,
-                &mut serialization_buffer,
-            ))?;
-        }
-        None => {
-            value.serialize(&mut Serializer::new(&mut serialization_buffer))?;
-        }
-    }
+pub fn to_map_with_prefix<M>(prefix: impl Into<String>, value: &impl Serialize) -> Result<M>
+where
+    M: Map<String, String>,
+{
+    let mut serialization_buffer: Vec<(String, String)> = Vec::new();
+    value.serialize(&mut Serializer::with_prefix(
+        prefix.into(),
+        &mut serialization_buffer,
+    ))?;
+    convert_serialized_output_to_map(serialization_buffer)
+}
 
-    let mut output_map: Map<String, String> = Map::new();
-    for (k, v) in serialization_buffer {
-        match output_map.entry(k) {
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(v);
-            }
-            std::collections::hash_map::Entry::Occupied(entry) => {
-                let (key, value) = entry.remove_entry();
-                return Err(Error::DuplicateSerializationKeys {
-                    key,
-                    value_1: v,
-                    value_2: value,
-                });
-            }
-        }
+fn convert_serialized_output_to_map<M>(serialization_buffer: Vec<(String, String)>) -> Result<M>
+where
+    M: Map<String, String>,
+{
+    let mut output_map = M::new();
+    for (key, value) in serialization_buffer {
+        output_map.insert_or_else(key, value, |key, existing_value, new_value| {
+            Err(Error::DuplicateSerializationKeys {
+                key: key.clone(),
+                value_1: existing_value.clone(),
+                value_2: new_value,
+            })
+        })?;
     }
 
     Ok(output_map)
@@ -501,6 +484,11 @@ pub(crate) use unsupported_serde_serialize_method_definition;
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::{BTreeMap, HashMap},
+        vec,
+    };
+
     use super::*;
     use crate::{DriverConfig, KMDFConfig, UMDFConfig, WDKMetadata};
 
@@ -514,7 +502,7 @@ mod tests {
             }),
         };
 
-        let output = to_map(&wdk_metadata).unwrap();
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "KMDF");
         assert_eq!(output["DRIVER_MODEL-KMDF_VERSION_MAJOR"], "1");
@@ -532,13 +520,62 @@ mod tests {
             }),
         };
 
-        let output = to_map(&wdk_metadata).unwrap();
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "KMDF");
         assert_eq!(output["DRIVER_MODEL-KMDF_VERSION_MAJOR"], "1");
         assert_eq!(output["DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR"], "23");
 
         assert_eq!(output.get("DRIVER_MODEL-MINIMUM_KMDF_VERSION_MINOR"), None);
+    }
+
+    #[test]
+    fn test_kmdf_with_prefix() {
+        let wdk_metadata = WDKMetadata {
+            driver_model: DriverConfig::KMDF(KMDFConfig {
+                kmdf_version_major: 1,
+                target_kmdf_version_minor: 33,
+                minimum_kmdf_version_minor: Some(31),
+            }),
+        };
+
+        let output =
+            to_map_with_prefix::<BTreeMap<_, _>>("WDK_BUILD_METADATA", &wdk_metadata).unwrap();
+
+        assert_eq!(
+            output["WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE"],
+            "KMDF"
+        );
+        assert_eq!(
+            output["WDK_BUILD_METADATA-DRIVER_MODEL-KMDF_VERSION_MAJOR"],
+            "1"
+        );
+        assert_eq!(
+            output["WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR"],
+            "33"
+        );
+        assert_eq!(
+            output["WDK_BUILD_METADATA-DRIVER_MODEL-MINIMUM_KMDF_VERSION_MINOR"],
+            "31"
+        );
+    }
+
+    #[test]
+    fn test_kmdf_with_hashmap() {
+        let wdk_metadata = WDKMetadata {
+            driver_model: DriverConfig::KMDF(KMDFConfig {
+                kmdf_version_major: 1,
+                target_kmdf_version_minor: 33,
+                minimum_kmdf_version_minor: Some(31),
+            }),
+        };
+
+        let output = to_map::<HashMap<_, _>>(&wdk_metadata).unwrap();
+
+        assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "KMDF");
+        assert_eq!(output["DRIVER_MODEL-KMDF_VERSION_MAJOR"], "1");
+        assert_eq!(output["DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR"], "33");
+        assert_eq!(output["DRIVER_MODEL-MINIMUM_KMDF_VERSION_MINOR"], "31");
     }
 
     #[test]
@@ -551,7 +588,7 @@ mod tests {
             }),
         };
 
-        let output = to_map(&wdk_metadata).unwrap();
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "UMDF");
         assert_eq!(output["DRIVER_MODEL-UMDF_VERSION_MAJOR"], "1");
@@ -569,7 +606,7 @@ mod tests {
             }),
         };
 
-        let output = to_map(&wdk_metadata).unwrap();
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "UMDF");
         assert_eq!(output["DRIVER_MODEL-UMDF_VERSION_MAJOR"], "1");
@@ -584,19 +621,27 @@ mod tests {
             driver_model: DriverConfig::WDM,
         };
 
-        let output = to_map(&wdk_metadata).unwrap();
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
     }
 
     #[test]
-    fn test_wdm_with_prefix() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::WDM,
-        };
+    fn test_conflicting_keys_in_convert_serialized_output_to_map() {
+        let input = vec![("KEY_NAME", "VALUE_1"), ("KEY_NAME", "VALUE_2")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
 
-        let output = to_map_with_prefix("WDK_BUILD_METADATA", &wdk_metadata).unwrap();
+        let err = convert_serialized_output_to_map::<BTreeMap<_, _>>(input).unwrap_err();
 
-        assert_eq!(output["WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE"], "WDM");
+        assert!(matches!(
+            err,
+            Error::DuplicateSerializationKeys {
+                key,
+                value_1,
+                value_2,
+            } if key == "KEY_NAME" && value_1 == "VALUE_1" && value_2 == "VALUE_2"
+        ));
     }
 }
