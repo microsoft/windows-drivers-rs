@@ -17,21 +17,21 @@ categories = [
 ]
 
 [build-dependencies]
+anyhow.workspace = true
 bindgen.workspace = true
-wdk-build.workspace = true
-anyhow = "1.0.82"
-cargo_metadata = "0.18.1"
-cc = "1.0.90"
-lazy_static = "1.4.0"
+cargo_metadata.workspace = true
+cc.workspace = true
+lazy_static.workspace = true
 serde_json.workspace = true
-thiserror = "1.0.59"
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
 
 [dependencies]
+lazy_static = { workspace = true, features = ["spin_no_std"] }
+rustversion.workspace = true
 wdk-macros.workspace = true
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-rustversion = "1.0.15"
 
 [features]
 default = []

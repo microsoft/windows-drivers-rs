@@ -271,7 +271,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 [tasks.stampinf]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "copy-inx-to-output"]
-env = { "WDK_BUILD_STAMPINF_WDF_FLAGS" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "", mapping = { "KMDF" = "-k ${WDK_BUILD_METADATA-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}", "UMDF" = "-u ${WDK_BUILD_METADATA-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0" } } , "WDK_BUILD_STAMPINF_ARCH" = { source = "${CARGO_MAKE_CRATE_TARGET_TRIPLE}", default_value = "UNKNOWN", mapping = { "x86_64-pc-windows-msvc" = "amd64", "aarch64-pc-windows-msvc" = "arm64" } } }
+env = { "WDK_BUILD_STAMPINF_WDF_FLAGS" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "", mapping = { "KMDF" = "-k ${WDK_BUILD_METADATA-DRIVER_MODEL-KMDF_VERSION_MAJOR}.${WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR}", "UMDF" = "-u ${WDK_BUILD_METADATA-DRIVER_MODEL-UMDF_VERSION_MAJOR}.${WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR}.0" } }, "WDK_BUILD_STAMPINF_ARCH" = { source = "${CARGO_MAKE_CRATE_TARGET_TRIPLE}", default_value = "UNKNOWN", mapping = { "x86_64-pc-windows-msvc" = "amd64", "aarch64-pc-windows-msvc" = "arm64" } } }
 command = "stampinf"
 args = [
   "-f",
@@ -285,7 +285,7 @@ args = [
   "-v",
   "*",
   "@@split(WDK_BUILD_STAMPINF_WDF_FLAGS, ,remove-empty)",
-] 
+]
 
 [tasks.infverif]
 private = true

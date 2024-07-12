@@ -9,13 +9,13 @@ license.workspace = true
 keywords = ["allocator", "wdk", "windows"]
 categories = ["memory-management", "no-std", "hardware-support"]
 
+[build-dependencies]
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
+
 [dependencies]
 wdk-sys.workspace = true
-
-[build-dependencies]
-wdk-build.workspace = true
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-tracing = "0.1.40"
 
 [dev-dependencies]
 wdk-sys = { workspace = true, features = ["test-stubs"] }
