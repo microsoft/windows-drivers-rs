@@ -15,7 +15,6 @@ extern crate wdk_panic;
 
 use alloc::{ffi::CString, slice, string::String};
 
-use static_assertions::const_assert;
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WDKAllocator;
@@ -64,13 +63,17 @@ pub unsafe extern "system" fn driver_entry(
     driver.DriverUnload = Some(driver_exit);
 
     let mut driver_config = {
-        // const_assert required since clippy::cast_possible_truncation must be silenced because of a false positive (since it currently doesn't handle checking compile-time constants): https://github.com/rust-lang/rust-clippy/issues/9613
-        const WDF_DRIVER_CONFIG_SIZE: usize = core::mem::size_of::<WDF_DRIVER_CONFIG>();
-        const_assert!(WDF_DRIVER_CONFIG_SIZE <= ULONG::MAX as usize);
         let wdf_driver_config_size: ULONG;
-        // truncation not possible because of above const_assert
+
+        // clippy::cast_possible_truncation cannot currently check compile-time constants: https://github.com/rust-lang/rust-clippy/issues/9613
         #[allow(clippy::cast_possible_truncation)]
         {
+            const WDF_DRIVER_CONFIG_SIZE: usize = core::mem::size_of::<WDF_DRIVER_CONFIG>();
+
+            // Manually assert there is not truncation since clippy doesn't work for
+            // compile-time constants
+            const { assert!(WDF_DRIVER_CONFIG_SIZE <= ULONG::MAX as usize) }
+
             wdf_driver_config_size = WDF_DRIVER_CONFIG_SIZE as ULONG;
         }
 

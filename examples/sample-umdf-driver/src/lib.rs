@@ -8,7 +8,7 @@
 
 use std::{ffi::CString, slice, string::String};
 
-use static_assertions::const_assert;
+use wdk::println;
 use wdk_sys::{
     call_unsafe_wdf_function_binding,
     windows::OutputDebugStringA,
@@ -25,7 +25,6 @@ use wdk_sys::{
     WDF_NO_HANDLE,
     WDF_NO_OBJECT_ATTRIBUTES,
 };
-use wdk::println;
 
 /// `DriverEntry` function required by WDF
 ///
@@ -49,13 +48,17 @@ pub unsafe extern "system" fn driver_entry(
     }
 
     let mut driver_config = {
-        // const_assert required since clippy::cast_possible_truncation must be silenced because of a false positive (since it currently doesn't handle checking compile-time constants): https://github.com/rust-lang/rust-clippy/issues/9613
-        const WDF_DRIVER_CONFIG_SIZE: usize = core::mem::size_of::<WDF_DRIVER_CONFIG>();
-        const_assert!(WDF_DRIVER_CONFIG_SIZE <= ULONG::MAX as usize);
         let wdf_driver_config_size: ULONG;
-        // truncation not possible because of above const_assert
+
+        // clippy::cast_possible_truncation cannot currently check compile-time constants: https://github.com/rust-lang/rust-clippy/issues/9613
         #[allow(clippy::cast_possible_truncation)]
         {
+            const WDF_DRIVER_CONFIG_SIZE: usize = core::mem::size_of::<WDF_DRIVER_CONFIG>();
+
+            // Manually assert there is not truncation since clippy doesn't work for
+            // compile-time constants
+            const { assert!(WDF_DRIVER_CONFIG_SIZE <= ULONG::MAX as usize) }
+
             wdf_driver_config_size = WDF_DRIVER_CONFIG_SIZE as ULONG;
         }
 
