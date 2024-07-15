@@ -124,38 +124,6 @@ pub enum TryFromCargoMetadataError {
     },
 }
 
-impl From<WDKMetadata> for DriverConfig {
-    fn from(wdk_metadata: WDKMetadata) -> Self {
-        // Ok(match wdk_metadata.driver_model.driver_type {
-        //     DriverType::WDM => Self::WDM(),
-        //     DriverType::KMDF => Self::KMDF(KMDFConfig {
-        //         kmdf_version_major:
-        // wdk_metadata.driver_model.kmdf_version_major.ok_or_else(             ||
-        // TryFromWDKMetadataError::MissingKMDFMetadata {                 //
-        // TODO: fix population                 missing_metadata_field:
-        // stringify!(WDKMetadata.d).to_string(),             },
-        //         )?,
-        //         kmdf_version_minor: wdk_metadata
-        //             .driver_model
-        //             .target_kmdf_version_minor
-        //             // tODO: should error if not present
-        //             .unwrap_or(33),
-        //     }),
-        //     DriverType::UMDF => Self::UMDF(UMDFConfig {
-        //         // tODO: should error if not present
-        //         umdf_version_major:
-        // wdk_metadata.driver_model.kmdf_version_major.unwrap_or(2),
-        //         umdf_version_minor: wdk_metadata
-        //             .driver_model
-        //             .target_kmdf_version_minor
-        //             // tODO: should error if not present
-        //             .unwrap_or(33),
-        //     }),
-        // })
-        wdk_metadata.driver_model
-    }
-}
-
 impl TryFromCargoMetadata for WDKMetadata {
     type Error = TryFromCargoMetadataError;
 

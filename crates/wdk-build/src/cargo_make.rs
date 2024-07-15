@@ -114,7 +114,7 @@ struct CompilationOptions {
     )]
     jobs: Option<String>,
 
-    // TODO: support building multiple targets at once
+    // FIXME: support building multiple targets at once
     #[arg(long, value_name = "TRIPLE", help = "Build for a target triple")]
     target: Option<String>,
 

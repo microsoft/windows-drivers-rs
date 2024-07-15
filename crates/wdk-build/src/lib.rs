@@ -28,6 +28,7 @@ pub use metadata::{
     to_map,
     to_map_with_prefix,
     TryFromCargoMetadata,
+    TryFromCargoMetadataError,
     WDKMetadata,
 };
 use serde::{Deserialize, Serialize};
@@ -39,11 +40,11 @@ use utils::PathExt;
 pub struct Config {
     /// Path to root of WDK. Corresponds with `WDKContentRoot` environment
     /// variable in eWDK
-    pub wdk_content_root: PathBuf, //TODO: private
+    pub wdk_content_root: PathBuf, // TODO: private
     /// Build configuration of driver
     pub driver_config: DriverConfig,
     /// CPU architecture to target
-    pub cpu_architecture: CPUArchitecture, //TODO: private
+    pub cpu_architecture: CPUArchitecture, // TODO: private
 }
 
 /// The driver type with its associated configuration parameters
@@ -54,6 +55,7 @@ pub struct Config {
     from = "DeserializableDriverConfig"
 )]
 pub enum DriverConfig {
+    // TODO: make all acronyms lowercase https://rust-lang.github.io/rust-clippy/master/index.html#/upper_
     /// Windows Driver Model
     WDM,
     /// Kernel Mode Driver Framework
@@ -61,6 +63,7 @@ pub enum DriverConfig {
     /// User Mode Driver Framework
     UMDF(UMDFConfig),
 }
+
 /// Private enum identical to [`DriverConfig`] but with different tag name to
 /// deserialize from.
 ///
@@ -72,7 +75,6 @@ pub enum DriverConfig {
 /// Relevant Github Issues:
 /// * https://github.com/serde-rs/serde/issues/2776
 /// * https://github.com/serde-rs/serde/issues/2324
-
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "driver-type", deny_unknown_fields)]
 enum DeserializableDriverConfig {
@@ -139,13 +141,10 @@ pub enum ConfigError {
     #[error(transparent)]
     StripExtendedPathPrefixError(#[from] utils::StripExtendedPathPrefixError),
 
-    /// Error returned when a [`Config`] fails to be parsed from the environment
+    /// Error returned when a [`WDKMetadata`] fails to be parsed from a Cargo
+    /// Manifest
     #[error(transparent)]
-    ConfigFromEnvError(#[from] ConfigFromEnvError),
-
-    /// Error returned when a [`Config`] fails to be exported to the environment
-    #[error(transparent)]
-    ExportError(#[from] ExportError),
+    TryFromCargoMetadataError(#[from] TryFromCargoMetadataError),
 
     /// Error returned when a [`Config`] fails to be serialized
     #[error(
@@ -186,63 +185,6 @@ pub enum ConfigError {
     StaticCRTNotEnabled,
 }
 
-/// Errors that could result from parsing a configuration from a [`wdk-build`]
-/// build environment
-#[derive(Debug, Error)]
-pub enum ConfigFromEnvError {
-    /// Error returned when an expected environment variable is not found
-    #[error(transparent)]
-    EnvError(#[from] std::env::VarError),
-
-    // TODO: clean up error handling
-    // /// Error returned when [`serde_json`] fails to deserialize the [`Config`]
-    // #[error(transparent)]
-    // DeserializeError(#[from] serde_json::Error),
-
-    // /// Error returned when the config from one WDK dependency does not match
-    // /// the config from another
-    // #[error(
-    //     "config from {config_1_source} does not match config from {config_2_source}:\nconfig_1: \
-    //      {config_1:?}\nconfig_2: {config_2:?}"
-    // )]
-    // ConfigMismatch {
-    //     /// Config from the first dependency
-    //     config_1: Box<Config>,
-    //     /// DEP_ environment variable name indicating the source of the first
-    //     /// dependency
-    //     config_1_source: String,
-    //     /// Config from the second dependency
-    //     config_2: Box<Config>,
-    //     /// DEP_ environment variable name indicating the source of the second
-    //     /// dependency
-    //     config_2_source: String,
-    // },
-
-    /// Error returned when no WDK configs exported from dependencies could be
-    /// found
-    #[error("no WDK configs exported from dependencies could be found")]
-    ConfigNotFound,
-
-    #[error(transparent)]
-    TryFromCargoMetadataError(#[from] metadata::TryFromCargoMetadataError),
-}
-
-/// Errors that could result from exporting a [`wdk-build`] build configuration
-#[derive(Debug, Error)]
-pub enum ExportError {
-    /// Error returned when the crate being compiled does not have a `links`
-    /// value in its Cargo.toml
-    #[error(
-        "Missing `links` value in crate's config.toml. Metadata is unable to propagate to \
-         dependencies without a `links` value"
-    )]
-    MissingLinksValue(#[from] std::env::VarError),
-
-    /// Error returned when [`serde_json`] fails to serialize the [`Config`]
-    #[error(transparent)]
-    SerializeError(#[from] serde_json::Error),
-}
-
 impl Default for Config {
     #[must_use]
     fn default() -> Self {
@@ -258,27 +200,20 @@ impl Default for Config {
 }
 
 impl Config {
-    const CARGO_CONFIG_KEY: &'static str = "wdk_config";
-
     /// Creates a new [`Config`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a [`Config`] from a config exported from [`wdk`](https://docs.rs/wdk/latest/wdk/) or
-    /// [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/) crates.
+    /// Creates a [`Config`] from parsing the top-level Cargo manifest into a
+    /// [`WDKMetadata`], and using it to populate the [`Config`]
     ///
     /// # Errors
     ///
     /// This function will return an error if:
-    ///     * an exported config from a dependency on [`wdk`](https://docs.rs/wdk/latest/wdk/)
-    ///       and/or [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/) cannot
-    ///       be found
-    ///     * there is a config mismatch between [`wdk`](https://docs.rs/wdk/latest/wdk/)
-    ///       and [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/)
-    /// TODO
-    pub fn from_env_auto() -> Result<Self, ConfigFromEnvError> {
+    ///     * TODO
+    pub fn from_env_auto() -> Result<Self, ConfigError> {
         let manifest_path = metadata::find_top_level_cargo_manifest();
         let metadata = WDKMetadata::try_from_cargo_metadata(manifest_path)?;
 
@@ -292,6 +227,8 @@ impl Config {
     /// compilation. This emits specially formatted prints to Cargo based on
     /// this [`Config`].
     fn emit_cfg_settings(&self) {
+        // TODO: use serializer?
+
         println!(r#"cargo::rustc-check-cfg=cfg(driver_type, values("WDM", "KMDF", "UMDF"))"#);
 
         match &self.driver_config {
@@ -754,29 +691,6 @@ impl Config {
         }
 
         self.emit_cfg_settings();
-        Ok(())
-    }
-
-    /// Serializes this [`Config`] and exports it via the Cargo
-    /// `DEP_<CARGO_MANIFEST_LINKS>_WDK_CONFIG` environment variable.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the crate does not have a `links`
-    /// field in its Cargo manifest or if it fails to serialize the config.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this [`Config`] fails to serialize.
-    pub fn export_config(&self) -> Result<(), ExportError> {
-        if let Err(var_error) = std::env::var("CARGO_MANIFEST_LINKS") {
-            return Err(ExportError::MissingLinksValue(var_error));
-        }
-        println!(
-            "cargo::metadata={}={}",
-            Self::CARGO_CONFIG_KEY,
-            serde_json::to_string(self)?
-        );
         Ok(())
     }
 

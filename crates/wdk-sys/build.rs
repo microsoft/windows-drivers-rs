@@ -371,9 +371,9 @@ fn main() -> anyhow::Result<()> {
 
     let config = Config {
         driver_config: match WDKMetadata::try_from_cargo_metadata(find_top_level_cargo_manifest()) {
-            Ok(wdk_metadata_configuration) => wdk_metadata_configuration.into(),
+            Ok(wdk_metadata_configuration) => wdk_metadata_configuration.driver_model,
             Err(<WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
-                // When building `wdk-sys`` standalone (i.e. without a driver crate), skip
+                // When building `wdk-sys` standalone (i.e. without a driver crate), skip
                 // binding generation
                 tracing::warn!("No WDK configurations detected. Skipping WDK binding generation.");
                 return Ok(());
@@ -465,6 +465,5 @@ fn main() -> anyhow::Result<()> {
         Ok::<(), anyhow::Error>(())
     })?;
 
-    config.configure_library_build()?;
-    Ok(config.export_config()?)
+    Ok(config.configure_library_build()?)
 }
