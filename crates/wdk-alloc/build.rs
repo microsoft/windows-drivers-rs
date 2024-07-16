@@ -10,21 +10,5 @@
 fn main() -> Result<(), wdk_build::ConfigError> {
     tracing_subscriber::fmt().pretty().init();
 
-    match wdk_build::Config::from_env_auto() {
-        Ok(config) => {
-            config.configure_library_build()?;
-            Ok(())
-        }
-        Err(wdk_build::ConfigError::TryFromCargoMetadataError(
-            wdk_build::TryFromCargoMetadataError::NoWDKConfigurationsDetected,
-        )) => {
-            // No WDK configurations will be detected if the crate is not being used in a
-            // driver. This includes when building this crate standalone or in the
-            // windows-drivers-rs workspace
-            tracing::warn!("No WDK configurations detected.");
-            Ok(())
-        }
-
-        Err(error) => Err(error.into()),
-    }
+    wdk_build::configure_wdk_library_build()
 }

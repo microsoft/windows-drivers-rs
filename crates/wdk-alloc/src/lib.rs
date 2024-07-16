@@ -7,17 +7,17 @@
 //! # Example
 //! ```rust, no_run
 //! // todo: fix this doctest
-//! #[cfg(all(any(driver_type = "WDM", driver_type = "KMDF"), not(test)))]
+//! #[cfg(all(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"), not(test)))]
 //! use wdk_alloc::WDKAllocator;
 //!
-//! #[cfg(all(any(driver_type = "WDM", driver_type = "KMDF"), not(test)))]
+//! #[cfg(all(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"), not(test)))]
 //! #[global_allocator]
 //! static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
 //! ```
 
 #![no_std]
 
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 mod kernel_mode {
 
     use core::alloc::{GlobalAlloc, Layout};
@@ -68,5 +68,5 @@ mod kernel_mode {
         }
     }
 }
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub use kernel_mode::*;

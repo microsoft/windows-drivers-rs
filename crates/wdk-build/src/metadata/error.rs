@@ -36,7 +36,7 @@ pub enum Error {
 
 impl ser::Error for Error {
     fn custom<T: std::fmt::Display>(msg: T) -> Self {
-        Error::CustomSerialization {
+        Self::CustomSerialization {
             message: msg.to_string(),
         }
     }

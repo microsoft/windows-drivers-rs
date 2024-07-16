@@ -731,11 +731,13 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "clap-cargo",
+ "lazy_static",
  "paste",
  "rustversion",
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "windows",
 ]
 

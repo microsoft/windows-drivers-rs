@@ -1,6 +1,6 @@
-mod error;
-mod map;
-mod ser;
+pub mod error;
+pub mod map;
+pub mod ser;
 
 use std::{
     borrow::Borrow,
@@ -9,7 +9,6 @@ use std::{
 };
 
 use cargo_metadata::{Metadata, MetadataCommand};
-pub use ser::{to_map, to_map_with_prefix};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

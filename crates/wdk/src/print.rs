@@ -39,12 +39,12 @@ pub fn _print(args: core::fmt::Arguments) {
 
     // SAFETY: `formatted_string` is a valid null terminated string
     unsafe {
-        #[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
+        #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
         {
             wdk_sys::ntddk::DbgPrint(formatted_string.as_ptr());
         }
 
-        #[cfg(driver_type = "UMDF")]
+        #[cfg(driver_model__driver_type = "UMDF")]
         {
             wdk_sys::windows::OutputDebugStringA(formatted_string.as_ptr());
         }

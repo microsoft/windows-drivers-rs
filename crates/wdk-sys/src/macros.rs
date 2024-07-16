@@ -5,7 +5,7 @@
 //! interacting with WDK apis which are inlined, and so are impossible to
 //! generate with [bindgen](https://docs.rs/bindgen/latest/bindgen/).
 
-#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 mod wdf {
     include!(concat!(
         env!("OUT_DIR"),

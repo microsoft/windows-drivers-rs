@@ -22,15 +22,7 @@ use tracing_subscriber::{
     EnvFilter,
 };
 use wdk_build::{
-    find_top_level_cargo_manifest,
-    BuilderExt,
-    Config,
-    ConfigError,
-    DriverConfig,
-    KMDFConfig,
-    TryFromCargoMetadata,
-    UMDFConfig,
-    WDKMetadata,
+    configure_wdk_library_build_and_then, find_top_level_cargo_manifest, BuilderExt, Config, ConfigError, DriverConfig, KMDFConfig, TryFromCargoMetadata, UMDFConfig, WDKMetadata
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
@@ -54,7 +46,7 @@ lazy_static! {
     static ref WDF_FUNCTION_TABLE_TEMPLATE: String = format!(
         r#"
 // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 lazy_static::lazy_static! {{
     #[allow(missing_docs)]
     pub static ref WDF_FUNCTION_TABLE: &'static [crate::WDFFUNC] = {{
@@ -369,101 +361,89 @@ fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> 
 fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
 
-    let config = Config {
-        driver_config: match WDKMetadata::try_from_cargo_metadata(find_top_level_cargo_manifest()) {
-            Ok(wdk_metadata_configuration) => wdk_metadata_configuration.driver_model,
-            Err(<WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
-                // When building `wdk-sys` standalone (i.e. without a driver crate), skip
-                // binding generation
-                tracing::warn!("No WDK configurations detected. Skipping WDK binding generation.");
-                return Ok(());
-            }
-            Err(error) => {
-                return Err(error.into());
-            }
-        },
-        ..Config::default()
-    };
-
-    let out_path = PathBuf::from(
-        env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
-    );
-
-    thread::scope(|thread_scope| {
-        let mut thread_join_handles = Vec::new();
-
-        info_span!("bindgen generation").in_scope(|| {
-            let out_path = &out_path;
-            let config = &config;
-
-            for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
+    configure_wdk_library_build_and_then(|config|{
+        let out_path = PathBuf::from(
+            env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
+        );
+    
+        thread::scope(|thread_scope| {
+            let mut thread_join_handles = Vec::new();
+    
+            info_span!("bindgen generation").in_scope(|| {
+                let out_path = &out_path;
+                let config = &config;
+    
+                for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
+                    let current_span = Span::current();
+    
+                    thread_join_handles.push(
+                        thread::Builder::new()
+                            .name(format!("bindgen {file_name} generator"))
+                            .spawn_scoped(thread_scope, move || {
+                                // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
+                                info_span!(parent: current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
+                            })
+                            .expect("Scoped Thread should spawn successfully"),
+                    );
+                }
+            });
+    
+            if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = config.driver_config {
                 let current_span = Span::current();
-
+                // Compile a c library to expose symbols that are not exposed because of
+                // __declspec(selectany)
                 thread_join_handles.push(
                     thread::Builder::new()
-                        .name(format!("bindgen {file_name} generator"))
-                        .spawn_scoped(thread_scope, move || {
+                        .name("wdf.c cc compilation".to_string())
+                        .spawn_scoped(thread_scope, || {
                             // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                            info_span!(parent: current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
+                            info_span!(parent: current_span, "cc").in_scope(|| {
+                                info!("Compiling wdf.c");
+                                let mut cc_builder = cc::Build::new();
+                                for (key, value) in config.get_preprocessor_definitions_iter() {
+                                    cc_builder.define(&key, value.as_deref());
+                                }
+    
+                                cc_builder
+                                    .includes(config.get_include_paths()?)
+                                    .file("src/wdf.c")
+                                    .compile("wdf");
+                                Ok::<(), ConfigError>(())
+                            })
                         })
                         .expect("Scoped Thread should spawn successfully"),
                 );
-            }
-        });
-
-        if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = config.driver_config {
-            let current_span = Span::current();
-            // Compile a c library to expose symbols that are not exposed because of
-            // __declspec(selectany)
-            thread_join_handles.push(
-                thread::Builder::new()
-                    .name("wdf.c cc compilation".to_string())
-                    .spawn_scoped(thread_scope, || {
-                        // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                        info_span!(parent: current_span, "cc").in_scope(|| {
-                            info!("Compiling wdf.c");
-                            let mut cc_builder = cc::Build::new();
-                            for (key, value) in config.get_preprocessor_definitions_iter() {
-                                cc_builder.define(&key, value.as_deref());
-                            }
-
-                            cc_builder
-                                .includes(config.get_include_paths()?)
-                                .file("src/wdf.c")
-                                .compile("wdf");
-                            Ok::<(), ConfigError>(())
-                        })
-                    })
-                    .expect("Scoped Thread should spawn successfully"),
-            );
-
-            info_span!("wdf_function_table.rs generation").in_scope(|| {
-                generate_wdf_function_table(&out_path, &config)?;
-                Ok::<(), std::io::Error>(())
-            })?;
-
-            info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
-                generate_call_unsafe_wdf_function_binding_macro(&out_path)?;
-                Ok::<(), std::io::Error>(())
-            })?;
-
-            info_span!("test_stubs.rs generation").in_scope(|| {
-                generate_test_stubs(&out_path, &config)?;
-                Ok::<(), std::io::Error>(())
-            })?;
-        }
-
-        for join_handle in thread_join_handles.drain(..) {
-            let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
-            join_handle
-                .join()
-                .expect("Thread should complete without panicking")
-                .with_context(|| {
-                    format!(r#""{thread_name}" thread failed to exit successfully"#)
+    
+                info_span!("wdf_function_table.rs generation").in_scope(|| {
+                    generate_wdf_function_table(&out_path, &config)?;
+                    Ok::<(), std::io::Error>(())
                 })?;
-        }
+    
+                info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
+                    generate_call_unsafe_wdf_function_binding_macro(&out_path)?;
+                    Ok::<(), std::io::Error>(())
+                })?;
+    
+                info_span!("test_stubs.rs generation").in_scope(|| {
+                    generate_test_stubs(&out_path, &config)?;
+                    Ok::<(), std::io::Error>(())
+                })?;
+            }
+    
+            for join_handle in thread_join_handles.drain(..) {
+                let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
+                join_handle
+                    .join()
+                    .expect("Thread should complete without panicking")
+                    .with_context(|| {
+                        format!(r#""{thread_name}" thread failed to exit successfully"#)
+                    })?;
+            }
+            Ok::<(), anyhow::Error>(())
+        })?;
+
         Ok::<(), anyhow::Error>(())
     })?;
 
-    Ok(config.configure_library_build()?)
+    Ok(())
 }

@@ -18,10 +18,12 @@ bindgen.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true
+lazy_static.workspace = true
 paste.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_System_Registry",

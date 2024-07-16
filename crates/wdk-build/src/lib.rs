@@ -25,8 +25,7 @@ use std::{env, path::PathBuf};
 pub use bindgen::BuilderExt;
 pub use metadata::{
     find_top_level_cargo_manifest,
-    to_map,
-    to_map_with_prefix,
+    ser::{to_map, to_map_with_prefix},
     TryFromCargoMetadata,
     TryFromCargoMetadataError,
     WDKMetadata,
@@ -73,8 +72,8 @@ pub enum DriverConfig {
 /// different tag name for deserialization.
 ///
 /// Relevant Github Issues:
-/// * https://github.com/serde-rs/serde/issues/2776
-/// * https://github.com/serde-rs/serde/issues/2324
+/// * <https://github.com/serde-rs/serde/issues/2776>
+/// * <https://github.com/serde-rs/serde/issues/2324>
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "driver-type", deny_unknown_fields)]
 enum DeserializableDriverConfig {
@@ -183,6 +182,11 @@ pub enum ConfigError {
          WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
     )]
     StaticCRTNotEnabled,
+
+    /// Error returned when [`metadata::ser::Serializer`] fails to serialize the
+    /// [`WDKMetadata`]
+    #[error(transparent)]
+    SerdeError(#[from] metadata::error::Error),
 }
 
 impl Default for Config {
@@ -223,25 +227,64 @@ impl Config {
         })
     }
 
+    fn emit_check_cfg_settings() {
+        for (cfg_key, allowed_values) in EXPORTED_CFG_SETTINGS.iter() {
+            let allowed_cfg_value_string =
+                allowed_values.iter().fold(String::new(), |mut acc, value| {
+                    const OPENING_QUOTE: char = '"';
+                    const CLOSING_QUOTE_AND_COMMA: &str = r#"","#;
+
+                    acc.reserve(
+                        value.len() + OPENING_QUOTE.len_utf8() + CLOSING_QUOTE_AND_COMMA.len(),
+                    );
+                    acc.push(OPENING_QUOTE);
+                    acc.push_str(value);
+                    acc.push_str(CLOSING_QUOTE_AND_COMMA);
+                    acc
+                });
+
+            let cfg_key = {
+                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that `cfg_key` is a
+                // valid rust identifier name
+                let mut k = cfg_key.replace(metadata::ser::KEY_NAME_SEPARATOR, "__");
+                // convention is that cfg keys are lowercase
+                k.make_ascii_lowercase();
+                k
+            };
+
+            // Emit allowed cfg values
+            println!("cargo::rustc-check-cfg=cfg({cfg_key}, values({allowed_cfg_value_string}))");
+        }
+    }
+
     /// Expose `cfg` settings based on this [`Config`] to enable conditional
     /// compilation. This emits specially formatted prints to Cargo based on
     /// this [`Config`].
-    fn emit_cfg_settings(&self) {
-        // TODO: use serializer?
+    fn emit_cfg_settings(&self) -> Result<(), ConfigError> {
+        Self::emit_check_cfg_settings();
 
-        println!(r#"cargo::rustc-check-cfg=cfg(driver_type, values("WDM", "KMDF", "UMDF"))"#);
+        let serialized_wdk_metadata_map =
+            to_map::<std::collections::BTreeMap<_, _>>(&WDKMetadata {
+                driver_model: self.driver_config.clone(),
+            })?;
 
-        match &self.driver_config {
-            DriverConfig::WDM => {
-                println!(r#"cargo::rustc-cfg=driver_type="WDM""#);
-            }
-            DriverConfig::KMDF(_) => {
-                println!(r#"cargo::rustc-cfg=driver_type="KMDF""#);
-            }
-            DriverConfig::UMDF(_) => {
-                println!(r#"cargo::rustc-cfg=driver_type="UMDF""#);
-            }
+        for cfg_key in EXPORTED_CFG_SETTINGS.iter().map(|(key, _)| *key) {
+            let cfg_value = &serialized_wdk_metadata_map[cfg_key];
+
+            let cfg_key = {
+                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that `cfg_key` is a
+                // valid rust identifier name
+                let mut k = cfg_key.replace(metadata::ser::KEY_NAME_SEPARATOR, "__");
+                // convention is that cfg keys are lowercase
+                k.make_ascii_lowercase();
+                k
+            };
+
+            // Emit cfg
+            println!(r#"cargo::rustc-cfg={cfg_key}="{cfg_value}""#);
         }
+
+        Ok(())
     }
 
     /// Returns header include paths required to build and link based off of the
@@ -566,8 +609,7 @@ impl Config {
     ///
     /// Panics if the invoked from outside a Cargo build environment
     pub fn configure_library_build(&self) -> Result<(), ConfigError> {
-        self.emit_cfg_settings();
-        Ok(())
+        self.emit_cfg_settings()
     }
 
     /// Computes the name of the `WdfFunctions` symbol used for WDF function
@@ -690,8 +732,7 @@ impl Config {
             println!("cargo::rustc-cdylib-link-arg=/MANIFEST:NO");
         }
 
-        self.emit_cfg_settings();
-        Ok(())
+        self.emit_cfg_settings()
     }
 
     fn is_crt_static_linked() -> bool {
@@ -791,6 +832,62 @@ impl CPUArchitecture {
             _ => None,
         }
     }
+}
+
+pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
+    match Config::from_env_auto() {
+        Ok(config) => {
+            config.configure_library_build()?;
+            Ok(())
+        }
+        Err(ConfigError::TryFromCargoMetadataError(
+            TryFromCargoMetadataError::NoWDKConfigurationsDetected,
+        )) => {
+            // No WDK configurations will be detected if the crate is not being used in a
+            // driver. Since this is usually the case when libraries are being built, this
+            // scenario is treated as a warning.
+            tracing::warn!("No WDK configurations detected.");
+            Ok(())
+        }
+
+        Err(error) => Err(error),
+    }
+}
+
+pub fn configure_wdk_library_build_and_then<F, E>(mut f: F) -> Result<(), E>
+where
+    F: FnMut(Config) -> Result<(), E>,
+    E: std::convert::From<ConfigError>,
+{
+    match Config::from_env_auto() {
+        Ok(config) => {
+            config.configure_library_build()?;
+            Ok(f(config)?)
+        }
+        Err(ConfigError::TryFromCargoMetadataError(
+            TryFromCargoMetadataError::NoWDKConfigurationsDetected,
+        )) => {
+            // No WDK configurations will be detected if the crate is not being used in a
+            // driver. Since this is usually the case when libraries are being built, this
+            // scenario is treated as a warning.
+            tracing::warn!("No WDK configurations detected.");
+            Ok(())
+        }
+
+        Err(error) => Err(error.into()),
+    }
+}
+
+pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
+    Config::from_env_auto()?.configure_binary_build()
+}
+
+// This currently only exports the driver type, but may export more metadata in
+// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
+// values
+lazy_static::lazy_static! {
+    // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
+    static ref EXPORTED_CFG_SETTINGS: Vec<(&'static str, Vec<&'static str>)> = vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])];
 }
 
 #[cfg(test)]

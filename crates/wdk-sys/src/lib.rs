@@ -5,26 +5,46 @@
 
 #![no_std]
 
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 mod constants;
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 mod types;
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 pub use crate::{constants::*, types::*};
 
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 mod macros;
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 pub use wdk_macros as __proc_macros;
 
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub mod ntddk;
-#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
-#[cfg(any(driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub use wdf::WDF_FUNCTION_TABLE;
 
-#[cfg(driver_type = "UMDF")]
+#[cfg(driver_model__driver_type = "UMDF")]
 pub mod windows;
 
 #[cfg(feature = "test-stubs")]
@@ -47,7 +67,11 @@ pub extern "system" fn __CxxFrameHandler3() -> i32 {
     0
 }
 
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF", driver_type = "UMDF"))]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 #[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
@@ -55,7 +79,7 @@ pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
     nt_status >= 0
 }
 
-#[cfg(any(driver_type = "WDM", driver_type = "KMDF"))]
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[allow(missing_docs)]
 #[macro_export]
 #[allow(non_snake_case)]

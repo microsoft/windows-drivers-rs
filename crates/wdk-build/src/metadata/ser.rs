@@ -8,10 +8,10 @@ use super::{
     map::Map,
 };
 
-/// delimiter used to separate the names of the different nodes encoded into an
-/// environment variable. Since `-` is not valid in Rust identifiers, it is used
+/// delimiter used to separate the names of the different nodes encoded into a
+/// key name. Since `-` is not valid in Rust identifiers, it is used
 /// as a separator between different node names.
-const ENV_VAR_NAME_SEPARATOR: char = '-';
+pub const KEY_NAME_SEPARATOR: char = '-';
 
 pub fn to_map<M>(value: &impl Serialize) -> Result<M>
 where
@@ -260,10 +260,10 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
         T: ?Sized + Serialize,
     {
         value.serialize(&mut Serializer::with_prefix(
-            match &self.root_key_name {
-                Some(root_key_name) => format!("{root_key_name}{ENV_VAR_NAME_SEPARATOR}{key}"),
-                None => key.to_string(),
-            },
+            self.root_key_name.as_ref().map_or_else(
+                || key.to_string(),
+                |root_key_name| format!("{root_key_name}{KEY_NAME_SEPARATOR}{key}"),
+            ),
             self.dst,
         ))?;
         Ok(())
