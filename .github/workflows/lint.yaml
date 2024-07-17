@@ -96,8 +96,12 @@ jobs:
 
       - name: Install WDK (${{ matrix.wdk }})
         run: |
-          if (!(winget list --exact --source winget --id ${{ matrix.wdk }})[-1].contains("${{ matrix.wdk }}")) {
-            winget install --disable-interactivity --source winget --exact --id ${{ matrix.wdk }}
+          if ((Get-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals).Id -eq '${{ matrix.wdk }}') {
+            Write-Host "${{ matrix.wdk }} is already installed. Attempting to update..."
+            Update-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
+          } else {
+            Write-Host "Installing ${{ matrix.wdk }}..."
+            Install-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
           }
 
       - name: Install Rust Toolchain (Nightly)
