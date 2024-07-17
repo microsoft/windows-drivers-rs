@@ -61,36 +61,52 @@ lazy_static! {
     };
 }
 
-#[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
-#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is a success
+/// type (0 − 0x3FFFFFFF) or an informational type (0x40000000 − 0x7FFFFFFF).
+/// This function is taken from ntdef.h in the WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
 pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
-    nt_status as u32 <= 0x7FFF_FFFF
+    nt_status >= 0
 }
 
-#[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
-#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is an
+/// informational type (0x40000000 − 0x7FFFFFFF). This function is taken from
+/// ntdef.h in the WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
 pub const fn NT_INFORMATION(nt_status: NTSTATUS) -> bool {
-    nt_status as u32 >= 0x4000_0000 && nt_status as u32 <= 0x7FFF_FFFF
+    nt_status >> 30 == 1
 }
 
-#[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
-#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is a warning
+/// type (0x80000000 − 0xBFFFFFFF).  This function is taken from ntdef.h in the
+/// WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
 pub const fn NT_WARNING(nt_status: NTSTATUS) -> bool {
-    nt_status as u32 >= 0x8000_0000 && nt_status as u32 <= 0xBFFF_FFFF
+    nt_status >> 30 == 2
 }
 
-#[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
-#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is an error
+/// type (0xC0000000 - 0xFFFFFFFF). This function is taken from ntdef.h in the
+/// WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
 pub const fn NT_ERROR(nt_status: NTSTATUS) -> bool {
-    nt_status as u32 >= 0xC000_0000
+    nt_status >> 30 == 3
 }
 
 #[allow(missing_docs)]
