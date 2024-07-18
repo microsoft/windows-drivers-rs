@@ -259,6 +259,11 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     }
 }
 
+/// Generates a `wdf_function_table.rs` file in `OUT_DIR` which contains the
+/// definition of `WDF_FUNCTION_TABLE`. This is required to be generated here
+/// since the size of the table is derived from either a global symbol
+/// (`WDF_FUNCTION_COUNT`) that newer WDF versions expose, or an enum that older
+/// versions use.
 fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Result<()> {
     const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
 
@@ -323,10 +328,11 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
 }
 
 /// Generates a `macros.rs` file in `OUT_DIR` which contains a
-/// `call_unsafe_wdf_function_binding!` macro redirects to the
-/// `wdk_macros::call_unsafe_wdf_function_binding` macro . This is required
+/// `call_unsafe_wdf_function_binding!` macro that redirects to the
+/// `wdk_macros::call_unsafe_wdf_function_binding` proc_macro . This is required
 /// in order to add an additional argument with the path to the file containing
-/// generated types
+/// generated types. There is currently no other way to pass `OUT_DIR` of
+/// `wdk-sys` to the proc_macro.
 fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
     let generated_file_path = out_path.join("call_unsafe_wdf_function_binding.rs");
     let mut generated_file = std::fs::File::create(&generated_file_path)?;
@@ -344,6 +350,10 @@ fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::
     Ok(())
 }
 
+/// Generates a `test_stubs.rs` file in `OUT_DIR` which contains stubs required
+/// for tests to compile. This should only generate the stubs whose names are
+/// dependent on the WDK configuration, and would otherwise be impossible to
+/// just include in `src/test_stubs.rs` directly.
 fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> {
     let stubs_file_path = out_path.join("test_stubs.rs");
     let mut stubs_file = std::fs::File::create(&stubs_file_path)?;
