@@ -75,6 +75,7 @@ pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
 
 #[must_use]
 #[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
 /// Evaluates to TRUE if the return value specified by `nt_status` is an
 /// informational type (0x40000000 − 0x7FFFFFFF). This function is taken from
 /// ntdef.h in the WDK.
@@ -87,6 +88,7 @@ pub const fn NT_INFORMATION(nt_status: NTSTATUS) -> bool {
 
 #[must_use]
 #[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
 /// Evaluates to TRUE if the return value specified by `nt_status` is a warning
 /// type (0x80000000 − 0xBFFFFFFF).  This function is taken from ntdef.h in the
 /// WDK.
@@ -99,6 +101,7 @@ pub const fn NT_WARNING(nt_status: NTSTATUS) -> bool {
 
 #[must_use]
 #[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
 /// Evaluates to TRUE if the return value specified by `nt_status` is an error
 /// type (0xC0000000 - 0xFFFFFFFF). This function is taken from ntdef.h in the
 /// WDK.
