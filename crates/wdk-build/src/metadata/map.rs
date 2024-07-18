@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+
 use std::{
     collections::{btree_map, hash_map, BTreeMap, HashMap},
     hash::Hash,

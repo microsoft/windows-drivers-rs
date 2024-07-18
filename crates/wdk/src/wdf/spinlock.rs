@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+
 use wdk_sys::{call_unsafe_wdf_function_binding, NTSTATUS, WDFSPINLOCK, WDF_OBJECT_ATTRIBUTES};
 
 use crate::nt_success;
