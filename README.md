@@ -40,7 +40,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    cargo new <driver_name> --lib
    ```
 
-2. Add dependencies on `windows-drivers-rs` crates:
+1. Add dependencies on `windows-drivers-rs` crates:
 
    ```pwsh
    cd <driver_name>
@@ -48,32 +48,34 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    cargo add wdk wdk-sys wdk-alloc wdk-panic
    ```
 
-3. Set the crate type to `cdylib` by adding the following snippet to `Cargo.toml`:
+1. Set the crate type to `cdylib` by adding the following snippet to `Cargo.toml`:
 
    ```toml
    [lib]
    crate-type = ["cdylib"]
    ```
 
-4. Mark the crate as a driver with a wdk metadata section. This lets the cargo-make tasks know that the package is a driver and that the driver packaging steps need to run.
+1. Add a wdk metadata section and configure the wdk for your use case. This also lets the cargo-make tasks know that the package is a driver and that the driver packaging steps need to run.
 
+   UMDF Example:
    ```toml
-   [package.metadata.wdk]
+   [package.metadata.wdk.driver-model]
+   driver-type = "UMDF"
+   umdf-version-major = 1
+   target-umdf-version-minor = 33
    ```
 
-5. Set crate panic strategy to `abort` in `Cargo.toml`:
+1. **For Kernel Mode crates** (ex. `KMDF` drivers, `WDM` drivers): Set crate panic strategy to `abort` in `Cargo.toml`:
 
    ```toml
    [profile.dev]
    panic = "abort"
-   lto = true # optional setting to enable Link Time Optimizations
 
    [profile.release]
    panic = "abort"
-   lto = true # optional setting to enable Link Time Optimizations
    ```
 
-6. Create a `build.rs` and add the following snippet:
+1. Create a `build.rs` and add the following snippet:
 
    ```rust
    fn main() -> Result<(), wdk_build::ConfigError> {
@@ -81,13 +83,13 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    }
    ```
 
-7. Mark your driver crate as `no_std` in `lib.rs`:
+1. **For Kernel Mode crates** (ex. `KMDF` drivers, `WDM` drivers): Mark your driver crate as `no_std` in `lib.rs`:
 
    ```rust
    #![no_std]
    ```
 
-8. Add a panic handler in `lib.rs`:
+1. **For Kernel Mode crates** (ex. `KMDF` drivers, `WDM` drivers): Add a panic handler in `lib.rs`:
 
    ```rust
    #[cfg(not(test))]
@@ -95,7 +97,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```
 
-9. Optional: Add a global allocator in `lib.rs`:
+1. **For Kernel Mode crates** (ex. `KMDF` drivers, `WDM` drivers): Add an optional global allocator in `lib.rs`:
 
    ```rust
    #[cfg(not(test))]
@@ -108,7 +110,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    This is only required if you want to be able to use the [`alloc` modules](https://doc.rust-lang.org/alloc/) in the rust standard library. You are also free to use your own implementations of global allocators.
 
-10. Add a DriverEntry in `lib.rs`:
+1. Add a DriverEntry in `lib.rs`:
 
    ```rust
    use wdk_sys::{
@@ -119,14 +121,16 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
    pub unsafe extern "system" fn driver_entry(
-      driver: &mut DRIVER_OBJECT,
+      driver: PDRIVER_OBJECT,
       registry_path: PCUNICODE_STRING,
    ) -> NTSTATUS {
       0
    }
    ```
 
-11. Add a `Makefile.toml`:
+   Note: In Kernel Mode crates, you can use `driver: &mut DRIVER_OBJECT` instead of `driver: PDRIVER_OBJECT`.
+
+1. Add a `Makefile.toml`:
    ```toml
    extend = "target/rust-driver-makefile.toml"
 
@@ -146,15 +150,24 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    '''
    ```
 
-12. Add an inx file that matches the name of your `cdylib` crate.
+1. Add an inx file that matches the name of your `cdylib` crate.
 
-13. Build the driver:
+1. Enable static crt linkage. One approach is to add this to your `.cargo/config.toml`:
+
+   ```toml
+   [build]
+   rustflags = ["-C", "target-feature=+crt-static"]
+   ```
+
+1. Build the driver:
 
    ```pwsh
    cargo make
    ```
 
 A signed driver package, including a `WDRLocalTestCert.cer` file, will be generated at `target/<Cargo profile>/package`. If a specific target architecture was specified, the driver package will be generated at `target/<target architecture>/<Cargo profile>/package`
+
+Minimal examples of `WDM`, `KMDF`, and `UMDF` drivers can be found in the [examples directory](./examples).
 
 ## Cargo Make
 
