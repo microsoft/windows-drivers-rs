@@ -2,7 +2,7 @@ name: "Install Winget"
 description: "Install winget on windows runners since its not installed by default: https://github.com/actions/runner-images/issues/6472"
 inputs:
   GITHUB_TOKEN:
-    description: 'GitHub token to execute authenticated Github API requests (for higher rate limit)'
+    description: "GitHub token to execute authenticated Github API requests (for higher rate limit)"
     required: true
 runs:
   using: "composite"
@@ -45,3 +45,7 @@ runs:
           Start-Sleep -Seconds 1
         }
         Write-Output "Winget Version: $(winget --version)"
+
+    - name: Install winget Powershell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
