@@ -22,7 +22,13 @@ use tracing_subscriber::{
     EnvFilter,
 };
 use wdk_build::{
-    configure_wdk_library_build_and_then, find_top_level_cargo_manifest, BuilderExt, Config, ConfigError, DriverConfig, KMDFConfig, TryFromCargoMetadata, UMDFConfig, WDKMetadata
+    configure_wdk_library_build_and_then,
+    BuilderExt,
+    Config,
+    ConfigError,
+    DriverConfig,
+    KMDFConfig,
+    UMDFConfig,
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
@@ -355,27 +361,24 @@ fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> 
     Ok(())
 }
 
-// TODO: most wdk-sys specific code should move to wdk-build in a wdk-sys
-// specific module so it can be unit tested.
-
 fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
 
-    configure_wdk_library_build_and_then(|config|{
+    configure_wdk_library_build_and_then(|config| {
         let out_path = PathBuf::from(
             env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
         );
-    
+
         thread::scope(|thread_scope| {
             let mut thread_join_handles = Vec::new();
-    
+
             info_span!("bindgen generation").in_scope(|| {
                 let out_path = &out_path;
                 let config = &config;
-    
+
                 for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
                     let current_span = Span::current();
-    
+
                     thread_join_handles.push(
                         thread::Builder::new()
                             .name(format!("bindgen {file_name} generator"))
@@ -387,7 +390,7 @@ fn main() -> anyhow::Result<()> {
                     );
                 }
             });
-    
+
             if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = config.driver_config {
                 let current_span = Span::current();
                 // Compile a c library to expose symbols that are not exposed because of
@@ -403,7 +406,7 @@ fn main() -> anyhow::Result<()> {
                                 for (key, value) in config.get_preprocessor_definitions_iter() {
                                     cc_builder.define(&key, value.as_deref());
                                 }
-    
+
                                 cc_builder
                                     .includes(config.get_include_paths()?)
                                     .file("src/wdf.c")
@@ -413,23 +416,23 @@ fn main() -> anyhow::Result<()> {
                         })
                         .expect("Scoped Thread should spawn successfully"),
                 );
-    
+
                 info_span!("wdf_function_table.rs generation").in_scope(|| {
                     generate_wdf_function_table(&out_path, &config)?;
                     Ok::<(), std::io::Error>(())
                 })?;
-    
+
                 info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
                     generate_call_unsafe_wdf_function_binding_macro(&out_path)?;
                     Ok::<(), std::io::Error>(())
                 })?;
-    
+
                 info_span!("test_stubs.rs generation").in_scope(|| {
                     generate_test_stubs(&out_path, &config)?;
                     Ok::<(), std::io::Error>(())
                 })?;
             }
-    
+
             for join_handle in thread_join_handles.drain(..) {
                 let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
                 join_handle

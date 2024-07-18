@@ -24,7 +24,6 @@ use std::{env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
 pub use metadata::{
-    find_top_level_cargo_manifest,
     ser::{to_map, to_map_with_prefix},
     TryFromCargoMetadata,
     TryFromCargoMetadataError,
@@ -847,6 +846,9 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
             // driver. Since this is usually the case when libraries are being built, this
             // scenario is treated as a warning.
             tracing::warn!("No WDK configurations detected.");
+            // check_cfg must be emitted even if no WDK configurations are detected, so that
+            // cfg options are still checked
+            Config::emit_check_cfg_settings();
             Ok(())
         }
 
@@ -871,6 +873,9 @@ where
             // driver. Since this is usually the case when libraries are being built, this
             // scenario is treated as a warning.
             tracing::warn!("No WDK configurations detected.");
+            // check_cfg must be emitted even if no WDK configurations are detected, so that
+            // cfg options are still checked
+            Config::emit_check_cfg_settings();
             Ok(())
         }
 
@@ -887,7 +892,8 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
 // values
 lazy_static::lazy_static! {
     // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-    static ref EXPORTED_CFG_SETTINGS: Vec<(&'static str, Vec<&'static str>)> = vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])];
+    static ref EXPORTED_CFG_SETTINGS: Vec<(&'static str, Vec<&'static str>)> =
+        vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])];
 }
 
 #[cfg(test)]

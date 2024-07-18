@@ -15,6 +15,7 @@ rustversion.workspace = true
 [dependencies]
 anyhow.workspace = true
 bindgen.workspace = true
+camino.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true

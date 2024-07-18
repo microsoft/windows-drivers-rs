@@ -7,10 +7,16 @@
 //! # Example
 //! ```rust, no_run
 //! // todo: fix this doctest
-//! #[cfg(all(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"), not(test)))]
+//! #[cfg(all(
+//!     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
+//!     not(test)
+//! ))]
 //! use wdk_alloc::WDKAllocator;
 //!
-//! #[cfg(all(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"), not(test)))]
+//! #[cfg(all(
+//!     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
+//!     not(test)
+//! ))]
 //! #[global_allocator]
 //! static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
 //! ```
