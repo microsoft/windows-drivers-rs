@@ -61,11 +61,55 @@ lazy_static! {
     };
 }
 
-#[allow(missing_docs)]
 #[must_use]
 #[allow(non_snake_case)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is a success
+/// type (0 − 0x3FFFFFFF) or an informational type (0x40000000 − 0x7FFFFFFF).
+/// This function is taken from ntdef.h in the WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
 pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
     nt_status >= 0
+}
+
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is an
+/// informational type (0x40000000 − 0x7FFFFFFF). This function is taken from
+/// ntdef.h in the WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
+pub const fn NT_INFORMATION(nt_status: NTSTATUS) -> bool {
+    (nt_status as u32 >> 30) == 1
+}
+
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is a warning
+/// type (0x80000000 − 0xBFFFFFFF).  This function is taken from ntdef.h in the
+/// WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
+pub const fn NT_WARNING(nt_status: NTSTATUS) -> bool {
+    (nt_status as u32 >> 30) == 2
+}
+
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is an error
+/// type (0xC0000000 - 0xFFFFFFFF). This function is taken from ntdef.h in the
+/// WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
+pub const fn NT_ERROR(nt_status: NTSTATUS) -> bool {
+    (nt_status as u32 >> 30) == 3
 }
 
 #[allow(missing_docs)]
@@ -75,4 +119,37 @@ macro_rules! PAGED_CODE {
     () => {
         debug_assert!(unsafe { KeGetCurrentIrql() <= APC_LEVEL as u8 });
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        NT_ERROR,
+        NT_INFORMATION,
+        NT_SUCCESS,
+        NT_WARNING,
+        STATUS_BREAKPOINT,
+        STATUS_HIBERNATED,
+        STATUS_PRIVILEGED_INSTRUCTION,
+        STATUS_SUCCESS,
+    };
+    #[test]
+    pub const fn nt_status_validation() {
+        assert!(NT_SUCCESS(STATUS_SUCCESS));
+        assert!(NT_SUCCESS(STATUS_HIBERNATED));
+        assert!(NT_INFORMATION(STATUS_HIBERNATED));
+        assert!(NT_WARNING(STATUS_BREAKPOINT));
+        assert!(NT_ERROR(STATUS_PRIVILEGED_INSTRUCTION));
+        assert!(!NT_SUCCESS(STATUS_BREAKPOINT));
+        assert!(!NT_SUCCESS(STATUS_PRIVILEGED_INSTRUCTION));
+        assert!(!NT_INFORMATION(STATUS_SUCCESS));
+        assert!(!NT_INFORMATION(STATUS_BREAKPOINT));
+        assert!(!NT_INFORMATION(STATUS_PRIVILEGED_INSTRUCTION));
+        assert!(!NT_WARNING(STATUS_SUCCESS));
+        assert!(!NT_WARNING(STATUS_HIBERNATED));
+        assert!(!NT_WARNING(STATUS_PRIVILEGED_INSTRUCTION));
+        assert!(!NT_ERROR(STATUS_SUCCESS));
+        assert!(!NT_ERROR(STATUS_HIBERNATED));
+        assert!(!NT_ERROR(STATUS_BREAKPOINT));
+    }
 }
