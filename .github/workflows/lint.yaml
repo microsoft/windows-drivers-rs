@@ -77,7 +77,7 @@ jobs:
         if: matrix.rust_toolchain == 'nightly'
         run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets --features nightly -- -D warnings
 
-  udeps:
+  unused_deps:
     name: Detect Unused Cargo Dependencies
     runs-on: windows-latest
 
