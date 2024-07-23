@@ -14,13 +14,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use cargo_metadata::{camino::Utf8Path, MetadataCommand};
+use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
 use clap::{Args, Parser};
 
 use crate::{
     utils::{detect_wdk_content_root, get_latest_windows_sdk_version, PathExt},
     CPUArchitecture,
     ConfigError,
+    TryFromCargoMetadataError,
+    WDKMetadata,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -832,6 +834,27 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
     Ok(())
 }
 
+/// Get [`cargo_metadata::Metadata`] based off of manifest in
+/// `CARGO_MAKE_WORKING_DIRECTORY`
+///
+/// # Panics
+///
+/// This function will panic if executed outside of a `cargo-make`` task
+pub fn get_cargo_metadata() -> anyhow::Result<Metadata> {
+    let manifest_path = {
+        let mut p = std::path::PathBuf::from(
+            std::env::var("CARGO_MAKE_WORKING_DIRECTORY")
+                .expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make"),
+        );
+        p.push("Cargo.toml");
+        p
+    };
+
+    Ok(cargo_metadata::MetadataCommand::new()
+        .manifest_path(manifest_path)
+        .exec()?)
+}
+
 /// Execute a `FnOnce` closure, and handle its contents in a way compatible with
 /// `cargo-make`'s `condition_script`:
 /// 1. If the closure panics, the panic is caught and it returns an `Ok(())`.
@@ -859,6 +882,27 @@ where
              Defaulting to running {cargo_make_task_name} task."
         );
         Ok(())
+    })
+}
+
+/// `cargo-make` condition script for `package-driver-flow` task in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
+    condition_script(|| {
+        match WDKMetadata::try_from(&get_cargo_metadata()?) {
+            Err(e @ TryFromCargoMetadataError::NoWDKConfigurationsDetected) => {
+                // Skip task only if no WDK configurations are detected
+                Err(e.into())
+            }
+
+            Ok(_) => Ok(()),
+
+            Err(unexpected_error) => {
+                eprintln!("Unexpected error: {unexpected_error:#?}");
+                // Do not silently skip task if unexpected error in parsing WDKMetadata occurs
+                Ok(())
+            }
+        }
     })
 }
 

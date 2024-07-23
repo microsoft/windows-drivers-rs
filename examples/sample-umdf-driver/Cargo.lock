@@ -711,14 +711,17 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "bindgen",
+ "camino",
  "cargo_metadata",
  "clap",
  "clap-cargo",
+ "lazy_static",
  "paste",
  "rustversion",
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "windows",
 ]
 

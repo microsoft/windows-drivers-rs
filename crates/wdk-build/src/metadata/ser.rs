@@ -16,6 +16,32 @@ use super::{
 /// as a separator between different node names.
 pub const KEY_NAME_SEPARATOR: char = '-';
 
+/// Serialize a value into a [`Map`] where the keys represent a
+/// [`KEY_NAME_SEPARATOR`]-seperated list of field names.
+///
+/// # Example
+/// ```rust
+/// use std::collections::BTreeMap;
+///
+/// use wdk_build::{to_map, DriverConfig, KMDFConfig, WDKMetadata};
+///
+/// let wdk_metadata = WDKMetadata {
+///     driver_model: DriverConfig::KMDF(KMDFConfig {
+///         kmdf_version_major: 1,
+///         target_kmdf_version_minor: 23,
+///         minimum_kmdf_version_minor: None,
+///     }),
+/// };
+///
+/// let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
+///
+/// assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "KMDF");
+/// assert_eq!(output["DRIVER_MODEL-KMDF_VERSION_MAJOR"], "1");
+/// assert_eq!(output["DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR"], "23");
+///
+/// // `None` values are not serialized
+/// assert_eq!(output.get("DRIVER_MODEL-MINIMUM_KMDF_VERSION_MINOR"), None);
+/// ```
 pub fn to_map<M>(value: &impl Serialize) -> Result<M>
 where
     M: Map<String, String>,
@@ -25,6 +51,43 @@ where
     convert_serialized_output_to_map(serialization_buffer)
 }
 
+/// Serialize a value into a [`Map`] where the keys represent a
+/// [`KEY_NAME_SEPARATOR`]-seperated list of field names prepended with a
+/// prefix.
+///
+/// /// # Example
+/// ```rust
+/// use std::collections::BTreeMap;
+///
+/// use wdk_build::{to_map_with_prefix, DriverConfig, KMDFConfig, WDKMetadata};
+///
+/// let wdk_metadata = WDKMetadata {
+///     driver_model: DriverConfig::KMDF(KMDFConfig {
+///         kmdf_version_major: 1,
+///         target_kmdf_version_minor: 33,
+///         minimum_kmdf_version_minor: Some(31),
+///     }),
+/// };
+///
+/// let output = to_map_with_prefix::<BTreeMap<_, _>>("WDK_BUILD_METADATA", &wdk_metadata).unwrap();
+///
+/// assert_eq!(
+///     output["WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE"],
+///     "KMDF"
+/// );
+/// assert_eq!(
+///     output["WDK_BUILD_METADATA-DRIVER_MODEL-KMDF_VERSION_MAJOR"],
+///     "1"
+/// );
+/// assert_eq!(
+///     output["WDK_BUILD_METADATA-DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR"],
+///     "33"
+/// );
+/// assert_eq!(
+///     output["WDK_BUILD_METADATA-DRIVER_MODEL-MINIMUM_KMDF_VERSION_MINOR"],
+///     "31"
+/// );
+/// ```
 pub fn to_map_with_prefix<M>(prefix: impl Into<String>, value: &impl Serialize) -> Result<M>
 where
     M: Map<String, String>,
@@ -529,6 +592,7 @@ mod tests {
         assert_eq!(output["DRIVER_MODEL-KMDF_VERSION_MAJOR"], "1");
         assert_eq!(output["DRIVER_MODEL-TARGET_KMDF_VERSION_MINOR"], "23");
 
+        // `None` values are not serialized
         assert_eq!(output.get("DRIVER_MODEL-MINIMUM_KMDF_VERSION_MINOR"), None);
     }
 
@@ -615,6 +679,7 @@ mod tests {
         assert_eq!(output["DRIVER_MODEL-UMDF_VERSION_MAJOR"], "1");
         assert_eq!(output["DRIVER_MODEL-TARGET_UMDF_VERSION_MINOR"], "23");
 
+        // `None` values are not serialized
         assert_eq!(output.get("DRIVER_MODEL-MINIMUM_UMDF_VERSION_MINOR"), None);
     }
 

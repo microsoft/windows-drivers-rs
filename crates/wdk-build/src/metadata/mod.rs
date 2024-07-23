@@ -15,8 +15,9 @@ use thiserror::Error;
 use crate::DriverConfig;
 
 /// Metadata specified in the `metadata.wdk` section of the `Cargo.toml`
-/// of a crate that depends on the WDK, or in a cargo workspace. This corresponds with the settings in
-/// the `Driver Settings` property pages for WDK projects in Visual Studio
+/// of a crate that depends on the WDK, or in a cargo workspace. This
+/// corresponds with the settings in the `Driver Settings` property pages for
+/// WDK projects in Visual Studio
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(
     deny_unknown_fields,
@@ -74,9 +75,8 @@ pub enum TryFromCargoMetadataError {
     /// dependency graph
     #[error(
         "no WDK configuration metadata is detected in the dependency graph. This could happen \
-         when building WDR itself, building library crates that depend on the WDK but defer wdk \
-         configuration to their consumers, or when building a driver that has a path dependency \
-         on WDR"
+         when building WDR itself, or building library crates that depend on the WDK but defer \
+         wdk configuration to their consumers"
     )]
     NoWDKConfigurationsDetected,
 
@@ -104,11 +104,6 @@ pub enum TryFromCargoMetadataError {
         #[source]
         error_source: serde_json::Error,
     },
-
-    /// Error returned when the `try_from_cargo_metadata` is called with a
-    /// `manifest_path` that contains invalid UTF-8
-    #[error("manifest path contains invalid UTF-8: {0}")]
-    NonUtf8ManifestPath(#[from] camino::FromPathBufError),
 }
 
 impl TryFrom<&Metadata> for WDKMetadata {

@@ -152,18 +152,11 @@ script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-use wdk_build::TryFromCargoMetadata;
-
-let manifest_path = std::path::PathBuf::from(
-    std::env::var("CARGO_MAKE_WORKING_DIRECTORY")
-        .expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make"),
-)
-.join("Cargo.toml");
-
 let serialized_wdk_metadata_map = wdk_build::to_map_with_prefix::<std::collections::BTreeMap<_, _>>(
     "WDK_BUILD_METADATA",
-    &wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path)?,
+    &wdk_build::WDKMetadata::try_from(&wdk_build::cargo_make::get_cargo_metadata()?)?,
 )?;
+
 for (key, value) in &serialized_wdk_metadata_map {
     std::env::set_var(key, value);
 }
@@ -222,6 +215,7 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 [tasks.generate-driver-binary-file]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "build"]
+plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
 condition_script = '''
 #!@rust
 
@@ -235,7 +229,7 @@ wdk_build::cargo_make::condition_script(|| {
     let driver_type = std::env::var("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE")
         .expect("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE should be set by setup-wdk-config-env-vars cargo-make task");
 
-    match driver_type {
+    match driver_type.as_str()  {
         "WDM" | "KMDF" => Ok(()),
         _ => Err("Non-Kernel Mode Driver detected. Skipping generate-driver-binary-file task."),
     }
@@ -533,31 +527,8 @@ condition_script = '''
 //! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
 //! ```
 #![allow(unused_doc_comments)]
-use wdk_build::TryFromCargoMetadata;
 
-wdk_build::cargo_make::condition_script(|| {
-    let manifest_path = std::path::PathBuf::from(
-        std::env::var("CARGO_MAKE_WORKING_DIRECTORY")
-            .expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make"),
-    )
-    .join("Cargo.toml");
-    match wdk_build::WDKMetadata::try_from_cargo_metadata(manifest_path) {
-        Err(err @ <wdk_build::WDKMetadata as TryFromCargoMetadata>::Error::NoWDKConfigurationsDetected) => {
-            // Skip task only if no WDK configurations are detected
-            Err(err)
-        }
-
-        Ok(_) => {
-            Ok(())
-        }
-
-        Err(unexpected_error) => {
-            eprintln!("Unexpected error: {unexpected_error:#?}");
-            // Do not silently skip task if unexpected error in parsing WDKMetadata occurs
-            Ok(())
-        }
-    }
-})?
+wdk_build::cargo_make::package_driver_flow_condition_script()?
 '''
 run_task = "package-driver"
 

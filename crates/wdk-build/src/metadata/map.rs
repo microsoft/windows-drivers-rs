@@ -6,8 +6,8 @@ use std::{
     hash::Hash,
 };
 
-/// Trait for map-like type that is returned by [`crate::to_map`] and
-/// [`crate::to_map_with_prefix`].
+/// Trait for map-like type that is returned by [`wdk_build::metadata::to_map`]
+/// and [`wdk_build::metadata::to_map_with_prefix`].
 pub trait Map<K, V>: Default {
     /// Creates a new, empty map
     fn new() -> Self {

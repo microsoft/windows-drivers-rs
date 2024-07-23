@@ -60,7 +60,7 @@ pub unsafe extern "system" fn driver_entry(
     STATUS_SUCCESS
 }
 
-pub extern "C" fn driver_exit(_driver: *mut DRIVER_OBJECT) {
+extern "C" fn driver_exit(_driver: *mut DRIVER_OBJECT) {
     println!("Goodbye World!");
     println!("Driver Exit Complete!");
 }

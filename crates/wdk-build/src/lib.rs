@@ -203,13 +203,13 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Creates a new [`Config`] with default values
+    /// Create a new [`Config`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a [`Config`] from parsing the top-level Cargo manifest into a
+    /// Create a [`Config`] from parsing the top-level Cargo manifest into a
     /// [`WDKMetadata`], and using it to populate the [`Config`]. It also emits
     /// `cargo::rerun-if-changed` directives for any files that are used to
     /// create the [`Config`].
@@ -307,7 +307,7 @@ impl Config {
         Ok(())
     }
 
-    /// Returns header include paths required to build and link based off of the
+    /// Return header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
     /// # Errors
@@ -405,7 +405,7 @@ impl Config {
         Ok(include_paths)
     }
 
-    /// Returns library include paths required to build and link based off of
+    /// Return library include paths required to build and link based off of
     /// the configuration of [`Config`].
     ///
     /// For UMDF drivers, this assumes a "Windows-Driver" Target Platform.
@@ -492,7 +492,7 @@ impl Config {
         Ok(library_paths)
     }
 
-    /// Returns an iterator of strings that represent compiler definitions
+    /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
     pub fn get_preprocessor_definitions_iter(
         &self,
@@ -586,7 +586,7 @@ impl Config {
         )
     }
 
-    /// Returns an iterator of strings that represent compiler flags (i.e.
+    /// Return an iterator of strings that represent compiler flags (i.e.
     /// warnings, settings, etc.)
     pub fn get_compiler_flags_iter(&self) -> impl Iterator<Item = String> {
         vec![
@@ -617,22 +617,18 @@ impl Config {
         .map(std::string::ToString::to_string)
     }
 
-    /// Configures a Cargo build of a library that depends on the WDK. This
+    /// Configure a Cargo build of a library that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
     /// # Errors
     ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the invoked from outside a Cargo build environment
+    /// This function will return an error if the [`Config`] fails to be
+    /// serialized
     pub fn configure_library_build(&self) -> Result<(), ConfigError> {
         self.emit_cfg_settings()
     }
 
-    /// Computes the name of the `WdfFunctions` symbol used for WDF function
+    /// Compute the name of the `WdfFunctions` symbol used for WDF function
     /// dispatching based off of the [`Config`]. Returns `None` if the driver
     /// model is [`DriverConfig::WDM`]
     #[must_use]
@@ -652,7 +648,7 @@ impl Config {
         ))
     }
 
-    /// Configures a Cargo build of a binary that depends on the WDK. This
+    /// Configure a Cargo build of a binary that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
     /// This consists mainly of linker setting configuration. This must be
@@ -855,6 +851,20 @@ impl CPUArchitecture {
     }
 }
 
+/// Configure a Cargo build of a library that depends on the WDK.
+///
+/// This emits specially formatted prints to Cargo based on the [`Config`]
+/// derived from `metadata.wdk` sections of `Cargo.toml`s.
+///
+/// Cargo build graphs that have no valid WDK configurations will emit a
+/// warning, but will still return [`Ok`]. This allows libraries
+/// designed for multiple configurations to sucessfully compile when built in
+/// isolation.
+///
+/// # Errors
+///
+/// This function will return an error if the [`Config`] fails to be
+/// serialized
 pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
     match Config::from_env_auto() {
         Ok(config) => {
@@ -865,8 +875,8 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
             TryFromCargoMetadataError::NoWDKConfigurationsDetected,
         )) => {
             // No WDK configurations will be detected if the crate is not being used in a
-            // driver. Since this is usually the case when libraries are being built, this
-            // scenario is treated as a warning.
+            // driver. Since this is usually the case when libraries are being built
+            // standalone, this scenario is treated as a warning.
             tracing::warn!("No WDK configurations detected.");
             // check_cfg must be emitted even if no WDK configurations are detected, so that
             // cfg options are still checked
@@ -878,6 +888,22 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
     }
 }
 
+/// Configure a Cargo build of a library that depends on the WDK, then execute a
+/// function or closure with the [`Config`] derived from `metadata.wdk` sections
+/// of `Cargo.toml`s.
+///
+/// This emits specially formatted prints to Cargo based on the [`Config`]
+/// derived from `metadata.wdk` sections of `Cargo.toml`s.
+///
+/// Cargo build graphs that have no valid WDK configurations will emit a
+/// warning, but will still return [`Ok`]. This allows libraries
+/// designed for multiple configurations to sucessfully compile when built in
+/// isolation.
+///
+/// # Errors
+///
+/// This function will return an error if the [`Config`] fails to be
+/// serialized
 pub fn configure_wdk_library_build_and_then<F, E>(mut f: F) -> Result<(), E>
 where
     F: FnMut(Config) -> Result<(), E>,
@@ -892,8 +918,8 @@ where
             TryFromCargoMetadataError::NoWDKConfigurationsDetected,
         )) => {
             // No WDK configurations will be detected if the crate is not being used in a
-            // driver. Since this is usually the case when libraries are being built, this
-            // scenario is treated as a warning.
+            // driver. Since this is usually the case when libraries are being built
+            // standalone, this scenario is treated as a warning.
             tracing::warn!("No WDK configurations detected.");
             // check_cfg must be emitted even if no WDK configurations are detected, so that
             // cfg options are still checked
@@ -905,8 +931,8 @@ where
     }
 }
 
-/// Configures a Cargo build of a binary that depends on the WDK using a
-/// [`Config`] derived from `metadata.wdk` sections in `Cargo.toml`s.
+/// Configure a Cargo build of a binary that depends on the WDK using a
+/// [`Config`] derived from `metadata.wdk` sections of `Cargo.toml`s.
 ///
 /// # Errors
 ///
