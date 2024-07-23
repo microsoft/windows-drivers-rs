@@ -174,7 +174,7 @@ fn parse_packages_wdk_metadata(
     packages: &Vec<cargo_metadata::Package>,
 ) -> Result<HashSet<WDKMetadata>, TryFromCargoMetadataError> {
     let wdk_metadata_configurations = packages
-        .into_iter()
+        .iter()
         .filter_map(|package| match &package.metadata["wdk"] {
             serde_json::Value::Null => None,
             wdk_metadata => Some(WDKMetadata::deserialize(wdk_metadata).map_err(|err| {
@@ -207,7 +207,7 @@ fn parse_workspace_wdk_metadata(
     })
 }
 
-pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item = Utf8PathBuf> {
+pub fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item = Utf8PathBuf> {
     let mut cargo_manifest_paths = HashSet::new();
 
     // Add all package manifest paths

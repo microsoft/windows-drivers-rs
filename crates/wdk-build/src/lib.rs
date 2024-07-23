@@ -238,7 +238,7 @@ impl Config {
                     .expect("Path to Cargo manifests should always be valid UTF8"),
             ))
         {
-            println!("cargo:rerun-if-changed={}", manifest_path);
+            println!("cargo:rerun-if-changed={manifest_path}");
         }
 
         Ok(Self {
@@ -765,9 +765,9 @@ impl Config {
 impl From<DeserializableDriverConfig> for DriverConfig {
     fn from(config: DeserializableDriverConfig) -> Self {
         match config {
-            DeserializableDriverConfig::WDM => DriverConfig::WDM,
-            DeserializableDriverConfig::KMDF(kmdf_config) => DriverConfig::KMDF(kmdf_config),
-            DeserializableDriverConfig::UMDF(umdf_config) => DriverConfig::UMDF(umdf_config),
+            DeserializableDriverConfig::WDM => Self::WDM,
+            DeserializableDriverConfig::KMDF(kmdf_config) => Self::KMDF(kmdf_config),
+            DeserializableDriverConfig::UMDF(umdf_config) => Self::UMDF(umdf_config),
         }
     }
 }

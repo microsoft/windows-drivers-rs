@@ -329,10 +329,10 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
 
 /// Generates a `macros.rs` file in `OUT_DIR` which contains a
 /// `call_unsafe_wdf_function_binding!` macro that redirects to the
-/// `wdk_macros::call_unsafe_wdf_function_binding` proc_macro . This is required
+/// `wdk_macros::call_unsafe_wdf_function_binding` `proc_macro` . This is required
 /// in order to add an additional argument with the path to the file containing
 /// generated types. There is currently no other way to pass `OUT_DIR` of
-/// `wdk-sys` to the proc_macro.
+/// `wdk-sys` to the `proc_macro`.
 fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
     let generated_file_path = out_path.join("call_unsafe_wdf_function_binding.rs");
     let mut generated_file = std::fs::File::create(&generated_file_path)?;
