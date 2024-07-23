@@ -5,28 +5,17 @@ pub mod error;
 pub mod map;
 pub mod ser;
 
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, path::PathBuf};
 
 use camino::Utf8PathBuf;
-use cargo_metadata::{Metadata, MetadataCommand};
+use cargo_metadata::Metadata;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::DriverConfig;
 
-pub trait TryFromCargoMetadata {
-    type Error;
-
-    fn try_from_cargo_metadata(manifest_path: impl AsRef<Path>) -> Result<Self, Self::Error>
-    where
-        Self: Sized;
-}
-
-/// Metadata specified in the `package.metadata.wdk` section of the `Cargo.toml`
-/// of a crate that depends on the WDK. This corresponds with the settings in
+/// Metadata specified in the `metadata.wdk` section of the `Cargo.toml`
+/// of a crate that depends on the WDK, or in a cargo workspace. This corresponds with the settings in
 /// the `Driver Settings` property pages for WDK projects in Visual Studio
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(
@@ -35,6 +24,7 @@ pub trait TryFromCargoMetadata {
 )]
 pub struct WDKMetadata {
     // general: General,
+    /// Metadata corresponding to the `Driver Model` property page in the WDK
     pub driver_model: DriverConfig,
 }
 
@@ -76,33 +66,10 @@ pub struct WDKMetadata {
 //     minimum_umdf_version_minor: Option<u8>,
 // }
 
-// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-// #[serde(deny_unknown_fields)]
-// pub struct KMDFDriverModel {}
-
-// Errors that could result from trying to convert a [`WDKMetadata`] to a
-// [`DriverConfig`]
-// #[derive(Debug, Error)]
-// pub enum TryFromWDKMetadataError {
-//     /// Error returned when the [`WDKMetadata`] is missing KMDF metadata
-//     #[error(
-//         "missing KMDF metadata needed to convert from wdk_build::WDKMetadata
-// to \          wdk_build::DriverConfig::KMDF: {missing_metadata_field}"
-//     )]
-//     MissingKMDFMetadata {
-//         /// Missing KMDF metadata
-//         missing_metadata_field: String,
-//     },
-// }
-
 /// Errors that could result from trying to construct a [`WDKMetadata`] from
 /// information parsed by `cargo metadata`
 #[derive(Debug, Error)]
 pub enum TryFromCargoMetadataError {
-    /// Error returned when `cargo_metadata` execution or parsing fails
-    #[error(transparent)]
-    CargoMetadata(#[from] cargo_metadata::Error),
-
     /// Error returned when no WDK configuration metadata is detected in the
     /// dependency graph
     #[error(
@@ -144,40 +111,20 @@ pub enum TryFromCargoMetadataError {
     NonUtf8ManifestPath(#[from] camino::FromPathBufError),
 }
 
-impl TryFromCargoMetadata for WDKMetadata {
+impl TryFrom<&Metadata> for WDKMetadata {
     type Error = TryFromCargoMetadataError;
 
-    fn try_from_cargo_metadata(manifest_path: impl AsRef<Path>) -> Result<Self, Self::Error> {
-        let manifest_path = manifest_path.as_ref();
-
-        let Metadata {
-            packages,
-            workspace_metadata,
-            workspace_root,
-            ..
-        } = MetadataCommand::new().manifest_path(manifest_path).exec()?;
-
-        // Parse packages and workspace for Cargo manifest paths and WDKMetadata
-        let ParsedData {
-            mut wdk_metadata_configurations,
-            mut cargo_manifest_paths,
-        } = parse_packages_wdk_metadata(packages)?;
-        if let Some(workspace_metadata) = parse_workspace_wdk_metadata(workspace_metadata)? {
-            wdk_metadata_configurations.insert(workspace_metadata);
-        }
-        let workspace_manifest_path = {
-            let mut path = workspace_root;
-            path.push("Cargo.toml");
-            path
+    fn try_from(metadata: &Metadata) -> Result<Self, Self::Error> {
+        let wdk_metadata_configurations = {
+            // Parse WDK metadata from workspace and all packages
+            let mut configs = parse_packages_wdk_metadata(&metadata.packages)?;
+            if let Some(workspace_metadata) =
+                parse_workspace_wdk_metadata(&metadata.workspace_metadata)?
+            {
+                configs.insert(workspace_metadata);
+            }
+            configs
         };
-        cargo_manifest_paths.insert(workspace_manifest_path);
-        cargo_manifest_paths.insert(manifest_path.to_owned().try_into()?);
-
-        // Force rebuilds if any of the manifest files change (ex. if wdk metadata
-        // section is modified)
-        for path in cargo_manifest_paths {
-            println!("cargo::rerun-if-changed={path}");
-        }
 
         // Ensure that only one configuration of WDK is allowed per dependency graph
         // TODO: add ws level test:
@@ -228,57 +175,58 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
         .join("Cargo.toml")
 }
 
-struct ParsedData {
-    wdk_metadata_configurations: HashSet<WDKMetadata>,
-    cargo_manifest_paths: HashSet<Utf8PathBuf>,
-}
-
 fn parse_packages_wdk_metadata(
-    packages: Vec<cargo_metadata::Package>,
-) -> Result<ParsedData, TryFromCargoMetadataError> {
-    let mut cargo_manifest_paths: HashSet<_> = HashSet::new();
+    packages: &Vec<cargo_metadata::Package>,
+) -> Result<HashSet<WDKMetadata>, TryFromCargoMetadataError> {
     let wdk_metadata_configurations = packages
         .into_iter()
-        .filter_map(|mut package| {
-            // keep track of manifest paths for all packages, regardless if they have WDK
-            // metadata. This is so that cargo::rerun-if-changed can be emitted for all
-            // manifest files, so that when wdk metadata is added to a package that didn't
-            // previosuly have it, it forces a rebuild
-            cargo_manifest_paths.insert(package.manifest_path);
-
-            // extract WDKMetadata information from all packages that have it
-            match package.metadata["wdk"].take() {
-                serde_json::Value::Null => None,
-                wdk_metadata => Some(serde_json::from_value::<WDKMetadata>(wdk_metadata).map_err(
-                    |err| TryFromCargoMetadataError::WDKMetadataDeserialization {
-                        metadata_source: format!(
-                            "{} for {} package",
-                            stringify!(package.metadata["wdk"]),
-                            package.name
-                        ),
-                        error_source: err,
-                    },
-                )),
-            }
+        .filter_map(|package| match &package.metadata["wdk"] {
+            serde_json::Value::Null => None,
+            wdk_metadata => Some(WDKMetadata::deserialize(wdk_metadata).map_err(|err| {
+                TryFromCargoMetadataError::WDKMetadataDeserialization {
+                    metadata_source: format!(
+                        "{} for {} package",
+                        stringify!(package.metadata["wdk"]),
+                        package.name
+                    ),
+                    error_source: err,
+                }
+            })),
         })
         .collect::<Result<HashSet<_>, _>>()?;
 
-    Ok(ParsedData {
-        wdk_metadata_configurations,
-        cargo_manifest_paths,
-    })
+    Ok(wdk_metadata_configurations)
 }
 
 fn parse_workspace_wdk_metadata(
-    mut workspace_metadata: serde_json::Value,
+    workspace_metadata: &serde_json::Value,
 ) -> Result<Option<WDKMetadata>, TryFromCargoMetadataError> {
-    Ok(match workspace_metadata["wdk"].take() {
+    Ok(match &workspace_metadata["wdk"] {
         serde_json::Value::Null => None,
-        wdk_metadata => Some(serde_json::from_value::<WDKMetadata>(wdk_metadata).map_err(
-            |err| TryFromCargoMetadataError::WDKMetadataDeserialization {
+        wdk_metadata => Some(WDKMetadata::deserialize(wdk_metadata).map_err(|err| {
+            TryFromCargoMetadataError::WDKMetadataDeserialization {
                 metadata_source: stringify!(workspace_metadata["wdk"]).to_string(),
                 error_source: err,
-            },
-        )?),
+            }
+        })?),
     })
+}
+
+pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item = Utf8PathBuf> {
+    let mut cargo_manifest_paths = HashSet::new();
+
+    // Add all package manifest paths
+    for package in metadata.packages {
+        cargo_manifest_paths.insert(package.manifest_path);
+    }
+
+    // Add workspace manifest path
+    let workspace_manifest_path: Utf8PathBuf = {
+        let mut path = metadata.workspace_root;
+        path.push("Cargo.toml");
+        path
+    };
+    cargo_manifest_paths.insert(workspace_manifest_path);
+
+    cargo_manifest_paths
 }

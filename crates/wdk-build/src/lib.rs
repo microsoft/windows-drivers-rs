@@ -23,9 +23,9 @@ pub mod utils;
 use std::{env, path::PathBuf};
 
 pub use bindgen::BuilderExt;
+use cargo_metadata::MetadataCommand;
 pub use metadata::{
     ser::{to_map, to_map_with_prefix},
-    TryFromCargoMetadata,
     TryFromCargoMetadataError,
     WDKMetadata,
 };
@@ -210,18 +210,39 @@ impl Config {
     }
 
     /// Creates a [`Config`] from parsing the top-level Cargo manifest into a
-    /// [`WDKMetadata`], and using it to populate the [`Config`]
+    /// [`WDKMetadata`], and using it to populate the [`Config`]. It also emits
+    /// `cargo::rerun-if-changed` directives for any files that are used to
+    /// create the [`Config`].
     ///
     /// # Errors
     ///
     /// This function will return an error if:
-    ///     * TODO
+    /// * the execution of `cargo metadata` fails
+    /// * the parsing of [`WDKMetadata`] from any of the Cargo manifests fail
+    /// * multiple conflicting [`WDKMetadata`] configurations are detected
+    /// * no [`WDKMetadata`] configurations are detected
     pub fn from_env_auto() -> Result<Self, ConfigError> {
-        let manifest_path = metadata::find_top_level_cargo_manifest();
-        let metadata = WDKMetadata::try_from_cargo_metadata(manifest_path)?;
+        let top_level_manifest = metadata::find_top_level_cargo_manifest();
+        let cargo_metadata = MetadataCommand::new()
+            .manifest_path(&top_level_manifest)
+            .exec()?;
+        let wdk_metadata = WDKMetadata::try_from(&cargo_metadata)?;
+
+        // Force rebuilds if any of the manifest files change (ex. if wdk metadata
+        // section is modified)
+        for manifest_path in metadata::iter_manifest_paths(cargo_metadata)
+            .into_iter()
+            .chain(std::iter::once(
+                top_level_manifest
+                    .try_into()
+                    .expect("Path to Cargo manifests should always be valid UTF8"),
+            ))
+        {
+            println!("cargo:rerun-if-changed={}", manifest_path);
+        }
 
         Ok(Self {
-            driver_config: metadata.driver_model,
+            driver_config: wdk_metadata.driver_model,
             ..Default::default()
         })
     }
@@ -639,8 +660,9 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
+    /// This function will return an error if:
+    /// * any of the required WDK paths do not exist
+    /// * the C runtime is not configured to be statically linked
     ///
     /// # Panics
     ///
@@ -883,6 +905,18 @@ where
     }
 }
 
+/// Configures a Cargo build of a binary that depends on the WDK using a
+/// [`Config`] derived from `metadata.wdk` sections in `Cargo.toml`s.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * any of the required WDK paths do not exist
+/// * the C runtime is not configured to be statically linked
+///
+/// # Panics
+///
+/// Panics if the invoked from outside a Cargo build environment
 pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
