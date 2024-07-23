@@ -1,7 +1,8 @@
 [workspace]
 members = ["crates/*"]
-# examples and tests must be excluded from the workspace since only one WDK configuration per build graph is supported.
+# Examples and tests must be excluded from the workspace since only one WDK configuration per build graph is supported.
 exclude = [
+  # Each example and test must be explicitly listed since glob is not currently supported for workspace.exclude: https://github.com/rust-lang/cargo/issues/6009
   "examples/sample-kmdf-driver",
   "examples/sample-umdf-driver",
   "examples/sample-wdm-driver",
@@ -70,7 +71,7 @@ windows = "0.58.0"
 # umdf-version-major = 2
 # target-umdf-version-minor = 33
 
-# WDM
+# Uncomment the section below for WDM
 # [workspace.metadata.wdk.driver-model]
 # driver-type = "WDM"
 

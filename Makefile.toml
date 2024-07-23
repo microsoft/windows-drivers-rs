@@ -82,11 +82,53 @@ args = ["audit", "--deny", "warnings"]
 
 [tasks.unused-dependencies]
 workspace = false
-condition = { env_true = [
-  "CARGO_MAKE_CRATE_HAS_DEPENDENCIES",
-] }
+condition = { env_true = ["CARGO_MAKE_CRATE_HAS_DEPENDENCIES"] }
 args = ["machete", "--skip-target-dir"]
 
+[tasks.pre-clippy]
+workspace = false
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
+//! walkdir = "2.5.0"
+//! ```
+#![allow(unused_doc_comments)]
+
+use walkdir::WalkDir;
+use std::{fs, io::Write, path::Path};
+
+// Create `clippy_workspace` folder in the target directory
+let cargo_make_target_dir = std::env::var("CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY").expect("CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY should be set by cargo-make");
+let target_dir = Path::new(&cargo_make_target_dir);
+let clippy_workspace_folder_path = target_dir.join("clippy_workspace");
+if !clippy_workspace_folder_path.exists() {
+    std::fs::create_dir(&clippy_workspace_folder_path)?;
+}
+
+// Copy all files from `crates` folder to `clippy_workspace` folder
+for entry in WalkDir::new("./crates").into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file()) {
+    let path_to_copy = entry.path();
+    let destination_path = clippy_workspace_folder_path.join(path_to_copy);
+
+    fs::create_dir_all(&destination_path.parent().unwrap_or_else(|| panic!("{} should have a valid parent", destination_path.display()))).unwrap_or_else(|e| panic!("Failed to create parent directories for {}: {e}", destination_path.display()));
+    fs::copy(path_to_copy, &destination_path).unwrap_or_else(|e| panic!("File should succeed to be copied from {} to {}: {e}", path_to_copy.display(), destination_path.display()));
+}
+
+// Copy workspace Cargo manifest and inject workspace WDK metadata
+let workspace_manifest_path = Path::new("./Cargo.toml");
+let destination_path = clippy_workspace_folder_path.join("Cargo.toml");
+fs::copy(workspace_manifest_path, &destination_path).unwrap_or_else(|e| panic!("File should succeed to be copied from {} to {}: {e}", workspace_manifest_path.display(), destination_path.display()));
+let mut clippy_workspace_manifest_file = fs::OpenOptions::new().append(true).open(&destination_path).unwrap_or_else(|e| panic!("Failed to open file {}: {e}", destination_path.display()));
+clippy_workspace_manifest_file.write_all(br#"
+[workspace.metadata.wdk.driver-model]
+driver-type = "KMDF"
+kmdf-version-major = 1
+target-kmdf-version-minor = 33
+"#).unwrap_or_else(|e| panic!("Failed to write to file {}: {e}", destination_path.display()));
+'''
 
 [tasks.nightly-test-flow]
 extend = "test-flow"
