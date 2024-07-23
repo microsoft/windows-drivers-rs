@@ -1,7 +1,7 @@
 # This file is leveraged to build downstream drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
 
 [config]
-min_version = "0.37.8"
+min_version = "0.37.13"
 init_task = "wdk-build-init"
 reduce_output = false
 
@@ -222,21 +222,24 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 [tasks.generate-driver-binary-file]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "build"]
-# TODO: consider turning this into a rustscript
 condition_script = '''
-#!@duckscript
+#!@rust
 
-is_wdm = eq ${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE} "WDM"
-is_kmdf = eq ${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE} "KMDF"
-is_kernel_mode = set ${is_wdm} or ${is_kmdf}
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! ```
+#![allow(unused_doc_comments)]
 
-if ${is_kernel_mode}
-    # Run Task
-    exit 0
-else
-    # Skip Task
-    exit 1
-endif
+wdk_build::cargo_make::condition_script(|| {
+    let driver_type = std::env::var("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE")
+        .expect("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE should be set by setup-wdk-config-env-vars cargo-make task");
+
+    match driver_type {
+        "WDM" | "KMDF" => Ok(()),
+        _ => Err("Non-Kernel Mode Driver detected. Skipping generate-driver-binary-file task."),
+    }
+})?
 '''
 script_runner_args = [
   "--base-path",
@@ -290,7 +293,7 @@ args = [
 [tasks.infverif]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "stampinf"]
-# TODO: This should be if WDK <= GE && DRIVER_MODEL == UMDF
+# TODO: This should be if WDK <= GE && DRIVER_MODEL == UMDF 
 env = { "WDK_BUILD_BASE_INFVERIF_FLAGS" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /w", mapping = { "UMDF" = "${WDK_BUILD_BASE_INFVERIF_FLAGS} /u" } } }
 command = "infverif"
 args = [
@@ -430,9 +433,9 @@ args = [
   "-eku",
   "1.3.6.1.5.5.7.3.3",
   "-ss",
-  "WDRTestCertStore",                                   # TODO: this should be a parameter
+  "WDRTestCertStore",                                   # FIXME: this should be a parameter
   "-n",
-  "CN=WDRLocalTestCert",                                # TODO: this should be a parameter
+  "CN=WDRLocalTestCert",                                # FIXME: this should be a parameter
   "${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer",
 ]
 
@@ -464,9 +467,9 @@ args = [
   "sign",
   "/v",
   "/s",
-  "WDRTestCertStore",                      # TODO: this should be a parameter
+  "WDRTestCertStore",                      # FIXME: this should be a parameter
   "/n",
-  "WDRLocalTestCert",                      # TODO: this should be a parameter
+  "WDRLocalTestCert",                      # FIXME: this should be a parameter
   "/t",
   "http://timestamp.digicert.com",
   "/fd",
@@ -550,7 +553,7 @@ wdk_build::cargo_make::condition_script(|| {
 
         Err(unexpected_error) => {
             eprintln!("Unexpected error: {unexpected_error:#?}");
-            // Do not silently skip task if unexpected error occurs
+            // Do not silently skip task if unexpected error in parsing WDKMetadata occurs
             Ok(())
         }
     }
