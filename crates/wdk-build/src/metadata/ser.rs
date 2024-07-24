@@ -19,13 +19,24 @@ pub const KEY_NAME_SEPARATOR: char = '-';
 /// Serialize a value into a [`Map`] where the keys represent a
 /// [`KEY_NAME_SEPARATOR`]-seperated list of field names.
 ///
+/// # Errors
+///
+/// This function will return an error if the type being serialized:
+/// * results in duplicate key names
+/// * results in an empty key name
+/// * otherwise fails to be parsed and correctly serialized into a [`Map`]
+///
 /// # Example
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{to_map, DriverConfig, KMDFConfig, WDKMetadata};
+/// use wdk_build::{
+///     metadata::{to_map, Wdk},
+///     DriverConfig,
+///     KMDFConfig,
+/// };
 ///
-/// let wdk_metadata = WDKMetadata {
+/// let wdk_metadata = metadata::Wdk {
 ///     driver_model: DriverConfig::KMDF(KMDFConfig {
 ///         kmdf_version_major: 1,
 ///         target_kmdf_version_minor: 23,
@@ -55,13 +66,20 @@ where
 /// [`KEY_NAME_SEPARATOR`]-seperated list of field names prepended with a
 /// prefix.
 ///
-/// /// # Example
+/// # Errors
+///
+/// This function will return an error if the type being serialized:
+/// * results in duplicate key names
+/// * results in an empty key name
+/// * otherwise fails to be parsed and correctly serialized into a [`Map`]
+///
+/// # Example
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{to_map_with_prefix, DriverConfig, KMDFConfig, WDKMetadata};
+/// use wdk_build::{metadata::Wdk, metadata::to_map_with_prefix, DriverConfig, KMDFConfig};
 ///
-/// let wdk_metadata = WDKMetadata {
+/// let wdk_metadata = metadata::Wdk {
 ///     driver_model: DriverConfig::KMDF(KMDFConfig {
 ///         kmdf_version_major: 1,
 ///         target_kmdf_version_minor: 33,
@@ -527,7 +545,7 @@ macro_rules! unsupported_serde_serialize_method_definition {
         where
         $generic_arg: ?Sized + Serialize {
             unimplemented!(
-                "{} is not implemented for {} since it is currently not needed to serialize the WDKMetadata struct",
+                "{} is not implemented for {} since it is currently not needed to serialize the metadata::Wdk struct",
                 stringify!($func),
                 std::any::type_name::<Self>(),
             )
@@ -538,7 +556,7 @@ macro_rules! unsupported_serde_serialize_method_definition {
         #[inline]
         fn $func (self, $($arg: $ty,)*) -> std::result::Result<$ok, $err> {
             unimplemented!(
-                "{} is not implemented for {} since it is currently not needed to serialize the WDKMetadata struct",
+                "{} is not implemented for {} since it is currently not needed to serialize the metadata::Wdk struct",
                 stringify!($func),
                 std::any::type_name::<Self>(),
             )
@@ -556,12 +574,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::{DriverConfig, KMDFConfig, UMDFConfig, WDKMetadata};
+    use crate::{metadata, DriverConfig, KmdfConfig, UmdfConfig};
 
     #[test]
     fn test_kmdf() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::KMDF(KMDFConfig {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 23,
                 minimum_kmdf_version_minor: Some(21),
@@ -578,8 +596,8 @@ mod tests {
 
     #[test]
     fn test_kmdf_no_minimum() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::KMDF(KMDFConfig {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 23,
                 minimum_kmdf_version_minor: None,
@@ -598,8 +616,8 @@ mod tests {
 
     #[test]
     fn test_kmdf_with_prefix() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::KMDF(KMDFConfig {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: Some(31),
@@ -629,8 +647,8 @@ mod tests {
 
     #[test]
     fn test_kmdf_with_hashmap() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::KMDF(KMDFConfig {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: Some(31),
@@ -647,8 +665,8 @@ mod tests {
 
     #[test]
     fn test_umdf() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::UMDF(UMDFConfig {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 1,
                 target_umdf_version_minor: 23,
                 minimum_umdf_version_minor: Some(21),
@@ -665,8 +683,8 @@ mod tests {
 
     #[test]
     fn test_umdf_no_minimum() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::UMDF(UMDFConfig {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 1,
                 target_umdf_version_minor: 23,
                 minimum_umdf_version_minor: None,
@@ -685,8 +703,8 @@ mod tests {
 
     #[test]
     fn test_wdm() {
-        let wdk_metadata = WDKMetadata {
-            driver_model: DriverConfig::WDM,
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Wdm,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();

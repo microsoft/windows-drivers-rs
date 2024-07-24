@@ -101,11 +101,11 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```rust
    #[cfg(not(test))]
-   use wdk_alloc::WDKAllocator;
+   use wdk_alloc::WdkAllocator;
 
    #[cfg(not(test))]
    #[global_allocator]
-   static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
+   static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
    ```
 
    This is only required if you want to be able to use the [`alloc` modules](https://doc.rust-lang.org/alloc/) in the rust standard library. You are also free to use your own implementations of global allocators.

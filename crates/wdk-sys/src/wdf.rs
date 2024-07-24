@@ -7,6 +7,8 @@
 //! constructors and destructors in `wdf.h`. Types are not included in this
 //! module, but are available in the top-level `wdk_sys` module.
 
+pub use bindings::*;
+
 #[allow(missing_docs)]
 #[allow(clippy::unreadable_literal)]
 mod bindings {
@@ -17,6 +19,5 @@ mod bindings {
 
     include!(concat!(env!("OUT_DIR"), "/wdf.rs"));
 }
-pub use bindings::*;
 
 include!(concat!(env!("OUT_DIR"), "/wdf_function_table.rs"));

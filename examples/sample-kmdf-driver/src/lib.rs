@@ -17,7 +17,7 @@ use alloc::{ffi::CString, slice, string::String};
 
 use wdk::println;
 #[cfg(not(test))]
-use wdk_alloc::WDKAllocator;
+use wdk_alloc::WdkAllocator;
 use wdk_sys::{
     call_unsafe_wdf_function_binding,
     ntddk::DbgPrint,
@@ -37,7 +37,7 @@ use wdk_sys::{
 
 #[cfg(not(test))]
 #[global_allocator]
-static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
+static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 
 /// `DriverEntry` function required by WDF
 ///
@@ -46,7 +46,7 @@ static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
 ///
 /// # Safety
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
-#[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+#[export_name = "DriverEntry"]// WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,

@@ -18,11 +18,10 @@ use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
 use clap::{Args, Parser};
 
 use crate::{
+    metadata,
     utils::{detect_wdk_content_root, get_latest_windows_sdk_version, PathExt},
-    CPUArchitecture,
     ConfigError,
-    TryFromCargoMetadataError,
-    WDKMetadata,
+    CpuArchitecture,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -488,7 +487,7 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// This function returns a [`ConfigError::WdkContentRootDetectionError`] if the
 /// WDK content root directory could not be found.
 ///
 /// # Panics
@@ -498,10 +497,10 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 /// characters.
 pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
-        return Err(ConfigError::WDKContentRootDetectionError);
+        return Err(ConfigError::WdkContentRootDetectionError);
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
-    let host_arch = CPUArchitecture::try_from_cargo_str(env::consts::ARCH)
+    let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
 
     let wdk_bin_root = wdk_content_root
@@ -509,14 +508,14 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
     let host_windows_sdk_ver_bin_path = match host_arch {
-        CPUArchitecture::AMD64 => wdk_bin_root
+        CpuArchitecture::Amd64 => wdk_bin_root
             .join(host_arch.as_windows_str())
             .canonicalize()?
             .strip_extended_length_path_prefix()?
             .to_str()
             .expect("x64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
             .to_string(),
-        CPUArchitecture::ARM64 => wdk_bin_root
+        CpuArchitecture::Arm64 => wdk_bin_root
             .join(host_arch.as_windows_str())
             .canonicalize()?
             .strip_extended_length_path_prefix()?
@@ -561,7 +560,11 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 /// Forwards the specified environment variables in this process to the parent
 /// cargo-make. This is facilitated by printing to `stdout`, and having the
 /// `rust-env-update` plugin parse the printed output.
-pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item = impl AsRef<str>>) {
+///
+/// # Panics
+///
+/// Panics if any of the `env_vars` do not exist or contain a non-UTF8 value.
+pub fn forward_printed_env_vars(env_vars: impl IntoIterator<Item = impl AsRef<str>>) {
     // This print signifies the start of the forwarding and signals to the
     // `rust-env-update` plugin that it should forward args
     println!("FORWARDING ARGS TO CARGO-MAKE:");
@@ -591,12 +594,12 @@ pub fn forward_printed_env_vars_to_cargo_make(env_vars: impl IntoIterator<Item =
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if the
+/// This function returns a [`ConfigError::WdkContentRootDetectionError`] if the
 /// WDK content root directory could not be found, or if the WDK version is
 /// ill-formed.
 pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
-        return Err(ConfigError::WDKContentRootDetectionError);
+        return Err(ConfigError::WdkContentRootDetectionError);
     };
     let detected_sdk_version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
@@ -607,11 +610,11 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
             return Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string));
         }
         // We have a bad version string set somehow.  Return an error.
-        return Err(ConfigError::WDKContentRootDetectionError);
+        return Err(ConfigError::WdkContentRootDetectionError);
     }
 
     if !crate::utils::validate_wdk_version_format(&detected_sdk_version) {
-        return Err(ConfigError::WDKVersionStringFormatError {
+        return Err(ConfigError::WdkVersionStringFormatError {
             version: detected_sdk_version,
         });
     }
@@ -724,7 +727,7 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
 /// This function returns:
 /// - [`ConfigError::CargoMetadataError`] if there is an error executing or
 ///   parsing `cargo_metadata`
-/// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
+/// - [`ConfigError::MultipleWdkBuildCratesDetected`] if there are multiple
 ///   versions of the WDK build crate detected
 /// - [`ConfigError::IoError`] if there is an error creating or updating the
 ///   symlink to `rust-driver-makefile.toml`
@@ -747,7 +750,7 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
 /// This function returns:
 /// - [`ConfigError::CargoMetadataError`] if there is an error executing or
 ///   parsing `cargo_metadata`
-/// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
+/// - [`ConfigError::MultipleWdkBuildCratesDetected`] if there are multiple
 ///   versions of the WDK build crate detected
 /// - [`ConfigError::IoError`] if there is an error creating or updating the
 ///   symlink to `rust-driver-sample-makefile.toml`
@@ -770,7 +773,7 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 /// This function returns:
 /// - [`ConfigError::CargoMetadataError`] if there is an error executing or
 ///   parsing `cargo_metadata`
-/// - [`ConfigError::MultipleWDKBuildCratesDetected`] if there are multiple
+/// - [`ConfigError::MultipleWdkBuildCratesDetected`] if there are multiple
 ///   versions of the WDK build crate detected
 /// - [`ConfigError::IoError`] if there is an error creating or updating the
 ///   symlink to the makefile.
@@ -790,7 +793,7 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
         .filter(|package| package.name == "wdk-build")
         .collect::<Vec<_>>();
     if wdk_build_package_matches.len() != 1 {
-        return Err(ConfigError::MultipleWDKBuildCratesDetected {
+        return Err(ConfigError::MultipleWdkBuildCratesDetected {
             package_ids: wdk_build_package_matches
                 .iter()
                 .map(|package_info| package_info.id.clone())
@@ -837,12 +840,17 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
 /// Get [`cargo_metadata::Metadata`] based off of manifest in
 /// `CARGO_MAKE_WORKING_DIRECTORY`
 ///
+/// # Errors
+///
+/// This function will return a [`cargo_metadata::Error`] if `cargo_metadata`
+/// fails
+///
 /// # Panics
 ///
-/// This function will panic if executed outside of a `cargo-make`` task
-pub fn get_cargo_metadata() -> anyhow::Result<Metadata> {
+/// This function will panic if executed outside of a `cargo-make` task
+pub fn get_cargo_metadata() -> cargo_metadata::Result<Metadata> {
     let manifest_path = {
-        let mut p = std::path::PathBuf::from(
+        let mut p: PathBuf = std::path::PathBuf::from(
             std::env::var("CARGO_MAKE_WORKING_DIRECTORY")
                 .expect("CARGO_MAKE_WORKING_DIRECTORY should be set by cargo-make"),
         );
@@ -850,9 +858,9 @@ pub fn get_cargo_metadata() -> anyhow::Result<Metadata> {
         p
     };
 
-    Ok(cargo_metadata::MetadataCommand::new()
+    cargo_metadata::MetadataCommand::new()
         .manifest_path(manifest_path)
-        .exec()?)
+        .exec()
 }
 
 /// Execute a `FnOnce` closure, and handle its contents in a way compatible with
@@ -867,6 +875,16 @@ pub fn get_cargo_metadata() -> anyhow::Result<Metadata> {
 /// If you want your task to be skipped, return an `Err` from
 /// `condition_script_closure`. If you want the task to execute, return an
 /// `Ok(())` from `condition_script_closure`
+///
+/// # Errors
+///
+/// This function returns an error whenever `condition_script_closure` returns
+/// an error
+///
+/// # Panics
+///
+/// Panics if [`CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR`] is not set in the
+/// environment
 pub fn condition_script<F, E>(condition_script_closure: F) -> anyhow::Result<(), E>
 where
     F: FnOnce() -> anyhow::Result<(), E> + UnwindSafe,
@@ -887,10 +905,16 @@ where
 
 /// `cargo-make` condition script for `package-driver-flow` task in
 /// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error whenever it determins that the
+/// `package-driver-flow` `cargo-make` task should be skipped (i.e. when no WDK
+/// configurations are detected)
 pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
-        match WDKMetadata::try_from(&get_cargo_metadata()?) {
-            Err(e @ TryFromCargoMetadataError::NoWDKConfigurationsDetected) => {
+        match metadata::Wdk::try_from(&get_cargo_metadata()?) {
+            Err(e @ metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected) => {
                 // Skip task only if no WDK configurations are detected
                 Err(e.into())
             }
@@ -899,7 +923,7 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
 
             Err(unexpected_error) => {
                 eprintln!("Unexpected error: {unexpected_error:#?}");
-                // Do not silently skip task if unexpected error in parsing WDKMetadata occurs
+                // Do not silently skip task if unexpected error in parsing WDK Metadata occurs
                 Ok(())
             }
         }

@@ -5,6 +5,10 @@
 //! provide symobols to successfully compile and run tests. They can be brought
 //! into scope by introducing `wdk-sys` with the `test-stubs` feature in the
 //! `dev-dependencies` of the crate's `Cargo.toml`
+
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+pub use wdf::*;
+
 #[cfg(any(
     driver_model__driver_type = "WDM",
     driver_model__driver_type = "KMDF",
@@ -41,5 +45,3 @@ mod wdf {
 
     include!(concat!(env!("OUT_DIR"), "/test_stubs.rs"));
 }
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-pub use wdf::*;

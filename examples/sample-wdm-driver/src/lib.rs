@@ -16,12 +16,12 @@ use alloc::{ffi::CString, slice, string::String};
 
 use wdk::println;
 #[cfg(not(test))]
-use wdk_alloc::WDKAllocator;
+use wdk_alloc::WdkAllocator;
 use wdk_sys::{ntddk::DbgPrint, DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS};
 
 #[cfg(not(test))]
 #[global_allocator]
-static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
+static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 
 /// `driver_entry` function required by WDM
 ///

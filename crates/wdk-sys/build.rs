@@ -27,8 +27,8 @@ use wdk_build::{
     Config,
     ConfigError,
     DriverConfig,
-    KMDFConfig,
-    UMDFConfig,
+    KmdfConfig,
+    UmdfConfig,
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
@@ -222,8 +222,8 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
 fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let outfile_name = match &config.driver_config {
-        DriverConfig::WDM | DriverConfig::KMDF(_) => "ntddk.rs",
-        DriverConfig::UMDF(_) => "windows.rs",
+        DriverConfig::Wdm | DriverConfig::Kmdf(_) => "ntddk.rs",
+        DriverConfig::Umdf(_) => "windows.rs",
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 
@@ -235,7 +235,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = &config.driver_config {
+    if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = &config.driver_config {
         info!("Generating bindings to WDK: wdf.rs");
 
         // As of NI WDK, this may generate an empty file due to no non-type and non-var
@@ -273,7 +273,7 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
     let is_wdf_function_count_generated = match *config {
         Config {
             driver_config:
-                DriverConfig::KMDF(KMDFConfig {
+                DriverConfig::Kmdf(KmdfConfig {
                     kmdf_version_major,
                     target_kmdf_version_minor,
                     ..
@@ -286,7 +286,7 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
 
         Config {
             driver_config:
-                DriverConfig::UMDF(UMDFConfig {
+                DriverConfig::Umdf(UmdfConfig {
                     umdf_version_major,
                     target_umdf_version_minor,
                     ..
@@ -329,10 +329,10 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
 
 /// Generates a `macros.rs` file in `OUT_DIR` which contains a
 /// `call_unsafe_wdf_function_binding!` macro that redirects to the
-/// `wdk_macros::call_unsafe_wdf_function_binding` `proc_macro` . This is required
-/// in order to add an additional argument with the path to the file containing
-/// generated types. There is currently no other way to pass `OUT_DIR` of
-/// `wdk-sys` to the `proc_macro`.
+/// `wdk_macros::call_unsafe_wdf_function_binding` `proc_macro` . This is
+/// required in order to add an additional argument with the path to the file
+/// containing generated types. There is currently no other way to pass
+/// `OUT_DIR` of `wdk-sys` to the `proc_macro`.
 fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
     let generated_file_path = out_path.join("call_unsafe_wdf_function_binding.rs");
     let mut generated_file = std::fs::File::create(&generated_file_path)?;
@@ -401,7 +401,7 @@ fn main() -> anyhow::Result<()> {
                 }
             });
 
-            if let DriverConfig::KMDF(_) | DriverConfig::UMDF(_) = config.driver_config {
+            if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
                 let current_span = Span::current();
                 // Compile a c library to expose symbols that are not exposed because of
                 // __declspec(selectany)
@@ -443,7 +443,7 @@ fn main() -> anyhow::Result<()> {
                 })?;
             }
 
-            for join_handle in thread_join_handles.drain(..) {
+            for join_handle in thread_join_handles {
                 let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
                 join_handle
                     .join()

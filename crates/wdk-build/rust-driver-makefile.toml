@@ -154,7 +154,7 @@ script = '''
 
 let serialized_wdk_metadata_map = wdk_build::to_map_with_prefix::<std::collections::BTreeMap<_, _>>(
     "WDK_BUILD_METADATA",
-    &wdk_build::WDKMetadata::try_from(&wdk_build::cargo_make::get_cargo_metadata()?)?,
+    &wdk_build::metadata::Wdk::try_from(&wdk_build::cargo_make::get_cargo_metadata()?)?,
 )?;
 
 for (key, value) in &serialized_wdk_metadata_map {

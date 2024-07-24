@@ -5,6 +5,33 @@
 
 #![no_std]
 
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+pub use wdf::WDF_FUNCTION_TABLE;
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+pub use wdk_macros as __proc_macros;
+
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+pub use crate::{constants::*, types::*};
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub mod ntddk;
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+pub mod wdf;
+
+#[cfg(driver_model__driver_type = "UMDF")]
+pub mod windows;
+
+#[cfg(feature = "test-stubs")]
+pub mod test_stubs;
+
 #[cfg(any(
     driver_model__driver_type = "WDM",
     driver_model__driver_type = "KMDF",
@@ -17,12 +44,6 @@ mod constants;
     driver_model__driver_type = "UMDF"
 ))]
 mod types;
-#[cfg(any(
-    driver_model__driver_type = "WDM",
-    driver_model__driver_type = "KMDF",
-    driver_model__driver_type = "UMDF"
-))]
-pub use crate::{constants::*, types::*};
 
 #[cfg(any(
     driver_model__driver_type = "WDM",
@@ -30,25 +51,6 @@ pub use crate::{constants::*, types::*};
     driver_model__driver_type = "UMDF"
 ))]
 mod macros;
-#[cfg(any(
-    driver_model__driver_type = "WDM",
-    driver_model__driver_type = "KMDF",
-    driver_model__driver_type = "UMDF"
-))]
-pub use wdk_macros as __proc_macros;
-
-#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
-pub mod ntddk;
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-pub mod wdf;
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-pub use wdf::WDF_FUNCTION_TABLE;
-
-#[cfg(driver_model__driver_type = "UMDF")]
-pub mod windows;
-
-#[cfg(feature = "test-stubs")]
-pub mod test_stubs;
 
 // This is fine because we don't actually have any floating point instruction in
 // our binary, thanks to our target defining soft-floats. fltused symbol is

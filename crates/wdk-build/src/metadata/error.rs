@@ -7,7 +7,7 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// This type represents all possible errors that can occur when serializing
-/// or deserializing [`WDKMetadata`].
+/// or deserializing [`metadata::Wdk`].
 #[derive(Debug, Error)]
 pub enum Error {
     /// catch-all error emitted during serialization, when a more specific

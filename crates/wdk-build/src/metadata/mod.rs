@@ -1,11 +1,14 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-pub mod error;
-pub mod map;
+pub use error::{Error, Result};
+pub use ser::{to_map, to_map_with_prefix};
+
+mod error;
+mod map;
 pub mod ser;
 
-use std::{collections::HashSet, path::PathBuf};
+use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
 use cargo_metadata::Metadata;
@@ -23,7 +26,7 @@ use crate::DriverConfig;
     deny_unknown_fields,
     rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
 )]
-pub struct WDKMetadata {
+pub struct Wdk {
     // general: General,
     /// Metadata corresponding to the `Driver Model` property page in the WDK
     pub driver_model: DriverConfig,
@@ -67,7 +70,7 @@ pub struct WDKMetadata {
 //     minimum_umdf_version_minor: Option<u8>,
 // }
 
-/// Errors that could result from trying to construct a [`WDKMetadata`] from
+/// Errors that could result from trying to construct a [`metadata::Wdk`] from
 /// information parsed by `cargo metadata`
 #[derive(Debug, Error)]
 pub enum TryFromCargoMetadataError {
@@ -78,7 +81,7 @@ pub enum TryFromCargoMetadataError {
          when building WDR itself, or building library crates that depend on the WDK but defer \
          wdk configuration to their consumers"
     )]
-    NoWDKConfigurationsDetected,
+    NoWdkConfigurationsDetected,
 
     /// Error returned when multiple configurations of the WDK are detected
     /// across the dependency graph
@@ -86,16 +89,16 @@ pub enum TryFromCargoMetadataError {
         "multiple configurations of the WDK are detected across the dependency graph, but only \
          one configuration is allowed: {wdk_metadata_configurations:#?}"
     )]
-    MultipleWDKConfigurationsDetected {
-        /// [`HashSet`] of unique [`WDKMetadata`] derived from detected WDK
+    MultipleWdkConfigurationsDetected {
+        /// [`HashSet`] of unique [`metadata::Wdk`] derived from detected WDK
         /// metadata
-        wdk_metadata_configurations: HashSet<WDKMetadata>,
+        wdk_metadata_configurations: HashSet<Wdk>,
     },
 
-    /// Error returned when [`WDKMetadata`] fails to be deserialized from
-    /// [`cargo_metadata::Metadata`] output
-    #[error("failed to deserialize WDKMetadata from {metadata_source}")]
-    WDKMetadataDeserialization {
+    /// Error returned when [`crate::metadata::Wdk`] fails to be deserialized
+    /// from [`cargo_metadata::Metadata`] output
+    #[error("failed to deserialize metadata::Wdk from {metadata_source}")]
+    WdkMetadataDeserialization {
         /// `String` that describes what part of
         /// `cargo_metadata::Metadata` was used as the source for
         /// deserialization
@@ -106,7 +109,7 @@ pub enum TryFromCargoMetadataError {
     },
 }
 
-impl TryFrom<&Metadata> for WDKMetadata {
+impl TryFrom<&Metadata> for Wdk {
     type Error = TryFromCargoMetadataError;
 
     fn try_from(metadata: &Metadata) -> Result<Self, Self::Error> {
@@ -131,11 +134,11 @@ impl TryFrom<&Metadata> for WDKMetadata {
             )),
 
             // TODO: add a test for this
-            0 => Err(TryFromCargoMetadataError::NoWDKConfigurationsDetected),
+            0 => Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected),
 
             // TODO: add a test for this
             _ => Err(
-                TryFromCargoMetadataError::MultipleWDKConfigurationsDetected {
+                TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
                     wdk_metadata_configurations,
                 },
             ),
@@ -143,42 +146,15 @@ impl TryFrom<&Metadata> for WDKMetadata {
     }
 }
 
-/// Find the path the the toplevel Cargo manifest of the currently executing
-/// Cargo subcommand. This should resolve to either:
-/// 1. the `Cargo.toml` of the package where the Cargo subcommand (build, check,
-///    etc.) was run
-/// 2. the `Cargo.toml` provided to the `--manifest-path` argument to the Cargo
-///    subcommand
-/// 3. the `Cargo.toml` of the workspace that contains the package pointed to by
-///    1 or 2
-///
-/// The returned path should be a manifest in the same directory of the
-/// lockfile. This does not support invokations that use non-default target
-/// directories (ex. via `--target-dir`). This function only works when called
-/// from a `build.rs` file
-#[must_use]
-pub fn find_top_level_cargo_manifest() -> PathBuf {
-    let out_dir =
-        PathBuf::from(std::env::var("OUT_DIR").expect(
-            "Cargo should have set the OUT_DIR environment variable when executing build.rs",
-        ));
-
-    out_dir
-        .ancestors()
-        .find(|path| path.join("Cargo.lock").exists())
-        .expect("a Cargo.lock file should exist in the same directory as the top-level Cargo.toml")
-        .join("Cargo.toml")
-}
-
 fn parse_packages_wdk_metadata(
-    packages: &Vec<cargo_metadata::Package>,
-) -> Result<HashSet<WDKMetadata>, TryFromCargoMetadataError> {
+    packages: &[cargo_metadata::Package],
+) -> Result<HashSet<Wdk>, TryFromCargoMetadataError> {
     let wdk_metadata_configurations = packages
         .iter()
         .filter_map(|package| match &package.metadata["wdk"] {
             serde_json::Value::Null => None,
-            wdk_metadata => Some(WDKMetadata::deserialize(wdk_metadata).map_err(|err| {
-                TryFromCargoMetadataError::WDKMetadataDeserialization {
+            wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
+                TryFromCargoMetadataError::WdkMetadataDeserialization {
                     metadata_source: format!(
                         "{} for {} package",
                         stringify!(package.metadata["wdk"]),
@@ -195,11 +171,11 @@ fn parse_packages_wdk_metadata(
 
 fn parse_workspace_wdk_metadata(
     workspace_metadata: &serde_json::Value,
-) -> Result<Option<WDKMetadata>, TryFromCargoMetadataError> {
+) -> Result<Option<Wdk>, TryFromCargoMetadataError> {
     Ok(match &workspace_metadata["wdk"] {
         serde_json::Value::Null => None,
-        wdk_metadata => Some(WDKMetadata::deserialize(wdk_metadata).map_err(|err| {
-            TryFromCargoMetadataError::WDKMetadataDeserialization {
+        wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
+            TryFromCargoMetadataError::WdkMetadataDeserialization {
                 metadata_source: stringify!(workspace_metadata["wdk"]).to_string(),
                 error_source: err,
             }
@@ -207,7 +183,7 @@ fn parse_workspace_wdk_metadata(
     })
 }
 
-pub fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item = Utf8PathBuf> {
+pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item = Utf8PathBuf> {
     let mut cargo_manifest_paths = HashSet::new();
 
     // Add all package manifest paths

@@ -21,7 +21,7 @@ use windows::{
     },
 };
 
-use crate::{CPUArchitecture, ConfigError};
+use crate::{ConfigError, CpuArchitecture};
 
 /// Errors that may occur when stripping the extended path prefix from a path
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -207,13 +207,13 @@ pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, C
 /// Panics if the `CARGO_CFG_TARGET_ARCH` environment variable is not set,
 /// or if the cargo architecture is unsupported.
 #[must_use]
-pub fn detect_cpu_architecture_in_build_script() -> CPUArchitecture {
+pub fn detect_cpu_architecture_in_build_script() -> CpuArchitecture {
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect(
         "Cargo should have set the CARGO_CFG_TARGET_ARCH environment variable when executing \
          build.rs",
     );
 
-    CPUArchitecture::try_from_cargo_str(&target_arch).unwrap_or_else(|| {
+    CpuArchitecture::try_from_cargo_str(&target_arch).unwrap_or_else(|| {
         panic!("The target architecture, {target_arch}, is currently not supported.")
     })
 }
@@ -249,7 +249,7 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: S) -> bool {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::WDKVersionStringFormatError`] if the
+/// This function returns a [`ConfigError::WdkVersionStringFormatError`] if the
 /// version string provided is ill-formed.
 ///
 /// # Panics
@@ -261,7 +261,7 @@ pub fn get_wdk_version_number<S: AsRef<str> + ToString + ?Sized>(
     version_string: &S,
 ) -> Result<String, ConfigError> {
     if !validate_wdk_version_format(version_string) {
-        return Err(ConfigError::WDKVersionStringFormatError {
+        return Err(ConfigError::WdkVersionStringFormatError {
             version: version_string.to_string(),
         });
     }

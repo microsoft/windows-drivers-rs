@@ -11,17 +11,20 @@
 //!     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
 //!     not(test)
 //! ))]
-//! use wdk_alloc::WDKAllocator;
+//! use wdk_alloc::WdkAllocator;
 //!
 //! #[cfg(all(
 //!     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
 //!     not(test)
 //! ))]
 //! #[global_allocator]
-//! static GLOBAL_ALLOCATOR: WDKAllocator = WDKAllocator;
+//! static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 //! ```
 
 #![no_std]
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub use kernel_mode::*;
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 mod kernel_mode {
@@ -41,18 +44,18 @@ mod kernel_mode {
     /// # Safety
     /// This allocator is only safe to use for allocations happening at `IRQL`
     /// <= `DISPATCH_LEVEL`
-    pub struct WDKAllocator;
+    pub struct WdkAllocator;
 
     // The value of memory tags are stored in little-endian order, so it is
     // convenient to reverse the order for readability in tooling (ie. Windbg)
     const RUST_TAG: ULONG = u32::from_ne_bytes(*b"rust");
 
-    // SAFETY: This is safe because the WDK allocator:
+    // SAFETY: This is safe because the Wdk allocator:
     //         1. can never unwind since it can never panic
     //         2. has implementations of alloc and dealloc that maintain layout
     //            constraints (FIXME: Alignment of the layout is currenty not
     //            supported)
-    unsafe impl GlobalAlloc for WDKAllocator {
+    unsafe impl GlobalAlloc for WdkAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
             let ptr =
                 // SAFETY: `ExAllocatePool2` is safe to call from any `IRQL` <= `DISPATCH_LEVEL` since its allocating from `POOL_FLAG_NON_PAGED`
@@ -74,5 +77,3 @@ mod kernel_mode {
         }
     }
 }
-#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
-pub use kernel_mode::*;

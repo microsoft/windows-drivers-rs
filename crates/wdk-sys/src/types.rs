@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+pub use bindings::*;
+
 #[allow(missing_docs)]
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
@@ -58,4 +60,3 @@
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/types.rs"));
 }
-pub use bindings::*;

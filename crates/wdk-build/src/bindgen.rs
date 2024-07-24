@@ -27,7 +27,7 @@ pub trait BuilderExt {
 }
 
 #[derive(Debug)]
-struct WDKCallbacks {
+struct WdkCallbacks {
     wdf_function_table_symbol_name: Option<String>,
 }
 
@@ -77,7 +77,7 @@ impl BuilderExt for Builder {
                             value.map(|v| format!("={v}")).unwrap_or_default()
                         )
                     })
-                    .chain(config.get_compiler_flags_iter()),
+                    .chain(Config::wdk_bindgen_compiler_flags()),
             )
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
@@ -96,14 +96,14 @@ impl BuilderExt for Builder {
             // is EnumVariation::Consts which generates enums as global constants)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-            .parse_callbacks(Box::new(WDKCallbacks::new(config)))
+            .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease);
 
         Ok(builder)
     }
 }
 
-impl ParseCallbacks for WDKCallbacks {
+impl ParseCallbacks for WdkCallbacks {
     fn generated_name_override(&self, item_info: ItemInfo) -> Option<String> {
         // Override the generated name for the WDF function table symbol, since bindgen is unable to currently translate the #define automatically: https://github.com/rust-lang/rust-bindgen/issues/2544
         if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
@@ -122,7 +122,7 @@ impl ParseCallbacks for WDKCallbacks {
     }
 }
 
-impl WDKCallbacks {
+impl WdkCallbacks {
     fn new(config: &Config) -> Self {
         Self {
             wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
