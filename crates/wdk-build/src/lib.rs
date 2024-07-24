@@ -853,6 +853,11 @@ impl CpuArchitecture {
 /// lockfile. This does not support invokations that use non-default target
 /// directories (ex. via `--target-dir`). This function only works when called
 /// from a `build.rs` file
+///
+/// # Panics
+///
+/// Panics if a `Cargo.lock` file cannot be found in any of the ancestors of
+/// `OUT_DIR` or if this function was called outside of a `build.rs` file
 #[must_use]
 pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =

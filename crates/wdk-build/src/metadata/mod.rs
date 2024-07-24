@@ -1,12 +1,21 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Parsing and serializing metadata about WDK projects
+//!
+//! This module provides a [`Wdk`] struct that represents the cargo metadata
+//! specified in the `metadata.wdk` section any `Cargo.toml`. This corresponds
+//! with the settings in the `Driver Settings` property pages for WDK projects
+//! in Visual Studio. This module also also provides [`serde`]-compatible
+//! serialization and deserialization for the metadata.
+
 pub use error::{Error, Result};
-pub use ser::{to_map, to_map_with_prefix};
+pub use ser::{to_map, to_map_with_prefix, Serializer};
+
+pub(crate) mod ser;
 
 mod error;
 mod map;
-pub mod ser;
 
 use std::collections::HashSet;
 
@@ -112,7 +121,7 @@ pub enum TryFromCargoMetadataError {
 impl TryFrom<&Metadata> for Wdk {
     type Error = TryFromCargoMetadataError;
 
-    fn try_from(metadata: &Metadata) -> Result<Self, Self::Error> {
+    fn try_from(metadata: &Metadata) -> std::result::Result<Self, Self::Error> {
         let wdk_metadata_configurations = {
             // Parse WDK metadata from workspace and all packages
             let mut configs = parse_packages_wdk_metadata(&metadata.packages)?;
@@ -148,7 +157,7 @@ impl TryFrom<&Metadata> for Wdk {
 
 fn parse_packages_wdk_metadata(
     packages: &[cargo_metadata::Package],
-) -> Result<HashSet<Wdk>, TryFromCargoMetadataError> {
+) -> std::result::Result<HashSet<Wdk>, TryFromCargoMetadataError> {
     let wdk_metadata_configurations = packages
         .iter()
         .filter_map(|package| match &package.metadata["wdk"] {
@@ -164,14 +173,14 @@ fn parse_packages_wdk_metadata(
                 }
             })),
         })
-        .collect::<Result<HashSet<_>, _>>()?;
+        .collect::<std::result::Result<HashSet<_>, _>>()?;
 
     Ok(wdk_metadata_configurations)
 }
 
 fn parse_workspace_wdk_metadata(
     workspace_metadata: &serde_json::Value,
-) -> Result<Option<Wdk>, TryFromCargoMetadataError> {
+) -> std::result::Result<Option<Wdk>, TryFromCargoMetadataError> {
     Ok(match &workspace_metadata["wdk"] {
         serde_json::Value::Null => None,
         wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {

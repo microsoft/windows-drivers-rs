@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Utilities for `cargo-make` tasks used to package binaries dependent on the `WDK`.
+//! 
 //! This module provides functions used in the rust scripts in
 //! `rust-driver-makefile.toml`. This includes argument parsing functionality
 //! used by `rust-driver-makefile.toml` to validate and forward arguments common

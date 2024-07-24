@@ -77,7 +77,11 @@ where
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{metadata::Wdk, metadata::to_map_with_prefix, DriverConfig, KMDFConfig};
+/// use wdk_build::{
+///     metadata::{to_map_with_prefix, Wdk},
+///     DriverConfig,
+///     KMDFConfig,
+/// };
 ///
 /// let wdk_metadata = metadata::Wdk {
 ///     driver_model: DriverConfig::KMDF(KMDFConfig {
@@ -136,6 +140,12 @@ where
     Ok(output_map)
 }
 
+/// [`serde`] serializer that serializes values into a [`Vec`] of key-value
+/// pairs.
+///
+/// This serializer is useful when you want to have more granular control of the
+/// output of the serializer. Most usecases should already be covered by the
+/// [`to_map`] and [`to_map_with_prefix`] functions.
 pub struct Serializer<'a> {
     root_key_name: Option<String>,
     dst: &'a mut Vec<(String, String)>,
@@ -359,6 +369,7 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
 }
 
 impl<'a> Serializer<'a> {
+    /// Create a new instance of the `Serializer` struct
     pub fn new(dst: &'a mut Vec<(String, String)>) -> Self {
         Self {
             root_key_name: None,
@@ -366,6 +377,7 @@ impl<'a> Serializer<'a> {
         }
     }
 
+    /// Create a new instance of the `Serializer` struct with a prefix used as the root for all keys
     pub fn with_prefix(prefix: String, dst: &'a mut Vec<(String, String)>) -> Self {
         Self {
             root_key_name: Some(prefix),

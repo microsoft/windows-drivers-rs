@@ -4,6 +4,8 @@
 use serde::ser::{self};
 use thiserror::Error;
 
+/// A specialized [`Result`] type for [`metadata`](crate::metadata)
+/// serialization and deserialization operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// This type represents all possible errors that can occur when serializing
@@ -15,13 +17,19 @@ pub enum Error {
     /// generated from [`serde`]'s `derive` feature's generated `Serialize`
     /// impls.
     #[error("custom serialization error: {message}")]
-    CustomSerialization { message: String },
+    CustomSerialization {
+        /// Message describing the error
+        message: String,
+    },
 
     /// error emitted when an empty key name is encountered during
     /// serialization. Serialization of values always requires a non-empty
     /// key name
     #[error("empty key name encountered during serialization of value: {value_being_serialized}")]
-    EmptySerializationKeyName { value_being_serialized: String },
+    EmptySerializationKeyName {
+        /// Value being serialized
+        value_being_serialized: String,
+    },
 
     /// error emitted when duplicate key names are found during
     /// serialization. Serializing into a [`crate::ser::Map`] requires
@@ -31,8 +39,11 @@ pub enum Error {
          {value_2}"
     )]
     DuplicateSerializationKeys {
+        /// Key name
         key: String,
+        /// One of the conflicting values
         value_1: String,
+        /// One of the conflicting values
         value_2: String,
     },
 }
