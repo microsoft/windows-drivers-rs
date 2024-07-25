@@ -268,7 +268,7 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
     const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
 
     let generated_file_path = out_path.join("wdf_function_table.rs");
-    let mut generated_file = std::fs::File::create(&generated_file_path)?;
+    let mut generated_file = std::fs::File::create(generated_file_path)?;
 
     let is_wdf_function_count_generated = match *config {
         Config {
@@ -335,7 +335,7 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
 /// `OUT_DIR` of `wdk-sys` to the `proc_macro`.
 fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
     let generated_file_path = out_path.join("call_unsafe_wdf_function_binding.rs");
-    let mut generated_file = std::fs::File::create(&generated_file_path)?;
+    let mut generated_file = std::fs::File::create(generated_file_path)?;
     generated_file.write_all(
         CALL_UNSAFE_WDF_BINDING_TEMPLATE
             .replace(
@@ -356,7 +356,7 @@ fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::
 /// just include in `src/test_stubs.rs` directly.
 fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> {
     let stubs_file_path = out_path.join("test_stubs.rs");
-    let mut stubs_file = std::fs::File::create(&stubs_file_path)?;
+    let mut stubs_file = std::fs::File::create(stubs_file_path)?;
     stubs_file.write_all(
         TEST_STUBS_TEMPLATE
             .replace(
