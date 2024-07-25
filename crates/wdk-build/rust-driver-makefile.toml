@@ -130,7 +130,7 @@ let cli_env_vars = wdk_build::cargo_make::validate_command_line_args();
 let path_env_vars = wdk_build::cargo_make::setup_path()?;
 let wdk_version_env_vars = wdk_build::cargo_make::setup_wdk_version()?;
 
-wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
+wdk_build::cargo_make::forward_printed_env_vars(
     cli_env_vars.into_iter().chain(path_env_vars).chain(wdk_version_env_vars),
 );
 '''
@@ -152,7 +152,7 @@ script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-let serialized_wdk_metadata_map = wdk_build::to_map_with_prefix::<std::collections::BTreeMap<_, _>>(
+let serialized_wdk_metadata_map = wdk_build::metadata::to_map_with_prefix::<std::collections::BTreeMap<_, _>>(
     "WDK_BUILD_METADATA",
     &wdk_build::metadata::Wdk::try_from(&wdk_build::cargo_make::get_cargo_metadata()?)?,
 )?;
@@ -161,7 +161,7 @@ for (key, value) in &serialized_wdk_metadata_map {
     std::env::set_var(key, value);
 }
 
-wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
+wdk_build::cargo_make::forward_printed_env_vars(
     serialized_wdk_metadata_map
         .into_iter()
         .map(|(key, _)| (key)),

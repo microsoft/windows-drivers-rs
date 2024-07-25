@@ -9,7 +9,7 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// This type represents all possible errors that can occur when serializing
-/// or deserializing [`metadata::Wdk`].
+/// or deserializing [`metadata::Wdk`](crate::metadata::Wdk).
 #[derive(Debug, Error)]
 pub enum Error {
     /// catch-all error emitted during serialization, when a more specific
@@ -32,8 +32,8 @@ pub enum Error {
     },
 
     /// error emitted when duplicate key names are found during
-    /// serialization. Serializing into a [`crate::ser::Map`] requires
-    /// unique key names
+    /// serialization. Serializing into a
+    /// [`metadata::Map`](crate::metadata::Map) requires unique key names
     #[error(
         "duplicate keys found during serialization:\nkey: {key}\nvalue 1: {value_1}\nvalue 2: \
          {value_2}"

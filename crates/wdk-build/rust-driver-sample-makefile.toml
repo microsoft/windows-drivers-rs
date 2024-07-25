@@ -21,7 +21,7 @@ let env_string = std::env::var_os(wdk_build::cargo_make::WDK_VERSION_ENV_VAR)
     );
 let samples_infverif_env_vars = wdk_build::cargo_make::setup_infverif_for_samples(&env_string)?;
 
-wdk_build::cargo_make::forward_printed_env_vars_to_cargo_make(
+wdk_build::cargo_make::forward_printed_env_vars(
     samples_infverif_env_vars,
 );
 '''

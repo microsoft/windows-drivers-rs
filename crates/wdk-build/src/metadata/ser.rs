@@ -17,7 +17,7 @@ use super::{
 pub const KEY_NAME_SEPARATOR: char = '-';
 
 /// Serialize a value into a [`Map`] where the keys represent a
-/// [`KEY_NAME_SEPARATOR`]-seperated list of field names.
+/// `KEY_NAME_SEPARATOR`-seperated list of field names.
 ///
 /// # Errors
 ///
@@ -31,13 +31,13 @@ pub const KEY_NAME_SEPARATOR: char = '-';
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{to_map, Wdk},
+///     metadata::{self, to_map},
 ///     DriverConfig,
-///     KMDFConfig,
+///     KmdfConfig,
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
-///     driver_model: DriverConfig::KMDF(KMDFConfig {
+///     driver_model: DriverConfig::Kmdf(KmdfConfig {
 ///         kmdf_version_major: 1,
 ///         target_kmdf_version_minor: 23,
 ///         minimum_kmdf_version_minor: None,
@@ -63,7 +63,7 @@ where
 }
 
 /// Serialize a value into a [`Map`] where the keys represent a
-/// [`KEY_NAME_SEPARATOR`]-seperated list of field names prepended with a
+/// `KEY_NAME_SEPARATOR`-seperated list of field names prepended with a
 /// prefix.
 ///
 /// # Errors
@@ -78,13 +78,13 @@ where
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{to_map_with_prefix, Wdk},
+///     metadata::{self, to_map_with_prefix},
 ///     DriverConfig,
-///     KMDFConfig,
+///     KmdfConfig,
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
-///     driver_model: DriverConfig::KMDF(KMDFConfig {
+///     driver_model: DriverConfig::Kmdf(KmdfConfig {
 ///         kmdf_version_major: 1,
 ///         target_kmdf_version_minor: 33,
 ///         minimum_kmdf_version_minor: Some(31),
@@ -377,7 +377,8 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    /// Create a new instance of the `Serializer` struct with a prefix used as the root for all keys
+    /// Create a new instance of the `Serializer` struct with a prefix used as
+    /// the root for all keys
     pub fn with_prefix(prefix: String, dst: &'a mut Vec<(String, String)>) -> Self {
         Self {
             root_key_name: Some(prefix),

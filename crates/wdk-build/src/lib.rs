@@ -632,7 +632,7 @@ impl Config {
 
     /// Compute the name of the `WdfFunctions` symbol used for WDF function
     /// dispatching based off of the [`Config`]. Returns `None` if the driver
-    /// model is [`DriverConfig::WDM`]
+    /// model is [`DriverConfig::Wdm`]
     #[must_use]
     pub fn compute_wdffunctions_symbol_name(&self) -> Option<String> {
         let (wdf_major_version, wdf_minor_version) = match self.driver_config {
@@ -787,7 +787,7 @@ impl Default for KmdfConfig {
 }
 
 impl KmdfConfig {
-    /// Creates a new [`KMDFConfig`] with default values
+    /// Creates a new [`KmdfConfig`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -807,7 +807,7 @@ impl Default for UmdfConfig {
 }
 
 impl UmdfConfig {
-    /// Creates a new [`UMDFConfig`] with default values
+    /// Creates a new [`UmdfConfig`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()

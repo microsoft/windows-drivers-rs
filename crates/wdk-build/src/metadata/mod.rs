@@ -10,6 +10,7 @@
 //! serialization and deserialization for the metadata.
 
 pub use error::{Error, Result};
+pub use map::Map;
 pub use ser::{to_map, to_map_with_prefix, Serializer};
 
 pub(crate) mod ser;
@@ -79,8 +80,9 @@ pub struct Wdk {
 //     minimum_umdf_version_minor: Option<u8>,
 // }
 
-/// Errors that could result from trying to construct a [`metadata::Wdk`] from
-/// information parsed by `cargo metadata`
+/// Errors that could result from trying to construct a
+/// [`metadata::Wdk`](crate::metadata::Wdk) from information parsed by `cargo
+/// metadata`
 #[derive(Debug, Error)]
 pub enum TryFromCargoMetadataError {
     /// Error returned when no WDK configuration metadata is detected in the
@@ -99,8 +101,8 @@ pub enum TryFromCargoMetadataError {
          one configuration is allowed: {wdk_metadata_configurations:#?}"
     )]
     MultipleWdkConfigurationsDetected {
-        /// [`HashSet`] of unique [`metadata::Wdk`] derived from detected WDK
-        /// metadata
+        /// [`HashSet`] of unique [`metadata::Wdk`](crate::metadata::Wdk)
+        /// derived from detected WDK metadata
         wdk_metadata_configurations: HashSet<Wdk>,
     },
 

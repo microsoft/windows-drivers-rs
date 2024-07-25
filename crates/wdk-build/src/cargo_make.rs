@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! Utilities for `cargo-make` tasks used to package binaries dependent on the `WDK`.
-//! 
+//! Utilities for `cargo-make` tasks used to package binaries dependent on the
+//! `WDK`.
+//!
 //! This module provides functions used in the rust scripts in
 //! `rust-driver-makefile.toml`. This includes argument parsing functionality
 //! used by `rust-driver-makefile.toml` to validate and forward arguments common
@@ -437,7 +438,7 @@ impl ParseCargoArgs for ManifestOptions {
 /// Parses the command line arguments, validates that they are supported by
 /// `rust-driver-makefile.toml`, and then returns a list of environment variable
 /// names that were updated. These environment variable names should be passed
-/// to [`forward_printed_env_vars_to_cargo_make`] to forward values to
+/// to [`forward_printed_env_vars`] to forward values to
 /// cargo-make.
 ///
 /// # Panics
@@ -630,7 +631,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::WDKContentRootDetectionError`] if
+/// This function returns a [`ConfigError::WdkContentRootDetectionError`] if
 /// an invalid WDK version is provided.
 ///
 /// # Panics
@@ -885,8 +886,7 @@ pub fn get_cargo_metadata() -> cargo_metadata::Result<Metadata> {
 ///
 /// # Panics
 ///
-/// Panics if [`CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR`] is not set in the
-/// environment
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
 pub fn condition_script<F, E>(condition_script_closure: F) -> anyhow::Result<(), E>
 where
     F: FnOnce() -> anyhow::Result<(), E> + UnwindSafe,
