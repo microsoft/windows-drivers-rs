@@ -118,6 +118,7 @@ impl BuilderExt for Builder {
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
+            .blocklist_item("ExAllocatePool") // Deprecated
             // FIXME: Types containing 32-bit pointers (via __ptr32) are not generated properly and cause bindgen layout tests to fail: https://github.com/rust-lang/rust-bindgen/issues/2636
             .blocklist_item(".*EXTENDED_CREATE_INFORMATION_32")
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
