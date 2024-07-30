@@ -840,7 +840,7 @@ impl CpuArchitecture {
     }
 }
 
-/// Find the path the the toplevel Cargo manifest of the currently executing
+/// Find the path of the toplevel Cargo manifest of the currently executing
 /// Cargo subcommand. This should resolve to either:
 /// 1. the `Cargo.toml` of the package where the Cargo subcommand (build, check,
 ///    etc.) was run
