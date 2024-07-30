@@ -850,7 +850,7 @@ impl CpuArchitecture {
 ///    1 or 2
 ///
 /// The returned path should be a manifest in the same directory of the
-/// lockfile. This does not support invokations that use non-default target
+/// lockfile. This does not support invocations that use non-default target
 /// directories (ex. via `--target-dir`). This function only works when called
 /// from a `build.rs` file
 ///
