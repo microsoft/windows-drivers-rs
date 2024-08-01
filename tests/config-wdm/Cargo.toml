@@ -10,4 +10,3 @@ publish = false
 driver-type = "WDM"
 
 [lib]
-crate-type = ["cdylib"]

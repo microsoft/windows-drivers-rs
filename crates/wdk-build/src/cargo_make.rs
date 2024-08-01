@@ -17,6 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
 use clap::{Args, Parser};
 
@@ -39,6 +40,7 @@ pub const WDK_VERSION_ENV_VAR: &str = "WDK_BUILD_DETECTED_VERSION";
 /// The first WDK version with the new `InfVerif` behavior.
 const MINIMUM_SAMPLES_FLAG_WDK_VERSION: i32 = 25798;
 const WDK_INF_ADDITIONAL_FLAGS_ENV_VAR: &str = "WDK_BUILD_ADDITIONAL_INFVERIF_FLAGS";
+const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 
 /// The name of the environment variable that cargo-make uses during `cargo
 /// build` and `cargo test` commands
@@ -50,11 +52,11 @@ const CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_TR
 const CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY";
 const CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR: &str = "CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN";
+const CARGO_MAKE_CRATE_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_NAME";
 const CARGO_MAKE_CRATE_FS_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_FS_NAME";
 const CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY";
 const CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR: &str = "CARGO_MAKE_CURRENT_TASK_NAME";
-const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
 const CLAP_USAGE_EXIT_CODE: i32 = 2;
@@ -898,8 +900,8 @@ where
             .expect("CARGO_MAKE_CURRENT_TASK_NAME should be set by cargo-make");
 
         eprintln!(
-            "`condition_script` for {cargo_make_task_name} task panicked while executing. \
-             Defaulting to running {cargo_make_task_name} task."
+            r#"`condition_script` for "{cargo_make_task_name}" task panicked while executing. \
+             Defaulting to running "{cargo_make_task_name}" task."#
         );
         Ok(())
     })
@@ -911,14 +913,60 @@ where
 /// # Errors
 ///
 /// This function returns an error whenever it determins that the
-/// `package-driver-flow` `cargo-make` task should be skipped (i.e. when no WDK
+/// `package-driver-flow` `cargo-make` task should be skipped (i.e. when the
+/// current package isn't a cdylib depending on the WDK, or when no valid WDK
 /// configurations are detected)
 pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
-        match metadata::Wdk::try_from(&get_cargo_metadata()?) {
+        // Get the current package name via `CARGO_MAKE_CRATE_NAME_ENV_VAR` instead of
+        // `CARGO_MAKE_CRATE_FS_NAME_ENV_VAR`, since `cargo_metadata` output uses the
+        // non-preprocessed name (ie. - instead of _)
+        let current_package_name = env::var(CARGO_MAKE_CRATE_NAME_ENV_VAR).unwrap_or_else(|_| {
+            panic!(
+                "{} should be set by cargo-make",
+                &CARGO_MAKE_CRATE_NAME_ENV_VAR
+            )
+        });
+        let cargo_metadata = get_cargo_metadata()?;
+
+        // Skip task if the current crate is not a driver (i.e. a cdylib with a
+        // `package.metadata.wdk` section)
+        let current_package = cargo_metadata
+            .packages
+            .iter()
+            .find(|package| package.name == current_package_name)
+            .expect("The current package should be present in the cargo metadata output");
+        if current_package.metadata["wdk"].is_null() {
+            return Err::<(), anyhow::Error>(
+                metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected.into(),
+            )
+            .with_context(|| {
+                "Skipping package-driver-flow cargo-make task because the current crate does not \
+                 have a package.metadata.wdk section"
+            });
+        }
+        if current_package
+            .targets
+            .iter()
+            .find(|target| target.kind.contains(&"cdylib".to_string()))
+            .is_none()
+        {
+            return Err::<(), anyhow::Error>(
+                metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected.into(),
+            )
+            .with_context(|| {
+                "Skipping package-driver-flow cargo-make task because the current crate does not \
+                 contain a cdylib target"
+            });
+        }
+
+        match metadata::Wdk::try_from(&cargo_metadata) {
             Err(e @ metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected) => {
                 // Skip task only if no WDK configurations are detected
-                Err(e.into())
+                Err::<(), anyhow::Error>(e.into()).with_context(|| {
+                    "Skipping package-driver-flow cargo-make task because the current crate is not \
+                     a driver"
+                })
             }
 
             Ok(_) => Ok(()),

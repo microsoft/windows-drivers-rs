@@ -5,8 +5,6 @@ use std::path::PathBuf;
 
 use fs4::FileExt;
 use lazy_static::lazy_static;
-
-// TODO: refactor this so that pub use and use ordering dont get clobbered. private `macro_reexports` module?
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
 pub use paste::paste;

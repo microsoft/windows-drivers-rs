@@ -1,20 +1,29 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! # Sample UMDF Driver
+//! # Sample KMDF Driver
 //!
-//! This is a sample UMDF driver that demonstrates how to use the crates in
-//! windows-driver-rs to create a skeleton of a UMDF driver.
+//! This is a sample KMDF driver that demonstrates how to use the crates in
+//! windows-driver-rs to create a skeleton of a kmdf driver.
 
-use std::{ffi::CString, slice, string::String};
+#![no_std]
+
+extern crate alloc;
+
+#[cfg(not(test))]
+extern crate wdk_panic;
+
+use alloc::{ffi::CString, slice, string::String};
 
 use wdk::println;
+#[cfg(not(test))]
+use wdk_alloc::WdkAllocator;
 use wdk_sys::{
     call_unsafe_wdf_function_binding,
-    windows::OutputDebugStringA,
+    ntddk::DbgPrint,
+    DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
-    PDRIVER_OBJECT,
     ULONG,
     UNICODE_STRING,
     WCHAR,
@@ -26,6 +35,10 @@ use wdk_sys::{
     WDF_NO_OBJECT_ATTRIBUTES,
 };
 
+#[cfg(not(test))]
+#[global_allocator]
+static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
+
 /// `DriverEntry` function required by WDF
 ///
 /// # Panics
@@ -33,18 +46,18 @@ use wdk_sys::{
 ///
 /// # Safety
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
-#[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+#[export_name = "DriverEntry"]// WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
-    driver: PDRIVER_OBJECT,
+    driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-    // This is an example of directly using OutputDebugStringA binding to print
+    // This is an example of directly using DbgPrint binding to print
     let string = CString::new("Hello World!\n").unwrap();
 
     // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
     // string
     unsafe {
-        OutputDebugStringA(string.as_ptr());
+        DbgPrint(string.as_ptr());
     }
 
     let mut driver_config = {
@@ -65,7 +78,6 @@ pub unsafe extern "system" fn driver_entry(
         WDF_DRIVER_CONFIG {
             Size: wdf_driver_config_size,
             EvtDriverDeviceAdd: Some(evt_driver_device_add),
-            EvtDriverUnload: None,
             ..WDF_DRIVER_CONFIG::default()
         }
     };
@@ -83,7 +95,7 @@ pub unsafe extern "system" fn driver_entry(
     unsafe {
         wdf_driver_create_ntstatus = call_unsafe_wdf_function_binding!(
             WdfDriverCreate,
-            driver,
+            driver as PDRIVER_OBJECT,
             registry_path,
             driver_attributes,
             &mut driver_config,
@@ -128,10 +140,10 @@ pub unsafe extern "system" fn driver_entry(
     );
 
     // It is much better to use the println macro that has an implementation in
-    // wdk::print.rs to call OutputDebugStringA. The println! implementation in
+    // wdk::print.rs to call DbgPrint. The println! implementation in
     // wdk::print.rs has the same features as the one in std (ex. format args
     // support).
-    println!("UMDF Driver Entry Complete! Driver Registry Parameter Key: {registry_path}");
+    println!("KMDF Driver Entry Complete! Driver Registry Parameter Key: {registry_path}");
 
     wdf_driver_create_ntstatus
 }

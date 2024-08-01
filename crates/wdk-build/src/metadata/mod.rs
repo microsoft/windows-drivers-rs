@@ -90,7 +90,7 @@ pub enum TryFromCargoMetadataError {
     #[error(
         "no WDK configuration metadata is detected in the dependency graph. This could happen \
          when building WDR itself, or building library crates that depend on the WDK but defer \
-         wdk configuration to their consumers"
+         WDK configuration to their consumers"
     )]
     NoWdkConfigurationsDetected,
 
@@ -136,18 +136,14 @@ impl TryFrom<&Metadata> for Wdk {
         };
 
         // Ensure that only one configuration of WDK is allowed per dependency graph
-        // TODO: add ws level test:
-        //////////////ws level tests: https://stackoverflow.com/a/71461114/10173605
         match wdk_metadata_configurations.len() {
             1 => Ok(wdk_metadata_configurations.into_iter().next().expect(
                 "wdk_metadata_configurations should have exactly one element because of the \
                  .len() check above",
             )),
 
-            // TODO: add a test for this
             0 => Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected),
 
-            // TODO: add a test for this
             _ => Err(
                 TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
                     wdk_metadata_configurations,
@@ -164,6 +160,10 @@ fn parse_packages_wdk_metadata(
         .iter()
         .filter_map(|package| match &package.metadata["wdk"] {
             serde_json::Value::Null => None,
+            // When wdk section is empty, treat it as if it wasn't there. This is to allow for using
+            // empty wdk metadata sections to mark the package as a driver (ex. for detection in
+            // `package_driver_flow_condition_script`)
+            serde_json::Value::Object(map) if map.is_empty() => None,
             wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
                 TryFromCargoMetadataError::WdkMetadataDeserialization {
                     metadata_source: format!(
@@ -176,7 +176,6 @@ fn parse_packages_wdk_metadata(
             })),
         })
         .collect::<std::result::Result<HashSet<_>, _>>()?;
-
     Ok(wdk_metadata_configurations)
 }
 

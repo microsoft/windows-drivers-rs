@@ -13,6 +13,9 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 # This is set to "" here to match the default behavior of Cargo. 
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true }
 
+# rust-script condition_script's return `Err` to signal that the task should not be run. Hide Err backtraces by default to keep output cleaner.
+RUST_LIB_BACKTRACE = 0
+
 WDK_BUILD_BASE_INFVERIF_FLAGS = "/v"
 
 [plugins.impl.rust-env-update]
@@ -112,6 +115,25 @@ taskjson = json_encode taskjson
 
 # Run the invoking task, with the modified condition_script
 cm_plugin_run_custom_task ${taskjson}
+'''
+
+# This plugin adds support for cargo-make's emulated workspace feature to work on emulated workspace members which are Cargo workspaces themselves.
+# Since Cargo workspaces are not detected in cargo-make emulated workspace members, the task is rerun in a forked subprocess with the CARGO_MAKE_CRATE_CURRENT_WORKSPACE_MEMBER env var unset to allow cargo-make's workspace detection to run.
+[plugins.impl.nested-cargo-workspace-in-cargo-make-emulated-workspace-support]
+script = '''
+# If current flow is executing in a Cargo workspace, which is a member of a cargo-make emulated workspace
+if ${CARGO_MAKE_WORKSPACE_EMULATION} and ${CARGO_MAKE_CRATE_IS_WORKSPACE}
+
+    # Re-run the task in a forked subprocess, allowing cargo-make to run in a workspace context (i.e. running on each of the members of the Cargo workspace)
+    echo Executing \"${task.name}\" Task in a forked subprocess to run on Cargo workspace: ${CARGO_MAKE_CRATE_CURRENT_WORKSPACE_MEMBER}
+
+    # Unset the CARGO_MAKE_CRATE_CURRENT_WORKSPACE_MEMBER env var to allow cargo-make's workspace detection to run 
+    unset_env CARGO_MAKE_CRATE_CURRENT_WORKSPACE_MEMBER
+
+    cm_plugin_run_custom_task "{\"run_task\":{\"name\":\"${task.name}\",\"fork\":true}}"
+else
+    cm_plugin_run_task
+end
 '''
 
 [tasks.wdk-build-init]
@@ -312,10 +334,7 @@ script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-eprintln!("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE: {}", std::env::var("WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE").unwrap());
-eprintln!("WDK_BUILD_DRIVER_EXTENSION: {}", std::env::var("WDK_BUILD_DRIVER_EXTENSION").unwrap());
 let driver_binary_extension = std::env::var("WDK_BUILD_DRIVER_EXTENSION").expect("WDK_BUILD_DRIVER_EXTENSION should be set by cargo-make");
-println!("{driver_binary_extension}");
 wdk_build::cargo_make::copy_to_driver_package_folder(
     wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
         "{}.{driver_binary_extension}",
@@ -518,17 +537,24 @@ dependencies = [
 
 [tasks.package-driver-flow]
 # Only run flow if the current package is marked as a driver
-plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
+plugin = "nested-cargo-workspace-in-cargo-make-emulated-workspace-support"
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 condition_script = '''
 #!@rust
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.2.0" }
+//! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]
 
-wdk_build::cargo_make::package_driver_flow_condition_script()?
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::package_driver_flow_condition_script()
+}
 '''
 run_task = "package-driver"
 

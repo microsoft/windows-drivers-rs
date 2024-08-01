@@ -1,9 +1,10 @@
 [package]
-name = "driver_2"
+name = "driver"
 version = "0.0.0"
 edition = "2021"
 publish = false
 
+# This driver package uses the metadata from the workspace, but still needs this tag to signal that its a driver crate that needs packaging
 [package.metadata.wdk]
 
 [lib]
@@ -16,4 +17,6 @@ wdk-build.workspace = true
 
 [dependencies]
 wdk.workspace = true
+wdk-alloc.workspace = true
+wdk-panic.workspace = true
 wdk-sys.workspace = true

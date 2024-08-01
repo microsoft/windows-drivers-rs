@@ -216,20 +216,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fd119d74b830634cea2a0f58bbd0d54540518a14397557951e79340abc28c0"
 
 [[package]]
-name = "driver_1"
+name = "driver"
 version = "0.0.0"
 dependencies = [
  "wdk",
+ "wdk-alloc",
  "wdk-build",
- "wdk-sys",
-]
-
-[[package]]
-name = "driver_2"
-version = "0.0.0"
-dependencies = [
- "wdk",
- "wdk-build",
+ "wdk-panic",
  "wdk-sys",
 ]
 
@@ -373,6 +366,10 @@ dependencies = [
  "memchr",
  "minimal-lexical",
 ]
+
+[[package]]
+name = "non_driver_crate"
+version = "0.0.0"
 
 [[package]]
 name = "nu-ansi-term"
@@ -716,6 +713,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wdk-alloc"
+version = "0.2.0"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wdk-build",
+ "wdk-sys",
+]
+
+[[package]]
 name = "wdk-build"
 version = "0.2.0"
 dependencies = [
@@ -744,6 +751,10 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "wdk-panic"
+version = "0.2.0"
 
 [[package]]
 name = "wdk-sys"

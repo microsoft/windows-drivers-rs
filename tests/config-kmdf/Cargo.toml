@@ -12,7 +12,6 @@ kmdf-version-major = 1
 target-kmdf-version-minor = 33
 
 [lib]
-crate-type = ["cdylib"]
 
 [dev-dependencies]
 wdk-macros-tests.path = "../wdk-macros-tests"
