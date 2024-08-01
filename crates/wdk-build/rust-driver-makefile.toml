@@ -536,7 +536,9 @@ dependencies = [
 ]
 
 [tasks.package-driver-flow]
-# Only run flow if the current package is marked as a driver
+# Note: Dependencies are always run, regardless of the condition_script result. This allows `cargo make` in mixed driver/non-driver workspaces
+dependencies = ["build"] 
+# Only run package-driver flow if the current package is marked as a driver
 plugin = "nested-cargo-workspace-in-cargo-make-emulated-workspace-support"
 condition_script_runner_args = [
   "--base-path",
