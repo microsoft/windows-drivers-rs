@@ -840,7 +840,7 @@ impl CpuArchitecture {
     }
 }
 
-/// Find the path the the toplevel Cargo manifest of the currently executing
+/// Find the path of the toplevel Cargo manifest of the currently executing
 /// Cargo subcommand. This should resolve to either:
 /// 1. the `Cargo.toml` of the package where the Cargo subcommand (build, check,
 ///    etc.) was run
@@ -850,7 +850,7 @@ impl CpuArchitecture {
 ///    1 or 2
 ///
 /// The returned path should be a manifest in the same directory of the
-/// lockfile. This does not support invokations that use non-default target
+/// lockfile. This does not support invocations that use non-default target
 /// directories (ex. via `--target-dir`). This function only works when called
 /// from a `build.rs` file
 ///
