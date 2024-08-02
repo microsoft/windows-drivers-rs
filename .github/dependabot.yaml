@@ -1,52 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      timezone: "America/Los_Angeles"
-      time: "06:00"
-    commit-message:
-      prefix: "chore"
-    reviewers:
-      - "microsoft/windows-drivers-rs"
-    labels:
-      - "type:dependabot"
-      - "type:dependencies-cargo"
-
-  - package-ecosystem: "cargo"
-    directory: "/sample-kmdf-driver"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      timezone: "America/Los_Angeles"
-      time: "06:00"
-    commit-message:
-      prefix: "chore"
-    reviewers:
-      - "microsoft/windows-drivers-rs"
-    labels:
-      - "type:dependabot"
-      - "type:dependencies-cargo"
-
-  - package-ecosystem: "cargo"
-    directory: "/sample-umdf-driver"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      timezone: "America/Los_Angeles"
-      time: "06:00"
-    commit-message:
-      prefix: "chore"
-    reviewers:
-      - "microsoft/windows-drivers-rs"
-    labels:
-      - "type:dependabot"
-      - "type:dependencies-cargo"
-
-  - package-ecosystem: "cargo"
-    directory: "/sample-wdm-driver"
+    directories: ["**/*"]
     schedule:
       interval: "weekly"
       day: "wednesday"
