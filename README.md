@@ -17,6 +17,14 @@ Note: This project is still in early stages of development and is not yet recomm
 
 This project was built with support of WDM, KMDF, and UMDF drivers in mind, as well as Win32 Services. This includes support for all versions of WDF included in WDK 22H2 and newer. Currently, the crates available on [`crates.io`](https://crates.io) only support KMDF v1.33, but bindings can be generated for everything else by cloning `windows-drivers-rs` and modifying the config specified in [`build.rs` of `wdk-sys`](./crates/wdk-sys/build.rs). Crates.io support for other WDK configurations is planned in the near future.
 
+## Repo Layout
+
+* [crates](./crates): Contains all the main crates that are a part of the Cargo workspace.
+* [examples](./examples): Contains workspace-level examples. These examples consist of different types of minimal Windows drivers (ie. WDM, KMDF, UMDF).
+* [tests](./tests): Contains workspace-level tests, inlcuding tests for metadata-based wdk configuration in packages and workspaces.
+
+**Note:**: Since the workspace level examples and tests use different WDK configurations, and WDR only supports one WDK configuration per workspace, the workspace-level examples and tests folder are excluded from the [repository root's Cargo manifest](./Cargo.toml).
+
 ## Getting Started
 
 ### Build Requirements
@@ -108,7 +116,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
    ```
 
-   This is only required if you want to be able to use the [`alloc` modules](https://doc.rust-lang.org/alloc/) in the rust standard library. You are also free to use your own implementations of global allocators.
+   This is only required if you want to be able to use the [`alloc` modules](https://doc.rust-lang.org/alloc/) in the rust standard library.
 
 1. Add a DriverEntry in `lib.rs`:
 
@@ -133,9 +141,6 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 1. Add a `Makefile.toml`:
    ```toml
    extend = "target/rust-driver-makefile.toml"
-
-   [env]
-   CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
    [config]
    load_script = '''
