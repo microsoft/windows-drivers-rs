@@ -33,35 +33,12 @@ dependencies = [
   "beta-docs",
 ]
 
-# TODO: ALL the non-build tasks need to run with the different configurations
-# TODO: ALL these tasks need to be ported to the pipeline
-
 [tasks.format]
 toolchain = "nightly"
 
-[tasks.wdk-build-flow]
-description = "Builds the WDR repo in several different configurations"
-workspace = false
-script = '''
-#!@duckscript
-
-exec --fail-on-error cargo make --no-workspace build
-exec --fail-on-error cargo make --no-workspace build --features _test-kmdf
-exec --fail-on-error cargo make --no-workspace build --features _test-umdf
-exec --fail-on-error cargo make --no-workspace build --features _test-wdm
-'''
-
-[tasks.wdk-samples-flow]
-description = "Builds and packages the drivers in the sample-drivers folder"
-category = "Development"
-workspace = false
-cwd = "./sample-drivers"
-# Use script instead of run_task to pass on `cwd` to the task
-script = '''
-#!@duckscript
-
-exec --fail-on-error cargo make package-driver-flow
-'''
+[tasks.package-driver-workspace-flow]
+# by forking, a new cargo make invocation starts and by default detects it is a workspace and runs the package-driver task for each member crate
+run_task = { name = "package-driver-flow", fork = true }
 
 [tasks.pre-test]
 # macrotest and trybuild tests will fail when switching between nightly and stable toolchains due to trybuild/macrotest caching artifacts built with the other toolchain. Deleting the tests directory is enough to purge all test artifacts created by trybuild/macrotest.
@@ -84,51 +61,6 @@ args = ["audit", "--deny", "warnings"]
 workspace = false
 condition = { env_true = ["CARGO_MAKE_CRATE_HAS_DEPENDENCIES"] }
 args = ["machete", "--skip-target-dir"]
-
-[tasks.pre-clippy]
-workspace = false
-script_runner = "@rust"
-script = '''
-//! ```cargo
-//! [dependencies]
-//! walkdir = "2.5.0"
-//! ```
-#![allow(unused_doc_comments)]
-
-use walkdir::WalkDir;
-use std::{fs, io::Write, path::Path};
-
-// Create `clippy_workspace` folder in the target directory
-let cargo_make_target_dir = std::env::var("CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY").expect("CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY should be set by cargo-make");
-let target_dir = Path::new(&cargo_make_target_dir);
-let clippy_workspace_folder_path = target_dir.join("clippy_workspace");
-if !clippy_workspace_folder_path.exists() {
-    std::fs::create_dir(&clippy_workspace_folder_path)?;
-}
-
-// Copy all files from `crates` folder to `clippy_workspace` folder
-for entry in WalkDir::new("./crates").into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file()) {
-    let path_to_copy = entry.path();
-    let destination_path = clippy_workspace_folder_path.join(path_to_copy);
-
-    fs::create_dir_all(&destination_path.parent().unwrap_or_else(|| panic!("{} should have a valid parent", destination_path.display()))).unwrap_or_else(|e| panic!("Failed to create parent directories for {}: {e}", destination_path.display()));
-    fs::copy(path_to_copy, &destination_path).unwrap_or_else(|e| panic!("File should succeed to be copied from {} to {}: {e}", path_to_copy.display(), destination_path.display()));
-}
-
-// Copy workspace Cargo manifest and inject workspace WDK metadata
-let workspace_manifest_path = Path::new("./Cargo.toml");
-let destination_path = clippy_workspace_folder_path.join("Cargo.toml");
-fs::copy(workspace_manifest_path, &destination_path).unwrap_or_else(|e| panic!("File should succeed to be copied from {} to {}: {e}", workspace_manifest_path.display(), destination_path.display()));
-let mut clippy_workspace_manifest_file = fs::OpenOptions::new().append(true).open(&destination_path).unwrap_or_else(|e| panic!("Failed to open file {}: {e}", destination_path.display()));
-clippy_workspace_manifest_file.write_all(br#"
-[workspace.metadata.wdk.driver-model]
-driver-type = "KMDF"
-kmdf-version-major = 1
-target-kmdf-version-minor = 33
-"#).unwrap_or_else(|e| panic!("Failed to write to file {}: {e}", destination_path.display()));
-'''
 
 [tasks.nightly-test-flow]
 extend = "test-flow"
