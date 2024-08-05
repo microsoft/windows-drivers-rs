@@ -1,0 +1,36 @@
+error[E0061]: this function takes 5 arguments but 4 arguments were supplied
+ --> tests/outputs/stable/trybuild/wdf_driver_create_missing_arg.rs
+  |
+  | /         call_unsafe_wdf_function_binding!(
+  | |             WdfDriverCreate,
+  | |             driver as PDRIVER_OBJECT,
+  | |             registry_path,
+... |
+  | |             &mut driver_config,
+  | |             ------------------ an argument of type `*mut _WDF_OBJECT_ATTRIBUTES` is missing
+  | |             driver_handle_output,
+  | |         )
+  | |_________^
+  |
+note: function defined here
+ --> tests/outputs/stable/trybuild/wdf_driver_create_missing_arg.rs
+  |
+  | /         call_unsafe_wdf_function_binding!(
+  | |             WdfDriverCreate,
+  | |             driver as PDRIVER_OBJECT,
+  | |             registry_path,
+... |
+  | |             driver_handle_output,
+  | |         )
+  | |_________^
+  | |_________|
+  | |_________|
+  | |_________|
+  | |_________|
+  |
+  = note: this error originates in the macro `$crate::__proc_macros::call_unsafe_wdf_function_binding` which comes from the expansion of the macro `call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: provide the argument
+ --> $OUT_DIR[wdk-sys]/call_unsafe_wdf_function_binding.rs
+  |
+  |         )(driver as PDRIVER_OBJECT, registry_path, /* *mut _WDF_OBJECT_ATTRIBUTES */, &mut driver_config, driver_handle_output)
+  |          ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

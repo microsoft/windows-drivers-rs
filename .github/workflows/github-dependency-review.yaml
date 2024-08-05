@@ -19,11 +19,17 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
-          # AND combinations are currently bugged and must be listed separately: https://github.com/actions/dependency-review-action/issues/263
-          # OR combinations are currently bugged and must be listed separately: https://github.com/actions/dependency-review-action/issues/670
-          allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC, Unicode-DFS-2016, (MIT OR Apache-2.0) AND Unicode-DFS-2016, Unlicense OR MIT
-          # anstyle is licensed as (MIT OR Apache-2.0), but the Github api fails to detect it: https://github.com/rust-cli/anstyle/tree/main/crates/anstyle
-          allow-dependencies-licenses: 'pkg:cargo/anstyle@1.0.4'
+          allow-licenses: >-
+            MIT,
+            Apache-2.0,
+            BSD-3-Clause,
+            ISC,
+            Unicode-DFS-2016
+          # anstyle@1.0.4 is licensed as (MIT OR Apache-2.0), but the Github api fails to detect it: https://github.com/rust-cli/anstyle/tree/main/crates/anstyle
+          # AND combinations are currently bugged (https://github.com/actions/dependency-review-action/issues/263):
+          # * rustc-hash@1.1.0       License: Apache-2.0 AND MIT
+          # * unicode-ident@1.0.12   License: (MIT OR Apache-2.0) AND Unicode-DFS-2016
+          allow-dependencies-licenses: 'pkg:cargo/anstyle@1.0.4, pkg:cargo/rustc-hash@1.1.0, pkg:cargo/unicode-ident@1.0.12'
           comment-summary-in-pr: on-failure
           # Explicit refs required for merge_group and push triggers:
           # https://github.com/actions/dependency-review-action/issues/456

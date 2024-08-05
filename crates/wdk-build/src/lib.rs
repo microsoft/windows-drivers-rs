@@ -12,16 +12,20 @@
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 
-mod bindgen;
+pub use bindgen::BuilderExt;
+use metadata::TryFromCargoMetadataError;
+
+pub mod cargo_make;
+pub mod metadata;
 /// Module for utility code related to the cargo-make experience for building
 /// drivers.
 pub mod utils;
 
-pub mod cargo_make;
+mod bindgen;
 
 use std::{env, path::PathBuf};
 
-pub use bindgen::BuilderExt;
+use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
@@ -31,60 +35,86 @@ use utils::PathExt;
 pub struct Config {
     /// Path to root of WDK. Corresponds with `WDKContentRoot` environment
     /// variable in eWDK
-    pub wdk_content_root: PathBuf,
+    wdk_content_root: PathBuf,
+    /// CPU architecture to target
+    cpu_architecture: CpuArchitecture,
     /// Build configuration of driver
     pub driver_config: DriverConfig,
-    /// CPU architecture to target
-    pub cpu_architecture: CPUArchitecture,
 }
 
 /// The driver type with its associated configuration parameters
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(
+    tag = "DRIVER_TYPE",
+    deny_unknown_fields,
+    rename_all = "UPPERCASE",
+    from = "DeserializableDriverConfig"
+)]
 pub enum DriverConfig {
     /// Windows Driver Model
-    WDM(),
+    Wdm,
     /// Kernel Mode Driver Framework
-    KMDF(KMDFConfig),
+    Kmdf(KmdfConfig),
     /// User Mode Driver Framework
-    UMDF(UMDFConfig),
+    Umdf(UmdfConfig),
 }
 
-/// Driver model type
-#[derive(Debug, Clone, Copy)]
-pub enum DriverType {
-    /// Windows Driver Model
-    WDM,
-    /// Kernel Mode Driver Framework
-    KMDF,
-    /// User Mode Driver Framework
-    UMDF,
+/// Private enum identical to [`DriverConfig`] but with different tag name to
+/// deserialize from.
+///
+/// [`serde_derive`] doesn't support different tag names for serialization vs.
+/// deserialization, and also doesn't support aliases for tag names, so the
+/// `from` attribute is used in conjunction with this type to facilitate a
+/// different tag name for deserialization.
+///
+/// Relevant Github Issues:
+/// * <https://github.com/serde-rs/serde/issues/2776>
+/// * <https://github.com/serde-rs/serde/issues/2324>
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
+#[serde(tag = "driver-type", deny_unknown_fields, rename_all = "UPPERCASE")]
+enum DeserializableDriverConfig {
+    Wdm,
+    Kmdf(KmdfConfig),
+    Umdf(UmdfConfig),
 }
 
 /// The CPU architecture that's configured to be compiled for
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CPUArchitecture {
+pub enum CpuArchitecture {
     /// AMD64 CPU architecture. Also known as x64 or x86-64.
-    AMD64,
+    Amd64,
     /// ARM64 CPU architecture. Also known as aarch64.
-    ARM64,
+    Arm64,
 }
 
 /// The configuration parameters for KMDF drivers
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub struct KMDFConfig {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(
+    deny_unknown_fields,
+    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
+)]
+pub struct KmdfConfig {
     /// Major KMDF Version
     pub kmdf_version_major: u8,
-    /// Minor KMDF Version
-    pub kmdf_version_minor: u8,
+    /// Minor KMDF Version (Target Version)
+    pub target_kmdf_version_minor: u8,
+    /// Minor KMDF Version (Minimum Required)
+    pub minimum_kmdf_version_minor: Option<u8>,
 }
 
 /// The configuration parameters for UMDF drivers
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub struct UMDFConfig {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(
+    deny_unknown_fields,
+    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
+)]
+pub struct UmdfConfig {
     /// Major UMDF Version
     pub umdf_version_major: u8,
-    /// Minor UMDF Version
-    pub umdf_version_minor: u8,
+    /// Minor UMDF Version (Target Version)
+    pub target_umdf_version_minor: u8,
+    /// Minor UMDF Version (Minimum Required)
+    pub minimum_umdf_version_minor: Option<u8>,
 }
 
 /// Errors that could result from configuring a build via [`wdk-build`]
@@ -106,25 +136,22 @@ pub enum ConfigError {
     #[error(transparent)]
     StripExtendedPathPrefixError(#[from] utils::StripExtendedPathPrefixError),
 
-    /// Error returned when a [`Config`] fails to be parsed from the environment
+    /// Error returned when a [`metadata::Wdk`] fails to be parsed from a Cargo
+    /// Manifest
     #[error(transparent)]
-    ConfigFromEnvError(#[from] ConfigFromEnvError),
-
-    /// Error returned when a [`Config`] fails to be exported to the environment
-    #[error(transparent)]
-    ExportError(#[from] ExportError),
+    TryFromCargoMetadataError(#[from] metadata::TryFromCargoMetadataError),
 
     /// Error returned when a [`Config`] fails to be serialized
     #[error(
         "WDKContentRoot should be able to be detected. Ensure that the WDK is installed, or that \
          the environment setup scripts in the eWDK have been run."
     )]
-    WDKContentRootDetectionError,
+    WdkContentRootDetectionError,
 
     /// Error returned when the WDK version string does not match the expected
     /// format
     #[error("The WDK version string provided ({version}) was not in a valid format.")]
-    WDKVersionStringFormatError {
+    WdkVersionStringFormatError {
         /// The incorrect WDK version string.
         version: String,
     },
@@ -139,63 +166,23 @@ pub enum ConfigError {
         "multiple versions of the wdk-build package are detected, but only one version is \
          allowed: {package_ids:#?}"
     )]
-    MultipleWDKBuildCratesDetected {
+    MultipleWdkBuildCratesDetected {
         /// package ids of the wdk-build crates detected
         package_ids: Vec<cargo_metadata::PackageId>,
     },
-}
 
-/// Errors that could result from parsing a configuration from a [`wdk-build`]
-/// build environment
-#[derive(Debug, Error)]
-pub enum ConfigFromEnvError {
-    /// Error returned when an expected environment variable is not found
-    #[error(transparent)]
-    EnvError(#[from] std::env::VarError),
-
-    /// Error returned when [`serde_json`] fails to deserialize the [`Config`]
-    #[error(transparent)]
-    DeserializeError(#[from] serde_json::Error),
-
-    /// Error returned when the config from one WDK dependency does not match
-    /// the config from another
+    /// Error returned when the c runtime is not configured to be statically
+    /// linked
     #[error(
-        "config from {config_1_source} does not match config from {config_2_source}:\nconfig_1: \
-         {config_1:?}\nconfig_2: {config_2:?}"
+        "the C runtime is not properly configured to be statically linked. This is required for building \
+         WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
     )]
-    ConfigMismatch {
-        /// Config from the first dependency
-        config_1: Box<Config>,
-        /// DEP_ environment variable name indicating the source of the first
-        /// dependency
-        config_1_source: String,
-        /// Config from the second dependency
-        config_2: Box<Config>,
-        /// DEP_ environment variable name indicating the source of the second
-        /// dependency
-        config_2_source: String,
-    },
+    StaticCrtNotEnabled,
 
-    /// Error returned when no WDK configs exported from dependencies could be
-    /// found
-    #[error("no WDK configs exported from dependencies could be found")]
-    ConfigNotFound,
-}
-
-/// Errors that could result from exporting a [`wdk-build`] build configuration
-#[derive(Debug, Error)]
-pub enum ExportError {
-    /// Error returned when the crate being compiled does not have a `links`
-    /// value in its Cargo.toml
-    #[error(
-        "Missing `links` value in crate's config.toml. Metadata is unable to propagate to \
-         dependencies without a `links` value"
-    )]
-    MissingLinksValue(#[from] std::env::VarError),
-
-    /// Error returned when [`serde_json`] fails to serialize the [`Config`]
+    /// Error returned when [`metadata::ser::Serializer`] fails to serialize the
+    /// [`metadata::Wdk`]
     #[error(transparent)]
-    SerializeError(#[from] serde_json::Error),
+    SerdeError(#[from] metadata::Error),
 }
 
 impl Default for Config {
@@ -206,97 +193,122 @@ impl Default for Config {
                 "WDKContentRoot should be able to be detected. Ensure that the WDK is installed, \
                  or that the environment setup scripts in the eWDK have been run.",
             ),
-            driver_config: DriverConfig::WDM(),
+            driver_config: DriverConfig::Wdm,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
         }
     }
 }
 
 impl Config {
-    const CARGO_CONFIG_KEY: &'static str = "wdk_config";
-
-    /// Creates a new [`Config`] with default values
+    /// Create a new [`Config`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a [`Config`] from a config exported from a dependency. The
-    /// dependency must have exported a [`Config`] via
-    /// [`Config::export_config`], and the dependency must have set a `links`
-    /// value in its Cargo manifiest to export the
-    /// `DEP_<CARGO_MANIFEST_LINKS>_WDK_CONFIG` to downstream crates
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the provided `links_value` does
-    /// not correspond with a links value specified in the Cargo
-    /// manifest of one of the dependencies of the crate who's build script
-    /// invoked this function.
-    pub fn from_env<S: AsRef<str> + std::fmt::Display>(
-        links_value: S,
-    ) -> Result<Self, ConfigFromEnvError> {
-        Ok(serde_json::from_str::<Self>(
-            std::env::var(format!(
-                "DEP_{links_value}_{}",
-                Self::CARGO_CONFIG_KEY.to_ascii_uppercase()
-            ))?
-            .as_str(),
-        )?)
-    }
-
-    /// Creates a [`Config`] from a config exported from [`wdk`](https://docs.rs/wdk/latest/wdk/) or
-    /// [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/) crates.
+    /// Create a [`Config`] from parsing the top-level Cargo manifest into a
+    /// [`metadata::Wdk`], and using it to populate the [`Config`]. It also
+    /// emits `cargo::rerun-if-changed` directives for any files that are
+    /// used to create the [`Config`].
     ///
     /// # Errors
     ///
     /// This function will return an error if:
-    ///     * an exported config from a dependency on [`wdk`](https://docs.rs/wdk/latest/wdk/)
-    ///       and/or [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/) cannot
-    ///       be found
-    ///     * there is a config mismatch between [`wdk`](https://docs.rs/wdk/latest/wdk/)
-    ///       and [`wdk_sys`](https://docs.rs/wdk-sys/latest/wdk_sys/)
-    pub fn from_env_auto() -> Result<Self, ConfigFromEnvError> {
-        let wdk_sys_crate_dep_key =
-            format!("DEP_WDK_{}", Self::CARGO_CONFIG_KEY.to_ascii_uppercase());
-        let wdk_crate_dep_key = format!(
-            "DEP_WDK-SYS_{}",
-            Self::CARGO_CONFIG_KEY.to_ascii_uppercase()
-        );
+    /// * the execution of `cargo metadata` fails
+    /// * the parsing of [`metadata::Wdk`] from any of the Cargo manifests fail
+    /// * multiple conflicting [`metadata::Wdk`] configurations are detected
+    /// * no [`metadata::Wdk`] configurations are detected
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resolved top-level Cargo manifest path is not valid UTF-8
+    pub fn from_env_auto() -> Result<Self, ConfigError> {
+        let top_level_manifest = find_top_level_cargo_manifest();
+        let cargo_metadata = MetadataCommand::new()
+            .manifest_path(&top_level_manifest)
+            .exec()?;
+        let wdk_metadata = metadata::Wdk::try_from(&cargo_metadata)?;
 
-        let wdk_sys_crate_config_serialized = std::env::var(&wdk_sys_crate_dep_key);
-        let wdk_crate_config_serialized = std::env::var(&wdk_crate_dep_key);
+        // Force rebuilds if any of the manifest files change (ex. if wdk metadata
+        // section is modified)
+        for manifest_path in metadata::iter_manifest_paths(cargo_metadata)
+            .into_iter()
+            .chain(std::iter::once(
+                top_level_manifest
+                    .try_into()
+                    .expect("Path to Cargo manifests should always be valid UTF8"),
+            ))
+        {
+            println!("cargo:rerun-if-changed={manifest_path}");
+        }
 
-        if let (Ok(wdk_sys_crate_config_serialized), Ok(wdk_crate_config_serialized)) = (
-            wdk_sys_crate_config_serialized.clone(),
-            wdk_crate_config_serialized.clone(),
-        ) {
-            let wdk_sys_crate_config =
-                serde_json::from_str::<Self>(&wdk_sys_crate_config_serialized)?;
-            let wdk_crate_config = serde_json::from_str::<Self>(&wdk_crate_config_serialized)?;
+        Ok(Self {
+            driver_config: wdk_metadata.driver_model,
+            ..Default::default()
+        })
+    }
 
-            if wdk_sys_crate_config == wdk_crate_config {
-                Ok(wdk_sys_crate_config)
-            } else {
-                Err(ConfigFromEnvError::ConfigMismatch {
-                    config_1: Box::from(wdk_sys_crate_config),
-                    config_1_source: wdk_sys_crate_dep_key,
-                    config_2: Box::from(wdk_crate_config),
-                    config_2_source: wdk_crate_dep_key,
-                })
-            }
-        } else if let Ok(wdk_sys_crate_config_serialized) = wdk_sys_crate_config_serialized {
-            Ok(serde_json::from_str::<Self>(
-                &wdk_sys_crate_config_serialized,
-            )?)
-        } else if let Ok(wdk_crate_config_serialized) = wdk_crate_config_serialized {
-            Ok(serde_json::from_str::<Self>(&wdk_crate_config_serialized)?)
-        } else {
-            Err(ConfigFromEnvError::ConfigNotFound)
+    fn emit_check_cfg_settings() {
+        for (cfg_key, allowed_values) in EXPORTED_CFG_SETTINGS.iter() {
+            let allowed_cfg_value_string =
+                allowed_values.iter().fold(String::new(), |mut acc, value| {
+                    const OPENING_QUOTE: char = '"';
+                    const CLOSING_QUOTE_AND_COMMA: &str = r#"","#;
+
+                    acc.reserve(
+                        value.len() + OPENING_QUOTE.len_utf8() + CLOSING_QUOTE_AND_COMMA.len(),
+                    );
+                    acc.push(OPENING_QUOTE);
+                    acc.push_str(value);
+                    acc.push_str(CLOSING_QUOTE_AND_COMMA);
+                    acc
+                });
+
+            let cfg_key = {
+                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that `cfg_key` is a
+                // valid rust identifier name
+                let mut k = cfg_key.replace(metadata::ser::KEY_NAME_SEPARATOR, "__");
+                // convention is that cfg keys are lowercase
+                k.make_ascii_lowercase();
+                k
+            };
+
+            // Emit allowed cfg values
+            println!("cargo::rustc-check-cfg=cfg({cfg_key}, values({allowed_cfg_value_string}))");
         }
     }
 
-    /// Returns header include paths required to build and link based off of the
+    /// Expose `cfg` settings based on this [`Config`] to enable conditional
+    /// compilation. This emits specially formatted prints to Cargo based on
+    /// this [`Config`].
+    fn emit_cfg_settings(&self) -> Result<(), ConfigError> {
+        Self::emit_check_cfg_settings();
+
+        let serialized_wdk_metadata_map =
+            metadata::to_map::<std::collections::BTreeMap<_, _>>(&metadata::Wdk {
+                driver_model: self.driver_config.clone(),
+            })?;
+
+        for cfg_key in EXPORTED_CFG_SETTINGS.iter().map(|(key, _)| *key) {
+            let cfg_value = &serialized_wdk_metadata_map[cfg_key];
+
+            let cfg_key = {
+                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that `cfg_key` is a
+                // valid rust identifier name
+                let mut k = cfg_key.replace(metadata::ser::KEY_NAME_SEPARATOR, "__");
+                // convention is that cfg keys are lowercase
+                k.make_ascii_lowercase();
+                k
+            };
+
+            // Emit cfg
+            println!(r#"cargo::rustc-cfg={cfg_key}="{cfg_value}""#);
+        }
+
+        Ok(())
+    }
+
+    /// Return header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
     /// # Errors
@@ -304,6 +316,7 @@ impl Config {
     /// This function will return an error if any of the required paths do not
     /// exist.
     pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
+        // FIXME: consider deprecating in favor of iter
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");
@@ -327,8 +340,8 @@ impl Config {
         );
 
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
-            DriverConfig::WDM() | DriverConfig::KMDF(_) => "km",
-            DriverConfig::UMDF(_) => "um",
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
+            DriverConfig::Umdf(_) => "um",
         });
         if !km_or_um_include_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -355,11 +368,11 @@ impl Config {
 
         // Add other driver type-specific include paths
         match &self.driver_config {
-            DriverConfig::WDM() => {}
-            DriverConfig::KMDF(kmdf_config) => {
+            DriverConfig::Wdm => {}
+            DriverConfig::Kmdf(kmdf_config) => {
                 let kmdf_include_path = include_directory.join(format!(
                     "wdf/kmdf/{}.{}",
-                    kmdf_config.kmdf_version_major, kmdf_config.kmdf_version_minor
+                    kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ));
                 if !kmdf_include_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -372,10 +385,10 @@ impl Config {
                         .strip_extended_length_path_prefix()?,
                 );
             }
-            DriverConfig::UMDF(umdf_config) => {
+            DriverConfig::Umdf(umdf_config) => {
                 let umdf_include_path = include_directory.join(format!(
                     "wdf/umdf/{}.{}",
-                    umdf_config.umdf_version_major, umdf_config.umdf_version_minor
+                    umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
                 ));
                 if !umdf_include_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -393,8 +406,10 @@ impl Config {
         Ok(include_paths)
     }
 
-    /// Returns library include paths required to build and link based off of
-    /// the configuration of `Config`
+    /// Return library include paths required to build and link based off of
+    /// the configuration of [`Config`].
+    ///
+    /// For UMDF drivers, this assumes a "Windows-Driver" Target Platform.
     ///
     /// # Errors
     ///
@@ -413,10 +428,10 @@ impl Config {
             library_directory
                 .join(sdk_version)
                 .join(match self.driver_config {
-                    DriverConfig::WDM() | DriverConfig::KMDF(_) => {
+                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
                         format!("km/{}", self.cpu_architecture.as_windows_str(),)
                     }
-                    DriverConfig::UMDF(_) => {
+                    DriverConfig::Umdf(_) => {
                         format!("um/{}", self.cpu_architecture.as_windows_str(),)
                     }
                 });
@@ -433,13 +448,13 @@ impl Config {
 
         // Add other driver type-specific library paths
         match &self.driver_config {
-            DriverConfig::WDM() => (),
-            DriverConfig::KMDF(kmdf_config) => {
+            DriverConfig::Wdm => (),
+            DriverConfig::Kmdf(kmdf_config) => {
                 let kmdf_library_path = library_directory.join(format!(
                     "wdf/kmdf/{}/{}.{}",
                     self.cpu_architecture.as_windows_str(),
                     kmdf_config.kmdf_version_major,
-                    kmdf_config.kmdf_version_minor
+                    kmdf_config.target_kmdf_version_minor
                 ));
                 if !kmdf_library_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -452,12 +467,12 @@ impl Config {
                         .strip_extended_length_path_prefix()?,
                 );
             }
-            DriverConfig::UMDF(umdf_config) => {
+            DriverConfig::Umdf(umdf_config) => {
                 let umdf_library_path = library_directory.join(format!(
                     "wdf/umdf/{}/{}.{}",
                     self.cpu_architecture.as_windows_str(),
                     umdf_config.umdf_version_major,
-                    umdf_config.umdf_version_minor
+                    umdf_config.target_umdf_version_minor,
                 ));
                 if !umdf_library_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -472,82 +487,169 @@ impl Config {
             }
         }
 
+        // Reverse order of library paths so that paths pushed later into the vec take
+        // precedence
+        library_paths.reverse();
         Ok(library_paths)
     }
 
-    /// Configures a Cargo build of a library that directly depends on the
-    /// WDK (i.e. not transitively via wdk-sys). This emits specially
-    /// formatted prints to Cargo based on this [`Config`].
-    ///
-    /// This includes header include paths, linker search paths, library link
-    /// directives, and WDK-specific configuration definitions. This must be
-    /// called from a Cargo build script of the library.
+    /// Return an iterator of strings that represent compiler definitions
+    /// derived from the `Config`
+    pub fn get_preprocessor_definitions_iter(
+        &self,
+    ) -> impl Iterator<Item = (String, Option<String>)> {
+        // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
+        // WINVER=$(WINVER_VERSION);
+        // WINNT=1;
+        // NTDDI_VERSION=$(NTDDI_VERSION);
+
+        // Definition sourced from: Program Files\Windows
+        // Kits\10\build\10.0.26040.0\WindowsDriver.Shared.Props
+        // vec![ //from driver.os.props //D:\EWDK\rsprerelease\content\Program
+        // Files\Windows Kits\10\build\10.0.26040.0\WindowsDriver.OS.Props
+        // ("_WIN32_WINNT", Some()),CURRENT_WIN32_WINNT_VERSION
+        // ("WINVER", Some()), = CURRENT_WIN32_WINNT_VERSION
+        // ("WINNT", Some(1)),1
+        // ("NTDDI_VERSION", Some()),CURRENT_NTDDI_VERSION
+        // ]
+        // .into_iter()
+        // .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
+        match self.cpu_architecture {
+            // Definitions sourced from `Program Files\Windows
+            // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
+            CpuArchitecture::Amd64 => {
+                vec![("_WIN64", None), ("_AMD64_", None), ("AMD64", None)]
+            }
+            // Definitions sourced from `Program Files\Windows
+            // Kits\10\build\10.0.22621.0\WindowsDriver.arm64.props`
+            CpuArchitecture::Arm64 => {
+                vec![
+                    ("_ARM64_", None),
+                    ("ARM64", None),
+                    ("_USE_DECLSPECS_FOR_SAL", Some(1)),
+                    ("STD_CALL", None),
+                ]
+            }
+        }
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
+        .chain(
+            match self.driver_config {
+                DriverConfig::Wdm => {
+                    vec![]
+                }
+                DriverConfig::Kmdf(kmdf_config) => {
+                    let mut kmdf_definitions = vec![
+                        ("KMDF_VERSION_MAJOR", Some(kmdf_config.kmdf_version_major)),
+                        (
+                            "KMDF_VERSION_MINOR",
+                            Some(kmdf_config.target_kmdf_version_minor),
+                        ),
+                    ];
+
+                    if let Some(minimum_minor_version) = kmdf_config.minimum_kmdf_version_minor {
+                        kmdf_definitions
+                            .push(("KMDF_MINIMUM_VERSION_REQUIRED", Some(minimum_minor_version)));
+                    }
+                    kmdf_definitions
+                }
+                DriverConfig::Umdf(umdf_config) => {
+                    let mut umdf_definitions = vec![
+                        ("UMDF_VERSION_MAJOR", Some(umdf_config.umdf_version_major)),
+                        (
+                            "UMDF_VERSION_MINOR",
+                            Some(umdf_config.target_umdf_version_minor),
+                        ),
+                        // Definition sourced from: Program Files\Windows
+                        // Kits\10\build\10.0.26040.0\Windows.UserMode.props
+                        ("_ATL_NO_WIN_SUPPORT", None),
+                        // Definition sourced from: Program Files\Windows
+                        // Kits\10\build\10.0.26040.0\WindowsDriver.Shared.Props
+                        ("WIN32_LEAN_AND_MEAN", Some(1)),
+                    ];
+
+                    if let Some(minimum_minor_version) = umdf_config.minimum_umdf_version_minor {
+                        umdf_definitions
+                            .push(("UMDF_MINIMUM_VERSION_REQUIRED", Some(minimum_minor_version)));
+                    }
+
+                    if umdf_config.umdf_version_major >= 2 {
+                        umdf_definitions.push(("UMDF_USING_NTSTATUS", None));
+                        umdf_definitions.push(("_UNICODE", None));
+                        umdf_definitions.push(("UNICODE", None));
+                    }
+
+                    umdf_definitions
+                }
+            }
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
+        )
+    }
+
+    /// Return an iterator of strings that represent compiler flags (i.e.
+    /// warnings, settings, etc.) used by bindgen to parse WDK headers
+    pub fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String> {
+        vec![
+            // Enable Microsoft C/C++ extensions and compatibility options (https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions)
+            "-fms-compatibility",
+            "-fms-extensions",
+            "-fdelayed-template-parsing",
+            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the
+            // file is actually driverspecs.h)
+            "--warn-=no-nonportable-include-path",
+            // Windows SDK & DDK use pshpack and poppack headers to change packing
+            "--warn-=no-pragma-pack",
+            "--warn-=no-ignored-attributes",
+            "--warn-=no-ignored-pragma-intrinsic",
+            "--warn-=no-visibility",
+            "--warn-=no-microsoft-anon-tag",
+            "--warn-=no-microsoft-enum-forward-reference",
+            // Don't warn for deprecated declarations. Deprecated items should be explicitly
+            // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
+            // definitions will trigger a -WDeprecated warning
+            "--warn-=no-deprecated-declarations",
+            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
+            // `_variable` are separate tokens already, and don't need `##` to concatenate
+            // them)
+            "--warn-=no-invalid-token-paste",
+        ]
+        .into_iter()
+        .map(std::string::ToString::to_string)
+    }
+
+    /// Configure a Cargo build of a library that depends on the WDK. This
+    /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
     /// # Errors
     ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the invoked from outside a Cargo build environment
+    /// This function will return an error if the [`Config`] fails to be
+    /// serialized
     pub fn configure_library_build(&self) -> Result<(), ConfigError> {
-        let library_paths = self.get_library_paths()?;
-
-        // Emit linker search paths
-        for path in library_paths {
-            println!("cargo::rustc-link-search={}", path.display());
-        }
-
-        match &self.driver_config {
-            DriverConfig::WDM() => {
-                // Emit WDM-specific libraries to link to
-                println!("cargo::rustc-link-lib=BufferOverflowFastFailK");
-                println!("cargo::rustc-link-lib=ntoskrnl");
-                println!("cargo::rustc-link-lib=hal");
-                println!("cargo::rustc-link-lib=wmilib");
-            }
-            DriverConfig::KMDF(_) => {
-                // Emit KMDF-specific libraries to link to
-                println!("cargo::rustc-link-lib=BufferOverflowFastFailK");
-                println!("cargo::rustc-link-lib=ntoskrnl");
-                println!("cargo::rustc-link-lib=hal");
-                println!("cargo::rustc-link-lib=wmilib");
-                println!("cargo::rustc-link-lib=WdfLdr");
-                println!("cargo::rustc-link-lib=WdfDriverEntry");
-            }
-            DriverConfig::UMDF(umdf_config) => {
-                // Emit UMDF-specific libraries to link to
-                match env::var("PROFILE")
-                    .expect(
-                        "Cargo should have set a valid PROFILE environment variable at build time",
-                    )
-                    .as_str()
-                {
-                    "release" => {
-                        println!("cargo::rustc-link-lib=ucrt");
-                    }
-                    "debug" => {
-                        println!("cargo::rustc-link-lib=ucrtd");
-                    }
-                    _ => {
-                        unreachable!(r#"Cargo should always set a value of "release" or "debug""#);
-                    }
-                }
-
-                if umdf_config.umdf_version_major >= 2 {
-                    println!("cargo::rustc-link-lib=WdfDriverStubUm");
-                    println!("cargo::rustc-link-lib=ntdll");
-                }
-
-                println!("cargo::rustc-link-lib=mincore");
-            }
-        }
-
-        Ok(())
+        self.emit_cfg_settings()
     }
 
-    /// Configures a Cargo build of a binary that depends on the WDK. This
+    /// Compute the name of the `WdfFunctions` symbol used for WDF function
+    /// dispatching based off of the [`Config`]. Returns `None` if the driver
+    /// model is [`DriverConfig::Wdm`]
+    #[must_use]
+    pub fn compute_wdffunctions_symbol_name(&self) -> Option<String> {
+        let (wdf_major_version, wdf_minor_version) = match self.driver_config {
+            DriverConfig::Kmdf(config) => {
+                (config.kmdf_version_major, config.target_kmdf_version_minor)
+            }
+            DriverConfig::Umdf(config) => {
+                (config.umdf_version_major, config.target_umdf_version_minor)
+            }
+            DriverConfig::Wdm => return None,
+        };
+
+        Some(format!(
+            "WdfFunctions_{wdf_major_version:02}0{wdf_minor_version:02}"
+        ))
+    }
+
+    /// Configure a Cargo build of a binary that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
     /// This consists mainly of linker setting configuration. This must be
@@ -555,35 +657,33 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
+    /// This function will return an error if:
+    /// * any of the required WDK paths do not exist
+    /// * the C runtime is not configured to be statically linked
     ///
     /// # Panics
     ///
-    /// Panics if the invoked from outside a Cargo build environmen
+    /// Panics if the invoked from outside a Cargo build environment
     pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
-        self.configure_library_build()?;
+        if !Self::is_crt_static_linked() {
+            return Err(ConfigError::StaticCrtNotEnabled);
+        }
 
-        // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
-        println!("cargo::rustc-cdylib-link-arg=/NXCOMPAT");
-        println!("cargo::rustc-cdylib-link-arg=/DYNAMICBASE");
+        let library_paths: Vec<PathBuf> = self.get_library_paths()?;
 
-        // Always generate Map file with Exports
-        println!("cargo::rustc-cdylib-link-arg=/MAP");
-        println!("cargo::rustc-cdylib-link-arg=/MAPINFO:EXPORTS");
-
-        // Force Linker Optimizations
-        println!("cargo::rustc-cdylib-link-arg=/OPT:REF,ICF");
-
-        // Enable "Forced Integrity Checking" to prevent non-signed binaries from
-        // loading
-        println!("cargo::rustc-cdylib-link-arg=/INTEGRITYCHECK");
-
-        // Disable Manifest File Generation
-        println!("cargo::rustc-cdylib-link-arg=/MANIFEST:NO");
+        // Emit linker search paths
+        for path in library_paths {
+            println!("cargo::rustc-link-search={}", path.display());
+        }
 
         match &self.driver_config {
-            DriverConfig::WDM() => {
+            DriverConfig::Wdm => {
+                // Emit WDM-specific libraries to link to
+                println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
+                println!("cargo::rustc-link-lib=static=ntoskrnl");
+                println!("cargo::rustc-link-lib=static=hal");
+                println!("cargo::rustc-link-lib=static=wmilib");
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -594,7 +694,15 @@ impl Config {
                 // WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:DriverEntry");
             }
-            DriverConfig::KMDF(_) => {
+            DriverConfig::Kmdf(_) => {
+                // Emit KMDF-specific libraries to link to
+                println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
+                println!("cargo::rustc-link-lib=static=ntoskrnl");
+                println!("cargo::rustc-link-lib=static=hal");
+                println!("cargo::rustc-link-lib=static=wmilib");
+                println!("cargo::rustc-link-lib=static=WdfLdr");
+                println!("cargo::rustc-link-lib=static=WdfDriverEntry");
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -605,102 +713,118 @@ impl Config {
                 // Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
             }
-            DriverConfig::UMDF(_) => {
+            DriverConfig::Umdf(umdf_config) => {
+                // Emit UMDF-specific libraries to link to
+                if umdf_config.umdf_version_major >= 2 {
+                    println!("cargo::rustc-link-lib=static=WdfDriverStubUm");
+                    println!("cargo::rustc-link-lib=static=ntdll");
+                }
+
+                println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:kernel32.lib");
+                println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:user32.lib");
+                println!("cargo::rustc-link-lib=static=OneCoreUAP");
+
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
         }
 
-        Ok(())
+        // Emit linker arguments common to all configs
+        {
+            // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
+            println!("cargo::rustc-cdylib-link-arg=/NXCOMPAT");
+            println!("cargo::rustc-cdylib-link-arg=/DYNAMICBASE");
+
+            // Always generate Map file with Exports
+            println!("cargo::rustc-cdylib-link-arg=/MAP");
+            println!("cargo::rustc-cdylib-link-arg=/MAPINFO:EXPORTS");
+
+            // Force Linker Optimizations
+            println!("cargo::rustc-cdylib-link-arg=/OPT:REF,ICF");
+
+            // Enable "Forced Integrity Checking" to prevent non-signed binaries from
+            // loading
+            println!("cargo::rustc-cdylib-link-arg=/INTEGRITYCHECK");
+
+            // Disable Manifest File Generation
+            println!("cargo::rustc-cdylib-link-arg=/MANIFEST:NO");
+        }
+
+        self.emit_cfg_settings()
     }
 
-    /// Serializes this [`Config`] and exports it via the Cargo
-    /// `DEP_<CARGO_MANIFEST_LINKS>_WDK_CONFIG` environment variable.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if the crate does not have a `links`
-    /// field in its Cargo manifest or if it fails to serialize the config.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this [`Config`] fails to serialize.
-    pub fn export_config(&self) -> Result<(), ExportError> {
-        if let Err(var_error) = std::env::var("CARGO_MANIFEST_LINKS") {
-            return Err(ExportError::MissingLinksValue(var_error));
-        }
-        println!(
-            "cargo::metadata={}={}",
-            Self::CARGO_CONFIG_KEY,
-            serde_json::to_string(self)?
-        );
-        Ok(())
+    fn is_crt_static_linked() -> bool {
+        const STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME: &str = "crt-static";
+
+        let enabled_cpu_target_features = env::var("CARGO_CFG_TARGET_FEATURE")
+            .expect("CARGO_CFG_TARGET_FEATURE should be set by Cargo");
+
+        enabled_cpu_target_features.contains(STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME)
     }
 }
 
-impl Default for KMDFConfig {
+impl From<DeserializableDriverConfig> for DriverConfig {
+    fn from(config: DeserializableDriverConfig) -> Self {
+        match config {
+            DeserializableDriverConfig::Wdm => Self::Wdm,
+            DeserializableDriverConfig::Kmdf(kmdf_config) => Self::Kmdf(kmdf_config),
+            DeserializableDriverConfig::Umdf(umdf_config) => Self::Umdf(umdf_config),
+        }
+    }
+}
+
+impl Default for KmdfConfig {
     #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
             kmdf_version_major: 1,
-            kmdf_version_minor: 33,
+            target_kmdf_version_minor: 33,
+            minimum_kmdf_version_minor: None,
         }
     }
 }
 
-impl KMDFConfig {
-    /// Creates a new [`KMDFConfig`] with default values
+impl KmdfConfig {
+    /// Creates a new [`KmdfConfig`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Default for UMDFConfig {
+impl Default for UmdfConfig {
     #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
             umdf_version_major: 2,
-            umdf_version_minor: 33,
+            target_umdf_version_minor: 33,
+            minimum_umdf_version_minor: None,
         }
     }
 }
 
-impl UMDFConfig {
-    /// Creates a new [`UMDFConfig`] with default values
+impl UmdfConfig {
+    /// Creates a new [`UmdfConfig`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl CPUArchitecture {
-    /// Converts [`CPUArchitecture`] to the string corresponding to what the
+impl CpuArchitecture {
+    /// Converts [`CpuArchitecture`] to the string corresponding to what the
     /// architecture is typically referred to in Windows
     #[must_use]
     pub const fn as_windows_str(&self) -> &str {
         match self {
-            Self::AMD64 => "x64",
-            Self::ARM64 => "ARM64",
+            Self::Amd64 => "x64",
+            Self::Arm64 => "ARM64",
         }
     }
 
-    /// Converts [`CPUArchitecture`] to the string corresponding to what the
-    /// architecture is typically referred to in Windows
-    #[deprecated(
-        since = "0.2.0",
-        note = "CPUArchitecture.to_windows_str() was mis-named when originally created, since the \
-                conversion from CPUArchitecture to str is free. Use \
-                CPUArchitecture.as_windows_str instead."
-    )]
-    #[must_use]
-    pub const fn to_windows_str(&self) -> &str {
-        self.as_windows_str()
-    }
-
-    /// Converts from a cargo-provided [`std::str`] to a [`CPUArchitecture`].
+    /// Converts from a cargo-provided [`std::str`] to a [`CpuArchitecture`].
     ///
     /// #
     #[must_use]
@@ -708,11 +832,148 @@ impl CPUArchitecture {
         // Specifically not using the [`std::convert::TryFrom`] trait to be more
         // explicit in function name, since only arch strings from cargo are handled.
         match cargo_str.as_ref() {
-            "x86_64" => Some(Self::AMD64),
-            "aarch64" => Some(Self::ARM64),
+            "x86_64" => Some(Self::Amd64),
+            "aarch64" => Some(Self::Arm64),
             _ => None,
         }
     }
+}
+
+/// Find the path of the toplevel Cargo manifest of the currently executing
+/// Cargo subcommand. This should resolve to either:
+/// 1. the `Cargo.toml` of the package where the Cargo subcommand (build, check,
+///    etc.) was run
+/// 2. the `Cargo.toml` provided to the `--manifest-path` argument to the Cargo
+///    subcommand
+/// 3. the `Cargo.toml` of the workspace that contains the package pointed to by
+///    1 or 2
+///
+/// The returned path should be a manifest in the same directory of the
+/// lockfile. This does not support invocations that use non-default target
+/// directories (ex. via `--target-dir`). This function only works when called
+/// from a `build.rs` file
+///
+/// # Panics
+///
+/// Panics if a `Cargo.lock` file cannot be found in any of the ancestors of
+/// `OUT_DIR` or if this function was called outside of a `build.rs` file
+#[must_use]
+pub fn find_top_level_cargo_manifest() -> PathBuf {
+    let out_dir =
+        PathBuf::from(std::env::var("OUT_DIR").expect(
+            "Cargo should have set the OUT_DIR environment variable when executing build.rs",
+        ));
+
+    out_dir
+        .ancestors()
+        .find(|path| path.join("Cargo.lock").exists())
+        .expect("a Cargo.lock file should exist in the same directory as the top-level Cargo.toml")
+        .join("Cargo.toml")
+}
+
+/// Configure a Cargo build of a library that depends on the WDK.
+///
+/// This emits specially formatted prints to Cargo based on the [`Config`]
+/// derived from `metadata.wdk` sections of `Cargo.toml`s.
+///
+/// Cargo build graphs that have no valid WDK configurations will emit a
+/// warning, but will still return [`Ok`]. This allows libraries
+/// designed for multiple configurations to sucessfully compile when built in
+/// isolation.
+///
+/// # Errors
+///
+/// This function will return an error if the [`Config`] fails to be
+/// serialized
+pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
+    match Config::from_env_auto() {
+        Ok(config) => {
+            config.configure_library_build()?;
+            Ok(())
+        }
+        Err(ConfigError::TryFromCargoMetadataError(
+            TryFromCargoMetadataError::NoWdkConfigurationsDetected,
+        )) => {
+            // No WDK configurations will be detected if the crate is not being used in a
+            // driver. Since this is usually the case when libraries are being built
+            // standalone, this scenario is treated as a warning.
+            tracing::warn!("No WDK configurations detected.");
+            // check_cfg must be emitted even if no WDK configurations are detected, so that
+            // cfg options are still checked
+            Config::emit_check_cfg_settings();
+            Ok(())
+        }
+
+        Err(error) => Err(error),
+    }
+}
+
+/// Configure a Cargo build of a library that depends on the WDK, then execute a
+/// function or closure with the [`Config`] derived from `metadata.wdk` sections
+/// of `Cargo.toml`s.
+///
+/// This emits specially formatted prints to Cargo based on the [`Config`]
+/// derived from `metadata.wdk` sections of `Cargo.toml`s.
+///
+/// Cargo build graphs that have no valid WDK configurations will emit a
+/// warning, but will still return [`Ok`]. This allows libraries
+/// designed for multiple configurations to sucessfully compile when built in
+/// isolation.
+///
+/// # Errors
+///
+/// This function will return an error if the [`Config`] fails to be
+/// serialized
+pub fn configure_wdk_library_build_and_then<F, E>(mut f: F) -> Result<(), E>
+where
+    F: FnMut(Config) -> Result<(), E>,
+    E: std::convert::From<ConfigError>,
+{
+    match Config::from_env_auto() {
+        Ok(config) => {
+            config.configure_library_build()?;
+            Ok(f(config)?)
+        }
+        Err(ConfigError::TryFromCargoMetadataError(
+            TryFromCargoMetadataError::NoWdkConfigurationsDetected,
+        )) => {
+            // No WDK configurations will be detected if the crate is not being used in a
+            // driver. Since this is usually the case when libraries are being built
+            // standalone, this scenario is treated as a warning.
+            tracing::warn!("No WDK configurations detected.");
+            // check_cfg must be emitted even if no WDK configurations are detected, so that
+            // cfg options are still checked
+            Config::emit_check_cfg_settings();
+            Ok(())
+        }
+
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Configure a Cargo build of a binary that depends on the WDK using a
+/// [`Config`] derived from `metadata.wdk` sections of `Cargo.toml`s.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * any of the required WDK paths do not exist
+/// * the C runtime is not configured to be statically linked
+///
+/// # Panics
+///
+/// Panics if the invoked from outside a Cargo build environment
+pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
+    Config::from_env_auto()?.configure_binary_build()
+}
+
+// This currently only exports the driver type, but may export more metadata in
+// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
+// values
+lazy_static::lazy_static! {
+    // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
+    static ref EXPORTED_CFG_SETTINGS: Vec<(&'static str, Vec<&'static str>)> =
+        vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])];
 }
 
 #[cfg(test)]
@@ -735,7 +996,7 @@ mod tests {
     /// # Panics
     ///
     /// Panics if called with duplicate environment variable keys.
-    fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, V)], f: F) -> R
+    pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, V)], f: F) -> R
     where
         K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
         V: AsRef<OsStr>,
@@ -782,46 +1043,48 @@ mod tests {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], Config::new);
 
         #[cfg(nightly_toolchain)]
-        assert_matches!(config.driver_config, DriverConfig::WDM());
-        assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
+        assert_matches!(config.driver_config, DriverConfig::Wdm);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
     #[test]
     fn wdm_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-            driver_config: DriverConfig::WDM(),
+            driver_config: DriverConfig::Wdm,
             ..Config::default()
         });
 
         #[cfg(nightly_toolchain)]
-        assert_matches!(config.driver_config, DriverConfig::WDM());
-        assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
+        assert_matches!(config.driver_config, DriverConfig::Wdm);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
     #[test]
     fn default_kmdf_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-            driver_config: DriverConfig::KMDF(KMDFConfig::new()),
+            driver_config: DriverConfig::Kmdf(KmdfConfig::new()),
             ..Config::default()
         });
 
         #[cfg(nightly_toolchain)]
         assert_matches!(
             config.driver_config,
-            DriverConfig::KMDF(KMDFConfig {
+            DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
-                kmdf_version_minor: 33
+                target_kmdf_version_minor: 33,
+                minimum_kmdf_version_minor: None
             })
         );
-        assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
     #[test]
     fn kmdf_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-            driver_config: DriverConfig::KMDF(KMDFConfig {
+            driver_config: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
-                kmdf_version_minor: 15,
+                target_kmdf_version_minor: 15,
+                minimum_kmdf_version_minor: None,
             }),
             ..Config::default()
         });
@@ -829,38 +1092,41 @@ mod tests {
         #[cfg(nightly_toolchain)]
         assert_matches!(
             config.driver_config,
-            DriverConfig::KMDF(KMDFConfig {
+            DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
-                kmdf_version_minor: 15
+                target_kmdf_version_minor: 15,
+                minimum_kmdf_version_minor: None
             })
         );
-        assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
     #[test]
     fn default_umdf_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
-            driver_config: DriverConfig::UMDF(UMDFConfig::new()),
+            driver_config: DriverConfig::Umdf(UmdfConfig::new()),
             ..Config::default()
         });
 
         #[cfg(nightly_toolchain)]
         assert_matches!(
             config.driver_config,
-            DriverConfig::UMDF(UMDFConfig {
+            DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 33
+                target_umdf_version_minor: 33,
+                minimum_umdf_version_minor: None
             })
         );
-        assert_eq!(config.cpu_architecture, CPUArchitecture::AMD64);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
     #[test]
     fn umdf_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
-            driver_config: DriverConfig::UMDF(UMDFConfig {
+            driver_config: DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 15,
+                target_umdf_version_minor: 15,
+                minimum_umdf_version_minor: None,
             }),
             ..Config::default()
         });
@@ -868,24 +1134,74 @@ mod tests {
         #[cfg(nightly_toolchain)]
         assert_matches!(
             config.driver_config,
-            DriverConfig::UMDF(UMDFConfig {
+            DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
-                umdf_version_minor: 15
+                target_umdf_version_minor: 15,
+                minimum_umdf_version_minor: None
             })
         );
-        assert_eq!(config.cpu_architecture, CPUArchitecture::ARM64);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
     }
 
     #[test]
     fn test_try_from_cargo_str() {
         assert_eq!(
-            CPUArchitecture::try_from_cargo_str("x86_64"),
-            Some(CPUArchitecture::AMD64)
+            CpuArchitecture::try_from_cargo_str("x86_64"),
+            Some(CpuArchitecture::Amd64)
         );
         assert_eq!(
-            CPUArchitecture::try_from_cargo_str("aarch64"),
-            Some(CPUArchitecture::ARM64)
+            CpuArchitecture::try_from_cargo_str("aarch64"),
+            Some(CpuArchitecture::Arm64)
         );
-        assert_eq!(CPUArchitecture::try_from_cargo_str("arm"), None);
+        assert_eq!(CpuArchitecture::try_from_cargo_str("arm"), None);
+    }
+
+    mod compute_wdffunctions_symbol_name {
+        use super::*;
+        use crate::{KmdfConfig, UmdfConfig};
+
+        #[test]
+        fn kmdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Kmdf(KmdfConfig {
+                    kmdf_version_major: 1,
+                    target_kmdf_version_minor: 15,
+                    minimum_kmdf_version_minor: None,
+                }),
+                ..Default::default()
+            });
+
+            let result = config.compute_wdffunctions_symbol_name();
+
+            assert_eq!(result, Some("WdfFunctions_01015".to_string()));
+        }
+
+        #[test]
+        fn umdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+                driver_config: DriverConfig::Umdf(UmdfConfig {
+                    umdf_version_major: 2,
+                    target_umdf_version_minor: 33,
+                    minimum_umdf_version_minor: None,
+                }),
+                ..Default::default()
+            });
+
+            let result = config.compute_wdffunctions_symbol_name();
+
+            assert_eq!(result, Some("WdfFunctions_02033".to_string()));
+        }
+
+        #[test]
+        fn wdm() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Wdm,
+                ..Default::default()
+            });
+
+            let result = config.compute_wdffunctions_symbol_name();
+
+            assert_eq!(result, None);
+        }
     }
 }

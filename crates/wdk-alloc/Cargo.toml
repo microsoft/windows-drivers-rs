@@ -9,6 +9,11 @@ license.workspace = true
 keywords = ["allocator", "wdk", "windows"]
 categories = ["memory-management", "no-std", "hardware-support"]
 
+[build-dependencies]
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
+
 [dependencies]
 wdk-sys.workspace = true
 

@@ -1,7 +1,10 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! Build script for the `wdk-build` crate.
+//! Build script for the `wdk-build` crate
+//!
+//! This provides a `nightly_feature` to the `wdk-build` crate, so that it can
+//! conditionally enable nightly features.
 
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(nightly_toolchain)");

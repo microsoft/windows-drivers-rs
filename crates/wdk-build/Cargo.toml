@@ -9,24 +9,29 @@ license.workspace = true
 keywords = ["wdk", "windows", "build-dependencies"]
 categories = ["development-tools::build-utils", "development-tools::ffi"]
 
+[build-dependencies]
+rustversion.workspace = true
+
 [dependencies]
+anyhow.workspace = true
 bindgen.workspace = true
-serde.workspace = true
+camino.workspace = true
+cargo_metadata.workspace = true
+clap = { workspace = true, features = ["derive"] }
+clap-cargo.workspace = true
+lazy_static.workspace = true
+paste.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-clap = { version = "4.5.4", features = ["derive"] }
-clap-cargo = "0.14.0"
-thiserror = "1.0.59"
-windows = { version = "0.56.0", features = [
+thiserror.workspace = true
+tracing.workspace = true
+windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_System_Registry",
 ] }
-cargo_metadata = "0.18.1"
-
-[build-dependencies]
-rustversion = "1.0.15"
 
 [dev-dependencies]
-windows = { version = "0.56.0", features = ["Win32_UI_Shell"] }
+windows = { workspace = true, features = ["Win32_UI_Shell"] }
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]

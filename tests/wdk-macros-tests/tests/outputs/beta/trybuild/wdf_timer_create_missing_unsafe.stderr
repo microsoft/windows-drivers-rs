@@ -1,0 +1,14 @@
+error[E0133]: call to unsafe function `wdf_timer_create_impl` is unsafe and requires unsafe function or block
+ --> tests/outputs/beta/trybuild/wdf_timer_create_missing_unsafe.rs
+  |
+  |       let _nt_status = call_unsafe_wdf_function_binding!(
+  |  ______________________^
+  | |         WdfTimerCreate,
+  | |         timer_config,
+  | |         attributes,
+  | |         &mut timer,
+  | |     );
+  | |_____^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior
+  = note: this error originates in the macro `$crate::__proc_macros::call_unsafe_wdf_function_binding` which comes from the expansion of the macro `call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)

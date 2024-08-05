@@ -1,9 +1,8 @@
-# Avoid using workspace package metadata due to: https://github.com/eupn/macrotest/issues/95 or https://github.com/eupn/macrotest/issues/94
 [package]
 edition = "2021"
 name = "wdk-macros"
-version = "0.2.0"
-description = "A collection of macros that help make it easier to interact with wdk-sys's direct bindings"
+version = "0.2.0" # This version should stay in sync with the wdk-sys version
+description = "A collection of macros that help make it easier to interact with wdk-sys's direct bindings. This should not be directly consumed, and should be instead consumed via the wdk-sys crate."
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
@@ -19,31 +18,14 @@ categories = [
 proc-macro = true
 
 [dependencies]
-cargo_metadata = "0.18.1"
-itertools = "0.12.1"
-proc-macro2 = "1.0.82"
-quote = "1.0.35"
-scratch = "1.0"
-syn = { version = "2.0.58", features = ["full"] }
+itertools.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn = { workspace = true, features = ["full", "extra-traits"] }
 
 [dev-dependencies]
-wdk-sys.workspace = true
-fs4 = { version = "0.8.2", features = ["sync"] }
-pathdiff = "0.2.0"
-lazy_static = "1.4.0"
-macrotest = "1.0.12"
-owo-colors = "4.0.0"
-paste = "1.0.15"
-pretty_assertions = "1.4.0"
-rustversion = "1.0.15"
-syn = { version = "2.0.58", features = ["extra-traits"] }
-trybuild = "1.0.91"
-
-[package.metadata.cargo-udeps.ignore]
-development = [
-  # macrotest and trybuild use dev-dependencies in when compiling their respective tests
-  "wdk-sys",
-]
+pretty_assertions.workspace = true
+syn.workspace = true
 
 [features]
 default = []

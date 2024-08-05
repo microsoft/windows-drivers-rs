@@ -1,0 +1,18 @@
+error: unused return value of `wdf_device_create_impl` that must be used
+ --> tests/outputs/beta/trybuild/wdf_device_create_unused_return_type.rs
+  |
+  | /         call_unsafe_wdf_function_binding!(
+  | |             WdfDeviceCreate,
+  | |             &mut device_init,
+  | |             WDF_NO_OBJECT_ATTRIBUTES,
+  | |             &mut device_handle_output,
+  | |         )
+  | |_________^
+  |
+note: the lint level is defined here
+ --> tests/outputs/beta/trybuild/wdf_device_create_unused_return_type.rs
+  |
+  | #![deny(warnings)]
+  |         ^^^^^^^^
+  = note: `#[deny(unused_must_use)]` implied by `#[deny(warnings)]`
+  = note: this error originates in the macro `$crate::__proc_macros::call_unsafe_wdf_function_binding` which comes from the expansion of the macro `call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)

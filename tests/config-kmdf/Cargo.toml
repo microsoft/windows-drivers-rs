@@ -1,0 +1,21 @@
+[package]
+edition = "2021"
+name = "config-kmdf"
+version = "0.1.0"
+description = "An empty package that sets the `package.metadata` required for wdk-build to generate KMDF bindings for Rust"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.wdk.driver-model]
+driver-type = "KMDF"
+kmdf-version-major = 1
+target-kmdf-version-minor = 33
+
+[lib]
+
+[dev-dependencies]
+wdk-macros-tests.path = "../wdk-macros-tests"
+wdk-sys.path = "../../crates/wdk-sys"
+
+[features]
+nightly = ["wdk-sys/nightly"]

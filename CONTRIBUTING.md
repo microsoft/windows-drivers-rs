@@ -87,9 +87,9 @@ That's it! Thank you for your contribution!
 
 The following tools should be installed as a part of the `windows-drivers-rs` developer workflow:
 
-* `cargo-expand`: `cargo install --locked cargo-expand --version 1.0.80`
+* `cargo-expand`: `cargo install --locked cargo-expand --version 1.0.85`
 * `cargo-audit`: `cargo install --locked cargo-audit`
-* `cargo-udeps`: `cargo install --locked cargo-udeps`
+* `cargo-machete`: `cargo install --locked cargo-machete`
 * `taplo-cli`: `cargo install --locked taplo-cli`
 
 **Note on arm64:** ARM64 support for ring is [not released yet](https://github.com/briansmith/ring/issues/1167), so TLS features must be disabled until arm64 is officially supported by ring (probably in 0.17.0 release)
@@ -142,8 +142,7 @@ To maintain the quality of code, tests and tools are required to pass before con
 **_Dependency Analysis:_**
 
 * Scan for security advisories in dependent crates: `cargo audit --deny warnings`
-* Scan for unused dependencies: `cargo +nightly udeps --locked --all-targets`
-  * `cargo udeps` requires `nightly` to function
+* Scan for unused dependencies: `cargo machete --skip-target-dir`
 
 **_Rust Documentation Build Test_**
 
