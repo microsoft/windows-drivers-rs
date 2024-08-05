@@ -51,7 +51,6 @@ pub struct Config {
     from = "DeserializableDriverConfig"
 )]
 pub enum DriverConfig {
-    // TODO: make all acronyms lowercase https://rust-lang.github.io/rust-clippy/master/index.html#/upper_
     /// Windows Driver Model
     Wdm,
     /// Kernel Mode Driver Framework
@@ -317,7 +316,7 @@ impl Config {
     /// This function will return an error if any of the required paths do not
     /// exist.
     pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
-        // TODO: consider deprecating in favor of iter
+        // FIXME: consider deprecating in favor of iter
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");

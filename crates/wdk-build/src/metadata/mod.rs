@@ -37,48 +37,9 @@ use crate::DriverConfig;
     rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
 )]
 pub struct Wdk {
-    // general: General,
     /// Metadata corresponding to the `Driver Model` property page in the WDK
     pub driver_model: DriverConfig,
 }
-
-// TODO: move all metadata to one source of truth
-
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// #[serde(deny_unknown_fields, rename_all = "kebab-case")]
-// pub struct General {
-//     //       <PreprocessorDefinitions
-// Condition="'$(OverrideTargetVersionDefines)' !=
-// 'true'">_WIN32_WINNT=$(WIN32_WINNT_VERSION);WINVER=$(WINVER_VERSION);WINNT=1;
-// NTDDI_VERSION=$(NTDDI_VERSION);%(ClCompile.PreprocessorDefinitions)</
-// PreprocessorDefinitions> //       <PreprocessorDefinitions
-// Condition="'$(IsKernelModeToolset)' !=
-// 'true'">WIN32_LEAN_AND_MEAN=1;%(ClCompile.PreprocessorDefinitions)</
-// PreprocessorDefinitions>
-
-//     t_os_version,
-//     driver_target_platform:
-//     nt_target_version: u32
-// }
-
-// Metadata corresponding to the driver model page property page for WDK
-// projects in Visual Studio
-// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-// #[serde(deny_unknown_fields, rename_all = "kebab-case")]
-// pub struct DriverModel {
-
-//     driver_type: DriverType,
-
-//     // KMDF-specific metadata
-//     kmdf_version_major: Option<u8>,
-//     target_kmdf_version_minor: Option<u8>,
-//     minimum_kmdf_version_minor: Option<u8>,
-
-//     // UMDF-specific metadata
-//     umdf_version_major: Option<u8>,
-//     target_umdf_version_minor: Option<u8>,
-//     minimum_umdf_version_minor: Option<u8>,
-// }
 
 /// Errors that could result from trying to construct a
 /// [`metadata::Wdk`](crate::metadata::Wdk) from information parsed by `cargo
