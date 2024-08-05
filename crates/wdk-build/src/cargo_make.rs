@@ -916,6 +916,10 @@ where
 /// `package-driver-flow` `cargo-make` task should be skipped (i.e. when the
 /// current package isn't a cdylib depending on the WDK, or when no valid WDK
 /// configurations are detected)
+///
+/// # Panics
+///
+/// Panics if `CARGO_MAKE_CRATE_NAME` is not set in the environment
 pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
         // Get the current package name via `CARGO_MAKE_CRATE_NAME_ENV_VAR` instead of
@@ -945,11 +949,10 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
                  have a package.metadata.wdk section"
             });
         }
-        if current_package
+        if !current_package
             .targets
             .iter()
-            .find(|target| target.kind.contains(&"cdylib".to_string()))
-            .is_none()
+            .any(|target| target.kind.iter().any(|kind| kind == "cdylib"))
         {
             return Err::<(), anyhow::Error>(
                 metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected.into(),
