@@ -18,8 +18,8 @@ workspace = false
 dependencies = [
   "format-flow",
   "format-toml-conditioned-flow",
-  "wdk-build-flow",
-  "wdk-samples-flow",
+  "build",
+  "package-driver-workspace-flow",
   "test-flow",
   "clippy-flow",
   "audit-flow",
