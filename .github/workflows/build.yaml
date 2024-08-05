@@ -11,7 +11,6 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
-# TODO: build each sample driver
   build:
     name: Build
     runs-on: windows-latest
@@ -79,5 +78,11 @@ jobs:
         with:
           tool: cargo-make
 
-      - name: Build and Package Sample Drivers
-        run: cargo make default +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
+      - name: Run Cargo Make in Workspace
+        run: cargo make +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
+
+      - name: Build Examples (via Cargo Make)
+        run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
+
+      - name: Package Examples (via Cargo Make)
+        run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
