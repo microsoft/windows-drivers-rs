@@ -17,11 +17,11 @@ pub extern "system" fn driver_entry(
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_driver_create_impl(
-                DriverObject: PDRIVER_OBJECT,
-                RegistryPath: PCUNICODE_STRING,
-                DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
-                DriverConfig: PWDF_DRIVER_CONFIG,
-                Driver: *mut WDFDRIVER,
+                driver_object__: PDRIVER_OBJECT,
+                registry_path__: PCUNICODE_STRING,
+                driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                driver_config__: PWDF_DRIVER_CONFIG,
+                driver__: *mut WDFDRIVER,
             ) -> NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(unsafe {
                     core::mem::transmute(
@@ -33,11 +33,11 @@ pub extern "system" fn driver_entry(
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,
-                            DriverObject,
-                            RegistryPath,
-                            DriverAttributes,
-                            DriverConfig,
-                            Driver,
+                            driver_object__,
+                            registry_path__,
+                            driver_attributes__,
+                            driver_config__,
+                            driver__,
                         )
                     }
                 } else {

@@ -10,10 +10,10 @@ fn process_wdf_request(request: wdk_sys::WDFREQUEST) {
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_request_retrieve_output_buffer_impl(
-                Request: WDFREQUEST,
-                MinimumRequiredSize: usize,
-                Buffer: *mut PVOID,
-                Length: *mut usize,
+                request__: WDFREQUEST,
+                minimum_required_size__: usize,
+                buffer__: *mut PVOID,
+                length__: *mut usize,
             ) -> NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFREQUESTRETRIEVEOUTPUTBUFFER = Some(unsafe {
                     core::mem::transmute(
@@ -25,10 +25,10 @@ fn process_wdf_request(request: wdk_sys::WDFREQUEST) {
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,
-                            Request,
-                            MinimumRequiredSize,
-                            Buffer,
-                            Length,
+                            request__,
+                            minimum_required_size__,
+                            buffer__,
+                            length__,
                         )
                     }
                 } else {
