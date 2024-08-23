@@ -912,7 +912,7 @@ where
 ///
 /// # Errors
 ///
-/// This function returns an error whenever it determins that the
+/// This function returns an error whenever it determines that the
 /// `package-driver-flow` `cargo-make` task should be skipped (i.e. when the
 /// current package isn't a cdylib depending on the WDK, or when no valid WDK
 /// configurations are detected)
