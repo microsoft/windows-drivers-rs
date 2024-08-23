@@ -1,0 +1,12 @@
+[package]
+edition = "2021"
+name = "config-wdm"
+version = "0.1.0"
+description = "An empty package that sets the `package.metadata` required for wdk-build to generate WDM bindings for Rust"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"
+
+[lib]

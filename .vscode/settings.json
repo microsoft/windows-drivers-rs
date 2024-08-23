@@ -3,5 +3,8 @@
     "+nightly"
   ],
   "rust-analyzer.rustfmt.rangeFormatting.enable": true,
-  "evenBetterToml.formatter.crlf": true
+  "evenBetterToml.formatter.crlf": true,
+  "files.associations": {
+    "input.h": "c"
+  }
 }

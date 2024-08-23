@@ -2,8 +2,12 @@
 // License: MIT OR Apache-2.0
 
 //! Direct FFI bindings to WDF APIs from the Windows Driver Kit (WDK)
+//!
+//! This module contains all bindings to functions, constants, methods,
+//! constructors and destructors in `wdf.h`. Types are not included in this
+//! module, but are available in the top-level `wdk_sys` module.
 
-use crate::types::ULONG;
+pub use bindings::*;
 
 #[allow(missing_docs)]
 #[allow(clippy::unreadable_literal)]
@@ -15,9 +19,5 @@ mod bindings {
 
     include!(concat!(env!("OUT_DIR"), "/wdf.rs"));
 }
-pub use bindings::*;
 
-// FIXME: UMDF >= 2.25 & KMDF >= 1.25 define this in wdffuncenum with
-// _declspec(selectany) so they don't generate symbols
-#[no_mangle]
-static WdfMinimumVersionRequired: ULONG = 33;
+include!(concat!(env!("OUT_DIR"), "/wdf_function_table.rs"));
