@@ -10,22 +10,22 @@
 /// parameter names. This resulted in the following compilation error:
 /// 
 #[rustfmt::skip]
-// ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-// error[E0530]: function parameters cannot shadow tuple structs
-//   --> D:/git-repos/github/windows-drivers-rs.git/worktrees-folder/fix-tuple-shadowing/tests/wdk-macros-tests/tests/outputs/nightly/macrotest/bug_tuple_struct_shadowing.rs:34:9
-//    |
-// 30 |   pub struct DeviceInit(wdk_sys::PWDFDEVICE_INIT);
-//    |   ------------------------------------------------ the tuple struct `DeviceInit` is defined here
-// ...
-// 34 | /         call_unsafe_wdf_function_binding!(
-// 35 | |             WdfDeviceInitSetPnpPowerEventCallbacks,
-// 36 | |             device_init.0,
-// 37 | |             pnp_power_callbacks
-// 38 | |         )
-//    | |_________^ cannot be named the same as a tuple struct
-//    |
-//    = note: this error originates in the macro `$crate::__proc_macros::call_unsafe_wdf_function_binding` which comes from the expansion of the macro `call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)
-// ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+/// ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+/// error[E0530]: function parameters cannot shadow tuple structs
+///   --> D:/git-repos/github/windows-drivers-rs.git/worktrees-folder/fix-tuple-shadowing/tests/wdk-macros-tests/tests/outputs/nightly/macrotest/bug_tuple_struct_shadowing.rs:34:9
+///    |
+/// 30 |   pub struct DeviceInit(wdk_sys::PWDFDEVICE_INIT);
+///    |   ------------------------------------------------ the tuple struct `DeviceInit` is defined here
+/// ...
+/// 34 | /         call_unsafe_wdf_function_binding!(
+/// 35 | |             WdfDeviceInitSetPnpPowerEventCallbacks,
+/// 36 | |             device_init.0,
+/// 37 | |             pnp_power_callbacks
+/// 38 | |         )
+///    | |_________^ cannot be named the same as a tuple struct
+///    |
+///    = note: this error originates in the macro `$crate::__proc_macros::call_unsafe_wdf_function_binding` which comes from the expansion of the macro `call_unsafe_wdf_function_binding` (in Nightly builds, run with -Z macro-backtrace for more info)
+/// ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
 
 
 use wdk_sys::call_unsafe_wdf_function_binding;
