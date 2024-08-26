@@ -28,9 +28,10 @@ use thiserror::Error;
 use crate::DriverConfig;
 
 /// Metadata specified in the `metadata.wdk` section of the `Cargo.toml`
-/// of a crate that depends on the WDK, or in a cargo workspace. This
-/// corresponds with the settings in the `Driver Settings` property pages for
-/// WDK projects in Visual Studio
+/// of a crate that depends on the WDK, or in a cargo workspace.
+///
+/// This corresponds with the settings in the `Driver Settings` property pages
+/// for WDK projects in Visual Studio
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(
     deny_unknown_fields,
