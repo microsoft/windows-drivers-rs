@@ -41,12 +41,12 @@ use syn::{
     TypePath,
 };
 
-/// A procedural macro that allows WDF functions to be called by name. This
-/// macro is only intended to be used in the `wdk-sys` crate. Users wanting to
-/// call WDF functions should use the macro in `wdk-sys`.
+/// A procedural macro that allows WDF functions to be called by name.
 ///
-///  This macro differs from the one in [`wdk-sys`] in that it must pass in the
-/// generated types from `wdk-sys` as an arggument to the macro.
+/// This macro is only intended to be used in the `wdk-sys` crate. Users wanting
+/// to call WDF functions should use the macro in `wdk-sys`. This macro differs
+/// from the one in [`wdk-sys`] in that it must pass in the generated types from
+/// `wdk-sys` as an argument to the macro.
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()

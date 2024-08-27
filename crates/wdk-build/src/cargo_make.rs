@@ -439,9 +439,10 @@ impl ParseCargoArgs for ManifestOptions {
 
 /// Parses the command line arguments, validates that they are supported by
 /// `rust-driver-makefile.toml`, and then returns a list of environment variable
-/// names that were updated. These environment variable names should be passed
-/// to [`forward_printed_env_vars`] to forward values to
-/// cargo-make.
+/// names that were updated.
+///
+/// These environment variable names should be passed to
+/// [`forward_printed_env_vars`] to forward values to cargo-make.
 ///
 /// # Panics
 ///
@@ -723,9 +724,10 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
 }
 
 /// Symlinks `rust-driver-makefile.toml` to the `target` folder where it can be
-/// extended from a `Makefile.toml`. This is necessary so that paths in the
-/// `rust-driver-makefile.toml` can to be relative to
-/// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+/// extended from a `Makefile.toml`.
+///
+/// This is necessary so that paths in the `rust-driver-makefile.toml` can to be
+/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
 ///
@@ -746,9 +748,10 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
 }
 
 /// Symlinks `rust-driver-sample-makefile.toml` to the `target` folder where it
-/// can be extended from a `Makefile.toml`. This is necessary so that paths in
-/// the `rust-driver-sample-makefile.toml` can to be relative to
-/// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+/// can be extended from a `Makefile.toml`.
+///
+/// This is necessary so that paths in the `rust-driver-sample-makefile.toml`
+/// can to be relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
 ///
@@ -769,9 +772,10 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 }
 
 /// Symlinks a [`wdk_build`] `cargo-make` makefile to the `target` folder where
-/// it can be extended from a downstream `Makefile.toml`. This is necessary so
-/// that paths in the [`wdk_build`] makefile can be relative to
-/// `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+/// it can be extended from a downstream `Makefile.toml`.
+///
+/// This is necessary so that paths in the [`wdk_build`] makefile can be
+/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
 ///
 /// # Errors
 ///
