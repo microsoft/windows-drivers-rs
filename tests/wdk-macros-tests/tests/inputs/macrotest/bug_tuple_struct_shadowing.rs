@@ -5,14 +5,14 @@
 #![deny(warnings)]
 
 /// This is a regression test for a bug where the
-/// call_unsafe_wdf_function_binding macro would generate code that prevented
+/// [`call_unsafe_wdf_function_binding`] macro would generate code that prevented
 /// anything in scope from having the same name as one of the c function's
 /// parameter names. This resulted in the following compilation error:
 /// 
 #[rustfmt::skip]
 /// ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
 /// error[E0530]: function parameters cannot shadow tuple structs
-///   --> D:/git-repos/github/windows-drivers-rs.git/worktrees-folder/fix-tuple-shadowing/tests/wdk-macros-tests/tests/outputs/nightly/macrotest/bug_tuple_struct_shadowing.rs:34:9
+///   --> C:/windows-drivers-rs/tests/wdk-macros-tests/tests/outputs/nightly/macrotest/bug_tuple_struct_shadowing.rs:34:9
 ///    |
 /// 30 |   pub struct DeviceInit(wdk_sys::PWDFDEVICE_INIT);
 ///    |   ------------------------------------------------ the tuple struct `DeviceInit` is defined here
