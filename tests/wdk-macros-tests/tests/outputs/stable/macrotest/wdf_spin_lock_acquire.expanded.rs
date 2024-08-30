@@ -6,7 +6,7 @@ fn acquire_lock(wdf_spin_lock: wdk_sys::WDFSPINLOCK) {
             use wdk_sys::*;
             #[inline(always)]
             #[allow(non_snake_case)]
-            unsafe fn wdf_spin_lock_acquire_impl(SpinLock: WDFSPINLOCK) {
+            unsafe fn wdf_spin_lock_acquire_impl(spin_lock__: WDFSPINLOCK) {
                 let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(unsafe {
                     core::mem::transmute(
                         wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfSpinLockAcquireTableIndex
@@ -14,7 +14,7 @@ fn acquire_lock(wdf_spin_lock: wdk_sys::WDFSPINLOCK) {
                     )
                 });
                 if let Some(wdf_function) = wdf_function {
-                    unsafe { (wdf_function)(wdk_sys::WdfDriverGlobals, SpinLock) }
+                    unsafe { (wdf_function)(wdk_sys::WdfDriverGlobals, spin_lock__) }
                 } else {
                     {
                         ::core::panicking::panic_fmt(

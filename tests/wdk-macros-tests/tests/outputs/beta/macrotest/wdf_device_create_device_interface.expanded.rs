@@ -14,9 +14,9 @@ fn create_device_interface(wdf_device: wdk_sys::WDFDEVICE) -> wdk_sys::NTSTATUS 
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_device_create_device_interface_impl(
-                Device: WDFDEVICE,
-                InterfaceClassGUID: *const GUID,
-                ReferenceString: PCUNICODE_STRING,
+                device__: WDFDEVICE,
+                interface_class_guid__: *const GUID,
+                reference_string__: PCUNICODE_STRING,
             ) -> NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDEVICECREATEDEVICEINTERFACE = Some(unsafe {
                     core::mem::transmute(
@@ -28,9 +28,9 @@ fn create_device_interface(wdf_device: wdk_sys::WDFDEVICE) -> wdk_sys::NTSTATUS 
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,
-                            Device,
-                            InterfaceClassGUID,
-                            ReferenceString,
+                            device__,
+                            interface_class_guid__,
+                            reference_string__,
                         )
                     }
                 } else {

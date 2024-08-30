@@ -362,11 +362,11 @@ fn parse_types_ast(path: &LitStr) -> Result<File> {
 /// return a [`Punctuated`] representation of
 ///
 /// ```rust, compile_fail
-/// DriverObject: wdk_sys::PDRIVER_OBJECT,
-/// RegistryPath: wdk_sys::PCUNICODE_STRING,
-/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
-/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER
+/// DriverObject: PDRIVER_OBJECT,
+/// RegistryPath: PCUNICODE_STRING,
+/// DriverAttributes: WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: PWDF_DRIVER_CONFIG,
+/// Driver: *mut WDFDRIVER
 /// ```
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
@@ -492,11 +492,11 @@ fn extract_fn_pointer_definition(type_alias: &ItemType, error_span: Span) -> Res
 /// of
 ///
 /// ```rust, compile_fail
-/// DriverObject: wdk_sys::PDRIVER_OBJECT,
-/// RegistryPath: wdk_sys::PCUNICODE_STRING,
-/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
-/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER
+/// DriverObject: PDRIVER_OBJECT,
+/// RegistryPath: PCUNICODE_STRING,
+/// DriverAttributes: WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: PWDF_DRIVER_CONFIG,
+/// Driver: *mut WDFDRIVER
 /// ```
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
@@ -607,16 +607,17 @@ fn extract_bare_fn_type(fn_pointer_typepath: &TypePath, error_span: Span) -> Res
 ///
 /// would return the [`Punctuated`] representation of
 /// ```rust, compile_fail
-/// DriverObject: wdk_sys::PDRIVER_OBJECT,
-/// RegistryPath: wdk_sys::PCUNICODE_STRING,
-/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
-/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER
+/// DriverObject: PDRIVER_OBJECT,
+/// RegistryPath: PCUNICODE_STRING,
+/// DriverAttributes: WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: PWDF_DRIVER_CONFIG,
+/// Driver: *mut WDFDRIVER
 /// ```
 fn compute_fn_parameters(
     bare_fn_type: &syn::TypeBareFn,
     error_span: Span,
 ) -> Result<Punctuated<BareFnArg, Token![,]>> {
+    // Validate that the first parameter is PWDF_DRIVER_GLOBALS
     let Some(BareFnArg {
         ty:
             Type::Path(TypePath {
@@ -654,10 +655,28 @@ fn compute_fn_parameters(
         ));
     }
 
-    Ok(
-        // discard the PWDF_DRIVER_GLOBALS parameter
-        bare_fn_type.inputs.iter().skip(1).cloned().collect(),
-    )
+    Ok(bare_fn_type
+        .inputs
+        .iter()
+        .skip(1)
+        // transform argument names to snake_case with trailing underscores to lessen likelihood
+        // of shadowing issues
+        .map(|fn_arg| {
+            let arg_name = fn_arg.name.as_ref().map(|(ident, colon_token)| {
+                let modified_name = {
+                    let mut name = ident.to_string().to_snake_case();
+                    name.push_str("__");
+                    name
+                };
+                (Ident::new(&modified_name, ident.span()), *colon_token)
+            });
+
+            BareFnArg {
+                name: arg_name,
+                ..fn_arg.clone()
+            }
+        })
+        .collect())
 }
 
 /// Compute the return type based on the function defintion
@@ -882,18 +901,18 @@ mod tests {
                     function_pointer_type: format_ident!("PFN_WDFDRIVERCREATE"),
                     function_table_index: format_ident!("WdfDriverCreateTableIndex"),
                     parameters: parse_quote! {
-                        DriverObject: PDRIVER_OBJECT,
-                        RegistryPath: PCUNICODE_STRING,
-                        DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
-                        DriverConfig: PWDF_DRIVER_CONFIG,
-                        Driver: *mut WDFDRIVER
+                        driver_object__: PDRIVER_OBJECT,
+                        registry_path__: PCUNICODE_STRING,
+                        driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                        driver_config__: PWDF_DRIVER_CONFIG,
+                        driver__: *mut WDFDRIVER
                     },
                     parameter_identifiers: parse_quote! {
-                        DriverObject,
-                        RegistryPath,
-                        DriverAttributes,
-                        DriverConfig,
-                        Driver
+                        driver_object__,
+                        registry_path__,
+                        driver_attributes__,
+                        driver_config__,
+                        driver__
                     },
                     return_type: parse_quote! { -> NTSTATUS },
                     arguments: parse_quote! {
@@ -946,7 +965,7 @@ mod tests {
             let function_pointer_type = format_ident!("PFN_WDFIOQUEUEPURGESYNCHRONOUSLY");
             let expected = (
                 parse_quote! {
-                    Queue: WDFQUEUE
+                    queue__: WDFQUEUE
                 },
                 ReturnType::Default,
             );
@@ -1072,11 +1091,11 @@ mod tests {
             };
             let expected = (
                 parse_quote! {
-                    DriverObject: PDRIVER_OBJECT,
-                    RegistryPath: PCUNICODE_STRING,
-                    DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
-                    DriverConfig: PWDF_DRIVER_CONFIG,
-                    Driver: *mut WDFDRIVER
+                    driver_object__: PDRIVER_OBJECT,
+                    registry_path__: PCUNICODE_STRING,
+                    driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                    driver_config__: PWDF_DRIVER_CONFIG,
+                    driver__: *mut WDFDRIVER
                 },
                 ReturnType::Type(
                     Token![->](Span::call_site()),
@@ -1158,11 +1177,11 @@ mod tests {
                 ) -> NTSTATUS
             };
             let expected = parse_quote! {
-                DriverObject: PDRIVER_OBJECT,
-                RegistryPath: PCUNICODE_STRING,
-                DriverAttributes: PWDF_OBJECT_ATTRIBUTES,
-                DriverConfig: PWDF_DRIVER_CONFIG,
-                Driver: *mut WDFDRIVER
+                driver_object__: PDRIVER_OBJECT,
+                registry_path__: PCUNICODE_STRING,
+                driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                driver_config__: PWDF_DRIVER_CONFIG,
+                driver__: *mut WDFDRIVER
             };
 
             pretty_assert_eq!(

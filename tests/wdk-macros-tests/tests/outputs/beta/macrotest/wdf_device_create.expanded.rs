@@ -12,9 +12,9 @@ extern "C" fn evt_driver_device_add(
             #[inline(always)]
             #[allow(non_snake_case)]
             unsafe fn wdf_device_create_impl(
-                DeviceInit: *mut PWDFDEVICE_INIT,
-                DeviceAttributes: PWDF_OBJECT_ATTRIBUTES,
-                Device: *mut WDFDEVICE,
+                device_init__: *mut PWDFDEVICE_INIT,
+                device_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                device__: *mut WDFDEVICE,
             ) -> NTSTATUS {
                 let wdf_function: wdk_sys::PFN_WDFDEVICECREATE = Some(unsafe {
                     core::mem::transmute(
@@ -26,9 +26,9 @@ extern "C" fn evt_driver_device_add(
                     unsafe {
                         (wdf_function)(
                             wdk_sys::WdfDriverGlobals,
-                            DeviceInit,
-                            DeviceAttributes,
-                            Device,
+                            device_init__,
+                            device_attributes__,
+                            device__,
                         )
                     }
                 } else {
