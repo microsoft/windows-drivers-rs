@@ -28,13 +28,16 @@ wdk_build::cargo_make::forward_printed_env_vars(
 
 [tasks.infverif]
 dependencies = ["wdk-samples-setup", "stampinf"]
-plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 condition_script = '''
 #!@rust
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.2.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
