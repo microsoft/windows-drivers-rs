@@ -1,0 +1,1 @@
+../../../inputs/macrotest/bug_tuple_struct_shadowing.rs

@@ -1,9 +1,14 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-use bindgen::Builder;
+use std::borrow::Borrow;
 
-use crate::{CPUArchitecture, Config, ConfigError, DriverConfig};
+use bindgen::{
+    callbacks::{ItemInfo, ItemKind, ParseCallbacks},
+    Builder,
+};
+
+use crate::{Config, ConfigError};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -15,7 +20,15 @@ pub trait BuilderExt {
     ///
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
-    fn wdk_default(c_header_files: Vec<&str>, config: &Config) -> Result<Builder, ConfigError>;
+    fn wdk_default(
+        c_header_files: Vec<&str>,
+        config: impl Borrow<Config>,
+    ) -> Result<Builder, ConfigError>;
+}
+
+#[derive(Debug)]
+struct WdkCallbacks {
+    wdf_function_table_symbol_name: Option<String>,
 }
 
 impl BuilderExt for Builder {
@@ -26,7 +39,12 @@ impl BuilderExt for Builder {
     ///
     /// Will return `wdk_build::ConfigError` if any of the resolved include or
     /// library paths do not exist
-    fn wdk_default(c_header_files: Vec<&str>, config: &Config) -> Result<Self, ConfigError> {
+    fn wdk_default(
+        c_header_files: Vec<&str>,
+        config: impl Borrow<Config>,
+    ) -> Result<Self, ConfigError> {
+        let config = config.borrow();
+
         let mut builder = Self::default();
 
         for c_header in c_header_files {
@@ -51,89 +69,63 @@ impl BuilderExt for Builder {
                 )
             }))
             .clang_args(
-                match config.cpu_architecture {
-                    // Definitions sourced from `Program Files\Windows
-                    // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
-                    CPUArchitecture::AMD64 => {
-                        vec!["_WIN64", "_AMD64_", "AMD64"]
-                    }
-                    // Definitions sourced from `Program Files\Windows
-                    // Kits\10\build\10.0.22621.0\WindowsDriver.arm64.props`
-                    CPUArchitecture::ARM64 => {
-                        vec!["_ARM64_", "ARM64", "_USE_DECLSPECS_FOR_SAL=1", "STD_CALL"]
-                    }
-                }
-                .iter()
-                .map(|preprocessor_definition| format!("--define-macro={preprocessor_definition}")),
+                config
+                    .get_preprocessor_definitions_iter()
+                    .map(|(key, value)| {
+                        format!(
+                            "--define-macro={key}{}",
+                            value.map(|v| format!("={v}")).unwrap_or_default()
+                        )
+                    })
+                    .chain(Config::wdk_bindgen_compiler_flags()),
             )
-            .clang_args(
-                match config.driver_config {
-                    // FIXME: Add support for KMDF_MINIMUM_VERSION_REQUIRED and
-                    // UMDF_MINIMUM_VERSION_REQUIRED
-                    DriverConfig::WDM() => {
-                        vec![]
-                    }
-                    DriverConfig::KMDF(kmdf_config) => {
-                        vec![
-                            format!("KMDF_VERSION_MAJOR={}", kmdf_config.kmdf_version_major),
-                            format!("KMDF_VERSION_MINOR={}", kmdf_config.kmdf_version_minor),
-                        ]
-                    }
-                    DriverConfig::UMDF(umdf_config) => {
-                        let mut umdf_definitions = vec![
-                            format!("UMDF_VERSION_MAJOR={}", umdf_config.umdf_version_major),
-                            format!("UMDF_VERSION_MINOR={}", umdf_config.umdf_version_minor),
-                        ];
-
-                        if umdf_config.umdf_version_major >= 2 {
-                            umdf_definitions.push("UMDF_USING_NTSTATUS".to_string());
-                            umdf_definitions.push("_UNICODE".to_string());
-                            umdf_definitions.push("UNICODE".to_string());
-                        }
-
-                        umdf_definitions
-                    }
-                }
-                .iter()
-                .map(|preprocessor_definition| format!("--define-macro={preprocessor_definition}")),
-            )
-            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the file
-            // is actually driverspecs.h)
-            .clang_arg("--warn-=no-nonportable-include-path")
-            // Windows SDK & DDK use pshpack and poppack headers to change packing
-            .clang_arg("--warn-=no-pragma-pack")
-            .clang_arg("--warn-=no-ignored-attributes")
-            .clang_arg("--warn-=no-ignored-pragma-intrinsic")
-            .clang_arg("--warn-=no-visibility")
-            .clang_arg("--warn-=no-microsoft-anon-tag")
-            .clang_arg("--warn-=no-microsoft-enum-forward-reference")
-            // Don't warn for deprecated declarations. deprecated items are already blocklisted
-            // below and if there are any non-blocklisted function definitions, it will throw a
-            // -WDeprecated warning
-            .clang_arg("--warn-=no-deprecated-declarations")
-            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
-            // `_variable` are separate tokens already, and don't need `##` to concatenate them)
-            .clang_arg("--warn-=no-invalid-token-paste")
-            .clang_arg("-fms-extensions")
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
-            // FIXME: Types containing 32-bit pointers (via __ptr32) are not generated properly and cause bindgen layout tests to fail: https://github.com/rust-lang/rust-bindgen/issues/2636
-            .blocklist_item(".*EXTENDED_CREATE_INFORMATION_32")
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
             .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_XPF_MCA_SECTION")
             .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
             .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
+            // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
+            .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
             .must_use_type("HRESULT")
             // Defaults enums to generate as a set of constants contained in a module (default value
             // is EnumVariation::Consts which generates enums as global constants)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+            .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease);
 
         Ok(builder)
+    }
+}
+
+impl ParseCallbacks for WdkCallbacks {
+    fn generated_name_override(&self, item_info: ItemInfo) -> Option<String> {
+        // Override the generated name for the WDF function table symbol, since bindgen is unable to currently translate the #define automatically: https://github.com/rust-lang/rust-bindgen/issues/2544
+        if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
+            if let ItemInfo {
+                name: item_name,
+                kind: ItemKind::Var,
+                ..
+            } = item_info
+            {
+                if item_name == wdf_function_table_symbol_name {
+                    return Some("WdfFunctions".to_string());
+                }
+            }
+        }
+        None
+    }
+}
+
+impl WdkCallbacks {
+    fn new(config: &Config) -> Self {
+        Self {
+            wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
+        }
     }
 }

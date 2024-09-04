@@ -1,7 +1,7 @@
 extend = "./crates/wdk-build/rust-driver-makefile.toml"
 
 [config]
-min_version = "0.37.11"
+min_version = "0.37.16"
 additional_profiles = ["all-default-tasks"]
 
 [env]
@@ -52,14 +52,15 @@ assert ${success} "Failed to delete tests directory"
 install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
   "expand",
   "--version",
-], version = "1.0.80" }
+], version = "1.0.85" }
 
 [tasks.audit]
 args = ["audit", "--deny", "warnings"]
 
 [tasks.unused-dependencies]
-toolchain = "nightly"
-args = ["udeps", "--all-targets"]
+workspace = false
+condition = { env_true = ["CARGO_MAKE_CRATE_HAS_DEPENDENCIES"] }
+args = ["machete", "--skip-target-dir"]
 
 [tasks.nightly-test-flow]
 extend = "test-flow"

@@ -7,11 +7,33 @@
 
 #![no_std]
 
-#[cfg(feature = "alloc")]
-mod print;
-#[cfg(feature = "alloc")]
+#[cfg(any(
+    all(
+        feature = "alloc",
+        any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF")
+    ),
+    driver_model__driver_type = "UMDF",
+))]
 pub use print::_print;
-pub use wdk_sys::{NT_SUCCESS as nt_success, PAGED_CODE as paged_code};
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+pub use wdk_sys::NT_SUCCESS as nt_success;
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub use wdk_sys::PAGED_CODE as paged_code;
+
+#[cfg(any(
+    all(
+        feature = "alloc",
+        any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF")
+    ),
+    driver_model__driver_type = "UMDF",
+))]
+mod print;
+
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
 
 /// Trigger a breakpoint in debugger via architecture-specific inline assembly.
@@ -19,7 +41,8 @@ pub mod wdf;
 /// Implementations derived from details outlined in [MSVC `__debugbreak` intrinsic documentation](https://learn.microsoft.com/en-us/cpp/intrinsics/debugbreak?view=msvc-170#remarks)
 ///
 /// # Panics
-/// Will Panic if called on an unsupported architecture
+///
+/// Will Panic if called from an unsupported architecture
 pub fn dbg_break() {
     // SAFETY: Abides all rules outlined in https://doc.rust-lang.org/reference/inline-assembly.html#rules-for-inline-assembly
     unsafe {
