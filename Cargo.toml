@@ -10,6 +10,7 @@ exclude = [
   "tests/config-umdf",
   "tests/config-wdm",
   "tests/wdk-macros-tests",
+  "tests/wdk-sys-tests",
 ]
 resolver = "2"
 

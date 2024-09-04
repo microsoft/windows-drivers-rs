@@ -9,4 +9,5 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
   "mixed-package-kmdf-workspace",
   "umdf-driver-workspace",
   "wdk-macros-tests",
+  "wdk-sys-tests"
 ]
