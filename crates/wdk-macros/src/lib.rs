@@ -52,7 +52,7 @@ pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStrea
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
 }
 
-/// A trait to provide additional functionality to the `String` type
+/// A trait to provide additional functionality to the [`String`] type
 trait StringExt {
     /// Convert a string to `snake_case`
     fn to_snake_case(&self) -> String;
@@ -72,9 +72,9 @@ struct Inputs {
     wdf_function_arguments: Punctuated<Expr, Token![,]>,
 }
 
-/// Struct storing all the AST fragments derived from `Inputs`. This represents
-/// all the derived ASTs depend on `Inputs` that ultimately get used in the
-/// final generated code that.
+/// Struct storing all the AST fragments derived from [`Inputs`]. This
+/// represents all the ASTs derived from [`Inputs`]. These ultimately get used
+/// in the final generated code.
 #[derive(Debug, PartialEq)]
 struct DerivedASTFragments {
     function_pointer_type: Ident,
@@ -87,7 +87,7 @@ struct DerivedASTFragments {
 }
 
 /// Struct storing the AST fragments that form distinct sections of the final
-/// generated code. These sections are derived from `DerivedASTFragments`.
+/// generated code. Each field is derived from [`DerivedASTFragments`].
 struct IntermediateOutputASTFragments {
     must_use_attribute: Option<Attribute>,
     inline_wdf_fn_signature: Signature,
@@ -281,16 +281,23 @@ impl IntermediateOutputASTFragments {
 
         quote! {
             {
-                use wdk_sys::*;
+                // Use a private module to prevent leaking of glob import into inline_wdf_fn_invocation's parameters
+                mod private__ {
+                    // Glob import types from wdk_sys. glob importing is done instead of blindly prepending the
+                    // paramters types with wdk_sys:: because bindgen generates some paramters as native rust types
+                    use wdk_sys::*;
 
-                #conditional_must_use_attribute
-                #[inline(always)]
-                #[allow(non_snake_case)]
-                #inline_wdf_fn_signature {
-                    #(#inline_wdf_fn_body_statments)*
+                    // If the function returns a value, add a `#[must_use]` attribute to the function
+                    #conditional_must_use_attribute
+                    // Encapsulate the code in an inline functions to allow for condition must_use attribute.
+                    //  core::hint::must_use is not stable yet: https://github.com/rust-lang/rust/issues/94745
+                    #[inline(always)]
+                    pub #inline_wdf_fn_signature {
+                        #(#inline_wdf_fn_body_statments)*
+                    }
                 }
 
-                #inline_wdf_fn_invocation
+                private__::#inline_wdf_fn_invocation
             }
         }
     }
