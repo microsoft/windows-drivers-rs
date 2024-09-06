@@ -87,7 +87,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```rust
    fn main() -> Result<(), wdk_build::ConfigError> {
-      wdk_build::configure_binary_build()
+      wdk_build::configure_wdk_binary_build()
    }
    ```
 
@@ -129,7 +129,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
    pub unsafe extern "system" fn driver_entry(
-      driver: PDRIVER_OBJECT,
+      driver: &mut DRIVER_OBJECT,
       registry_path: PCUNICODE_STRING,
    ) -> NTSTATUS {
       0
