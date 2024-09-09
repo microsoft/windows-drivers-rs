@@ -17,13 +17,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use core::ops::RangeFrom;
+
 use anyhow::Context;
 use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
 use clap::{Args, Parser};
 
 use crate::{
     metadata,
-    utils::{detect_wdk_content_root, get_latest_windows_sdk_version, PathExt},
+    utils::{detect_wdk_content_root, get_latest_windows_sdk_version, get_wdk_version_number, PathExt},
     ConfigError,
     CpuArchitecture,
 };
@@ -60,6 +62,9 @@ const CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR: &str = "CARGO_MAKE_CURRENT_TASK_NAME
 
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
 const CLAP_USAGE_EXIT_CODE: i32 = 2;
+
+// This range is inclusive of 25798. FIXME: update with range end after /sample flag is added to InfVerif CLI
+const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 
 trait ParseCargoArgs {
     fn parse_cargo_args(&self);
@@ -1050,6 +1055,26 @@ where
     env_var_value.push(';');
     env_var_value.push_str(env::var(env_var_name).unwrap_or_default().as_str());
     env::set_var(env_var_name, env_var_value);
+}
+
+/// `cargo-make` condition script for `infverif` task in
+/// [`rust-driver-sample-makefile.toml`](../rust-driver-sample-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error whenever it determines that the
+/// `infverif` `cargo-make` task should be skipped (i.e. when the WDK Version is bugged
+/// and does not contain /samples flag
+pub fn infverif_condition_script() -> anyhow::Result<()> {
+    condition_script(|| {
+        let wdk_version = env::var(WDK_VERSION_ENV_VAR).expect("WDK_BUILD_DETECTED_VERSION should always be set by wdk-build-init cargo make task");
+        let wdk_build_number = str::parse::<u32>(&get_wdk_version_number(&wdk_version).unwrap()).expect(&format!("Couldn't parse WDK version number!  Version number: {}", wdk_version));
+        if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
+            // cargo_make will interpret returning an error from the rust-script condition_script as skipping the task
+            return Err::<(), anyhow::Error>(anyhow::Error::msg(format!("Skipping InfVerif. InfVerif in WDK Build {} is bugged and does not contain the /samples flag.", wdk_build_number)));
+        }
+        Ok(())
+    })
 }
 
 #[cfg(test)]

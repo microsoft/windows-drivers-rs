@@ -41,23 +41,5 @@ condition_script = '''
 //! ```
 #![allow(unused_doc_comments)]
 
-use core::ops::RangeFrom;
-
-// This range is inclusive of 25798. FIXME: update with range end after /sample flag is added to InfVerif CLI
-const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
-
-std::panic::catch_unwind(|| {
-	let wdk_version = std::env::var(wdk_build::cargo_make::WDK_VERSION_ENV_VAR).expect("WDK_BUILD_DETECTED_VERSION should always be set by wdk-build-init cargo make task");
-	let wdk_build_number = str::parse::<u32>(&wdk_build::utils::get_wdk_version_number(&wdk_version).unwrap()).expect(&format!("Couldn't parse WDK version number!  Version number: {}", wdk_version));
-
-	if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
-		// cargo_make will interpret returning an error from the rust-script condition_script as skipping the task
-		return Err::<(), String>(format!("Skipping InfVerif. InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the /samples flag.").into());
-	}
-	Ok(())
-}).unwrap_or_else(|_|{
-	// panic contents would have already been printed to console
-	eprintln!("condition_script for infverif task panicked while executing. Defaulting to running inverif task.");
-	Ok(())
-})?
+wdk_build::cargo_make::infverif_condition_script()?
 '''
