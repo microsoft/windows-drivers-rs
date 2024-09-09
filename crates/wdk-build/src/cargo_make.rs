@@ -1070,6 +1070,9 @@ where
 /// This function returns an error whenever it determines that the
 /// `infverif` `cargo-make` task should be skipped (i.e. when the WDK Version is
 /// bugged and does not contain /samples flag
+///
+/// # Panics
+/// Panics if the `WDK_BUILD_DETECTED_VERSION` environment variable is not set.
 pub fn infverif_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
         let wdk_version = env::var(WDK_VERSION_ENV_VAR).expect(
