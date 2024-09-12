@@ -150,7 +150,7 @@ pub enum ConfigError {
 
     /// Error returned when the WDK version string does not match the expected
     /// format
-    #[error("The WDK version string provided ({version}) was not in a valid format.")]
+    #[error("the WDK version string provided ({version}) was not in a valid format.")]
     WdkVersionStringFormatError {
         /// The incorrect WDK version string.
         version: String,
@@ -174,8 +174,7 @@ pub enum ConfigError {
     /// Error returned when the c runtime is not configured to be statically
     /// linked
     #[error(
-        "the C runtime is not properly configured to be statically linked. This is required for building \
-         WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
+        "the C runtime is not properly configured to be statically linked. This is required for building kernel mode WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: [build]\n rustflags = [\"-C\", \"target-feature=+crt-static\"]\n\nSee https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
     )]
     StaticCrtNotEnabled,
 
@@ -659,13 +658,14 @@ impl Config {
     ///
     /// This function will return an error if:
     /// * any of the required WDK paths do not exist
-    /// * the C runtime is not configured to be statically linked
+    /// * the C runtime is not configured to be statically linked for a
+    ///   kernel-mode driver
     ///
     /// # Panics
     ///
     /// Panics if the invoked from outside a Cargo build environment
     pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
-        if !Self::is_crt_static_linked() {
+        if !Self::is_crt_static_linked() && matches!(self.driver_config, DriverConfig::Umdf(_)) {
             return Err(ConfigError::StaticCrtNotEnabled);
         }
 
