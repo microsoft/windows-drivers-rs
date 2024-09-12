@@ -38,8 +38,11 @@ condition_script = '''
 //! ```cargo
 //! [dependencies]
 //! wdk-build = { path = ".", version = "0.2.0" }
+//! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]
 
-wdk_build::cargo_make::infverif_condition_script()?
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::driver_sample_infverif_condition_script()
+}
 '''

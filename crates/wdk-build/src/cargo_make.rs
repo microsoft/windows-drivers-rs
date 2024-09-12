@@ -1069,19 +1069,21 @@ where
 ///
 /// This function returns an error whenever it determines that the
 /// `infverif` `cargo-make` task should be skipped (i.e. when the WDK Version is
-/// bugged and does not contain /samples flag
+/// bugged and does not contain /samples flag)
 ///
 /// # Panics
-/// Panics if the `WDK_BUILD_DETECTED_VERSION` environment variable is not set.
-pub fn infverif_condition_script() -> anyhow::Result<()> {
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
+pub fn driver_sample_infverif_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
         let wdk_version = env::var(WDK_VERSION_ENV_VAR).expect(
             "WDK_BUILD_DETECTED_VERSION should always be set by wdk-build-init cargo make task",
         );
-        let wdk_build_number = str::parse::<u32>(&get_wdk_version_number(&wdk_version).unwrap())
-            .unwrap_or_else(|_| {
-                panic!("Couldn't parse WDK version number! Version number: {wdk_version}")
-            });
+        let wdk_build_number = str::parse::<u32>(
+            &get_wdk_version_number(&wdk_version).expect("Failed to get WDK version number"),
+        )
+        .expect(&format!(
+            "Couldn't parse WDK version number! Version number: {wdk_version}"
+        ));
         if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
             // cargo_make will interpret returning an error from the rust-script
             // condition_script as skipping the task
