@@ -16,11 +16,13 @@ categories = [
   "os",
 ]
 
+[build-dependencies]
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
+
 [dependencies]
 wdk-sys.workspace = true
-
-[build-dependencies]
-wdk-build.workspace = true
 
 [dev-dependencies]
 wdk-sys = { workspace = true, features = ["test-stubs"] }

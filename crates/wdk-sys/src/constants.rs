@@ -3,7 +3,13 @@
 
 #![allow(missing_docs)]
 
-use crate::types::{NTSTATUS, POOL_FLAGS, PVOID, PWDF_OBJECT_ATTRIBUTES};
+pub use bindings::*;
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub use kernel_mode::*;
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+pub use wdf::*;
+
+use crate::types::NTSTATUS;
 
 #[allow(non_upper_case_globals)]
 #[rustversion::attr(
@@ -23,31 +29,40 @@ mod bindings {
 
     include!(concat!(env!("OUT_DIR"), "/constants.rs"));
 }
-pub use bindings::*;
 
-pub const WDF_NO_OBJECT_ATTRIBUTES: PWDF_OBJECT_ATTRIBUTES = core::ptr::null_mut();
-pub const WDF_NO_EVENT_CALLBACK: PVOID = core::ptr::null_mut();
-pub const WDF_NO_HANDLE: PVOID = core::ptr::null_mut();
-pub const WDF_NO_CONTEXT: PVOID = core::ptr::null_mut();
-pub const WDF_NO_SEND_OPTIONS: PVOID = core::ptr::null_mut();
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+mod wdf {
+    use crate::types::{PVOID, PWDF_OBJECT_ATTRIBUTES};
 
-// Macros with MSVC C Integer Constant Suffixes are not supported by bindgen, so they must be manually ported or imported from elsewhere: https://github.com/rust-lang/rust-bindgen/issues/2600
-pub const POOL_FLAG_REQUIRED_START: POOL_FLAGS = 0x0000_0000_0000_0001;
-pub const POOL_FLAG_USE_QUOTA: POOL_FLAGS = 0x0000_0000_0000_0001; // Charge quota
-pub const POOL_FLAG_UNINITIALIZED: POOL_FLAGS = 0x0000_0000_0000_0002; // Don't zero-initialize allocation
-pub const POOL_FLAG_SESSION: POOL_FLAGS = 0x0000_0000_0000_0004; // Use session specific pool
-pub const POOL_FLAG_CACHE_ALIGNED: POOL_FLAGS = 0x0000_0000_0000_0008; // Cache aligned allocation
-pub const POOL_FLAG_RESERVED1: POOL_FLAGS = 0x0000_0000_0000_0010; // Reserved for system use
-pub const POOL_FLAG_RAISE_ON_FAILURE: POOL_FLAGS = 0x0000_0000_0000_0020; // Raise exception on failure
-pub const POOL_FLAG_NON_PAGED: POOL_FLAGS = 0x0000_0000_0000_0040; // Non paged pool NX
-pub const POOL_FLAG_NON_PAGED_EXECUTE: POOL_FLAGS = 0x0000_0000_0000_0080; // Non paged pool executable
-pub const POOL_FLAG_PAGED: POOL_FLAGS = 0x0000_0000_0000_0100; // Paged pool
-pub const POOL_FLAG_RESERVED2: POOL_FLAGS = 0x0000_0000_0000_0200; // Reserved for system use
-pub const POOL_FLAG_RESERVED3: POOL_FLAGS = 0x0000_0000_0000_0400; // Reserved for system use
-pub const POOL_FLAG_REQUIRED_END: POOL_FLAGS = 0x0000_0000_8000_0000;
-pub const POOL_FLAG_OPTIONAL_START: POOL_FLAGS = 0x0000_0001_0000_0000;
-pub const POOL_FLAG_SPECIAL_POOL: POOL_FLAGS = 0x0000_0001_0000_0000; // Make special pool allocation
-pub const POOL_FLAG_OPTIONAL_END: POOL_FLAGS = 0x8000_0000_0000_0000;
+    pub const WDF_NO_OBJECT_ATTRIBUTES: PWDF_OBJECT_ATTRIBUTES = core::ptr::null_mut();
+    pub const WDF_NO_EVENT_CALLBACK: PVOID = core::ptr::null_mut();
+    pub const WDF_NO_HANDLE: PVOID = core::ptr::null_mut();
+    pub const WDF_NO_CONTEXT: PVOID = core::ptr::null_mut();
+    pub const WDF_NO_SEND_OPTIONS: PVOID = core::ptr::null_mut();
+}
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+mod kernel_mode {
+    use crate::types::POOL_FLAGS;
+
+    // Macros with MSVC C Integer Constant Suffixes are not supported by bindgen, so they must be manually ported or imported from elsewhere: https://github.com/rust-lang/rust-bindgen/issues/2600
+    pub const POOL_FLAG_REQUIRED_START: POOL_FLAGS = 0x0000_0000_0000_0001;
+    pub const POOL_FLAG_USE_QUOTA: POOL_FLAGS = 0x0000_0000_0000_0001; // Charge quota
+    pub const POOL_FLAG_UNINITIALIZED: POOL_FLAGS = 0x0000_0000_0000_0002; // Don't zero-initialize allocation
+    pub const POOL_FLAG_SESSION: POOL_FLAGS = 0x0000_0000_0000_0004; // Use session specific pool
+    pub const POOL_FLAG_CACHE_ALIGNED: POOL_FLAGS = 0x0000_0000_0000_0008; // Cache aligned allocation
+    pub const POOL_FLAG_RESERVED1: POOL_FLAGS = 0x0000_0000_0000_0010; // Reserved for system use
+    pub const POOL_FLAG_RAISE_ON_FAILURE: POOL_FLAGS = 0x0000_0000_0000_0020; // Raise exception on failure
+    pub const POOL_FLAG_NON_PAGED: POOL_FLAGS = 0x0000_0000_0000_0040; // Non paged pool NX
+    pub const POOL_FLAG_NON_PAGED_EXECUTE: POOL_FLAGS = 0x0000_0000_0000_0080; // Non paged pool executable
+    pub const POOL_FLAG_PAGED: POOL_FLAGS = 0x0000_0000_0000_0100; // Paged pool
+    pub const POOL_FLAG_RESERVED2: POOL_FLAGS = 0x0000_0000_0000_0200; // Reserved for system use
+    pub const POOL_FLAG_RESERVED3: POOL_FLAGS = 0x0000_0000_0000_0400; // Reserved for system use
+    pub const POOL_FLAG_REQUIRED_END: POOL_FLAGS = 0x0000_0000_8000_0000;
+    pub const POOL_FLAG_OPTIONAL_START: POOL_FLAGS = 0x0000_0001_0000_0000;
+    pub const POOL_FLAG_SPECIAL_POOL: POOL_FLAGS = 0x0000_0001_0000_0000; // Make special pool allocation
+    pub const POOL_FLAG_OPTIONAL_END: POOL_FLAGS = 0x8000_0000_0000_0000;
+}
 
 // Due to linker issues with windows_sys, these definitions are manually
 // imported definitions from windows_sys::Win32::Foundation:

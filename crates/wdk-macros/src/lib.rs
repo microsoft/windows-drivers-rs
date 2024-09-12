@@ -4,13 +4,8 @@
 //! A collection of macros that help make it easier to interact with
 //! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
 
-use std::{
-    io::{BufReader, Read},
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use std::path::PathBuf;
 
-use cargo_metadata::{Message, MetadataCommand, PackageId};
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -32,6 +27,7 @@ use syn::{
     Ident,
     Item,
     ItemType,
+    LitStr,
     Path,
     PathArguments,
     PathSegment,
@@ -43,55 +39,20 @@ use syn::{
     Type,
     TypeBareFn,
     TypePath,
-    TypePtr,
 };
 
 /// A procedural macro that allows WDF functions to be called by name.
 ///
-/// This function parses the name of the WDF function, finds it function pointer
-/// from the WDF function table, and then calls it with the arguments passed to
-/// it
-///
-/// # Safety
-/// Function arguments must abide by any rules outlined in the WDF
-/// documentation. This macro does not perform any validation of the arguments
-/// passed to it., beyond type validation.
-///
-/// # Examples
-///
-/// ```rust, no_run
-/// use wdk_sys::*;
-///
-/// #[export_name = "DriverEntry"]
-/// pub extern "system" fn driver_entry(
-///     driver: &mut DRIVER_OBJECT,
-///     registry_path: PCUNICODE_STRING,
-/// ) -> NTSTATUS {
-///     let mut driver_config = WDF_DRIVER_CONFIG {
-///         Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
-///         ..WDF_DRIVER_CONFIG::default()
-///     };
-///     let driver_handle_output = WDF_NO_HANDLE as *mut WDFDRIVER;
-///
-///     unsafe {
-///         wdk_macros::call_unsafe_wdf_function_binding!(
-///             WdfDriverCreate,
-///             driver as PDRIVER_OBJECT,
-///             registry_path,
-///             WDF_NO_OBJECT_ATTRIBUTES,
-///             &mut driver_config,
-///             driver_handle_output,
-///         )
-///     }
-/// }
-/// ```
-#[allow(clippy::unnecessary_safety_doc)]
+/// This macro is only intended to be used in the `wdk-sys` crate. Users wanting
+/// to call WDF functions should use the macro in `wdk-sys`. This macro differs
+/// from the one in [`wdk-sys`] in that it must pass in the generated types from
+/// `wdk-sys` as an argument to the macro.
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
 }
 
-/// A trait to provide additional functionality to the `String` type
+/// A trait to provide additional functionality to the [`String`] type
 trait StringExt {
     /// Convert a string to `snake_case`
     fn to_snake_case(&self) -> String;
@@ -101,6 +62,8 @@ trait StringExt {
 /// `call_unsafe_wdf_function_binding` macro
 #[derive(Debug, PartialEq)]
 struct Inputs {
+    /// Path to file where generated type information resides.
+    types_path: LitStr,
     /// The name of the WDF function to call. This matches the name of the
     /// function in C/C++.
     wdf_function_identifier: Ident,
@@ -109,9 +72,9 @@ struct Inputs {
     wdf_function_arguments: Punctuated<Expr, Token![,]>,
 }
 
-/// Struct storing all the AST fragments derived from `Inputs`. This represents
-/// all the derived ASTs depend on `Inputs` that ultimately get used in the
-/// final generated code that.
+/// Struct storing all the AST fragments derived from [`Inputs`]. This
+/// represents all the ASTs derived from [`Inputs`]. These ultimately get used
+/// in the final generated code.
 #[derive(Debug, PartialEq)]
 struct DerivedASTFragments {
     function_pointer_type: Ident,
@@ -124,7 +87,7 @@ struct DerivedASTFragments {
 }
 
 /// Struct storing the AST fragments that form distinct sections of the final
-/// generated code. These sections are derived from `DerivedASTFragments`.
+/// generated code. Each field is derived from [`DerivedASTFragments`].
 struct IntermediateOutputASTFragments {
     must_use_attribute: Option<Attribute>,
     inline_wdf_fn_signature: Signature,
@@ -170,11 +133,15 @@ impl StringExt for String {
 
 impl Parse for Inputs {
     fn parse(input: ParseStream) -> Result<Self> {
+        let types_path = input.parse::<LitStr>()?;
+
+        input.parse::<Token![,]>()?;
         let c_wdf_function_identifier = input.parse::<Ident>()?;
 
         // Support WDF apis with no arguments
         if input.is_empty() {
             return Ok(Self {
+                types_path,
                 wdf_function_identifier: c_wdf_function_identifier,
                 wdf_function_arguments: Punctuated::new(),
             });
@@ -184,6 +151,7 @@ impl Parse for Inputs {
         let wdf_function_arguments = input.parse_terminated(Expr::parse, Token![,])?;
 
         Ok(Self {
+            types_path,
             wdf_function_identifier: c_wdf_function_identifier,
             wdf_function_arguments,
         })
@@ -202,8 +170,10 @@ impl Inputs {
             wdf_function_identifier = self.wdf_function_identifier,
             span = self.wdf_function_identifier.span()
         );
+
+        let types_ast = parse_types_ast(&self.types_path)?;
         let (parameters, return_type) =
-            generate_parameters_and_return_type(&function_pointer_type)?;
+            generate_parameters_and_return_type(&types_ast, &function_pointer_type)?;
         let parameter_identifiers = parameters
             .iter()
             .cloned()
@@ -311,13 +281,23 @@ impl IntermediateOutputASTFragments {
 
         quote! {
             {
-                #conditional_must_use_attribute
-                #[inline(always)]
-                #inline_wdf_fn_signature {
-                    #(#inline_wdf_fn_body_statments)*
+                // Use a private module to prevent leaking of glob import into inline_wdf_fn_invocation's parameters
+                mod private__ {
+                    // Glob import types from wdk_sys. glob importing is done instead of blindly prepending the
+                    // paramters types with wdk_sys:: because bindgen generates some paramters as native rust types
+                    use wdk_sys::*;
+
+                    // If the function returns a value, add a `#[must_use]` attribute to the function
+                    #conditional_must_use_attribute
+                    // Encapsulate the code in an inline functions to allow for condition must_use attribute.
+                    //  core::hint::must_use is not stable yet: https://github.com/rust-lang/rust/issues/94745
+                    #[inline(always)]
+                    pub #inline_wdf_fn_signature {
+                        #(#inline_wdf_fn_body_statments)*
+                    }
                 }
 
-                #inline_wdf_fn_invocation
+                private__::#inline_wdf_fn_invocation
             }
         }
     }
@@ -339,9 +319,49 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         .assemble_final_output()
 }
 
+fn parse_types_ast(path: &LitStr) -> Result<File> {
+    let types_path = PathBuf::from(path.value());
+    let types_path = match types_path.canonicalize() {
+        Ok(types_path) => types_path,
+        Err(err) => {
+            return Err(Error::new(
+                path.span(),
+                format!(
+                    "Failed to canonicalize types_path ({}): {err}",
+                    types_path.display()
+                ),
+            ));
+        }
+    };
+
+    let types_file_contents = match std::fs::read_to_string(&types_path) {
+        Ok(contents) => contents,
+        Err(err) => {
+            return Err(Error::new(
+                path.span(),
+                format!(
+                    "Failed to read wdk-sys types information from {}: {err}",
+                    types_path.display(),
+                ),
+            ));
+        }
+    };
+
+    match parse_file(&types_file_contents) {
+        Ok(wdk_sys_types_rs_abstract_syntax_tree) => Ok(wdk_sys_types_rs_abstract_syntax_tree),
+        Err(err) => Err(Error::new(
+            path.span(),
+            format!(
+                "Failed to parse wdk-sys types information from {} into AST: {err}",
+                types_path.display(),
+            ),
+        )),
+    }
+}
+
 /// Generate the function parameters and return type corresponding to the
-/// function signature of the `function_pointer_type` type alias in the AST for
-/// types.rs
+/// function signature of the `function_pointer_type` type alias found in
+/// bindgen-generated types information
 ///
 /// # Examples
 ///
@@ -349,175 +369,22 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
 /// return a [`Punctuated`] representation of
 ///
 /// ```rust, compile_fail
-/// DriverObject: wdk_sys::PDRIVER_OBJECT,
-/// RegistryPath: wdk_sys::PCUNICODE_STRING,
-/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
-/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER
+/// DriverObject: PDRIVER_OBJECT,
+/// RegistryPath: PCUNICODE_STRING,
+/// DriverAttributes: WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: PWDF_DRIVER_CONFIG,
+/// Driver: *mut WDFDRIVER
 /// ```
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
 fn generate_parameters_and_return_type(
+    types_ast: &File,
     function_pointer_type: &Ident,
 ) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
-    let types_rs_ast = get_type_rs_ast()?;
-    let type_alias_definition = find_type_alias_definition(&types_rs_ast, function_pointer_type)?;
+    let type_alias_definition = find_type_alias_definition(types_ast, function_pointer_type)?;
     let fn_pointer_definition =
         extract_fn_pointer_definition(type_alias_definition, function_pointer_type.span())?;
     parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())
-}
-
-/// Finds the `types.rs` file generated by `wdk-sys` and parses it into an AST
-fn get_type_rs_ast() -> Result<File> {
-    let types_rs_path = find_wdk_sys_out_dir()?.join("types.rs");
-    let types_rs_contents = match std::fs::read_to_string(&types_rs_path) {
-        Ok(contents) => contents,
-        Err(err) => {
-            return Err(Error::new(
-                Span::call_site(),
-                format!(
-                    "Failed to read wdk-sys types.rs at {}: {}",
-                    types_rs_path.display(),
-                    err
-                ),
-            ));
-        }
-    };
-
-    match parse_file(&types_rs_contents) {
-        Ok(wdk_sys_types_rs_abstract_syntax_tree) => Ok(wdk_sys_types_rs_abstract_syntax_tree),
-        Err(err) => Err(Error::new(
-            Span::call_site(),
-            format!(
-                "Failed to parse wdk-sys types.rs into AST at {}: {}",
-                types_rs_path.display(),
-                err
-            ),
-        )),
-    }
-}
-
-/// Find the `OUT_DIR` of wdk-sys crate by running `cargo check` with
-/// `--message-format=json` and parsing its output using [`cargo_metadata`]
-fn find_wdk_sys_out_dir() -> Result<PathBuf> {
-    let scratch_path = scratch::path(env!("CARGO_PKG_NAME"));
-    let mut cargo_check_process_handle = match Command::new("cargo")
-        .args([
-            "check",
-            "--message-format=json",
-            "--package",
-            "wdk-sys",
-            // must have a seperate target directory to prevent deadlock from cargo holding a
-            // file lock on build output directory since this proc_macro causes
-            // cargo build to invoke cargo check
-            "--target-dir",
-            scratch_path
-                .as_os_str()
-                .to_str()
-                .expect("scratch::path should be valid UTF-8"),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
-        Ok(process) => process,
-        Err(err) => {
-            return Err(Error::new(
-                Span::call_site(),
-                format!("Failed to start cargo check process successfully: {err}"),
-            ));
-        }
-    };
-
-    let wdk_sys_pkg_id = find_wdk_sys_pkg_id()?;
-    let wdk_sys_out_dir = cargo_metadata::Message::parse_stream(BufReader::new(
-        cargo_check_process_handle
-            .stdout
-            .take()
-            .expect("cargo check process should have valid stdout handle"),
-    ))
-    .filter_map(|message| {
-        if let Ok(Message::BuildScriptExecuted(build_script_message)) = message {
-            if build_script_message.package_id == wdk_sys_pkg_id {
-                return Some(build_script_message.out_dir);
-            }
-        }
-        None
-    })
-    .collect::<Vec<_>>();
-    let wdk_sys_out_dir = match wdk_sys_out_dir.len() {
-        1 => &wdk_sys_out_dir[0],
-        _ => {
-            return Err(Error::new(
-                Span::call_site(),
-                format!(
-                    "Expected exactly one instance of wdk-sys in dependency graph when running \
-                     `cargo check`, found {}",
-                    wdk_sys_out_dir.len()
-                ),
-            ));
-        }
-    };
-    match cargo_check_process_handle.wait() {
-        Ok(exit_status) => {
-            if !exit_status.success() {
-                let mut stderr_output = String::new();
-                BufReader::new(
-                    cargo_check_process_handle
-                        .stderr
-                        .take()
-                        .expect("cargo check process should have valid stderr handle"),
-                )
-                .read_to_string(&mut stderr_output)
-                .expect("cargo check process' stderr should be valid UTF-8");
-                return Err(Error::new(
-                    Span::call_site(),
-                    format!(
-                        "cargo check failed to execute to get OUT_DIR for wdk-sys: \
-                         \n{stderr_output}"
-                    ),
-                ));
-            }
-        }
-        Err(err) => {
-            return Err(Error::new(
-                Span::call_site(),
-                format!("cargo check process handle should sucessfully be waited on: {err}"),
-            ));
-        }
-    }
-
-    Ok(wdk_sys_out_dir.to_owned().into())
-}
-
-/// find wdk-sys `package_id`. WDR places a limitation that only one instance of
-/// wdk-sys is allowed in the dependency graph
-fn find_wdk_sys_pkg_id() -> Result<PackageId> {
-    let cargo_metadata_packages_list = match MetadataCommand::new().exec() {
-        Ok(metadata) => metadata.packages,
-        Err(err) => {
-            return Err(Error::new(
-                Span::call_site(),
-                format!("cargo metadata failed to run successfully: {err}"),
-            ));
-        }
-    };
-    let wdk_sys_package_matches = cargo_metadata_packages_list
-        .iter()
-        .filter(|package| package.name == "wdk-sys")
-        .collect::<Vec<_>>();
-
-    if wdk_sys_package_matches.len() != 1 {
-        return Err(Error::new(
-            Span::call_site(),
-            format!(
-                "Expected exactly one instance of wdk-sys in dependency graph when running `cargo \
-                 metadata`, found {}",
-                wdk_sys_package_matches.len()
-            ),
-        ));
-    }
-    Ok(wdk_sys_package_matches[0].id.clone())
 }
 
 /// Find type alias declaration and definition that matches the Ident of
@@ -541,10 +408,10 @@ fn find_wdk_sys_pkg_id() -> Result<PackageId> {
 /// >;
 /// ```
 fn find_type_alias_definition<'a>(
-    file_ast: &'a File,
+    types_ast: &'a File,
     function_pointer_type: &Ident,
 ) -> Result<&'a ItemType> {
-    file_ast
+    types_ast
         .items
         .iter()
         .find_map(|item| {
@@ -632,11 +499,11 @@ fn extract_fn_pointer_definition(type_alias: &ItemType, error_span: Span) -> Res
 /// of
 ///
 /// ```rust, compile_fail
-/// DriverObject: wdk_sys::PDRIVER_OBJECT,
-/// RegistryPath: wdk_sys::PCUNICODE_STRING,
-/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
-/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER
+/// DriverObject: PDRIVER_OBJECT,
+/// RegistryPath: PCUNICODE_STRING,
+/// DriverAttributes: WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: PWDF_DRIVER_CONFIG,
+/// Driver: *mut WDFDRIVER
 /// ```
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
@@ -646,7 +513,7 @@ fn parse_fn_pointer_definition(
 ) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
     let bare_fn_type = extract_bare_fn_type(fn_pointer_typepath, error_span)?;
     let fn_parameters = compute_fn_parameters(bare_fn_type, error_span)?;
-    let return_type = compute_return_type(bare_fn_type, error_span)?;
+    let return_type = compute_return_type(bare_fn_type);
 
     Ok((fn_parameters, return_type))
 }
@@ -728,8 +595,7 @@ fn extract_bare_fn_type(fn_pointer_typepath: &TypePath, error_span: Span) -> Res
     Ok(bare_fn_type)
 }
 
-/// Compute the function parameters based on the function definition. Prepends
-/// `wdk_sys::` to the parameter types
+/// Compute the function parameters based on the function definition
 ///
 /// # Examples
 ///
@@ -748,16 +614,17 @@ fn extract_bare_fn_type(fn_pointer_typepath: &TypePath, error_span: Span) -> Res
 ///
 /// would return the [`Punctuated`] representation of
 /// ```rust, compile_fail
-/// DriverObject: wdk_sys::PDRIVER_OBJECT,
-/// RegistryPath: wdk_sys::PCUNICODE_STRING,
-/// DriverAttributes: wdk_sys::WDF_OBJECT_ATTRIBUTES,
-/// DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-/// Driver: *mut wdk_sys::WDFDRIVER
+/// DriverObject: PDRIVER_OBJECT,
+/// RegistryPath: PCUNICODE_STRING,
+/// DriverAttributes: WDF_OBJECT_ATTRIBUTES,
+/// DriverConfig: PWDF_DRIVER_CONFIG,
+/// Driver: *mut WDFDRIVER
 /// ```
 fn compute_fn_parameters(
     bare_fn_type: &syn::TypeBareFn,
     error_span: Span,
 ) -> Result<Punctuated<BareFnArg, Token![,]>> {
+    // Validate that the first parameter is PWDF_DRIVER_GLOBALS
     let Some(BareFnArg {
         ty:
             Type::Path(TypePath {
@@ -795,66 +662,31 @@ fn compute_fn_parameters(
         ));
     }
 
-    // discard the PWDF_DRIVER_GLOBALS parameter and prepend wdk_sys to the rest of
-    // the parameters
-    let parameters = bare_fn_type
+    Ok(bare_fn_type
         .inputs
         .iter()
         .skip(1)
-        .cloned()
-        .map(|mut bare_fn_arg| {
-            let parameter_type_path_segments: &mut Punctuated<PathSegment, syn::token::PathSep> =
-                match &mut bare_fn_arg.ty {
-                    Type::Path(TypePath {
-                        path:
-                            Path {
-                                ref mut segments, ..
-                            },
-                        ..
-                    }) => segments,
-
-                    Type::Ptr(TypePtr { elem: ty, .. }) => {
-                        let Type::Path(TypePath {
-                            path:
-                                Path {
-                                    ref mut segments, ..
-                                },
-                            ..
-                        }) = **ty
-                        else {
-                            return Err(Error::new(
-                                error_span,
-                                format!(
-                                    "Failed to parse PathSegments out of TypePtr function \
-                                     parameter:\n{bare_fn_arg:#?}"
-                                ),
-                            ));
-                        };
-                        segments
-                    }
-
-                    _ => {
-                        return Err(Error::new(
-                            error_span,
-                            format!(
-                                "Unexpected Type encountered when parsing function \
-                                 parameter:\n{bare_fn_arg:#?}",
-                            ),
-                        ));
-                    }
+        // transform argument names to snake_case with trailing underscores to lessen likelihood
+        // of shadowing issues
+        .map(|fn_arg| {
+            let arg_name = fn_arg.name.as_ref().map(|(ident, colon_token)| {
+                let modified_name = {
+                    let mut name = ident.to_string().to_snake_case();
+                    name.push_str("__");
+                    name
                 };
+                (Ident::new(&modified_name, ident.span()), *colon_token)
+            });
 
-            parameter_type_path_segments
-                .insert(0, syn::PathSegment::from(format_ident!("wdk_sys")));
-            Ok(bare_fn_arg)
+            BareFnArg {
+                name: arg_name,
+                ..fn_arg.clone()
+            }
         })
-        .collect::<Result<_>>()?;
-
-    Ok(parameters)
+        .collect())
 }
 
-/// Compute the return type based on the function defintion. Prepends the return
-/// type with `wdk_sys::`
+/// Compute the return type based on the function defintion
 ///
 /// # Examples
 ///
@@ -872,42 +704,8 @@ fn compute_fn_parameters(
 /// ```
 ///
 /// would return the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
-fn compute_return_type(bare_fn_type: &syn::TypeBareFn, error_span: Span) -> Result<ReturnType> {
-    let return_type = match &bare_fn_type.output {
-        ReturnType::Default => ReturnType::Default,
-        ReturnType::Type(right_arrow_token, ty) => ReturnType::Type(
-            *right_arrow_token,
-            Box::new(Type::Path(TypePath {
-                qself: None,
-                path: Path {
-                    leading_colon: None,
-                    segments: {
-                        // prepend wdk_sys to existing TypePath
-                        let Type::Path(TypePath {
-                            path: Path { ref segments, .. },
-                            ..
-                        }) = **ty
-                        else {
-                            return Err(Error::new(
-                                error_span,
-                                format!("Failed to parse ReturnType TypePath:\n{ty:#?}"),
-                            ));
-                        };
-                        let mut segments = segments.clone();
-                        segments.insert(
-                            0,
-                            PathSegment {
-                                ident: format_ident!("wdk_sys"),
-                                arguments: PathArguments::None,
-                            },
-                        );
-                        segments
-                    },
-                },
-            })),
-        ),
-    };
-    Ok(return_type)
+fn compute_return_type(bare_fn_type: &syn::TypeBareFn) -> ReturnType {
+    bare_fn_type.output.clone()
 }
 
 /// Generate the `#[must_use]` attribute if the return type is not `()`
@@ -1018,8 +816,9 @@ mod tests {
 
             #[test]
             fn valid_input() {
-                let input_tokens = quote! { WdfDriverCreate, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output };
+                let input_tokens = quote! { "/path/to/generated/types/file.rs", WdfDriverCreate, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output };
                 let expected = Inputs {
+                    types_path: parse_quote! { "/path/to/generated/types/file.rs" },
                     wdf_function_identifier: format_ident!("WdfDriverCreate"),
                     wdf_function_arguments: parse_quote! {
                         driver,
@@ -1035,8 +834,9 @@ mod tests {
 
             #[test]
             fn valid_input_with_trailing_comma() {
-                let input_tokens = quote! { WdfDriverCreate, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output, };
+                let input_tokens = quote! { "/path/to/generated/types/file.rs" , WdfDriverCreate, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output, };
                 let expected = Inputs {
+                    types_path: parse_quote! { "/path/to/generated/types/file.rs" },
                     wdf_function_identifier: format_ident!("WdfDriverCreate"),
                     wdf_function_arguments: parse_quote! {
                         driver,
@@ -1052,8 +852,10 @@ mod tests {
 
             #[test]
             fn wdf_function_with_no_arguments() {
-                let input_tokens = quote! { WdfVerifierDbgBreakPoint };
+                let input_tokens =
+                    quote! { "/path/to/generated/types/file.rs", WdfVerifierDbgBreakPoint };
                 let expected = Inputs {
+                    types_path: parse_quote! { "/path/to/generated/types/file.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
                     wdf_function_arguments: Punctuated::new(),
                 };
@@ -1063,8 +865,10 @@ mod tests {
 
             #[test]
             fn wdf_function_with_no_arguments_and_trailing_comma() {
-                let input_tokens = quote! { WdfVerifierDbgBreakPoint, };
+                let input_tokens =
+                    quote! { "/path/to/generated/types/file.rs", WdfVerifierDbgBreakPoint, };
                 let expected = Inputs {
+                    types_path: parse_quote! { "/path/to/generated/types/file.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
                     wdf_function_arguments: Punctuated::new(),
                 };
@@ -1074,7 +878,7 @@ mod tests {
 
             #[test]
             fn invalid_ident() {
-                let input_tokens = quote! { 123InvalidIdent, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output, };
+                let input_tokens = quote! { "/path/to/generated/types/file.rs", 23InvalidIdent, driver, registry_path, WDF_NO_OBJECT_ATTRIBUTES, &mut driver_config, driver_handle_output, };
                 let expected = Error::new(Span::call_site(), "expected identifier");
 
                 pretty_assert_eq!(
@@ -1090,6 +894,7 @@ mod tests {
             #[test]
             fn valid_input() {
                 let inputs = Inputs {
+                    types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfDriverCreate"),
                     wdf_function_arguments: parse_quote! {
                         driver,
@@ -1103,20 +908,20 @@ mod tests {
                     function_pointer_type: format_ident!("PFN_WDFDRIVERCREATE"),
                     function_table_index: format_ident!("WdfDriverCreateTableIndex"),
                     parameters: parse_quote! {
-                        DriverObject: wdk_sys::PDRIVER_OBJECT,
-                        RegistryPath: wdk_sys::PCUNICODE_STRING,
-                        DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                        DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                        Driver: *mut wdk_sys::WDFDRIVER
+                        driver_object__: PDRIVER_OBJECT,
+                        registry_path__: PCUNICODE_STRING,
+                        driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                        driver_config__: PWDF_DRIVER_CONFIG,
+                        driver__: *mut WDFDRIVER
                     },
                     parameter_identifiers: parse_quote! {
-                        DriverObject,
-                        RegistryPath,
-                        DriverAttributes,
-                        DriverConfig,
-                        Driver
+                        driver_object__,
+                        registry_path__,
+                        driver_attributes__,
+                        driver_config__,
+                        driver__
                     },
-                    return_type: parse_quote! { -> wdk_sys::NTSTATUS },
+                    return_type: parse_quote! { -> NTSTATUS },
                     arguments: parse_quote! {
                         driver,
                         registry_path,
@@ -1133,6 +938,7 @@ mod tests {
             #[test]
             fn valid_input_with_no_arguments() {
                 let inputs = Inputs {
+                    types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
                     wdf_function_arguments: Punctuated::new(),
                 };
@@ -1156,16 +962,23 @@ mod tests {
 
         #[test]
         fn valid_input() {
+            // This is a snippet of a bindgen-generated file containing types information
+            // used by tests for [`wdk_macros::call_unsafe_wdf_function_binding!`]
+            let types_ast = parse_quote! {
+                pub type PFN_WDFIOQUEUEPURGESYNCHRONOUSLY = ::core::option::Option<
+                    unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS, Queue: WDFQUEUE),
+                >;
+            };
             let function_pointer_type = format_ident!("PFN_WDFIOQUEUEPURGESYNCHRONOUSLY");
             let expected = (
                 parse_quote! {
-                    Queue: wdk_sys::WDFQUEUE
+                    queue__: WDFQUEUE
                 },
                 ReturnType::Default,
             );
 
             pretty_assert_eq!(
-                generate_parameters_and_return_type(&function_pointer_type).unwrap(),
+                generate_parameters_and_return_type(&types_ast, &function_pointer_type).unwrap(),
                 expected
             );
         }
@@ -1176,8 +989,9 @@ mod tests {
 
         #[test]
         fn valid_input() {
-            // This is just a snippet of a generated types.rs file
-            let types_rs_ast = parse_quote! {
+            // This is a snippet of a bindgen-generated file containing types information
+            // used by tests for [`wdk_macros::call_unsafe_wdf_function_binding!`]
+            let types_ast = parse_quote! {
                 pub type WDF_DRIVER_GLOBALS = _WDF_DRIVER_GLOBALS;
                 pub type PWDF_DRIVER_GLOBALS = *mut _WDF_DRIVER_GLOBALS;
                 pub mod _WDFFUNCENUM {
@@ -1208,7 +1022,7 @@ mod tests {
             };
 
             pretty_assert_eq!(
-                find_type_alias_definition(&types_rs_ast, &function_pointer_type).unwrap(),
+                find_type_alias_definition(&types_ast, &function_pointer_type).unwrap(),
                 &expected
             );
         }
@@ -1284,15 +1098,15 @@ mod tests {
             };
             let expected = (
                 parse_quote! {
-                    DriverObject: wdk_sys::PDRIVER_OBJECT,
-                    RegistryPath: wdk_sys::PCUNICODE_STRING,
-                    DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                    DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                    Driver: *mut wdk_sys::WDFDRIVER
+                    driver_object__: PDRIVER_OBJECT,
+                    registry_path__: PCUNICODE_STRING,
+                    driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                    driver_config__: PWDF_DRIVER_CONFIG,
+                    driver__: *mut WDFDRIVER
                 },
                 ReturnType::Type(
                     Token![->](Span::call_site()),
-                    Box::new(Type::Path(parse_quote! { wdk_sys::NTSTATUS })),
+                    Box::new(Type::Path(parse_quote! { NTSTATUS })),
                 ),
             );
 
@@ -1370,11 +1184,11 @@ mod tests {
                 ) -> NTSTATUS
             };
             let expected = parse_quote! {
-                DriverObject: wdk_sys::PDRIVER_OBJECT,
-                RegistryPath: wdk_sys::PCUNICODE_STRING,
-                DriverAttributes: wdk_sys::PWDF_OBJECT_ATTRIBUTES,
-                DriverConfig: wdk_sys::PWDF_DRIVER_CONFIG,
-                Driver: *mut wdk_sys::WDFDRIVER
+                driver_object__: PDRIVER_OBJECT,
+                registry_path__: PCUNICODE_STRING,
+                driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                driver_config__: PWDF_DRIVER_CONFIG,
+                driver__: *mut WDFDRIVER
             };
 
             pretty_assert_eq!(
@@ -1416,13 +1230,10 @@ mod tests {
             };
             let expected = ReturnType::Type(
                 Token![->](Span::call_site()),
-                Box::new(Type::Path(parse_quote! { wdk_sys::NTSTATUS })),
+                Box::new(Type::Path(parse_quote! { NTSTATUS })),
             );
 
-            pretty_assert_eq!(
-                compute_return_type(&bare_fn_type, Span::call_site()).unwrap(),
-                expected
-            );
+            pretty_assert_eq!(compute_return_type(&bare_fn_type), expected);
         }
 
         #[test]
@@ -1436,10 +1247,7 @@ mod tests {
             };
             let expected = ReturnType::Default;
 
-            pretty_assert_eq!(
-                compute_return_type(&bare_fn_type, Span::call_site()).unwrap(),
-                expected
-            );
+            pretty_assert_eq!(compute_return_type(&bare_fn_type), expected);
         }
     }
 

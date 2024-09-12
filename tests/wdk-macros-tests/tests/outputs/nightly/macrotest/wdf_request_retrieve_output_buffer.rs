@@ -1,0 +1,1 @@
+../../../inputs/macrotest/wdf_request_retrieve_output_buffer.rs

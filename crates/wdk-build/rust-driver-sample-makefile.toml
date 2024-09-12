@@ -2,29 +2,6 @@
 # Using this file requires extending both the standard makefile and this makefile in order, as follows:
 # extend = [ { path =  "target/rust-driver-makefile.toml" }, { path = "target/rust-driver-sample-makefile.toml" } ]
 
-# This plugin replaces the embedded `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY` in the rust-script doc comment with its evaluated value. See https://github.com/sagiegurari/cargo-make/issues/1081 for more context.
-[plugins.impl.rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution]
-script = '''
-# Parse task json into variables
-taskjson = json_parse ${task.as_json}
-
-# Convert backslashes to forward slashes
-rust-driver-toolchain-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
-
-# Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchain-path
-taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchain-path}"
-
-# Unset the private flag since it breaks cm_plugin_run_custom_task
-unset taskjson.private
-
-# Reencode variables into json
-taskjson = json_encode taskjson
-
-# Run the invoking task, with the modified condition_script
-cm_plugin_run_custom_task ${taskjson}
-'''
-
-
 [tasks.wdk-samples-setup]
 private = true
 install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
@@ -36,23 +13,31 @@ script = '''
 //! wdk-build = { path = ".", version = "0.2.0" }
 //! ```
 #![allow(unused_doc_comments)]
+
 let env_string = std::env::var_os(wdk_build::cargo_make::WDK_VERSION_ENV_VAR)
     .map_or_else(
         || panic!("Couldn't read WDK build version that should have been set in init"),
         |os_env_string| os_env_string.to_string_lossy().into_owned(),
     );
-wdk_build::cargo_make::setup_infverif_for_samples(&env_string)?;
+let samples_infverif_env_vars = wdk_build::cargo_make::setup_infverif_for_samples(&env_string)?;
+
+wdk_build::cargo_make::forward_printed_env_vars(
+    samples_infverif_env_vars,
+);
 '''
 
 [tasks.infverif]
 dependencies = ["wdk-samples-setup", "stampinf"]
-plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 condition_script = '''
 #!@rust
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.2.0" }
 //! ```
 #![allow(unused_doc_comments)]
 

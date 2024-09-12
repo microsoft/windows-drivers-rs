@@ -5,4 +5,10 @@
 //! interacting with WDK apis which are inlined, and so are impossible to
 //! generate with [bindgen](https://docs.rs/bindgen/latest/bindgen/).
 
-pub use wdk_macros::*;
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+mod wdf {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/call_unsafe_wdf_function_binding.rs"
+    ));
+}

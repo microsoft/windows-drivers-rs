@@ -1,13 +1,23 @@
 [workspace]
 members = ["crates/*"]
+# Examples and tests must be excluded from the workspace since only one WDK configuration per build graph is supported.
+exclude = [
+  # Each example and test must be explicitly listed since glob is not currently supported for workspace.exclude: https://github.com/rust-lang/cargo/issues/6009
+  "examples/sample-kmdf-driver",
+  "examples/sample-umdf-driver",
+  "examples/sample-wdm-driver",
+  "tests/config-kmdf",
+  "tests/config-umdf",
+  "tests/config-wdm",
+  "tests/wdk-macros-tests",
+  "tests/wdk-sys-tests",
+]
 resolver = "2"
 
 [profile.dev]
-panic = "abort"
 lto = true
 
 [profile.release]
-panic = "abort"
 lto = true
 
 [workspace.package]
@@ -17,15 +27,54 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+# Workspace Crates
 wdk = { path = "crates/wdk", version = "0.2.0" }
 wdk-alloc = { path = "crates/wdk-alloc", version = "0.2.0" }
 wdk-build = { path = "crates/wdk-build", version = "0.2.0" }
 wdk-macros = { path = "crates/wdk-macros", version = "0.2.0" }
 wdk-panic = { path = "crates/wdk-panic", version = "0.2.0" }
 wdk-sys = { path = "crates/wdk-sys", version = "0.2.0" }
+
+# External Crates
+anyhow = "1.0.86"
 bindgen = "0.69.4"
-serde = { version = "1.0", features = ["derive"] }
+camino = "1.1.7"
+cargo_metadata = "0.18.1"
+cc = "1.1.0"
+clap = "4.5.9"
+clap-cargo = "0.14.0"
+itertools = "0.13.0"
+lazy_static = "1.5.0"
+paste = "1.0.15"
+pretty_assertions = "1.4.0"
+proc-macro2 = "1.0.86"
+quote = "1.0.36"
+rustversion = "1.0.17"
+serde = "1.0"
 serde_json = "1.0"
+syn = "2.0.70"
+thiserror = "1.0.62"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+windows = "0.58.0"
+
+# The following workspace.metadata.wdk sections can be uncommented to configure the workspace for a specific WDK configuration (ex. for rust-analyzer to resolve things for a specific configuration)
+
+# Uncomment the section below for KMDF
+# [workspace.metadata.wdk.driver-model]
+# driver-type = "KMDF"
+# kmdf-version-major = 1
+# target-kmdf-version-minor = 33
+
+# Uncomment the section below for UMDF
+# [workspace.metadata.wdk.driver-model]
+# driver-type = "UMDF"
+# umdf-version-major = 2
+# target-umdf-version-minor = 33
+
+# Uncomment the section below for WDM
+# [workspace.metadata.wdk.driver-model]
+# driver-type = "WDM"
 
 # Until https://github.com/rust-lang/cargo/issues/12208 is resolved, each package in the workspace needs to explictly
 # add the following block to its Cargo manifest in order to enable these global lint configurations:

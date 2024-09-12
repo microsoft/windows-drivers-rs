@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories: ["**/*"]
     schedule:
       interval: "weekly"
       day: "wednesday"
@@ -9,6 +9,8 @@ updates:
       time: "06:00"
     commit-message:
       prefix: "chore"
+    reviewers:
+      - "microsoft/windows-drivers-rs"
     labels:
       - "type:dependabot"
       - "type:dependencies-cargo"
@@ -22,6 +24,8 @@ updates:
       time: "06:00"
     commit-message:
       prefix: "chore"
+    reviewers:
+      - "microsoft/windows-drivers-rs"
     labels:
       - "type:dependabot"
       - "type:dependencies-github-actions"

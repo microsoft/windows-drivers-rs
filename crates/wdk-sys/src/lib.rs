@@ -5,19 +5,52 @@
 
 #![no_std]
 
-mod constants;
-mod types;
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
+pub use wdf::WDF_FUNCTION_TABLE;
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+pub use wdk_macros as __proc_macros;
 
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 pub use crate::{constants::*, types::*};
 
-pub mod macros;
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub mod ntddk;
+#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
+
+#[cfg(driver_model__driver_type = "UMDF")]
+pub mod windows;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
 
-use lazy_static::lazy_static;
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+mod constants;
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+mod types;
+
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+mod macros;
 
 // This is fine because we don't actually have any floating point instruction in
 // our binary, thanks to our target defining soft-floats. fltused symbol is
@@ -28,6 +61,7 @@ use lazy_static::lazy_static;
 pub static _fltused: () = ();
 
 // FIXME: Is there any way to avoid this stub? See https://github.com/rust-lang/rust/issues/101134
+#[cfg(panic = "abort")]
 #[allow(missing_docs)]
 #[allow(clippy::missing_const_for_fn)] // const extern is not yet supported: https://github.com/rust-lang/rust/issues/64926
 #[no_mangle]
@@ -35,39 +69,78 @@ pub extern "system" fn __CxxFrameHandler3() -> i32 {
     0
 }
 
-// FIXME: dynamically find name of this struct based off of wdk-build settings
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-lazy_static! {
-    #[allow(missing_docs)]
-    pub static ref WDF_FUNCTION_TABLE: &'static [WDFFUNC] = {
-        // SAFETY: `WdfFunctions_01033` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_table = unsafe { WdfFunctions_01033 };
-
-        // SAFETY: `WdfFunctionCount` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_count = unsafe { WdfFunctionCount } as usize;
-
-        // SAFETY: This is safe because:
-        //         1. `WdfFunctions_01033` is valid for reads for `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`
-        //            bytes, and is guaranteed to be aligned and it must be properly aligned.
-        //         2. `WdfFunctions_01033` points to `WdfFunctionCount` consecutive properly initialized values of
-        //            type `WDFFUNC`.
-        //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
-        //         4. The total size, `WdfFunctionCount` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
-        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
-        unsafe {
-            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<WDFFUNC>()).is_ok());
-            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
-        }
-    };
-}
-
-#[allow(missing_docs)]
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
 #[must_use]
 #[allow(non_snake_case)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is a success
+/// type (0 − 0x3FFFFFFF) or an informational type (0x40000000 − 0x7FFFFFFF).
+/// This function is taken from ntdef.h in the WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
 pub const fn NT_SUCCESS(nt_status: NTSTATUS) -> bool {
     nt_status >= 0
 }
 
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is an
+/// informational type (0x40000000 − 0x7FFFFFFF). This function is taken from
+/// ntdef.h in the WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
+pub const fn NT_INFORMATION(nt_status: NTSTATUS) -> bool {
+    (nt_status as u32 >> 30) == 1
+}
+
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is a warning
+/// type (0x80000000 − 0xBFFFFFFF).  This function is taken from ntdef.h in the
+/// WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
+pub const fn NT_WARNING(nt_status: NTSTATUS) -> bool {
+    (nt_status as u32 >> 30) == 2
+}
+
+#[cfg(any(
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
+    driver_model__driver_type = "UMDF"
+))]
+#[must_use]
+#[allow(non_snake_case)]
+#[allow(clippy::cast_sign_loss)]
+/// Evaluates to TRUE if the return value specified by `nt_status` is an error
+/// type (0xC0000000 - 0xFFFFFFFF). This function is taken from ntdef.h in the
+/// WDK.
+///
+/// See the [NTSTATUS reference](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781) and
+/// [Using NTSTATUS values](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values) for details.
+pub const fn NT_ERROR(nt_status: NTSTATUS) -> bool {
+    (nt_status as u32 >> 30) == 3
+}
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[allow(missing_docs)]
 #[macro_export]
 #[allow(non_snake_case)]
