@@ -1081,9 +1081,9 @@ pub fn driver_sample_infverif_condition_script() -> anyhow::Result<()> {
         let wdk_build_number = str::parse::<u32>(
             &get_wdk_version_number(&wdk_version).expect("Failed to get WDK version number"),
         )
-        .expect(&format!(
-            "Couldn't parse WDK version number! Version number: {wdk_version}"
-        ));
+        .unwrap_or_else(|_| {
+            panic!("Couldn't parse WDK version number! Version number: {wdk_version}")
+        });
         if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
             // cargo_make will interpret returning an error from the rust-script
             // condition_script as skipping the task
