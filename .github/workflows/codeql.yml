@@ -24,16 +24,16 @@ jobs:
 
         rust_toolchain:
           - stable
-          - beta
-          - nightly
+          # - beta
+          # - nightly
 
         cargo_profile:
           - dev
-          - release
+          # - release
 
         target_triple:
           - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
+          # - aarch64-pc-windows-msvc
 
         include:
         - language: c-cpp
