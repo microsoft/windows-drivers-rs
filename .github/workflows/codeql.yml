@@ -74,6 +74,11 @@ jobs:
         toolchain: ${{ matrix.rust_toolchain }}
         components: clippy
         targets: ${{ matrix.target_triple }}
+    
+    - name: Install Cargo Make
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-make
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
@@ -84,7 +89,7 @@ jobs:
 
     - if: matrix.build-mode == 'manual'
       working-directory: ./examples
-      run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
+      run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
