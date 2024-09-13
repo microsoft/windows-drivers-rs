@@ -713,6 +713,7 @@ dependencies = [
  "bindgen",
  "camino",
  "cargo_metadata",
+ "cfg-if",
  "clap",
  "clap-cargo",
  "lazy_static",

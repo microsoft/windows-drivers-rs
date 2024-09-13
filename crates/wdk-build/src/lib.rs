@@ -174,7 +174,14 @@ pub enum ConfigError {
     /// Error returned when the c runtime is not configured to be statically
     /// linked
     #[error(
-        "the C runtime is not properly configured to be statically linked. This is required for building kernel mode WDK drivers. The recommended solution is to add the following snippiet to a `.config.toml` file: [build]\n rustflags = [\"-C\", \"target-feature=+crt-static\"]\n\nSee https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways to enable static crt linkage."
+        "the C runtime is not properly configured to be statically linked. This is required for building WDK drivers. The recommended solution is to add the following snippet to a \
+        `.config.toml` file:
+[build]
+rustflags = [\"-C\", \"target-feature=+crt-static\"]
+
+\
+        See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways \
+        to enable static crt linkage."
     )]
     StaticCrtNotEnabled,
 
@@ -665,8 +672,16 @@ impl Config {
     ///
     /// Panics if the invoked from outside a Cargo build environment
     pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
-        if !Self::is_crt_static_linked() && matches!(self.driver_config, DriverConfig::Umdf(_)) {
-            return Err(ConfigError::StaticCrtNotEnabled);
+        if !Self::is_crt_static_linked() {
+            cfg_if::cfg_if! {
+                if #[cfg(all(wdk_build_unstable, skip_umdf_static_crt_check))] {
+                    if !matches!(self.driver_config, DriverConfig::Umdf(_)) {
+                        return Err(ConfigError::StaticCrtNotEnabled);
+                    }
+                } else {
+                    return Err(ConfigError::StaticCrtNotEnabled);
+                }
+            };
         }
 
         let library_paths: Vec<PathBuf> = self.get_library_paths()?;
