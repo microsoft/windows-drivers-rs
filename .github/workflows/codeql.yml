@@ -83,7 +83,8 @@ jobs:
         queries: security-extended,security-and-quality
 
     - if: matrix.build-mode == 'manual'
-      run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
+      working-directory: ./examples
+      run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
