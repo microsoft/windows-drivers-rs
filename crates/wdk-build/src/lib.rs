@@ -150,7 +150,7 @@ pub enum ConfigError {
 
     /// Error returned when the WDK version string does not match the expected
     /// format
-    #[error("the WDK version string provided ({version}) was not in a valid format.")]
+    #[error("the WDK version string provided ({version}) was not in a valid format")]
     WdkVersionStringFormatError {
         /// The incorrect WDK version string.
         version: String,
@@ -181,7 +181,7 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
 
 \
         See https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes for more ways \
-        to enable static crt linkage."
+        to enable static crt linkage"
     )]
     StaticCrtNotEnabled,
 
