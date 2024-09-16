@@ -1,0 +1,27 @@
+name: Cargo Audit
+on:
+  push:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+  pull_request:
+  merge_group:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: 0 11 * * *
+
+jobs:
+  cargo_audit:
+    name: Cargo Audit
+    runs-on: windows-latest
+    permissions:
+      issues: write
+      checks: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Cargo Audit
+        uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
