@@ -36,8 +36,5 @@ group_imports = "StdExternalCrate"
 # Unstable: https://github.com/rust-lang/rustfmt/issues/3363
 reorder_impl_items = true
 
-# Unstable: https://github.com/rust-lang/rustfmt/issues/3383
-version = "Two"
-
 # Unstable: https://github.com/rust-lang/rustfmt/issues/3347
 wrap_comments = true

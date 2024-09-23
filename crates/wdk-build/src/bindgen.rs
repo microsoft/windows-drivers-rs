@@ -82,6 +82,7 @@ impl BuilderExt for Builder {
             .blocklist_item("ExAllocatePoolWithTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
+            .blocklist_item("ExAllocatePool") // Deprecated
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
             .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_XPF_MCA_SECTION")
