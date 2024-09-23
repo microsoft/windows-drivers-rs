@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Private module for utility code related to the cargo-make experience for
+//! building drivers.
+
 use std::{
     env,
     ffi::CStr,

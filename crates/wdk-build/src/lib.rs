@@ -17,9 +17,8 @@ use metadata::TryFromCargoMetadataError;
 
 pub mod cargo_make;
 pub mod metadata;
-/// Module for utility code related to the cargo-make experience for building
-/// drivers.
-pub mod utils;
+
+mod utils;
 
 mod bindgen;
 
