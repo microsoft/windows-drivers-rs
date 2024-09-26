@@ -1,2 +1,11 @@
 [build]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = [
+  "-C",
+  "target-feature=+crt-static",
+
+  # Enable unstable cfg options:
+  # "--cfg", "wdk_build_unstable",
+
+  # Unstable cfg options:
+  # "--cfg", "skip_umdf_static_crt_check",
+]

@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -475,7 +475,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -483,7 +483,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -507,7 +507,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -515,7 +515,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
