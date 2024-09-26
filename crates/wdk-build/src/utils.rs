@@ -49,7 +49,6 @@ pub trait PathExt {
     ///
     /// Returns an error defined by the implementer if unable to strip the
     /// extended path length prefix.
-
     fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error>;
 }
 
