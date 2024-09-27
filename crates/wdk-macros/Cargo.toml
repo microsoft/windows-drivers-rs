@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "wdk-macros"
-version = "0.2.0" # This version should stay in sync with the wdk-sys version
+version = "0.3.0"
 description = "A collection of macros that help make it easier to interact with wdk-sys's direct bindings. This should not be directly consumed, and should be instead consumed via the wdk-sys crate."
 repository.workspace = true
 readme.workspace = true
