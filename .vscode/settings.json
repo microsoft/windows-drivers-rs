@@ -6,5 +6,18 @@
   "evenBetterToml.formatter.crlf": true,
   "files.associations": {
     "input.h": "c"
-  }
+  },
+  "rust-analyzer.linkedProjects": [
+    "./Cargo.toml",
+    "./examples/sample-kmdf-driver/Cargo.toml",
+    "./examples/sample-umdf-driver/Cargo.toml",
+    "./examples/sample-wdm-driver/Cargo.toml",
+    "./tests/config-kmdf/Cargo.toml",
+    "./tests/config-umdf/Cargo.toml",
+    "./tests/config-wdm/Cargo.toml",
+    "./tests/mixed-package-kmdf-workspace/Cargo.toml",
+    "./tests/umdf-driver-workspace/Cargo.toml",
+    "./tests/wdk-macros-tests/Cargo.toml",
+    "./tests/wdk-sys-tests/Cargo.toml",
+  ]
 }
