@@ -12,6 +12,7 @@ pub use wdf::WDF_FUNCTION_TABLE;
     driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF"
 ))]
+#[doc(hidden)]
 pub use wdk_macros as __proc_macros;
 
 #[cfg(any(
