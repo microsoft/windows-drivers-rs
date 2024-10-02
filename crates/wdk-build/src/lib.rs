@@ -174,7 +174,7 @@ pub enum ConfigError {
     /// linked
     #[error(
         "the C runtime is not properly configured to be statically linked. This is required for building WDK drivers. The recommended solution is to add the following snippet to a \
-        `.config.toml` file:
+        `.cargo/config.toml` file:
 [build]
 rustflags = [\"-C\", \"target-feature=+crt-static\"]
 
