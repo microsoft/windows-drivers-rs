@@ -1,4 +1,5 @@
 [build]
+# Any flags here must be also added to env.RUSTFLAGS in build.yaml due to rustflag overriding rules: https://doc.rust-lang.org/cargo/reference/config.html#buildrustflags
 rustflags = [
   "-C",
   "target-feature=+crt-static",
