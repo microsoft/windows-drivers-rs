@@ -227,7 +227,7 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: S) -> bool {
     let version_parts: Vec<&str> = version.split('.').collect();
 
     // First, check if we have "10" as our first value
-    if !version_parts.first().is_some_and(|first| *first == "10") {
+    if version_parts.first().is_none_or(|first| *first != "10") {
         return false;
     }
 
