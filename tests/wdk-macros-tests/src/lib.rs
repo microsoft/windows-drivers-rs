@@ -208,6 +208,8 @@ macro_rules! generate_trybuild_tests {
 macro_rules! generate_call_unsafe_wdf_binding_tests {
     () => {
         $crate::generate_macrotest_tests!(
+            bug_tuple_struct_shadowing,
+            bug_unused_imports,
             wdf_driver_create,
             wdf_device_create,
             wdf_device_create_device_interface,

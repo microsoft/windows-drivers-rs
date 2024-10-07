@@ -9,42 +9,43 @@ const GUID_DEVINTERFACE_COMPORT: wdk_sys::GUID = wdk_sys::GUID {
 fn create_device_interface(wdf_device: wdk_sys::WDFDEVICE) -> wdk_sys::NTSTATUS {
     unsafe {
         {
-            use wdk_sys::*;
-            #[must_use]
-            #[inline(always)]
-            #[allow(non_snake_case)]
-            unsafe fn wdf_device_create_device_interface_impl(
-                Device: WDFDEVICE,
-                InterfaceClassGUID: *const GUID,
-                ReferenceString: PCUNICODE_STRING,
-            ) -> NTSTATUS {
-                let wdf_function: wdk_sys::PFN_WDFDEVICECREATEDEVICEINTERFACE = Some(unsafe {
-                    core::mem::transmute(
-                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateDeviceInterfaceTableIndex
-                            as usize],
-                    )
-                });
-                if let Some(wdf_function) = wdf_function {
-                    unsafe {
-                        (wdf_function)(
-                            wdk_sys::WdfDriverGlobals,
-                            Device,
-                            InterfaceClassGUID,
-                            ReferenceString,
+            mod private__ {
+                use wdk_sys::*;
+                #[must_use]
+                #[inline(always)]
+                pub unsafe fn wdf_device_create_device_interface_impl(
+                    device__: WDFDEVICE,
+                    interface_class_guid__: *const GUID,
+                    reference_string__: PCUNICODE_STRING,
+                ) -> NTSTATUS {
+                    let wdf_function: wdk_sys::PFN_WDFDEVICECREATEDEVICEINTERFACE = Some(unsafe {
+                        core::mem::transmute(
+                            wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateDeviceInterfaceTableIndex
+                                as usize],
                         )
+                    });
+                    if let Some(wdf_function) = wdf_function {
+                        unsafe {
+                            (wdf_function)(
+                                wdk_sys::WdfDriverGlobals,
+                                device__,
+                                interface_class_guid__,
+                                reference_string__,
+                            )
+                        }
+                    } else {
+                        {
+                            ::core::panicking::panic_fmt(
+                                format_args!(
+                                    "internal error: entered unreachable code: {0}",
+                                    format_args!("Option should never be None"),
+                                ),
+                            );
+                        };
                     }
-                } else {
-                    {
-                        ::core::panicking::panic_fmt(
-                            format_args!(
-                                "internal error: entered unreachable code: {0}",
-                                format_args!("Option should never be None"),
-                            ),
-                        );
-                    };
                 }
             }
-            wdf_device_create_device_interface_impl(
+            private__::wdf_device_create_device_interface_impl(
                 wdf_device,
                 &GUID_DEVINTERFACE_COMPORT,
                 core::ptr::null(),

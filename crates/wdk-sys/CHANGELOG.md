@@ -5,6 +5,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.2.0...wdk-sys-v0.3.0) - 2024-09-27
+
+### Added
+
+- add more precise NTSTATUS const fns ([#183](https://github.com/microsoft/windows-drivers-rs/pull/183))
+- configure WDK configuration via parsing Cargo manifest metadata ([#186](https://github.com/microsoft/windows-drivers-rs/pull/186))
+
+### Fixed
+
+- typos in Getting Started section of README.md ([#213](https://github.com/microsoft/windows-drivers-rs/pull/213))
+- [**breaking**] prevent linking of wdk libraries in tests that depend on `wdk-sys` ([#118](https://github.com/microsoft/windows-drivers-rs/pull/118))
+
+### Other
+
+- Improve doc comments to comply with `too_long_first_doc_paragraph` clippy lint ([#202](https://github.com/microsoft/windows-drivers-rs/pull/202))
+- Update README.md ([#180](https://github.com/microsoft/windows-drivers-rs/pull/180))
+- update readme to call out bugged LLVM 18 versions  ([#169](https://github.com/microsoft/windows-drivers-rs/pull/169))
+- Build perf: Make calls to bindgen run in parallel ([#159](https://github.com/microsoft/windows-drivers-rs/pull/159))
+- Bump rustversion from 1.0.14 to 1.0.15 ([#145](https://github.com/microsoft/windows-drivers-rs/pull/145))
+- use a standardized workspace lint table ([#134](https://github.com/microsoft/windows-drivers-rs/pull/134))
+- Bump anyhow from 1.0.79 to 1.0.82 ([#140](https://github.com/microsoft/windows-drivers-rs/pull/140))
+- Bump thiserror from 1.0.56 to 1.0.59 ([#142](https://github.com/microsoft/windows-drivers-rs/pull/142))
+- change version bounds for `manual_c_str_literals` and `ref_as_ptr` clippy lints ([#127](https://github.com/microsoft/windows-drivers-rs/pull/127))
+- fix `winget` llvm install command option ([#115](https://github.com/microsoft/windows-drivers-rs/pull/115))
+- fix various pipeline breakages (nightly rustfmt bug, new nightly clippy lints, upstream winget dependency issue) ([#117](https://github.com/microsoft/windows-drivers-rs/pull/117))
+- add lint exceptions for clippy::manual_c_str_literals and clippy::ref_as_ptr ([#108](https://github.com/microsoft/windows-drivers-rs/pull/108))
+# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+
 ## [0.2.0](https://github/microsoft/windows-drivers-rs/compare/wdk-sys-v0.1.0...wdk-sys-v0.2.0) - 2024-02-08
 
 ### Added

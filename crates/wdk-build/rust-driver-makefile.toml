@@ -1,7 +1,7 @@
 # This file is leveraged to build downstream drivers. See examples at https://github.com/microsoft/Windows-rust-drivers-samples
 
 [config]
-min_version = "0.37.13"
+min_version = "0.37.16"
 init_task = "wdk-build-init"
 reduce_output = false
 
@@ -95,32 +95,8 @@ if not is_empty ${script_output}
 end
 '''
 
-# This plugin replaces the embedded `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY` in the rust-script doc comment with its evaluated value. See https://github.com/sagiegurari/cargo-make/issues/1081 for more context.
-[plugins.impl.rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution]
-script = '''
-# Parse task json into variables
-taskjson = json_parse ${task.as_json}
-
-# Convert backslashes to forward slashes
-rust-driver-toolchain-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
-
-# Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchain-path
-taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchain-path}"
-
-# Unset the private flag since it breaks cm_plugin_run_custom_task: https://github.com/sagiegurari/cargo-make/issues/1084
-unset taskjson.private
-
-# Reencode variables into json
-taskjson = json_encode taskjson
-
-# Run the invoking task, with the modified condition_script
-cm_plugin_run_custom_task ${taskjson}
-'''
-
 # This plugin adds support for cargo-make's emulated workspace feature to work on emulated workspace members which are Cargo workspaces themselves.
 # Since Cargo workspaces are not detected in cargo-make emulated workspace members, the task is rerun in a forked subprocess with the CARGO_MAKE_CRATE_CURRENT_WORKSPACE_MEMBER env var unset to allow cargo-make's workspace detection to run.
-#
-# This plugin also includes functionality from `rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution` since `https://github.com/sagiegurari/cargo-make/pull/1132` has not merged yet.
 [plugins.impl.nested-cargo-workspace-in-cargo-make-emulated-workspace-support]
 script = '''
 # If current flow is executing in a Cargo workspace, which is a member of a cargo-make emulated workspace
@@ -134,25 +110,7 @@ if ${CARGO_MAKE_WORKSPACE_EMULATION} and ${CARGO_MAKE_CRATE_IS_WORKSPACE}
 
     cm_plugin_run_custom_task "{\"run_task\":{\"name\":\"${task.name}\",\"fork\":true}}"
 else
-    # FIXME: modifying the taskjson here is not needed after upstream fix is merged: https://github.com/sagiegurari/cargo-make/pull/1132
-
-    # Parse task json into variables
-    taskjson = json_parse ${task.as_json}
-
-    # Convert backslashes to forward slashes
-    rust-driver-toolchain-path = replace ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} "\\" "/"
-
-    # Replace the ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} variable in the condition_script with the rust-driver-toolchain-path
-    taskjson.condition_script = replace ${taskjson.condition_script} "\${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}" "${rust-driver-toolchain-path}"
-
-    # Unset the private flag since it breaks cm_plugin_run_custom_task: https://github.com/sagiegurari/cargo-make/issues/1084
-    unset taskjson.private
-
-    # Reencode variables into json
-    taskjson = json_encode taskjson
-
-    # Run the invoking task, with the modified condition_script
-    cm_plugin_run_custom_task ${taskjson}
+    cm_plugin_run_task
 end
 '''
 
@@ -164,7 +122,7 @@ script_runner = "@rust"
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -190,7 +148,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -220,7 +178,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -257,13 +215,16 @@ std::fs::copy(&source_file, &destination_file).expect(&format!(
 [tasks.generate-driver-binary-file]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "build"]
-plugin = "rust-condition-script-cargo_make_current_task_initial_makefile_directory-substitution"
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 condition_script = '''
 #!@rust
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -286,7 +247,7 @@ script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -350,7 +311,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -374,7 +335,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -397,7 +358,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -420,7 +381,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -483,7 +444,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -560,12 +521,16 @@ dependencies = [
 dependencies = ["build"]
 # Only run package-driver flow if the current package is marked as a driver
 plugin = "nested-cargo-workspace-in-cargo-make-emulated-workspace-support"
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 condition_script = '''
 #!@rust
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}", version = "0.2.0" }
+//! wdk-build = { path = ".", version = "0.3.0" }
 //! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]

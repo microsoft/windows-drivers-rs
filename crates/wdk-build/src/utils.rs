@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Private module for utility code related to the cargo-make experience for
+//! building drivers.
+
 use std::{
     env,
     ffi::CStr,
@@ -46,7 +49,6 @@ pub trait PathExt {
     ///
     /// Returns an error defined by the implementer if unable to strip the
     /// extended path length prefix.
-
     fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error>;
 }
 
@@ -464,7 +466,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -472,7 +474,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -480,7 +482,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -488,7 +490,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -496,7 +498,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -504,7 +506,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );
@@ -512,7 +514,7 @@ mod tests {
         assert_eq!(
             format!("{}", get_wdk_version_number(test_string).err().unwrap()),
             format!(
-                "The WDK version string provided ({}) was not in a valid format.",
+                "the WDK version string provided ({}) was not in a valid format",
                 test_string
             )
         );

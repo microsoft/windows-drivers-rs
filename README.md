@@ -87,7 +87,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```rust
    fn main() -> Result<(), wdk_build::ConfigError> {
-      wdk_build::configure_binary_build()
+      wdk_build::configure_wdk_binary_build()
    }
    ```
 
@@ -122,7 +122,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
 
    ```rust
    use wdk_sys::{
-      DRIVER_OBJECT,
+      PDRIVER_OBJECT,
       NTSTATUS,
       PCUNICODE_STRING,
    };
@@ -147,7 +147,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    #!@rust
    //! ```cargo
    //! [dependencies]
-   //! wdk-build = "0.2.0"
+   //! wdk-build = "0.3.0"
    //! ```
    #![allow(unused_doc_comments)]
 

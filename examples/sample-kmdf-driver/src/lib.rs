@@ -24,6 +24,7 @@ use wdk_sys::{
     DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
+    PDRIVER_OBJECT,
     ULONG,
     UNICODE_STRING,
     WCHAR,
