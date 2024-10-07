@@ -396,7 +396,7 @@ impl ParseCargoArgs for CompilationOptions {
             );
         }
 
-        configure_wdf_build_output_dir(target, &cargo_make_cargo_profile);
+        configure_wdf_build_output_dir(target.as_ref(), &cargo_make_cargo_profile);
 
         if let Some(timings_option) = &timings {
             timings_option.as_ref().map_or_else(
@@ -1007,7 +1007,7 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     })
 }
 
-fn configure_wdf_build_output_dir(target_arg: &Option<String>, cargo_make_cargo_profile: &str) {
+fn configure_wdf_build_output_dir(target_arg: Option<&String>, cargo_make_cargo_profile: &str) {
     let cargo_make_crate_custom_triple_target_directory =
         env::var(CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
             panic!(
