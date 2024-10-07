@@ -487,7 +487,7 @@ run_task = "signtool-sign"
 private = true
 condition = { env_true = ["WDK_BUILD_ENABLE_SIGNTOOL_VERIFY"] }
 command = "signtool"
-args = ["verify", "/v", "/pa", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
+args = ["verify", "/v", "/kp", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
 
 [tasks.verify-signature-driver-binary]
 private = true
