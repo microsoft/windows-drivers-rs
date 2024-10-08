@@ -21,11 +21,11 @@ crate-type = ["cdylib"]
 test = false
 
 [build-dependencies]
-wdk-build = { path = "../../crates/wdk-build", version = "0.2.0" }
+wdk-build = { path = "../../crates/wdk-build", version = "0.3.0" }
 
 [dependencies]
-wdk = { path = "../../crates/wdk", version = "0.2.0" }
-wdk-sys = { path = "../../crates/wdk-sys", version = "0.2.0" }
+wdk = { path = "../../crates/wdk", version = "0.3.0" }
+wdk-sys = { path = "../../crates/wdk-sys", version = "0.3.0" }
 
 [features]
 default = []

@@ -8,7 +8,9 @@ on:
 name: Build
 
 env:
-  RUSTFLAGS: -D warnings
+  RUSTFLAGS: >-
+    -D warnings
+    -C target-feature=+crt-static
 
 jobs:
   build:

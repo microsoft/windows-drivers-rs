@@ -1,7 +1,7 @@
 [package]
 edition.workspace = true
 name = "wdk-build"
-version = "0.2.0"
+version = "0.3.0"
 description = "A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Driver Kit)"
 repository.workspace = true
 readme.workspace = true
