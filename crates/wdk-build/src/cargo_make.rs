@@ -11,7 +11,7 @@
 //! provide a CLI very close to cargo's own, but only exposes the arguments
 //! supported by `rust-driver-makefile.toml`.
 
-use core::ops::RangeFrom;
+use core::{fmt, ops::RangeFrom};
 use std::{
     env,
     panic::UnwindSafe,
@@ -21,6 +21,7 @@ use std::{
 use anyhow::Context;
 use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
 use clap::{Args, Parser};
+use tracing::{instrument, trace};
 
 use crate::{
     metadata,
@@ -788,7 +789,13 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 /// it can be extended from a downstream `Makefile.toml`.
 ///
 /// This is necessary so that paths in the [`wdk_build`] makefile can be
-/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`. The
+/// version of `wdk-build` from which the file being symlinked to comes from is
+/// determined by the workding directory of the process that invokes this
+/// function. For example, if this function is ultimately executing in a
+/// `cargo_make` `load_script`, the files will be symlinked from the `wdk-build`
+/// version that is in the `.Cargo.lock` file, and not the `wdk-build` version
+/// specified in the `load_script`.
 ///
 /// # Errors
 ///
@@ -804,10 +811,12 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 ///
 /// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
 /// environment variable is not set
-fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path>>(
+#[instrument(level = "trace")]
+fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::Debug>(
     makefile_name: S,
 ) -> Result<(), ConfigError> {
     let cargo_metadata = MetadataCommand::new().exec()?;
+    trace!(cargo_metadata_output = ?cargo_metadata);
 
     let wdk_build_package_matches = cargo_metadata
         .packages

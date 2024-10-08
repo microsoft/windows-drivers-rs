@@ -692,12 +692,13 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "wdk-build"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bindgen",
  "camino",
  "cargo_metadata",
+ "cfg-if",
  "clap",
  "clap-cargo",
  "lazy_static",
@@ -712,7 +713,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -722,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-sys"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bindgen",

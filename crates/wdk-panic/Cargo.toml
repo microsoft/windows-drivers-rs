@@ -1,7 +1,7 @@
 [package]
 edition.workspace = true
 name = "wdk-panic"
-version = "0.2.0"
+version = "0.3.0"
 description = "Default panic handler implementations for programs built with WDK"
 repository.workspace = true
 readme.workspace = true
