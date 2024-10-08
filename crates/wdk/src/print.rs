@@ -69,9 +69,10 @@ pub fn _print(args: fmt::Arguments) {
     let mut w = DebugPrintFormatBuffer::new();
     let r = fmt::write(&mut w, args);
     if let Ok(_) = r {
-        let formatted_string = &mut w.buffer;
+        let formatted_string = &w.buffer;
         let formatted_string_pointer = formatted_string.as_ptr() as *const i8;
-        // No need to append a null-terminator in that the formatted string buffer was zero-initialized.
+        // No need to append a null-terminator,
+        // in that the formatted string buffer was zero-initialized.
         unsafe {
             #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
             {
