@@ -516,6 +516,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
 
@@ -523,6 +524,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .join(format!("bin/{version}"))
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
+
     let host_windows_sdk_ver_bin_path = match host_arch {
         CpuArchitecture::Amd64 => wdk_bin_root
             .join(host_arch.as_windows_str())

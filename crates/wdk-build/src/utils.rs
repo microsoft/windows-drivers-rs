@@ -87,6 +87,18 @@ where
 pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // If WDKContentRoot is present in environment(ex. running in an eWDK prompt),
     // use it
+    if let Ok(wdk_content_root) = env::var("NugetWdkContentRoot") {
+        let path = Path::new(wdk_content_root.as_str());
+        if path.is_dir() {
+            println!("Using NugetWdkContentRoot: {}", path.display());
+            return Some(path.to_path_buf());
+        }
+        eprintln!(
+            "NugetWdkContentRoot was detected to be {}, but does not exist or is not a valid \
+             directory.",
+            path.display()
+        );
+    }
     if let Ok(wdk_content_root) = env::var("WDKContentRoot") {
         let path = Path::new(wdk_content_root.as_str());
         if path.is_dir() {
