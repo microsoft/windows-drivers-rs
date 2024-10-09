@@ -49,11 +49,6 @@ jobs:
       
       - name: Install NuGet
         uses: ./.github/actions/nuget-install
-      
-      - name: Install NuGet
-        run: |
-          Install-PackageProvider -Name NuGet -Force -Scope AllUsers
-          Get-PackageProvider -Name NuGet -ListAvailable
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
