@@ -20,7 +20,7 @@ jobs:
       matrix:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK
-          - Microsoft.Windows.WDK -Version 10.0.26100.1591 # Latest WDK
+          - Microsoft.Windows.WDK # Latest WDK
 
         llvm:
           - 17.0.6
@@ -72,7 +72,7 @@ jobs:
           }
       
       - name: Install WDK ${{ matrix.wdk }} (NuGet)
-        if: matrix.wdk == 'Microsoft.Windows.WDK -Version 10.0.26100.1591'
+        if: matrix.wdk == 'Microsoft.Windows.WDK'
         run: |
           nuget install ${{ matrix.wdk }} -OutputDirectory C:\WDK
           Write-Host "WDK installed at C:\WDK"
