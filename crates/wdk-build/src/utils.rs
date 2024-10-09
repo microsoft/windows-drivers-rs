@@ -304,8 +304,8 @@ pub fn is_running_as_admin() -> windows::core::Result<bool> {
         assert!(
             MIN_SUBAUTHORITY_COUNT <= ADMINISTRATORS_GROUP_SUBAUTHORITIES.len()
                 && ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() <= MAX_SUBAUTHORITY_COUNT
-        )
-    };
+        );
+    }
 
     let subauthorities = const {
         let mut subauthorities = [0_u32; MAX_SUBAUTHORITY_COUNT];
@@ -346,8 +346,8 @@ pub fn is_running_as_admin() -> windows::core::Result<bool> {
         unsafe { administrators_group_security_identifier.assume_init() };
 
     let mut is_running_as_admin = MaybeUninit::uninit();
+    // SAFETY: `adminstrators_group_security_identifier` is a valid SID structure
     unsafe {
-        // SAFETY: `adminstrators_group_security_identifier` is a valid SID structure
         CheckTokenMembership(
             // use impersonation token from calling thread (or derived from this thread's primary
             // token)
