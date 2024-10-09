@@ -406,6 +406,7 @@ args = [
 
 [tasks.generate-certificate]
 private = true
+dependencies = ["setup-wdk-config-env-vars"]
 condition_script = '''
 #!@duckscript
 
@@ -432,6 +433,56 @@ args = [
   "CN=WDRLocalTestCert",                                # FIXME: this should be a parameter
   "${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer",
 ]
+
+[tasks.install-certificate]
+private = true
+description = "Installs the WDRLocalTestCert certificate to the Trusted Root Certificate Authorities and Trusted Publishers stores (Local Machine)."
+dependencies = ["setup-wdk-config-env-vars", "generate-certificate"]
+script_runner = "@rust"
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+condition_script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::install_certificate_condition_script()?
+'''
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::install_certificate()?
+'''
+
+[tasks.validate-certificate-installed]
+private = true
+description = "Validates that the WDRLocalTestCert certificate is installed in the Trusted Root Certificate Authorities and Trusted Publishers stores (Local Machine)."
+script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::validate_certificate_installed()?
+'''
 
 [tasks.copy-certificate-to-package]
 private = true
@@ -485,9 +536,10 @@ run_task = "signtool-sign"
 
 [tasks.signtool-verify]
 private = true
+dependencies = ["install-certificate", "validate-certificate-installed"]
 condition = { env_true = ["WDK_BUILD_ENABLE_SIGNTOOL_VERIFY"] }
 command = "signtool"
-args = ["verify", "/v", "/kp", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
+args = ["verify", "/v", "/pa", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
 
 [tasks.verify-signature-driver-binary]
 private = true
