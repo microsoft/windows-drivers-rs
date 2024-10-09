@@ -9,8 +9,8 @@ runs:
         Import-Module PackageManagement
       shell: pwsh
 
-    - name: Install NuGet
+    - name: Install NuGet Provider
       run: |
-        Install-PackageProvider -Name NuGet -Force -Scope AllUsers
-        Get-PackageProvider -Name NuGet -ListAvailable
+        Install-Module -Name NuGet -Force -Scope AllUsers
+        Import-Module NuGet
       shell: pwsh
