@@ -48,6 +48,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Install NuGet
+        uses: ./.github/actions/install-nuget
+      
+      - name: Install NuGet
         run: |
           Install-PackageProvider -Name NuGet -Force -Scope AllUsers
           Get-PackageProvider -Name NuGet -ListAvailable

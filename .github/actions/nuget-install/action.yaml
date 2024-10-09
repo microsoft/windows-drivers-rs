@@ -1,0 +1,16 @@
+name: 'Install NuGet'
+description: 'Installs the PackageManagement module and NuGet provider'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install PackageManagement Module
+      run: |
+        Install-Module -Name PackageManagement -Force -Scope AllUsers
+        Import-Module PackageManagement
+      shell: pwsh
+
+    - name: Install NuGet
+      run: |
+        Install-PackageProvider -Name NuGet -Force -Scope AllUsers
+        Get-PackageProvider -Name NuGet -ListAvailable
+      shell: pwsh
