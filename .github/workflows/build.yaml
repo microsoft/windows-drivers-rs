@@ -46,9 +46,6 @@ jobs:
         uses: ./.github/actions/winget-install
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Install NuGet
-        uses: ./.github/actions/nuget-install
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
@@ -74,7 +71,7 @@ jobs:
       - name: Install WDK ${{ matrix.wdk }} (NuGet)
         if: matrix.wdk == 'Microsoft.Windows.WDK'
         run: |
-          nuget install ${{ matrix.wdk }} -OutputDirectory C:\WDK
+          nuget restore .\packages.config -PackagesDirectory C:\WDK
           Write-Host "WDK installed at C:\WDK"
           $folders = @(
             "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591",
