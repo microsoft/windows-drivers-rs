@@ -310,7 +310,7 @@ pub fn is_running_as_admin() -> windows::core::Result<bool> {
     let subauthorities = const {
         let mut subauthorities = [0_u32; MAX_SUBAUTHORITY_COUNT];
 
-        // While loop since iterators are not const evaluatable
+        // Use while loop since iterators are not const evaluable
         let mut i = 0;
         while i < ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() {
             subauthorities[i] = ADMINISTRATORS_GROUP_SUBAUTHORITIES[i];
