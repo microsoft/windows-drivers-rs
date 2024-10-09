@@ -20,6 +20,7 @@ jobs:
       matrix:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+          - Microsoft.Windows.WDK # Latest WDK
 
         llvm:
           - 17.0.6
@@ -45,6 +46,11 @@ jobs:
         uses: ./.github/actions/winget-install
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install NuGet
+        run: |
+          Install-PackageProvider -Name NuGet -Force -Scope AllUsers
+          Get-PackageProvider -Name NuGet -ListAvailable
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
@@ -57,6 +63,7 @@ jobs:
           clang --version
 
       - name: Install WDK (${{ matrix.wdk }})
+        if: matrix.wdk == 'Microsoft.WindowsWDK.10.0.22621'
         run: |
           if ((Get-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals).Id -eq '${{ matrix.wdk }}') {
             Write-Host "${{ matrix.wdk }} is already installed. Attempting to update..."
@@ -65,6 +72,40 @@ jobs:
             Write-Host "Installing ${{ matrix.wdk }}..."
             Install-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
           }
+      
+      - name: Install WDK using NuGet
+        if: matrix.wdk == 'Microsoft.Windows.WDK'
+        run: |
+          nuget install Microsoft.Windows.WDK -Version latest -OutputDirectory C:\WDK
+          Write-Host "WDK installed at C:\WDK"
+          $folders = @(
+            "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591",
+            "C:\WDK\Microsoft.Windows.SDK.CPP.x64.10.0.26100.1591",
+            "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591"
+          )
+          foreach ($folder in $folders) {
+            if (-Not (Test-Path $folder)) {
+              Write-Error "Required folder $folder is missing."
+              exit 1
+            }
+          }
+          $signtoolX64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x64\signtool.exe"
+          $signtoolX86 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x86\signtool.exe"
+          $destinationX64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x64"
+          $destinationX86 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x86"
+          if (Test-Path $signtoolX64) {
+            Copy-Item -Path $signtoolX64 -Destination $destinationX64 -Force
+            Write-Host "Copied signtool.exe to $destinationX64"
+          } else {
+            Write-Error "signtool.exe not found at $signtoolX64"
+          }
+          if (Test-Path $signtoolX86) {
+            Copy-Item -Path $signtoolX86 -Destination $destinationX86 -Force
+            Write-Host "Copied signtool.exe to $destinationX86"
+          } else {
+            Write-Error "signtool.exe not found at $signtoolX86"
+          }
+          $env:NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c"
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master

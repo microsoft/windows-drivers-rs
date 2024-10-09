@@ -19,20 +19,7 @@ use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
 use wdk_sys::{
-    call_unsafe_wdf_function_binding,
-    ntddk::DbgPrint,
-    DRIVER_OBJECT,
-    NTSTATUS,
-    PCUNICODE_STRING,
-    ULONG,
-    UNICODE_STRING,
-    WCHAR,
-    WDFDEVICE,
-    WDFDEVICE_INIT,
-    WDFDRIVER,
-    WDF_DRIVER_CONFIG,
-    WDF_NO_HANDLE,
-    WDF_NO_OBJECT_ATTRIBUTES,
+    call_unsafe_wdf_function_binding, ntddk::DbgPrint, DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT, ULONG, UNICODE_STRING, WCHAR, WDFDEVICE, WDFDEVICE_INIT, WDFDRIVER, WDF_DRIVER_CONFIG, WDF_NO_HANDLE, WDF_NO_OBJECT_ATTRIBUTES
 };
 
 #[cfg(not(test))]

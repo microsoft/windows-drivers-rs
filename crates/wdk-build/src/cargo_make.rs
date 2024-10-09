@@ -26,13 +26,9 @@ use tracing::{instrument, trace};
 use crate::{
     metadata,
     utils::{
-        detect_wdk_content_root,
-        get_latest_windows_sdk_version,
-        get_wdk_version_number,
-        PathExt,
+        detect_wdk_content_root, get_latest_windows_sdk_version, get_wdk_version_number, PathExt,
     },
-    ConfigError,
-    CpuArchitecture,
+    ConfigError, CpuArchitecture,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -516,6 +512,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
+
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
@@ -523,8 +520,10 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let wdk_bin_root = wdk_content_root
         .join(format!("bin/{version}"))
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?;
+        .canonicalize()
+        .expect("Failed to canonicalize path")
+        .strip_extended_length_path_prefix()
+        .expect("Failed to strip extended length path prefix");
 
     let host_windows_sdk_ver_bin_path = match host_arch {
         CpuArchitecture::Amd64 => wdk_bin_root
@@ -572,6 +571,8 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .to_str()
             .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
     );
+
+    println!("PATH_ENV_VAR={}", env::var(PATH_ENV_VAR).unwrap());
 
     Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
 }

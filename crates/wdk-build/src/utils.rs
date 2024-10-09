@@ -14,13 +14,7 @@ use thiserror::Error;
 use windows::{
     core::{s, PCSTR},
     Win32::System::Registry::{
-        RegCloseKey,
-        RegGetValueA,
-        RegOpenKeyExA,
-        HKEY,
-        HKEY_LOCAL_MACHINE,
-        KEY_READ,
-        RRF_RT_REG_SZ,
+        RegCloseKey, RegGetValueA, RegOpenKeyExA, HKEY, HKEY_LOCAL_MACHINE, KEY_READ, RRF_RT_REG_SZ,
     },
 };
 
@@ -87,18 +81,6 @@ where
 pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // If WDKContentRoot is present in environment(ex. running in an eWDK prompt),
     // use it
-    if let Ok(wdk_content_root) = env::var("NugetWdkContentRoot") {
-        let path = Path::new(wdk_content_root.as_str());
-        if path.is_dir() {
-            println!("Using NugetWdkContentRoot: {}", path.display());
-            return Some(path.to_path_buf());
-        }
-        eprintln!(
-            "NugetWdkContentRoot was detected to be {}, but does not exist or is not a valid \
-             directory.",
-            path.display()
-        );
-    }
     if let Ok(wdk_content_root) = env::var("WDKContentRoot") {
         let path = Path::new(wdk_content_root.as_str());
         if path.is_dir() {
@@ -106,6 +88,21 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
         }
         eprintln!(
             "WDKContentRoot was detected to be {}, but does not exist or is not a valid directory.",
+            path.display()
+        );
+    }
+
+    // If NugetWdkContentRoot is present in environment, use it
+    if let Ok(wdk_content_root) = env::var("NugetWdkContentRoot") {
+        let path = Path::new(wdk_content_root.as_str());
+        if path.is_dir() {
+            println!("Using NugetWdkContentRoot: {}", path.display());
+
+            return Some(path.to_path_buf());
+        }
+        eprintln!(
+            "NugetWdkContentRoot was detected to be {}, but does not exist or is not a valid \
+             directory.",
             path.display()
         );
     }
@@ -427,9 +424,7 @@ mod tests {
 
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
-            FOLDERID_ProgramFiles,
-            SHGetKnownFolderPath,
-            KF_FLAG_DEFAULT,
+            FOLDERID_ProgramFiles, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
         };
 
         use super::*;
