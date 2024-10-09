@@ -72,7 +72,7 @@ jobs:
           }
       
       - name: Install WDK ${{ matrix.wdk }} (NuGet)
-        if: matrix.wdk == 'Microsoft.Windows.WDK'
+        if: matrix.wdk == 'Microsoft.Windows.WDK -Version 10.0.26100.1591'
         run: |
           nuget install ${{ matrix.wdk }} -OutputDirectory C:\WDK
           Write-Host "WDK installed at C:\WDK"
