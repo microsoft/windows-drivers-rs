@@ -22,6 +22,7 @@ clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true
 lazy_static.workspace = true
 paste.workspace = true
+rustversion.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha2.workspace = true
