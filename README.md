@@ -212,9 +212,11 @@ To display help and see the full list of supported CLI args to forward to Cargo:
 
 ### Driver Package Signature Verification
 
-The `WDK_BUILD_ENABLE_SIGNTOOL_VERIFY` [cargo-make environment variable](https://github.com/sagiegurari/cargo-make?tab=readme-ov-file#environment-variables) can be set to `true` to enable tasks that handle signature verification of the generated `.sys` and `.cat` files. `signtool verify` requires the certificate to be installed as in the `Trusted Root Certification Authorities` for this verification to function. These tasks are not enabled by default as the default behavior of `WDR` is to sign with a generated test certificate. These test certificates are typically only installed into `Trusted Root Certification Authorities` on computers dedicated to testing drivers, and not personal development machines, given the security implications of installing your own root certificates.
+The `WDK_BUILD_ENABLE_SIGNTOOL_VERIFY` [cargo-make environment variable](https://github.com/sagiegurari/cargo-make?tab=readme-ov-file#environment-variables) can be set to `true` to enable tasks that handle signature verification of the generated `.sys` and `.cat` files. If the test cert is not installed in `Trusted Root Certification Authorities` and `Trusted Publishers` stores on `Local Machine`, these tasks will also run the `install-certificate` task.
 
-If you understand these implications, and have installed the test certificate, then you may validate the signatures as follows:
+These tasks are not enabled by default as the default behavior of `WDR` is to sign with a generated test certificate. These test certificates are typically only installed into `Trusted Root Certification Authorities` on computers dedicated to testing drivers, and not personal development machines, given the security implications of installing your own root certificates.
+
+If you understand these implications, and have installed the test certificate, then you may install the certificates and validate the signatures as follows:
 
 ```
 cargo make --env WDK_BUILD_ENABLE_SIGNTOOL_VERIFY=true
