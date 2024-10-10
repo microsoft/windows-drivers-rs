@@ -741,6 +741,8 @@ pub fn get_current_package_name() -> String {
 pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<(), ConfigError> {
     let path_to_copy = path_to_copy.as_ref();
 
+    println!("copy_to_driver_package_folder: {}", path_to_copy.display());
+
     let package_folder_path: PathBuf =
         get_wdk_build_output_directory().join(format!("{}_package", get_current_package_name()));
     if !package_folder_path.exists() {
