@@ -406,7 +406,6 @@ args = [
 
 [tasks.generate-certificate]
 private = true
-dependencies = ["setup-wdk-config-env-vars"]
 condition_script = '''
 #!@duckscript
 
@@ -437,7 +436,7 @@ args = [
 [tasks.install-certificate]
 private = true
 description = "Installs the WDRLocalTestCert certificate to the Trusted Root Certificate Authorities and Trusted Publishers stores (Local Machine)."
-dependencies = ["setup-wdk-config-env-vars", "generate-certificate"]
+dependencies = ["generate-certificate"]
 script_runner = "@rust"
 condition_script_runner_args = [
   "--base-path",
