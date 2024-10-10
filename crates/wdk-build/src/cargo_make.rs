@@ -524,6 +524,8 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
 
+    println!("Host architecture: {}", host_arch.as_windows_str());
+
     let wdk_bin_root = wdk_content_root
         .join(format!("bin/{version}"))
         .canonicalize()
