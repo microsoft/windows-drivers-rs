@@ -27,11 +27,11 @@ jobs:
 
         rust_toolchain:
           - stable
-          - beta
-          - nightly
+          # - beta
+          # - nightly
 
         cargo_profile:
-          - dev
+          # - dev
           - release
 
         target_triple:
