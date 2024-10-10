@@ -74,8 +74,8 @@ jobs:
           nuget restore .\packages.config -PackagesDirectory C:\WDK
           Write-Host "WDK installed at C:\WDK"
           $folders = @(
-            "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591",
-            "C:\WDK\Microsoft.Windows.SDK.CPP.ARM64.10.0.26100.1591",
+            "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591",
+            "C:\WDK\Microsoft.Windows.SDK.CPP.x64.10.0.26100.1591",
             "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591"
           )
           foreach ($folder in $folders) {
@@ -84,15 +84,15 @@ jobs:
               exit 1
             }
           }
-          $signtoolARM64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\ARM64\signtool.exe"
+          $signtoolx64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x64\signtool.exe"
           $signtoolX86 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x86\signtool.exe"
-          $destinationARM64 = "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c\bin\10.0.26100.0\ARM64"
-          $destinationX86 = "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c\bin\10.0.26100.0\x86"
-          if (Test-Path $signtoolARM64) {
-            Copy-Item -Path $signtoolARM64 -Destination $destinationARM64 -Force
-            Write-Host "Copied signtool.exe to $destinationARM64"
+          $destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x64"
+          $destinationX86 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x86"
+          if (Test-Path $signtoolx64) {
+            Copy-Item -Path $signtoolx64 -Destination $destinationx64 -Force
+            Write-Host "Copied signtool.exe to $destinationx64"
           } else {
-            Write-Error "signtool.exe not found at $signtoolARM64"
+            Write-Error "signtool.exe not found at $signtoolx64"
           }
           if (Test-Path $signtoolX86) {
             Copy-Item -Path $signtoolX86 -Destination $destinationX86 -Force
@@ -101,10 +101,10 @@ jobs:
             Write-Error "signtool.exe not found at $signtoolX86"
           }
           
-          $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c"
+          $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c"
           echo "NugetWdkContentRoot=$NugetWdkContentRoot" >> $env:GITHUB_ENV
           
-          Get-ChildItem -Path "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c" -Recurse
+          Get-ChildItem -Path "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c" -Recurse
           
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
