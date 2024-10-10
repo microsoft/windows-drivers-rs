@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         wdk:
-          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+          # - Microsoft.WindowsWDK.10.0.22621 # NI WDK
           - Microsoft.Windows.WDK # Latest WDK
 
         llvm:
