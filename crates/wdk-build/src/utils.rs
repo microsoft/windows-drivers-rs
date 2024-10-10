@@ -301,7 +301,7 @@ pub fn get_wdk_version_number<S: AsRef<str> + ToString + ?Sized>(
 /// Detect if the current executing process is running with administrator
 /// privileges.
 ///
-/// Based on example from https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership#examples
+/// Based on example from <https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership#examples>
 pub fn is_running_as_admin() -> windows::core::Result<bool> {
     const MIN_SUBAUTHORITY_COUNT: usize = 1;
     const MAX_SUBAUTHORITY_COUNT: usize = 8;
@@ -309,20 +309,28 @@ pub fn is_running_as_admin() -> windows::core::Result<bool> {
         SECURITY_BUILTIN_DOMAIN_RID as u32,
         DOMAIN_ALIAS_RID_ADMINS as u32,
     ];
-    const {
+
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() is guaranteed to be in the range of 1 \
+                  to 8 by the below assert"
+    )]
+    const ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN: u8 = {
         assert!(
             MIN_SUBAUTHORITY_COUNT <= ADMINISTRATORS_GROUP_SUBAUTHORITIES.len()
                 && ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() <= MAX_SUBAUTHORITY_COUNT
         );
-    }
+
+        ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() as u8
+    };
 
     let subauthorities = const {
         let mut subauthorities = [0_u32; MAX_SUBAUTHORITY_COUNT];
 
         // Use while loop since iterators are not const evaluable
         let mut i = 0;
-        while i < ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() {
-            subauthorities[i] = ADMINISTRATORS_GROUP_SUBAUTHORITIES[i];
+        while i < ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN {
+            subauthorities[i as usize] = ADMINISTRATORS_GROUP_SUBAUTHORITIES[i as usize];
             i += 1;
         }
         subauthorities
@@ -331,14 +339,14 @@ pub fn is_running_as_admin() -> windows::core::Result<bool> {
     let mut administrators_group_security_identifier = MaybeUninit::uninit();
     // SAFETY: AllocateAndInitializeSid is called with valid arguments:
     // * `SECURITY_NT_AUTHORITY` is a valid `SID_IDENTIFIER_AUTHORITY`
-    // * `ADMINISTRATORS_GROUP_SUBAUTHORITIES.len()` is guaranteed to be in the
-    //   range of 1 to 8 by above const asserts
+    // * `ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN` is guaranteed to be in the range
+    //   of 1 to 8 by above const asserts
     // * `subauthorities` is guaranteed to be initialized with
-    //   ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() subauthorties, followed by 0s
+    //   ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN subauthorties, followed by 0s
     unsafe {
         AllocateAndInitializeSid(
             &SECURITY_NT_AUTHORITY,
-            ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() as u8,
+            ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN,
             subauthorities[0],
             subauthorities[1],
             subauthorities[2],
