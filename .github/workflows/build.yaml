@@ -100,9 +100,12 @@ jobs:
           } else {
             Write-Error "signtool.exe not found at $signtoolX86"
           }
+          
           $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c"
           echo "NugetWdkContentRoot=$NugetWdkContentRoot" >> $env:GITHUB_ENV
-          Get-ChildItem Env:
+          
+          Get-ChildItem -Path "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c" -Recurse
+          
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
