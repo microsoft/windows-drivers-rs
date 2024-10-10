@@ -31,8 +31,8 @@ jobs:
           # - nightly
 
         cargo_profile:
-          # - dev
-          - release
+          - dev
+          # - release
 
         target_triple:
           - x86_64-pc-windows-msvc
