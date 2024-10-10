@@ -18,7 +18,7 @@ use std::{
     io,
     panic::UnwindSafe,
     path::{Path, PathBuf},
-    process::Command,
+    process::{self, Command},
 };
 
 use anyhow::{bail, Context};
@@ -1271,21 +1271,12 @@ fn is_wdrlocaltestcert_installed() -> anyhow::Result<bool> {
 
     // Export WDRLocalTestCert from "Trusted Root Certificate Authorities" store
     // (Local Machine)
-    let output = Command::new("certmgr.exe")
-        .arg("-put")
-        .arg("-c")
-        .arg("-s")
-        .arg("-r")
-        .arg("localMachine")
-        .arg("ROOT")
-        .arg("-n")
-        .arg("WDRLocalTestCert")
-        .arg(&exported_root_cert_path)
-        .output()?;
+    let output = export_certificate("localMachine", "ROOT", &exported_root_cert_path)?;
     if !output.status.success() {
         println!(
             "WDRLocalTestCert not found in Trusted Root Certificate Authorities store (Local \
-             Machine): \n\nstdout:\n{}\nstderr:\n{}",
+             Machine). It is expected that the generate-certificate task has installed the \
+             signing certificate there: \n\nstdout:\n{}\nstderr:\n{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
@@ -1293,37 +1284,28 @@ fn is_wdrlocaltestcert_installed() -> anyhow::Result<bool> {
     }
 
     // Export WDRLocalTestCert from "Trusted Publishers" store (Local Machine)
-    let output = Command::new("certmgr.exe")
-        .arg("-put")
-        .arg("-c")
-        .arg("-s")
-        .arg("-r")
-        .arg("localMachine")
-        .arg("TrustedPublisher")
-        .arg("-n")
-        .arg("WDRLocalTestCert")
-        .arg(&exported_trustedpublisher_cert_path)
-        .output()?;
+    let output = export_certificate(
+        "localMachine",
+        "TrustedPublisher",
+        &exported_trustedpublisher_cert_path,
+    )?;
     if !output.status.success() {
         println!(
-            "WDRLocalTestCert not found in Trusted Publishers store (Local Machine): \
-             \n\nstdout:\n{}\nstderr:\n{}",
+            "WDRLocalTestCert not found in Trusted Publishers store (Local Machine). It is \
+             expected that the generate-certificate task has installed the signing certificate \
+             there: \n\nstdout:\n{}\nstderr:\n{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
         return Ok(false);
     }
 
-    // Export WDRLocalTestCert from "WDRTestCertStore" store (Local Machine)
-    let output = Command::new("certmgr.exe")
-        .arg("-put")
-        .arg("-c")
-        .arg("-s")
-        .arg("WDRTestCertStore")
-        .arg("-n")
-        .arg("WDRLocalTestCert")
-        .arg(&exported_wdrtestcertstore_cert_path)
-        .output()?;
+    // Export WDRLocalTestCert from "WDRTestCertStore" store
+    let output = export_certificate(
+        "currentUser",
+        "WDRTestCertStore",
+        &exported_wdrtestcertstore_cert_path,
+    )?;
     if !output.status.success() {
         bail!(
             "WDRLocalTestCert not found in WDRTestCertStore store. It is expected that the \
@@ -1334,51 +1316,10 @@ fn is_wdrlocaltestcert_installed() -> anyhow::Result<bool> {
         );
     }
 
-    // Calculate file hashes of exported certificates
-    let wdr_test_cert_store_cert_hash = {
-        let mut file = fs::File::open(&exported_wdrtestcertstore_cert_path)?;
-        let file_length = file.metadata()?.len();
-        let mut hasher = Sha256::new();
-        let bytes_copied = io::copy(&mut file, &mut hasher)?;
-        if bytes_copied != file_length {
-            bail!(
-                "Mismatch in length of file and bytes read to hasher. File length: {file_length}, \
-                 Bytes read: {bytes_copied}, File path: {}",
-                exported_wdrtestcertstore_cert_path.display()
-            );
-        }
-        hasher.finalize()
-    };
-    let root_cert_hash = {
-        let mut file = fs::File::open(&exported_root_cert_path)?;
-        let file_length = file.metadata()?.len();
-        let mut hasher = Sha256::new();
-        let bytes_copied = io::copy(&mut file, &mut hasher)?;
-        if bytes_copied != file_length {
-            bail!(
-                "Mismatch in length of file and bytes read to hasher. File length: {file_length}, \
-                 Bytes read: {bytes_copied}, File path: {}",
-                exported_root_cert_path.display()
-            );
-        }
-        hasher.finalize()
-    };
-    let trusted_publisher_cert_hash = {
-        let mut file = fs::File::open(&exported_trustedpublisher_cert_path)?;
-        let file_length = file.metadata()?.len();
-        let mut hasher = Sha256::new();
-        let bytes_copied = io::copy(&mut file, &mut hasher)?;
-        if bytes_copied != file_length {
-            bail!(
-                "Mismatch in length of file and bytes read to hasher. File length: {file_length}, \
-                 Bytes read: {bytes_copied}, File path: {}",
-                exported_trustedpublisher_cert_path.display()
-            );
-        }
-        hasher.finalize()
-    };
-
-    // Validate that the installed certificates are the same via hashes
+    // Validate that the installed certificates are the same via cert hashes
+    let wdr_test_cert_store_cert_hash = compute_file_hash(&exported_wdrtestcertstore_cert_path)?;
+    let root_cert_hash = compute_file_hash(&exported_root_cert_path)?;
+    let trusted_publisher_cert_hash = compute_file_hash(&exported_trustedpublisher_cert_path)?;
     if wdr_test_cert_store_cert_hash != root_cert_hash {
         println!(
             "WDRLocalTestCert in WDRTestCertStore store does not match WDRLocalTestCert in \
@@ -1395,6 +1336,39 @@ fn is_wdrlocaltestcert_installed() -> anyhow::Result<bool> {
     }
 
     Ok(true)
+}
+
+fn export_certificate(
+    store_location: &str,
+    store_name: &str,
+    export_path: &Path,
+) -> io::Result<process::Output> {
+    Command::new("certmgr.exe")
+        .arg("-put")
+        .arg("-c")
+        .arg("-n")
+        .arg("WDRLocalTestCert")
+        .arg("-s")
+        .arg("-r")
+        .arg(store_location)
+        .arg(store_name)
+        .arg(export_path)
+        .output()
+}
+
+fn compute_file_hash(file_path: &Path) -> anyhow::Result<Vec<u8>> {
+    let mut file = fs::File::open(file_path)?;
+    let file_length = file.metadata()?.len();
+    let mut hasher = Sha256::new();
+    let bytes_copied = io::copy(&mut file, &mut hasher)?;
+    if bytes_copied != file_length {
+        bail!(
+            "Mismatch in length of file and bytes read to hasher. File length: {file_length}, \
+             Bytes read: {bytes_copied}, File path: {}",
+            file_path.display()
+        );
+    }
+    Ok(hasher.finalize().to_vec())
 }
 
 #[cfg(test)]
