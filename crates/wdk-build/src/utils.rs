@@ -102,8 +102,6 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
     if let Ok(wdk_content_root) = env::var("NugetWdkContentRoot") {
         let path = Path::new(wdk_content_root.as_str());
         if path.is_dir() {
-            println!("Using NugetWdkContentRoot: {}", path.display());
-
             return Some(path.to_path_buf());
         }
         eprintln!(

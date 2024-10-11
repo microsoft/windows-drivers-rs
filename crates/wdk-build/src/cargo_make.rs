@@ -519,12 +519,8 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
 
-    println!("Version: {}", version);
-
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
-
-    println!("Host architecture: {}", host_arch.as_windows_str());
 
     let wdk_bin_root = wdk_content_root
         .join(format!("bin/{version}"))
@@ -532,8 +528,6 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .expect("Failed to canonicalize path")
         .strip_extended_length_path_prefix()
         .expect("Failed to strip extended length path prefix");
-
-    println!("WDK bin root: {}", wdk_bin_root.display());
 
     let host_windows_sdk_ver_bin_path = match host_arch {
         CpuArchitecture::Amd64 => wdk_bin_root
@@ -552,11 +546,6 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .to_string(),
     };
 
-    println!(
-        "Host Windows SDK bin path: {}",
-        host_windows_sdk_ver_bin_path
-    );
-
     // Some tools (ex. inf2cat) are only available in the x86 folder
     let x86_windows_sdk_ver_bin_path = wdk_bin_root
         .join("x86")
@@ -572,10 +561,8 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
     );
 
-    println!("x86 Windows SDK bin path: {}", x86_windows_sdk_ver_bin_path);
-
     let wdk_tool_root = wdk_content_root
-        .join(format!("tools/{version}"))
+        .join(format!("Tools/{version}"))
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
     let arch_specific_wdk_tool_root = wdk_tool_root
@@ -588,10 +575,6 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .to_str()
             .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
     );
-
-    println!("WDK tool root: {}", wdk_tool_root.display());
-
-    println!("PATH_ENV_VAR={}", env::var(PATH_ENV_VAR).unwrap());
 
     Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
 }
@@ -740,8 +723,6 @@ pub fn get_current_package_name() -> String {
 /// directory name
 pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<(), ConfigError> {
     let path_to_copy = path_to_copy.as_ref();
-
-    println!("copy_to_driver_package_folder: {}", path_to_copy.display());
 
     let package_folder_path: PathBuf =
         get_wdk_build_output_directory().join(format!("{}_package", get_current_package_name()));
