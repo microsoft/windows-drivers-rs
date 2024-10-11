@@ -76,6 +76,8 @@ jobs:
           $folders = @(
             "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591",
             "C:\WDK\Microsoft.Windows.SDK.CPP.x64.10.0.26100.1591",
+            "C:\WDK\Microsoft.Windows.SDK.CPP.arm64.10.0.26100.1591",
+            "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591",
             "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591"
           )
           foreach ($folder in $folders) {
@@ -84,10 +86,12 @@ jobs:
               exit 1
             }
           }
+
           $signtoolx64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x64\signtool.exe"
           $signtoolX86 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x86\signtool.exe"
           $destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x64"
           $destinationX86 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x86"
+
           if (Test-Path $signtoolx64) {
             Copy-Item -Path $signtoolx64 -Destination $destinationx64 -Force
             Write-Host "Copied signtool.exe to $destinationx64"
@@ -99,6 +103,34 @@ jobs:
             Write-Host "Copied signtool.exe to $destinationX86"
           } else {
             Write-Error "signtool.exe not found at $signtoolX86"
+          }
+
+          $certmgrx86 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x86\certmgr.exe"
+          $certmgrX64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x64\certmgr.exe"
+          $certmgrARM64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\arm64\certmgr.exe"
+          $destinationx86 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x86"
+          $destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x64"
+          $destinationARM64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\ARM64"
+
+          if (Test-Path $certmgrx86) {
+            Copy-Item -Path $certmgrx86 -Destination $destinationx86 -Force
+            Write-Host "Copied certmgr.exe to $destinationx86"
+          } else {
+            Write-Error "certmgr.exe not found at $certmgrx86"
+          }
+
+          if (Test-Path $certmgrX64) {
+            Copy-Item -Path $certmgrX64 -Destination $destinationx64 -Force
+            Write-Host "Copied certmgr.exe to $destinationx64"
+          } else {
+            Write-Error "certmgr.exe not found at $certmgrX64"
+          }
+
+          if (Test-Path $certmgrARM64) {
+            Copy-Item -Path $certmgrARM64 -Destination $destinationARM64 -Force
+            Write-Host "Copied certmgr.exe to $destinationARM64"
+          } else {
+            Write-Error "certmgr.exe not found at $certmgrARM64"
           }
 
           $sourceFolder = "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c\Lib\10.0.26100.0\km\arm64"
