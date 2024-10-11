@@ -133,6 +133,34 @@ jobs:
             Write-Error "certmgr.exe not found at $certmgrARM64"
           }
 
+          $makecertx86 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x86\MakeCert.exe"
+          $makecertX64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\x64\MakeCert.exe"
+          $makecertARM64 = "C:\WDK\Microsoft.Windows.SDK.CPP.10.0.26100.1591\c\bin\10.0.26100.0\arm64\MakeCert.exe"
+          $destinationx86 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x86"
+          $destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\x64"
+          $destinationARM64 = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\bin\10.0.26100.0\ARM64"
+
+          if (Test-Path $makecertx86) {
+            Copy-Item -Path $makecertx86 -Destination $destinationx86 -Force
+            Write-Host "Copied MakeCert.exe to $destinationx86"
+          } else {
+            Write-Error "MakeCert.exe not found at $makecertx86"
+          }
+
+          if (Test-Path $makecertX64) {
+            Copy-Item -Path $makecertX64 -Destination $destinationx64 -Force
+            Write-Host "Copied MakeCert.exe to $destinationx64"
+          } else {
+            Write-Error "MakeCert.exe not found at $makecertX64"
+          }
+
+          if (Test-Path $makecertARM64) {
+            Copy-Item -Path $makecertARM64 -Destination $destinationARM64 -Force
+            Write-Host "Copied MakeCert.exe to $destinationARM64"
+          } else {
+            Write-Error "MakeCert.exe not found at $makecertARM64"
+          }
+
           $sourceFolder = "C:\WDK\Microsoft.Windows.WDK.ARM64.10.0.26100.1591\c\Lib\10.0.26100.0\km\arm64"
           $destinationFolder = "C:\WDK\Microsoft.Windows.WDK.x64.10.0.26100.1591\c\Lib\10.0.26100.0\km"
           if (Test-Path $sourceFolder) {
