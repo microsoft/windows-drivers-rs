@@ -70,8 +70,8 @@ jobs:
       
       - name: Install ${{ matrix.wdk }} (NuGet)
         if: matrix.wdk == 'Microsoft.Windows.WDK'
-        run: .\scripts\nuget-install-wdk.ps1
-                 
+        run: |
+          .\scripts\nuget-install-wdk.ps1                 
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
