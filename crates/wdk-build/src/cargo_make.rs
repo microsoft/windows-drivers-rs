@@ -524,10 +524,8 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let wdk_bin_root = wdk_content_root
         .join(format!("bin/{version}"))
-        .canonicalize()
-        .expect("Failed to canonicalize path")
-        .strip_extended_length_path_prefix()
-        .expect("Failed to strip extended length path prefix");
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?;
 
     let host_windows_sdk_ver_bin_path = match host_arch {
         CpuArchitecture::Amd64 => wdk_bin_root
