@@ -7,29 +7,106 @@
 //! and generates the relevant bindings to WDK APIs.
 
 use std::{
-    env,
-    io::Write,
-    path::{Path, PathBuf},
-    thread,
+    env, fs::File, io::Write, path::{Path, PathBuf}, thread
 };
 
 use anyhow::Context;
 use bindgen::CodegenConfig;
 use lazy_static::lazy_static;
-use tracing::{Span, info, info_span};
+use tracing::{info, info_span, Span};
 use tracing_subscriber::{
-    EnvFilter,
     filter::{LevelFilter, ParseError},
+    EnvFilter,
 };
 use wdk_build::{
+    configure_wdk_library_build_and_then,
     BuilderExt,
     Config,
     ConfigError,
     DriverConfig,
     KmdfConfig,
     UmdfConfig,
-    configure_wdk_library_build_and_then,
 };
+
+const BASE_INPUT_HEADER_FILE_CONTENTS: &str = r#"
+#if defined(UMDF_VERSION_MAJOR)
+
+#include "windows.h"
+
+#else // !defined(UMDF_VERSION_MAJOR)
+
+#include "ntifs.h"
+#include "ntddk.h"
+
+// FIXME: Why is there no definition for this struct? Maybe blocklist this struct in bindgen. 
+typedef union _KGDTENTRY64
+{
+  struct
+  {
+    unsigned short LimitLow;
+    unsigned short BaseLow;
+    union
+    {
+      struct
+      {
+        unsigned char BaseMiddle;
+        unsigned char Flags1;
+        unsigned char Flags2;
+        unsigned char BaseHigh;
+      } Bytes;
+      struct
+      {
+        unsigned long BaseMiddle : 8;
+        unsigned long Type : 5;
+        unsigned long Dpl : 2;
+        unsigned long Present : 1;
+        unsigned long LimitHigh : 4;
+        unsigned long System : 1;
+        unsigned long LongMode : 1;
+        unsigned long DefaultBig : 1;
+        unsigned long Granularity : 1;
+        unsigned long BaseHigh : 8;
+      } Bits;
+    };
+    unsigned long BaseUpper;
+    unsigned long MustBeZero;
+  };
+  unsigned __int64 Alignment;
+} KGDTENTRY64, *PKGDTENTRY64;
+
+typedef union _KIDTENTRY64
+{
+  struct
+  {
+    unsigned short OffsetLow;
+    unsigned short Selector;
+    unsigned short IstIndex : 3;
+    unsigned short Reserved0 : 5;
+    unsigned short Type : 5;
+    unsigned short Dpl : 2;
+    unsigned short Present : 1;
+    unsigned short OffsetMiddle;
+    unsigned long OffsetHigh;
+    unsigned long Reserved1;
+  };
+  unsigned __int64 Alignment;
+} KIDTENTRY64, *PKIDTENTRY64;
+#endif // !defined(UMDF_VERSION_MAJOR)
+"#;
+
+const WDF_INPUT_HEADER_CONTENTS: &str = r#"
+#include "wdf.h"
+"#;
+
+// HID Headers list from https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
+const HID_BASE_HEADERS: &[&str] = &["hidclass.h", "hidpi.h", "hidsdi.h", "vhf.h"];
+const HID_KERNEL_MODE_HEADERS: &[&str] = &[
+    "hidpddi.h",
+    "hidport.h",
+    "HidSpiCx/1.0/hidspicx.h",
+    "kbdmou.h",
+    "ntdd8042.h",
+];
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR IDENTIFIER FOR VARIABLE CORRESPONDING TO NUMBER OF WDF FUNCTIONS>";
@@ -39,11 +116,25 @@ const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
 const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING WDFFUNCTIONS SYMBOL NAME>";
+const HID_BASE_HEADER_INCLUDES_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR INCLUDE STATEMENTS FOR ALL THE HID BASE HEADERS>";
+const HID_KERNEL_MODE_HEADER_INCLUDES_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR INCLUDE STATEMENTS FOR ALL THE HID KERNEL MODE HEADERS>";
 
+/// Rust code snippet that declares and initializes wdf_function_count based off
+/// the bindgen-generated `WdfFunctionCount` symbol
+///
+/// This is only used in configurations where WDF generates a
+/// `WdfFunctionCount`.
 const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
         // SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
                                                               to be ever mutated by WDF.
         let wdf_function_count = unsafe { crate::WdfFunctionCount } as usize;";
+/// Rust code snippet that declares and initializes wdf_function_count based off
+/// the bindgen-generated `WdfFunctionTableNumEntries` constant
+///
+/// This is only used in older WDF versions that didn't generate a
+/// `WdfFunctionCount` symbol
 const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
         let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
 
@@ -133,7 +224,16 @@ use crate::WDFFUNC;
 /// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
 #[no_mangle]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
-"#,
+"#
+    );
+    static ref HID_INPUT_HEADER_CONTENTS_TEMPLATE: String = format!(
+        r#"
+{HID_BASE_HEADER_INCLUDES_PLACEHOLDER}
+
+#if defined(_KERNEL_MODE)
+{HID_KERNEL_MODE_HEADER_INCLUDES_PLACEHOLDER}
+#endif // defined(_KERNEL_MODE)
+"#
     );
 }
 
@@ -144,7 +244,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("types.rs", generate_types),
     ("base.rs", generate_base),
     ("wdf.rs", generate_wdf),
-    ("hid.rs", generate_hid),
+    // ("hid.rs", generate_hid),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -204,7 +304,9 @@ fn initialize_tracing() -> Result<(), ParseError> {
 fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: constants.rs");
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+    Ok(bindgen::Builder::wdk_default(config)?
+        .header_contents("base", BASE_INPUT_HEADER_FILE_CONTENTS)
+        .header_contents("wdf", WDF_INPUT_HEADER_CONTENTS)
         .with_codegen_config(CodegenConfig::VARS)
         .generate()
         .expect("Bindings should succeed to generate")
@@ -214,7 +316,9 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+    Ok(bindgen::Builder::wdk_default(config)?
+        .header_contents("base", BASE_INPUT_HEADER_FILE_CONTENTS)
+        .header_contents("wdf", WDF_INPUT_HEADER_CONTENTS)
         .with_codegen_config(CodegenConfig::TYPES)
         .generate()
         .expect("Bindings should succeed to generate")
@@ -228,38 +332,34 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+    Ok(bindgen::Builder::wdk_default(config)?
+        .header_contents("base", BASE_INPUT_HEADER_FILE_CONTENTS)
+        .header_contents("wdf", WDF_INPUT_HEADER_CONTENTS)
         .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(out_path.join(outfile_name))?)
 }
 
-fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    let mut builder = bindgen::Builder::wdk_default(vec!["src/hid-input.h"], config)?
-        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement());
+// fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError>
+// {     let mut builder = bindgen::Builder::wdk_default(config)?
+//         .with_codegen_config((CodegenConfig::TYPES |
+// CodegenConfig::VARS).complement());
 
-    // Only allowlist files in the hid-specific files declared in hid-input.h to
-    // avoid duplicate definitions
-    for header_file in [
-        "hidclass.h",
-        "hidpddi.h",
-        "hidpi.h",
-        "hidport.h",
-        "hidsdi.h",
-        "hidspicx.h",
-        "kbdmou.h",
-        "ntdd8042.h",
-        "vhf.h",
-    ] {
-        builder = builder.allowlist_file(format!(".*{header_file}.*"));
-    }
+//     // Only allowlist files in the hid-specific files declared in hid-input.h
+// to     // avoid duplicate definitions
+//     for header_file in HID_BASE_HEADERS
+//         .iter()
+//         .chain(HID_KERNEL_MODE_HEADERS.iter())
+//     {
+//         builder = builder.allowlist_file(format!(".*{header_file}.*"));
+//     }
 
-    Ok(builder
-        .generate()
-        .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("hid.rs"))?)
-}
+//     Ok(builder
+//         .generate()
+//         .expect("Bindings should succeed to generate")
+//         .write_to_file(out_path.join("hid.rs"))?)
+// }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = &config.driver_config {
@@ -269,7 +369,9 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         // items in the wdf headers(i.e. functions are all inlined). This step is
         // intentionally left here in case older/newer WDKs have non-inlined functions
         // or new WDKs may introduce non-inlined functions.
-        Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        Ok(bindgen::Builder::wdk_default(config)?
+            .header_contents("base", BASE_INPUT_HEADER_FILE_CONTENTS)
+            .header_contents("wdf", WDF_INPUT_HEADER_CONTENTS)
             .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
             // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
             // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
@@ -439,6 +541,13 @@ fn main() -> anyhow::Result<()> {
                             // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
                             info_span!(parent: current_span, "cc").in_scope(|| {
                                 info!("Compiling wdf.c");
+
+                                // Write all included headers into wdf.c
+                                let wdf_c_file_path = out_path.join("wdf.c");
+                                let mut wdf_c_file = File::create_new(&wdf_c_file_path)?;
+                                wdf_c_file.write_all(BASE_INPUT_HEADER_FILE_CONTENTS.as_bytes())?;
+                                wdf_c_file.write_all(WDF_INPUT_HEADER_CONTENTS.as_bytes())?;
+
                                 let mut cc_builder = cc::Build::new();
                                 for (key, value) in config.get_preprocessor_definitions_iter() {
                                     cc_builder.define(&key, value.as_deref());
@@ -446,7 +555,7 @@ fn main() -> anyhow::Result<()> {
 
                                 cc_builder
                                     .includes(config.get_include_paths()?)
-                                    .file("src/wdf.c")
+                                    .file(wdf_c_file_path)
                                     .compile("wdf");
                                 Ok::<(), ConfigError>(())
                             })
