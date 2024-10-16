@@ -74,14 +74,13 @@ jobs:
       - name: Install ${{ matrix.wdk }} (NuGet)
         if: startsWith(matrix.wdk, '10.0.')
         run: |
-          wdk="${{ matrix.wdk }}"
-          if [[ "$wdk" =~ ^10\.0\.[0-9]{5}\.[0-9]{1,4}$ ]]; then
+          $wdk = '${{ matrix.wdk }}'
+          if ($wdk -match '^10\.0\.\d{5}\.\d{1,4}$') {
             ./.github/scripts/nuget-install-wdk.ps1 -wdkVersion $wdk
-          else
-            echo "WDK version $wdk does not match the required format 10.0.{5 digit number}.{1 to 4 digit number}"
+          } else {
+            Write-Host "WDK version $wdk does not match the required format 10.0.{5 digit number}.{1 to 4 digit number}"
             exit 1
-          fi
-        shell: bash                 
+          }
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
