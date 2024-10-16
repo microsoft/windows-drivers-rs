@@ -9,7 +9,7 @@ Write-Host "Installing WDK version $wdkVersion"
 Write-Host "Major version number: $majorVersionNum"
 
 # Update the packages.config file with the version passed as parameter
-$packagesConfigPath = ".\packages.config"
+$packagesConfigPath = "C:\WDK.config"
 
 if (Test-Path $packagesConfigPath) {
     [xml]$packagesConfig = Get-Content $packagesConfigPath
@@ -28,19 +28,19 @@ if (Test-Path $packagesConfigPath) {
 
 # Install NuGet
 try {
-    nuget restore .\packages.config -PackagesDirectory .\packages
-    Write-Host "WDK installed at .\packages"
+    nuget restore .\packages.config -PackagesDirectory C:\WDK
+    Write-Host "WDK installed at C:\WDK"
 } catch {
     Write-Error "Failed to restore packages using NuGet. Error: $_"
     exit 1
 }
 
 $folders = @(
-    ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion",
-    ".\packages\Microsoft.Windows.SDK.CPP.x64.$wdkVersion",
-    ".\packages\Microsoft.Windows.SDK.CPP.arm64.$wdkVersion",
-    ".\packages\Microsoft.Windows.WDK.ARM64.$wdkVersion",
-    ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion"
+    "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion",
+    "C:\WDK\Microsoft.Windows.SDK.CPP.x64.$wdkVersion",
+    "C:\WDK\Microsoft.Windows.SDK.CPP.arm64.$wdkVersion",
+    "C:\WDK\Microsoft.Windows.WDK.ARM64.$wdkVersion",
+    "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion"
 )
 foreach ($folder in $folders) {
 if (-Not (Test-Path $folder)) {
@@ -64,33 +64,33 @@ function Copy-File {
 }
 
 # Copying signtool to WDK bin folder
-$signtoolx64 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x64\signtool.exe"
-$signtoolX86 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x86\signtool.exe"
-$destinationx64 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x64"
-$destinationX86 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x86"
+$signtoolx64 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x64\signtool.exe"
+$signtoolX86 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x86\signtool.exe"
+$destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x64"
+$destinationX86 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x86"
 
 Copy-File -sourcePath $signtoolX64 -destinationPath $destinationX64 -fileName "signtool.exe"
 Copy-File -sourcePath $signtoolX86 -destinationPath $destinationX86 -fileName "signtool.exe"
 
 # Copying certmgr to WDK bin folder
-$certmgrx86 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x86\certmgr.exe"
-$certmgrX64 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x64\certmgr.exe"
-$certmgrARM64 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\arm64\certmgr.exe"
-$destinationx86 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x86"
-$destinationx64 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x64"
-$destinationARM64 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\ARM64"
+$certmgrx86 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x86\certmgr.exe"
+$certmgrX64 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x64\certmgr.exe"
+$certmgrARM64 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\arm64\certmgr.exe"
+$destinationx86 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x86"
+$destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x64"
+$destinationARM64 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\ARM64"
 
 Copy-File -sourcePath $certmgrx86 -destinationPath $destinationx86 -fileName "certmgr.exe"
 Copy-File -sourcePath $certmgrX64 -destinationPath $destinationx64 -fileName "certmgr.exe"
 Copy-File -sourcePath $certmgrARM64 -destinationPath $destinationARM64 -fileName "certmgr.exe"
 
 # Copying makecert to WDK bin folder
-$makecertx86 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x86\MakeCert.exe"
-$makecertX64 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x64\MakeCert.exe"
-$makecertARM64 = ".\packages\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\arm64\MakeCert.exe"
-$destinationx86 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x86"
-$destinationx64 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x64"
-$destinationARM64 = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\ARM64"
+$makecertx86 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x86\MakeCert.exe"
+$makecertX64 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\x64\MakeCert.exe"
+$makecertARM64 = "C:\WDK\Microsoft.Windows.SDK.CPP.$wdkVersion\c\bin\$majorVersionNum.0\arm64\MakeCert.exe"
+$destinationx86 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x86"
+$destinationx64 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\x64"
+$destinationARM64 = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\bin\$majorVersionNum.0\ARM64"
 
 Copy-File -sourcePath $makecertx86 -destinationPath $destinationx86 -fileName "MakeCert.exe"
 Copy-File -sourcePath $makecertX64 -destinationPath $destinationx64 -fileName "MakeCert.exe"
@@ -111,11 +111,11 @@ function Copy-Folder {
 }
 
 # Copying km, um, kmdf, umdf ARM64 headers to x64 folders
-Copy-Folder -sourceFolder ".\packages\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\$majorVersionNum.0\km\arm64" -destinationFolder ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\$majorVersionNum.0\km"
-Copy-Folder -sourceFolder ".\packages\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\$majorVersionNum.0\um\arm64" -destinationFolder ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\$majorVersionNum.0\um"
-Copy-Folder -sourceFolder ".\packages\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\wdf\kmdf\ARM64" -destinationFolder ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\wdf\kmdf"
-Copy-Folder -sourceFolder ".\packages\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\wdf\umdf\ARM64" -destinationFolder ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\wdf\umdf"
+Copy-Folder -sourceFolder "C:\WDK\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\$majorVersionNum.0\km\arm64" -destinationFolder "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\$majorVersionNum.0\km"
+Copy-Folder -sourceFolder "C:\WDK\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\$majorVersionNum.0\um\arm64" -destinationFolder "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\$majorVersionNum.0\um"
+Copy-Folder -sourceFolder "C:\WDK\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\wdf\kmdf\ARM64" -destinationFolder "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\wdf\kmdf"
+Copy-Folder -sourceFolder "C:\WDK\Microsoft.Windows.WDK.ARM64.$wdkVersion\c\Lib\wdf\umdf\ARM64" -destinationFolder "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c\Lib\wdf\umdf"
 
 # Set WDKContentRoot environment variable
-$NugetWdkContentRoot = ".\packages\Microsoft.Windows.WDK.x64.$wdkVersion\c"
+$NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.$wdkVersion\c"
 Write-Output "WDKContentRoot=$NugetWdkContentRoot" >> $env:GITHUB_ENV   
