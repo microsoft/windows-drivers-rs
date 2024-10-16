@@ -9,7 +9,7 @@ Write-Host "Installing WDK version $wdkVersion"
 Write-Host "Major version number: $majorVersionNum"
 
 # Update the packages.config file with the version passed as parameter
-$packagesConfigPath = "C:\WDK.config"
+$packagesConfigPath = ".\packages.config"
 
 if (Test-Path $packagesConfigPath) {
     [xml]$packagesConfig = Get-Content $packagesConfigPath
@@ -26,7 +26,7 @@ if (Test-Path $packagesConfigPath) {
     Write-Error "packages.config file not found"
 }
 
-# Install NuGet
+# Install WDK using NuGet
 try {
     nuget restore .\packages.config -PackagesDirectory C:\WDK
     Write-Host "WDK installed at C:\WDK"
