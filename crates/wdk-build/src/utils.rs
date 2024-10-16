@@ -98,19 +98,6 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
         );
     }
 
-    // If NugetWdkContentRoot is present in environment, use it
-    if let Ok(wdk_content_root) = env::var("NugetWdkContentRoot") {
-        let path = Path::new(wdk_content_root.as_str());
-        if path.is_dir() {
-            return Some(path.to_path_buf());
-        }
-        eprintln!(
-            "NugetWdkContentRoot was detected to be {}, but does not exist or is not a valid \
-             directory.",
-            path.display()
-        );
-    }
-
     // If MicrosoftKitRoot environment variable is set, use it to set WDKContentRoot
     if let Ok(microsoft_kit_root) = env::var("MicrosoftKitRoot") {
         let path = Path::new(microsoft_kit_root.as_str());
@@ -247,9 +234,7 @@ pub fn validate_wdk_version_format<S: AsRef<str>>(version_string: S) -> bool {
     let version_parts: Vec<&str> = version.split('.').collect();
 
     // First, check if we have "10" as our first value
-    if !version_parts.first().is_some_and(|first| *first == "10") {
-        // FIXME: Once is_some_or is stabilized, replace the above with:
-        // if version_parts.first().is_none_or(|first| *first != "10") {
+    if version_parts.first().is_none_or(|first| *first != "10") {
         return false;
     }
 

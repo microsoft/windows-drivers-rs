@@ -20,7 +20,10 @@ jobs:
       matrix:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK
-          - Microsoft.Windows.WDK # Latest WDK
+          # Use versions numbers for NuGet WDK packages
+          # - 10.0.26100.1882
+          # - 10.0.26100.1591
+          - 10.0.26100.1
 
         llvm:
           - 17.0.6
@@ -69,9 +72,16 @@ jobs:
           }
       
       - name: Install ${{ matrix.wdk }} (NuGet)
-        if: matrix.wdk == 'Microsoft.Windows.WDK'
+        if: startsWith(matrix.wdk, '10.0.')
         run: |
-          ./.github/scripts/nuget-install-wdk.ps1                 
+          wdk="${{ matrix.wdk }}"
+          if [[ "$wdk" =~ ^10\.0\.[0-9]{5}\.[0-9]{1,4}$ ]]; then
+            ./.github/scripts/nuget-install-wdk.ps1 -wdkVersion $wdk
+          else
+            echo "WDK version $wdk does not match the required format 10.0.{5 digit number}.{1 to 4 digit number}"
+            exit 1
+          fi
+        shell: bash                 
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
