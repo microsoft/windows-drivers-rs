@@ -36,7 +36,7 @@ wdk-panic = { path = "crates/wdk-panic", version = "0.3.0" }
 wdk-sys = { path = "crates/wdk-sys", version = "0.3.0" }
 
 # External Crates
-anyhow = "1.0.86"
+anyhow = "1.0.91"
 bindgen = "0.69.4"
 camino = "1.1.9"
 cargo_metadata = "0.18.1"
