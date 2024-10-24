@@ -689,7 +689,7 @@ impl Config {
         for path in library_paths {
             println!("cargo::rustc-link-search={}", path.display());
         }
-
+        resource_compile::generate_and_compile_rcfile(self.get_include_paths()?);
         match &self.driver_config {
             DriverConfig::Wdm => {
                 // Emit WDM-specific libraries to link to
