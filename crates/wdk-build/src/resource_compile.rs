@@ -131,6 +131,7 @@ fn invoke_rc(s7: &Vec<String>) {
         Ok(exit_status) => {
             if exit_status.success() {
                 println!("Resource compilation successful!");
+                println!("cargo:rustc-link-arg=resources.res");
             } else {
                 println!("Resource compilation failed.");
                 std::process::exit(1); // Exit with a non-zero status code
