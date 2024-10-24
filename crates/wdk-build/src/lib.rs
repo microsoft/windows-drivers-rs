@@ -22,6 +22,8 @@ mod utils;
 
 mod bindgen;
 
+mod resource_compile;
+
 use std::{env, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
