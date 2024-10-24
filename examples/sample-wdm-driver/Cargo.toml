@@ -12,6 +12,9 @@ publish = false
 
 [package.metadata.wdk.driver-model]
 driver-type = "WDM"
+companyname = "Microsoft Corporation"
+copyright = "(C) 2024 Microsoft. All rights reserved."
+productname = "Surface"
 
 [lib]
 crate-type = ["cdylib"]
