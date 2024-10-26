@@ -1,10 +1,11 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use cargo_metadata::MetadataCommand;
 
-pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>) {
+pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>,rc_exe_rootpath: String) {
     // Initialize an empty vector to store modified include arguments
     let mut includeargs: Vec<String> = Vec::new();
 
@@ -20,14 +21,11 @@ pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>) {
         }
     }
 
-    // Print the modified include arguments
-    println!("IncludeArgs: {:?}", includeargs);
-
     let (companyname, copyright, productname) = get_packagemetadatadetails();
-    let (productversion, description, fileversion) = get_packagedetails();
-    getandset_rcfile(companyname, copyright, productname, productversion ,description, fileversion, &includeargs);
+    let (productversion, description, fileversion, name) = get_packagedetails();
+    getandset_rcfile(companyname, copyright, productname, productversion ,description, fileversion, name, &includeargs, rc_exe_rootpath);
 }
-fn getandset_rcfile(s1: String, s2: String, s3: String, s4:String, s5:String, s6:String, s7: &Vec<String>) {
+fn getandset_rcfile(companyname: String, copyright: String, productname: String, productversion:String, description:String, fileversion:String, name:String, includeargs: &Vec<String>, rc_exe_rootpath:String) {
     println!("Set and create rc file... ");
     let rcfile_path = "resources.rc";
     if fs::metadata(&rcfile_path).is_ok() {
@@ -43,7 +41,6 @@ fn getandset_rcfile(s1: String, s2: String, s3: String, s4:String, s5:String, s6
 
     let ver_filetype = "VFT_DRV";
     let ver_filesubtype = "VFT2_DRV_SYSTEM";
-    let ver_internalname = "sample-kmdf-driver.sys";
     let ver_originalfilename = "VER_INTERNALNAME_STR";
 
     // Create the RC file content
@@ -52,17 +49,17 @@ fn getandset_rcfile(s1: String, s2: String, s3: String, s4:String, s5:String, s6
 #include <ntverp.h>
 #define	VER_FILETYPE	            {file_type}
 #define	VER_FILESUBTYPE	            {file_subtype}
-#define VER_INTERNALNAME_STR        "{internal_name}"
+#define VER_INTERNALNAME_STR        "{name}"
 #define VER_ORIGINALFILENAME_STR    {original_filename}
 
 #undef VER_FILEDESCRIPTION_STR     
-#define VER_FILEDESCRIPTION_STR "{s5}"
+#define VER_FILEDESCRIPTION_STR "{description}"
 
 #undef  VER_PRODUCTNAME_STR
 #define VER_PRODUCTNAME_STR    VER_FILEDESCRIPTION_STR
 
-#define VER_FILEVERSION        {s6},0
-#define VER_FILEVERSION_STR    "{s4}.0"
+#define VER_FILEVERSION        {fileversion},0
+#define VER_FILEVERSION_STR    "{productversion}.0"
 
 #undef  VER_PRODUCTVERSION
 #define VER_PRODUCTVERSION          VER_FILEVERSION
@@ -70,62 +67,41 @@ fn getandset_rcfile(s1: String, s2: String, s3: String, s4:String, s5:String, s6
 #undef  VER_PRODUCTVERSION_STR
 #define VER_PRODUCTVERSION_STR      VER_FILEVERSION_STR
 
-#define VER_LEGALCOPYRIGHT_STR      {s2}
+#define VER_LEGALCOPYRIGHT_STR      {copyright}
 #ifdef  VER_COMPANYNAME_STR
 
 #undef  VER_COMPANYNAME_STR
-#define VER_COMPANYNAME_STR         {s1}
+#define VER_COMPANYNAME_STR         {companyname}
 #endif
 
 #undef  VER_PRODUCTNAME_STR
-#define VER_PRODUCTNAME_STR    {s3}
+#define VER_PRODUCTNAME_STR    {productname}
 
 #include "common.ver""#,
         file_type = ver_filetype,
         file_subtype = ver_filesubtype,
-        internal_name = ver_internalname,
         original_filename = ver_originalfilename
     );
-
-    // Print the RC file content
-    //println!("{}", env!("CARGO_PKG_VERSION"));
-    //println!("{}", env!("CARGO_PKG_METADATA.WDK"));
-    //println!("cargopkgcrate:{}", env!("CARGO_PKG_CRATE_NAME"));
-    
    
     std::fs::write("resources.rc", rc_content).expect("Unable to write RC file");
-    invoke_rc(&s7);
+    invoke_rc(&includeargs, rc_exe_rootpath);
 }
 
-fn invoke_rc(s7: &Vec<String>) {
-    // Replace with the actual path to rc.exe
-    let rc_path = env::var("PATH_TO_RC").unwrap_or_else(|_| {
-        // Default path if environment variable is not set
-        r#"D:\EWDK\content\Program Files\Windows Kits\10\bin\10.0.22621.0\x86\rc.exe"#.to_string()
-    });
+fn invoke_rc(includeargs: &Vec<String>, rc_exe_rootpath: String) {
 
-    println!("Using rc.exe path: {}", rc_path);
-
-    // Replace "resource.rc" with the name of your resource script file
     let resource_script = "resources.rc";
-    //for value in s7.into_iter() {
-      //  println!("Got: {}", value.to_string());
-    //}
-    //println!("include args: {:?}", s7);
-    let um_path = r#"D:\EWDK\content\Program Files\Windows Kits\10\Include\10.0.22621.0\um"#.to_string();
-    let include_string = "/I";
-    //println!("Modified Path: {}", modified_path);
-   // let s8 = "/I r#"D:\EWDK\content\Program Files\Windows Kits\10\Include\10.0.22621.0\um"#".to_string();
-    let mut command = Command::new(&rc_path);
-    command.args(s7).arg(include_string).arg(um_path).arg(resource_script);
-    println!("Command executed: {:?}", command); 
-    
-   //let status = Command::new(&rc_path).args(s7).arg(resource_script).status();
-   let status = command.status();
+    let rc_exe_path = format!("{}\\rc.exe", rc_exe_rootpath);
+    let rc_exe_path = Path::new(&rc_exe_path);
+    if !rc_exe_path.exists() {
+        eprintln!("Error: rc.exe path does not exist : {}", rc_exe_path.display());
+        std::process::exit(1); // Exit with a non-zero status code
+    }
 
-   //let mut command = Command::new(&rc_path);
-   //command.args(s7).arg(resource_script);
-    //println!("Command executed: {:?}", command); 
+    let mut command = Command::new(rc_exe_path);
+    command.args(includeargs).arg(resource_script);
+    println!("Command executed: {:?}", command);
+    
+   let status = command.status();
 
     match status {
         Ok(exit_status) => {
@@ -175,10 +151,11 @@ fn get_packagemetadatadetails() -> (String, String, String) {
     (companyname, copyrightname, productname)
 }
 
-fn get_packagedetails() -> (String, String, String) {
+fn get_packagedetails() -> (String, String, String, String) {
     let mut fileversion = String::new();
     let mut description = String::new();
     let mut productversion = String::new();
+    let mut name = String::new();
 
     match fs::read_to_string("Cargo.toml") {
         Ok(text1) => {
@@ -195,11 +172,16 @@ fn get_packagedetails() -> (String, String, String) {
                     let end = line.rfind('"').unwrap_or(0);
                     description = line[start..end].to_string();
                 }
+                if line.starts_with("name") {
+                    let start = line.find('"').unwrap_or(0) + 1;
+                    let end = line.rfind('"').unwrap_or(0);
+                    name = line[start..end].to_string();
+                }
             }
         }
         Err(_) => {
             eprintln!("Error reading Cargo.toml");
         }
     }
-    (productversion, description, fileversion)
+    (productversion, description, fileversion, name)
 }
