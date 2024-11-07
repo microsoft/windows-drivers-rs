@@ -7,22 +7,22 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Get URIs for Latest Winget assets
+    - name: Get URIs for Winget v1.8.1911 assets
       shell: pwsh
       run: |
         $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
 
-        $LatestReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'
-        $LatestWingetDownloadUri = $LatestReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
-        $LatestWingetLicenseDownloadUri = $LatestReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('License1.xml') }
+        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/164835566'
+        $WingetDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
+        $WingetLicenseDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('License1.xml') }
 
         # Print to logs
-        Write-Host "LatestWingetDownloadUri=$LatestWingetDownloadUri"
-        Write-Host "LatestWingetLicenseDownloadUri=$LatestWingetLicenseDownloadUri"
+        Write-Host "WingetDownloadUri=$WingetDownloadUri"
+        Write-Host "WingetLicenseDownloadUri=$WingetLicenseDownloadUri"
 
         # Save output for next step
-        Write-Output "LatestWingetDownloadUri=$LatestWingetDownloadUri" >> $env:GITHUB_ENV
-        Write-Output "LatestWingetLicenseDownloadUri=$LatestWingetLicenseDownloadUri" >> $env:GITHUB_ENV
+        Write-Output "WingetDownloadUri=$WingetDownloadUri" >> $env:GITHUB_ENV
+        Write-Output "WingetLicenseDownloadUri=$WingetLicenseDownloadUri" >> $env:GITHUB_ENV
 
     - name: Download Winget Assets and Dependencies
       shell: pwsh
@@ -30,13 +30,18 @@ runs:
         New-Item -Type Directory $env:RUNNER_TEMP/winget-install
         Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri  https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx
         Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx # Needed per https://github.com/microsoft/winget-cli/blob/21de1607ed5c90174e6bb931406975c18681a5dd/README.md?plain=1#L35C19-L35C19
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:LatestWingetDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/winget.msixbundle
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:LatestWingetLicenseDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/license.xml
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/winget.msixbundle
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetLicenseDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/license.xml
 
-    - name: Start Winget Installation
+    - name: Start Winget Installation for all Users
       shell: pwsh
       run: |
         Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
+
+    - name: Install Winget for Current User (for better install diagnostics)
+      shell: powershell
+      run: |
+        Add-AppxPackage $env:RUNNER_TEMP/winget-install/winget.msixbundle
 
     - name: Wait for Completion of Winget Installation
       shell: pwsh
