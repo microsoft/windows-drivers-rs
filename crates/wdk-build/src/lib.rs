@@ -138,7 +138,7 @@ impl Default for Config {
             ),
             driver_config: DriverConfig::Wdm,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
-            driver_install: Default::default(),
+            driver_install: DriverInstall::default(),
         }
     }
 }

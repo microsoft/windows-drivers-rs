@@ -26,9 +26,7 @@ use wdk_build::{
     BuilderExt,
     Config,
     ConfigError,
-    DriverConfig,
-    KmdfConfig,
-    UmdfConfig,
+    metadata::driver_settings::{DriverConfig, KmdfConfig, UmdfConfig},
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =

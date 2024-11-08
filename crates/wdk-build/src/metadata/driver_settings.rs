@@ -1,6 +1,11 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
+//! Types for the `DriverConfig` section of the `metadata.wdk` section of the `Cargo.toml`
+//! 
+//! This section is used to specify the driver type and its associated configuration parameters.
+//! This corresponds with the settings in the `Driver Model` property pages
+
 use serde::{Deserialize, Serialize};
 
 /// The driver type with its associated configuration parameters

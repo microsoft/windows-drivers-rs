@@ -14,8 +14,8 @@ pub use map::Map;
 pub use ser::{to_map, to_map_with_prefix, Serializer};
 
 pub(crate) mod ser;
-pub(crate) mod driver_install;
-pub(crate) mod driver_settings;
+pub mod driver_install;
+pub mod driver_settings;
 
 mod error;
 mod map;

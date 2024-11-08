@@ -2,8 +2,7 @@
 // License: MIT OR Apache-2.0
 
 use serde::{
-    ser::{self, Impossible},
-    Serialize,
+    ser::{self, Impossible}, Serialize
 };
 
 use super::{
@@ -271,14 +270,11 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
         let mut serializer = Serializer::with_prefix(new_root_key_name.clone(), self.dst);
         let value_string  = value.serialize(&mut serializer)?;
        
-        match value_string {
-            Some(value_string) => {
-                self.dst.push((
-                    new_root_key_name,
-                    value_string,
-                ));
-            }
-            None => {}
+        if let Some(value_string) = value_string {
+            self.dst.push((
+                new_root_key_name,
+                value_string,
+            ));
         }
 
         Ok(())
@@ -349,7 +345,7 @@ impl<'a> SerializerSeq<'a> {
     /// Create a new instance of the `SerializerSeq` struct
     pub fn new(root_key_name: Option<String>, dst: &'a mut Vec<(String, String)>) -> Self {
         Self {
-            root_key_name: root_key_name,
+            root_key_name,
             dst,
             delimited_string: String::new()
         }
