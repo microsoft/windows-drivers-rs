@@ -11,6 +11,7 @@ env:
   RUSTFLAGS: >-
     -D warnings
     -C target-feature=+crt-static
+  WDK_BUILD_ENABLE_SIGNTOOL_VERIFY: true
 
 jobs:
   build:
