@@ -6,4 +6,5 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
   "sample-kmdf-driver",
   "sample-umdf-driver",
   "sample-wdm-driver",
+  "sample-null-driver",
 ]

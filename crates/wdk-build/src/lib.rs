@@ -288,6 +288,7 @@ impl Config {
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
+            DriverConfig::Package => unreachable!()
         });
         if !km_or_um_include_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -346,7 +347,8 @@ impl Config {
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
-            }
+            },
+            DriverConfig::Package => {}
         }
 
         Ok(include_paths)
@@ -380,6 +382,7 @@ impl Config {
                     DriverConfig::Umdf(_) => {
                         format!("um/{}", self.cpu_architecture.as_windows_str(),)
                     }
+                    DriverConfig::Package => unreachable!()
                 });
         if !windows_sdk_library_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -430,7 +433,8 @@ impl Config {
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
-            }
+            },
+            DriverConfig::Package => (),
         }
 
         // Reverse order of library paths so that paths pushed later into the vec take
@@ -527,6 +531,9 @@ impl Config {
 
                     umdf_definitions
                 }
+                DriverConfig::Package => {
+                    vec![]
+                }
             }
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
@@ -588,6 +595,7 @@ impl Config {
                 (config.umdf_version_major, config.target_umdf_version_minor)
             }
             DriverConfig::Wdm => return None,
+            DriverConfig::Package => unreachable!(),
         };
 
         Some(format!(
@@ -682,6 +690,7 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
+            DriverConfig::Package => unreachable!(),
         }
 
         // Emit linker arguments common to all configs

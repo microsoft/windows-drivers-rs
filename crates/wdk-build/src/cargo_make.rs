@@ -65,6 +65,9 @@ const CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY";
 const CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR: &str = "CARGO_MAKE_CURRENT_TASK_NAME";
 
+/// The environment variable that cargo-make uses to store driver model type
+const WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE";
+
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
 const CLAP_USAGE_EXIT_CODE: i32 = 2;
 
@@ -1100,6 +1103,33 @@ pub fn driver_sample_infverif_condition_script() -> anyhow::Result<()> {
             return Err::<(), anyhow::Error>(anyhow::Error::msg(format!(
                 "Skipping InfVerif. InfVerif in WDK Build {wdk_build_number} is bugged and does \
                  not contain the /samples flag.",
+            )));
+        }
+        Ok(())
+    })
+}
+
+/// `cargo-make` condition script for driver flow tasks in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error whenever it determines that the
+/// the driver model is a package and the task should be skipped.
+///
+/// # Panics
+///
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
+/// Panics if `WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE` is not set in the environment
+pub fn driver_model_is_not_package_condition_script() -> anyhow::Result<()> {
+    condition_script(|| {
+        let driver_type = env::var(WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE_ENV_VAR).expect("A driver type should exist in the WDK build metadata");
+        if driver_type == "PACKAGE" {
+            // cargo_make will interpret returning an error from the rust-script
+            // condition_script as skipping the task
+            return Err::<(), anyhow::Error>(anyhow::Error::msg(format!(
+                "Skipping {}  task The driver model is a package.",
+                env::var(CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR).expect("CARGO_MAKE_CURRENT_TASK_NAME should be set by cargo-make")
             )));
         }
         Ok(())

@@ -222,6 +222,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let outfile_name = match &config.driver_config {
         DriverConfig::Wdm | DriverConfig::Kmdf(_) => "ntddk.rs",
         DriverConfig::Umdf(_) => "windows.rs",
+        DriverConfig::Package => unreachable!("Package driver should not be running binary build"),
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 

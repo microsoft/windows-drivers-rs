@@ -23,6 +23,8 @@ pub enum DriverConfig {
     Kmdf(KmdfConfig),
     /// User Mode Driver Framework
     Umdf(UmdfConfig),
+    /// INF only drivers e.g. null drivers and extension INFs
+    Package
 }
 
 /// Private enum identical to [`DriverConfig`] but with different tag name to
@@ -42,6 +44,7 @@ enum DeserializableDriverConfig {
     Wdm,
     Kmdf(KmdfConfig),
     Umdf(UmdfConfig),
+    Package
 }
 
 /// The configuration parameters for KMDF drivers
@@ -80,6 +83,7 @@ impl From<DeserializableDriverConfig> for DriverConfig {
             DeserializableDriverConfig::Wdm => Self::Wdm,
             DeserializableDriverConfig::Kmdf(kmdf_config) => Self::Kmdf(kmdf_config),
             DeserializableDriverConfig::Umdf(umdf_config) => Self::Umdf(umdf_config),
+            DeserializableDriverConfig::Package => Self::Package,
         }
     }
 }

@@ -718,21 +718,45 @@ mod tests {
 
     #[test]
     fn test_package_files() {
+        let package_files = vec![
+            "file1.exe".to_string(),
+            "file2.sys".to_string(),
+            "file3.dll".to_string(),
+        ];
+
         let wdk_metadata = metadata::Wdk {
             driver_model: DriverConfig::Wdm,
             driver_install: DriverInstall {
-                package_files: vec![
-                    "file1.exe".to_string(),
-                    "file2.sys".to_string(),
-                    "file3.dll".to_string(),
-                ],
+                package_files: package_files.clone(),
             },
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
-        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], "file1.exe;file2.sys;file3.dll;");
+        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";") + ";");
+    }
+
+    #[test]
+    fn test_diverse_package_files() {
+        let package_files = vec![
+            "typical.exe".to_string(),
+            "with whitespace.sys".to_string(),
+            "underscored_file_.dll".to_string(),
+            "noextension".to_string(),
+        ];
+
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Wdm,
+            driver_install: DriverInstall {
+                package_files: package_files.clone(),
+            },
+        };
+
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
+
+        assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
+        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";") + ";");
     }
 
     #[test]
