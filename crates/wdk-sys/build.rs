@@ -218,22 +218,22 @@ macro_rules! call_unsafe_wdf_function_binding {{
 }}"#
     );
     static ref TEST_STUBS_TEMPLATE: String = format!(
-        r#"
+        r"
 use crate::WDFFUNC;
 
 /// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
 #[no_mangle]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
-"#
+"
     );
     static ref HID_INPUT_HEADER_CONTENTS_TEMPLATE: String = format!(
-        r#"
+        r"
 {HID_BASE_HEADER_INCLUDES_PLACEHOLDER}
 
 #if defined(_KERNEL_MODE)
 {HID_KERNEL_MODE_HEADER_INCLUDES_PLACEHOLDER}
 #endif // defined(_KERNEL_MODE)
-"#
+"
     );
 }
 
