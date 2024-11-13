@@ -6,7 +6,7 @@ use std::process::Command;
 use cargo_metadata::MetadataCommand;
 
 // function to generate and compile RC file
-pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>,rc_exe_rootpath: String) {
+pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>, rc_exe_rootpath: String) {
     // Initialize an empty vector to store modified include arguments
     let mut includeargs: Vec<String> = Vec::new();
 
@@ -24,10 +24,30 @@ pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>,rc_exe_rootpath: 
 
     let (companyname, copyright, productname) = get_packagemetadatadetails();
     let (productversion, description, fileversion, name) = get_packagedetails();
-    getandset_rcfile(companyname, copyright, productname, productversion ,description, fileversion, name, &includeargs, rc_exe_rootpath);
+    getandset_rcfile(
+        companyname, 
+        copyright, 
+        productname, 
+        productversion,
+        description, 
+        fileversion, 
+        name, 
+        &includeargs, 
+        rc_exe_rootpath,
+    );
 }
 // function to get and set RC File with package metadata
-fn getandset_rcfile(companyname: String, copyright: String, productname: String, productversion:String, description:String, fileversion:String, name:String, includeargs: &Vec<String>, rc_exe_rootpath:String) {
+fn getandset_rcfile(
+    companyname: String, 
+    copyright: String, 
+    productname: String, 
+    productversion:String, 
+    description:String, 
+    fileversion:String, 
+    name:String, 
+    includeargs: &Vec<String>, 
+    rc_exe_rootpath:String,
+) {
     println!("Set and create rc file... ");
     let rcfile_path = "resources.rc";
     if fs::metadata(&rcfile_path).is_ok() {
@@ -89,14 +109,17 @@ fn getandset_rcfile(companyname: String, copyright: String, productname: String,
     invoke_rc(&includeargs, rc_exe_rootpath);
 }
 
-// function to invoke RC.exe 
+// function to invoke RC.exe
 fn invoke_rc(includeargs: &Vec<String>, rc_exe_rootpath: String) {
 
     let resource_script = "resources.rc";
     let rc_exe_path = format!("{}\\rc.exe", rc_exe_rootpath);
     let rc_exe_path = Path::new(&rc_exe_path);
     if !rc_exe_path.exists() {
-        eprintln!("Error: rc.exe path does not exist : {}", rc_exe_path.display());
+        eprintln!(
+            "Error: rc.exe path does not exist : {}", 
+            rc_exe_path.display()
+        );
         std::process::exit(1); // Exit with a non-zero status code
     }
 
@@ -104,7 +127,7 @@ fn invoke_rc(includeargs: &Vec<String>, rc_exe_rootpath: String) {
     command.args(includeargs).arg(resource_script);
     println!("Command executed: {:?}", command);
     
-   let status = command.status();
+    let status = command.status();
 
     match status {
         Ok(exit_status) => {
@@ -136,20 +159,20 @@ fn get_packagemetadatadetails() -> (String, String, String) {
 
     // Extract metadata values with default fallbacks
     let companyname = metadata.get("wdk")
-    .and_then(|wdk| wdk.get("driver-model"))
-    .and_then(|driver_model| driver_model.get("companyname"))
-    .map(|s| s.to_string())
-    .unwrap_or_else(|| "Company name not found in metadata".to_string());
+        .and_then(|wdk| wdk.get("driver-model"))
+        .and_then(|driver_model| driver_model.get("companyname"))
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "Company name not found in metadata".to_string());
     let copyrightname = metadata.get("wdk")
-    .and_then(|wdk| wdk.get("driver-model"))
-    .and_then(|driver_model| driver_model.get("copyright"))
-    .map(|s| s.to_string())
-    .unwrap_or_else(|| "Copyright name not found in metadata".to_string());
+        .and_then(|wdk| wdk.get("driver-model"))
+        .and_then(|driver_model| driver_model.get("copyright"))
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "Copyright name not found in metadata".to_string());
     let productname = metadata.get("wdk")
-    .and_then(|wdk| wdk.get("driver-model"))
-    .and_then(|driver_model| driver_model.get("productname"))
-    .map(|s| s.to_string())
-    .unwrap_or_else(|| "Product name not found in metadata".to_string());
+        .and_then(|wdk| wdk.get("driver-model"))
+        .and_then(|driver_model| driver_model.get("productname"))
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "Product name not found in metadata".to_string());
 
     (companyname, copyrightname, productname)
 }
