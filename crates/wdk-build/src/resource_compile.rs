@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use cargo_metadata::MetadataCommand;
 
+// function to generate and compile RC file
 pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>,rc_exe_rootpath: String) {
     // Initialize an empty vector to store modified include arguments
     let mut includeargs: Vec<String> = Vec::new();
@@ -25,6 +26,7 @@ pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>,rc_exe_rootpath: 
     let (productversion, description, fileversion, name) = get_packagedetails();
     getandset_rcfile(companyname, copyright, productname, productversion ,description, fileversion, name, &includeargs, rc_exe_rootpath);
 }
+// function to get and set RC File with package metadata
 fn getandset_rcfile(companyname: String, copyright: String, productname: String, productversion:String, description:String, fileversion:String, name:String, includeargs: &Vec<String>, rc_exe_rootpath:String) {
     println!("Set and create rc file... ");
     let rcfile_path = "resources.rc";
@@ -87,6 +89,7 @@ fn getandset_rcfile(companyname: String, copyright: String, productname: String,
     invoke_rc(&includeargs, rc_exe_rootpath);
 }
 
+// function to invoke RC.exe 
 fn invoke_rc(includeargs: &Vec<String>, rc_exe_rootpath: String) {
 
     let resource_script = "resources.rc";
@@ -119,6 +122,7 @@ fn invoke_rc(includeargs: &Vec<String>, rc_exe_rootpath: String) {
         }
     }
 }
+// function to get package metadata details
 fn get_packagemetadatadetails() -> (String, String, String) {
     // Run the 'cargo metadata' command and capture its output
     let path = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -131,7 +135,6 @@ fn get_packagemetadatadetails() -> (String, String, String) {
     let metadata = &root.metadata;
 
     // Extract metadata values with default fallbacks
-
     let companyname = metadata.get("wdk")
     .and_then(|wdk| wdk.get("driver-model"))
     .and_then(|driver_model| driver_model.get("companyname"))
@@ -150,7 +153,7 @@ fn get_packagemetadatadetails() -> (String, String, String) {
 
     (companyname, copyrightname, productname)
 }
-
+// function to get package details
 fn get_packagedetails() -> (String, String, String, String) {
     let mut fileversion = String::new();
     let mut description = String::new();
