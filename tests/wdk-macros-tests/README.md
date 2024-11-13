@@ -1,6 +1,6 @@
 # wdk-macros-tests
 
-This crate allows for testing the `wdk-macros` crate, specifically containing tests for macro expansion and error handling. The tests are written using the `macrotest` and `trybuild` crates, and executed for specific wdk configurations in the [`config-kmdf`](./config-kmdf/) and [`config-umdf`](./config-umdf/) crate tests.
+This crate allows for testing the `wdk-macros` crate, specifically containing tests for macro expansion and error handling. The tests are written using the `macrotest` and `trybuild` crates, and executed for specific wdk configurations in the [`config-kmdf`](../config-kmdf/) and [`config-umdf`](../config-umdf/) crate tests.
 
 ## Tests
 
