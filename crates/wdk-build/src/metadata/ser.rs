@@ -34,9 +34,7 @@ pub const SEQ_ELEMENT_SEPARATOR: char = ';';
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{self, to_map},
-///     DriverConfig,
-///     KmdfConfig,
+///     metadata::{self, to_map, driver_settings::{ DriverConfig, KmdfConfig },
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -82,9 +80,7 @@ where
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{self, to_map_with_prefix},
-///     DriverConfig,
-///     KmdfConfig,
+///     metadata::{self, to_map, driver_settings::{ DriverConfig, KmdfConfig },
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {

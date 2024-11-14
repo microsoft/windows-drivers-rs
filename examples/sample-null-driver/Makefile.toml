@@ -1,4 +1,0 @@
-extend = [
-  { path = "../../crates/wdk-build/rust-driver-makefile.toml" },
-  { path = "../../crates/wdk-build/rust-driver-sample-makefile.toml" },
-]

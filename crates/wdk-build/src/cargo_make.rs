@@ -1146,16 +1146,26 @@ pub fn driver_model_is_not_package_condition_script() -> anyhow::Result<()> {
 /// 
 /// Panics if `WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES` is not set in the environment
 pub fn copy_package_files_to_driver_package_folder() -> Result<(), ConfigError> {
-    let package_files: Vec<PathBuf>  = env::var(WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES_ENV_VAR)
+    let package_files: Vec<String>  = env::var(WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES_ENV_VAR)
         .expect("The package files should be set by the wdk-build-init task")
         .split_terminator(metadata::ser::SEQ_ELEMENT_SEPARATOR)
-        .map(PathBuf::from)
+        .map(String::from)
         .collect();
 
+    let env_variable_regex = regex::Regex::new(r"\$\{(\w+)\}").unwrap();
     package_files
         .iter()
         .try_for_each(|package_file|{
-            copy_to_driver_package_folder(package_file.as_path())
+            // Evaluate environment variables in the package file path.
+            let package_file_evaluated = env_variable_regex.replace_all(package_file, |captures: &regex::Captures| {
+                print!("Evaluating environment variable {}", &captures[1]);
+                env::var(&captures[1]).unwrap_or_else(|_| {
+                    panic!("The environment variable {} should be set", &captures[1])
+                })
+            }).to_string();
+
+            let package_file_path = Path::new(&package_file_evaluated);
+            copy_to_driver_package_folder(package_file_path)
         })?;
     
     Ok(())
