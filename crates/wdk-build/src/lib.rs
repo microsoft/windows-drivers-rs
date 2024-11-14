@@ -42,7 +42,7 @@ pub struct Config {
     /// Build configuration of driver
     pub driver_config: DriverConfig,
     /// Driver installation settings
-    pub driver_install: DriverInstall
+    pub driver_install: Option<DriverInstall>
 }
 
 /// The CPU architecture that's configured to be compiled for
@@ -126,6 +126,11 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
+
+
+    /// Error returned when wdk build runs for [`metadata::driver_settings::DriverConfig::Package`]
+    #[error("Package driver type does not support building binaries. It should be used for null drivers and extension infs only.")]
+    PackageDriverTypeBuildNotSupported,
 }
 
 impl Default for Config {
@@ -138,7 +143,7 @@ impl Default for Config {
             ),
             driver_config: DriverConfig::Wdm,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
-            driver_install: DriverInstall::default(),
+            driver_install: None,
         }
     }
 }
@@ -232,7 +237,7 @@ impl Config {
         let serialized_wdk_metadata_map =
             metadata::to_map::<std::collections::BTreeMap<_, _>>(&metadata::Wdk {
                 driver_model: self.driver_config.clone(),
-                driver_install: self.driver_install.clone()
+                driver_install: self.driver_install.clone(),
             })?;
 
         for cfg_key in EXPORTED_CFG_SETTINGS.iter().map(|(key, _)| *key) {
@@ -288,7 +293,9 @@ impl Config {
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
-            DriverConfig::Package => unreachable!()
+            DriverConfig::Package => {
+                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+            },
         });
         if !km_or_um_include_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -348,7 +355,9 @@ impl Config {
                         .strip_extended_length_path_prefix()?,
                 );
             },
-            DriverConfig::Package => {}
+            DriverConfig::Package => {
+                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+            },
         }
 
         Ok(include_paths)
@@ -382,7 +391,9 @@ impl Config {
                     DriverConfig::Umdf(_) => {
                         format!("um/{}", self.cpu_architecture.as_windows_str(),)
                     }
-                    DriverConfig::Package => unreachable!()
+                    DriverConfig::Package => {
+                        return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+                    },
                 });
         if !windows_sdk_library_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -434,7 +445,9 @@ impl Config {
                         .strip_extended_length_path_prefix()?,
                 );
             },
-            DriverConfig::Package => (),
+            DriverConfig::Package => {
+                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+            },
         }
 
         // Reverse order of library paths so that paths pushed later into the vec take
@@ -531,9 +544,7 @@ impl Config {
 
                     umdf_definitions
                 }
-                DriverConfig::Package => {
-                    vec![]
-                }
+                DriverConfig::Package => unreachable!()
             }
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
@@ -690,7 +701,9 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
-            DriverConfig::Package => unreachable!(),
+            DriverConfig::Package => {
+                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+            },
         }
 
         // Emit linker arguments common to all configs
@@ -1059,6 +1072,21 @@ mod tests {
     }
 
     #[test]
+    fn package_config() {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+            driver_config: DriverConfig::Package,
+            ..Config::default()
+        });
+
+        #[cfg(nightly_toolchain)]
+        assert_matches!(
+            config.driver_config,
+            DriverConfig::Package
+        );
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
+    }
+
+    #[test]
     fn test_try_from_cargo_str() {
         assert_eq!(
             CpuArchitecture::try_from_cargo_str("x86_64"),
@@ -1117,6 +1145,17 @@ mod tests {
             let result = config.compute_wdffunctions_symbol_name();
 
             assert_eq!(result, None);
+        }
+
+        #[test]
+        #[should_panic]
+        fn package() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Package,
+                ..Default::default()
+            });
+
+            let _ = config.compute_wdffunctions_symbol_name();
         }
     }
 }

@@ -44,7 +44,7 @@ pub struct Wdk {
     /// Metadata corresponding to the `Driver Model` property page in the WDK
     pub driver_model: DriverConfig,
     /// Metadata corresponding to the `Driver Install` property page in the WDK
-    pub driver_install: DriverInstall
+    pub driver_install: Option<DriverInstall>
 }
 
 /// Errors that could result from trying to construct a

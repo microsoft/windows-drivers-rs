@@ -68,6 +68,9 @@ const CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR: &str = "CARGO_MAKE_CURRENT_TASK_NAME
 /// The environment variable that cargo-make uses to store driver model type
 const WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE_ENV_VAR: &str = "WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE";
 
+/// The environment variable that cargo-make uses to store additional files to be pacakaged with the driver
+const WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES_ENV_VAR: &str = "WDK_BUILD_METADATA-DRIVER_INSTALL-PACKAGE_FILES";
+
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
 const CLAP_USAGE_EXIT_CODE: i32 = 2;
 
@@ -728,6 +731,7 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
         std::fs::create_dir(&package_folder_path)?;
     }
 
+    eprintln!("Copying {:?} to {:?}", path_to_copy, package_folder_path);
     let destination_path = package_folder_path.join(
         path_to_copy
             .file_name()
@@ -1134,6 +1138,27 @@ pub fn driver_model_is_not_package_condition_script() -> anyhow::Result<()> {
         }
         Ok(())
     })
+}
+
+/// Copy the addition files specified in the wdk metadata to the  Driver Package folder
+///
+/// # Panics
+/// 
+/// Panics if `WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES` is not set in the environment
+pub fn copy_package_files_to_driver_package_folder() -> Result<(), ConfigError> {
+    let package_files: Vec<PathBuf>  = env::var(WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES_ENV_VAR)
+        .expect("The package files should be set by the wdk-build-init task")
+        .split_terminator(metadata::ser::SEQ_ELEMENT_SEPARATOR)
+        .map(PathBuf::from)
+        .collect();
+
+    package_files
+        .iter()
+        .try_for_each(|package_file|{
+            copy_to_driver_package_folder(package_file.as_path())
+        })?;
+    
+    Ok(())
 }
 
 #[cfg(test)]

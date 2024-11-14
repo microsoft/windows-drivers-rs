@@ -314,9 +314,16 @@ impl <'a> ser::SerializeSeq for SerializerSeq<'a> {
     }
     
     fn end(self) -> Result<Self::Ok> {
+        // Remove the trailing delimiter.
+        let delimited_string = if self.delimited_string.is_empty() {
+            String::new()
+        } else {
+            self.delimited_string[..self.delimited_string.len() - 1].to_string()
+        };
+
         self.dst.push((
             self.root_key_name.unwrap(),
-            self.delimited_string
+            delimited_string,
         ));
         Ok(None)
     }
@@ -726,15 +733,15 @@ mod tests {
 
         let wdk_metadata = metadata::Wdk {
             driver_model: DriverConfig::Wdm,
-            driver_install: DriverInstall {
+            driver_install: Some(DriverInstall {
                 package_files: package_files.clone(),
-            },
+            }),
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
-        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";") + ";");
+        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";"));
     }
 
     #[test]
@@ -748,24 +755,24 @@ mod tests {
 
         let wdk_metadata = metadata::Wdk {
             driver_model: DriverConfig::Wdm,
-            driver_install: DriverInstall {
+            driver_install: Some(DriverInstall {
                 package_files: package_files.clone(),
-            },
+            }),
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
-        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";") + ";");
+        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";"));
     }
 
     #[test]
     fn test_empty_package_files() {
         let wdk_metadata = metadata::Wdk {
             driver_model: DriverConfig::Wdm,
-            driver_install: DriverInstall {
+            driver_install: Some(DriverInstall {
                 package_files: vec![],
-            },
+            }),
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();

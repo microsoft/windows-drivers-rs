@@ -447,6 +447,24 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 )?
 '''
 
+[tasks.copy-package-files-to-package]
+private = true
+script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::copy_package_files_to_driver_package_folder()?
+'''
+
+
 [tasks.inf2cat]
 private = true
 dependencies = ["copy-driver-binary-to-package", "copy-inf-to-package"]
@@ -599,6 +617,7 @@ dependencies = [
   "copy-inf-to-package",
   "copy-map-to-package",
   "copy-certificate-to-package",
+  "copy-package-files-to-package",
   "sign-driver-binary",
   "verify-signature-driver-binary",
   "sign-cat",
