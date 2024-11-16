@@ -26,16 +26,6 @@
    5. Repeat 2-4 for Store -> Browse -> Trusted Publishers -> Ok -> Next
    6. Finish
 3. Install the driver:
-   * In the package directory, run: `pnputil.exe /add-driver sample_kmdf_driver.inf /install`
+   * In the package directory, run: `pnputil.exe /add-driver sample_null_driver.inf /install`
 4. Create a software device:
-   * In the directory that `devgen.exe` was copied to, run: `devgen.exe /add /hardwareid "root\SAMPLE_KMDF_HW_ID"`
-
-## Test
-
-* To capture prints:
-  * Start [DebugView](https://learn.microsoft.com/en-us/sysinternals/downloads/debugview)
-    1. Enable `Capture Kernel`
-    2. Enable `Enable Verbose Kernel Output`
-  * Alternatively, you can see prints in an active Windbg session.
-    1. Attach WinDBG
-    2. `ed nt!Kd_DEFAULT_Mask 0xFFFFFFFF`
+   * In the directory that `devgen.exe` was copied to, run: `devgen.exe /add /hardwareid "root\SAMPLE_NULL_HW_ID"`

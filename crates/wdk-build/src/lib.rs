@@ -127,10 +127,9 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
 
-
     /// Error returned when wdk build runs for [`metadata::driver_settings::DriverConfig::Package`]
-    #[error("Package driver type does not support building binaries. It should be used for null drivers and extension infs only.")]
-    PackageDriverTypeBuildNotSupported,
+    #[error("Package driver model does not support building binaries. It should be used for Inf only drivers.")]
+    UnsupportedDriverConfig,
 }
 
 impl Default for Config {
@@ -294,7 +293,7 @@ impl Config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
             DriverConfig::Package => {
-                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+                return Err(ConfigError::UnsupportedDriverConfig);
             },
         });
         if !km_or_um_include_path.is_dir() {
@@ -356,7 +355,7 @@ impl Config {
                 );
             },
             DriverConfig::Package => {
-                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+                return Err(ConfigError::UnsupportedDriverConfig);
             },
         }
 
@@ -392,7 +391,7 @@ impl Config {
                         format!("um/{}", self.cpu_architecture.as_windows_str(),)
                     }
                     DriverConfig::Package => {
-                        return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+                        return Err(ConfigError::UnsupportedDriverConfig);
                     },
                 });
         if !windows_sdk_library_path.is_dir() {
@@ -446,7 +445,7 @@ impl Config {
                 );
             },
             DriverConfig::Package => {
-                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+                return Err(ConfigError::UnsupportedDriverConfig);
             },
         }
 
@@ -702,7 +701,7 @@ impl Config {
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
             DriverConfig::Package => {
-                return Err(ConfigError::PackageDriverTypeBuildNotSupported);
+                return Err(ConfigError::UnsupportedDriverConfig);
             },
         }
 
