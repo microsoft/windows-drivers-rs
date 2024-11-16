@@ -1,8 +1,9 @@
-use std::env;
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{
+    env,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use cargo_metadata::MetadataCommand;
 
 // function to generate and compile RC file
@@ -32,7 +33,7 @@ pub fn generate_and_compile_rcfile(include_paths: Vec<PathBuf>, rc_exe_rootpath:
         description, 
         fileversion, 
         name, 
-        &includeargs, 
+        &includeargs,
         rc_exe_rootpath,
     );
 }
@@ -158,17 +159,20 @@ fn get_packagemetadatadetails() -> (String, String, String) {
     let metadata = &root.metadata;
 
     // Extract metadata values with default fallbacks
-    let companyname = metadata.get("wdk")
+    let companyname = metadata
+        .get("wdk")
         .and_then(|wdk| wdk.get("driver-model"))
         .and_then(|driver_model| driver_model.get("companyname"))
         .map(|s| s.to_string())
         .unwrap_or_else(|| "Company name not found in metadata".to_string());
-    let copyrightname = metadata.get("wdk")
+    let copyrightname = metadata
+        .get("wdk")
         .and_then(|wdk| wdk.get("driver-model"))
         .and_then(|driver_model| driver_model.get("copyright"))
         .map(|s| s.to_string())
         .unwrap_or_else(|| "Copyright name not found in metadata".to_string());
-    let productname = metadata.get("wdk")
+    let productname = metadata
+        .get("wdk")
         .and_then(|wdk| wdk.get("driver-model"))
         .and_then(|driver_model| driver_model.get("productname"))
         .map(|s| s.to_string())
