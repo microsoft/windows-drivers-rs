@@ -326,7 +326,8 @@ impl Config {
         let bin_directory = self.wdk_content_root.join("bin");
     
         // Add Windows SDK library paths based on logic from WindowsDriver.KernelMode.props &
-        // WindowsDriver.UserMode.props in NI(22H2) WDK
+        // WindowsDriver.UserMode.props in 
+        // NI(22H2) WDK
         let sdk_version = utils::get_latest_windows_sdk_version(bin_directory.as_path())?;
         let windows_sdk_rc_path = bin_directory
             .join(sdk_version)
@@ -720,7 +721,10 @@ impl Config {
         for path in library_paths {
             println!("cargo::rustc-link-search={}", path.display());
         }
-        resource_compile::generate_and_compile_rcfile(self.get_include_paths()?,self.get_rc_root_path()?);
+        resource_compile::generate_and_compile_rcfile(
+            self.get_include_paths()?,
+            self.get_rc_root_path()?,
+        );
         
         match &self.driver_config {
             DriverConfig::Wdm => {
