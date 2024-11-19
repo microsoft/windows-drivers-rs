@@ -10,25 +10,20 @@ use std::{
     env,
     io::Write,
     path::{Path, PathBuf},
+    sync::LazyLock,
     thread,
 };
 
 use anyhow::Context;
 use bindgen::CodegenConfig;
-use lazy_static::lazy_static;
 use tracing::{info, info_span, Span};
 use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
     EnvFilter,
 };
 use wdk_build::{
-    configure_wdk_library_build_and_then,
-    BuilderExt,
-    Config,
-    ConfigError,
-    DriverConfig,
-    KmdfConfig,
-    UmdfConfig,
+    configure_wdk_library_build_and_then, BuilderExt, Config, ConfigError, DriverConfig,
+    KmdfConfig, UmdfConfig,
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
@@ -47,18 +42,16 @@ const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
 const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
         let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
 
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-lazy_static! {
-    static ref WDF_FUNCTION_TABLE_TEMPLATE: String = format!(
+static WDF_FUNCTION_TABLE_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r#"
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-lazy_static::lazy_static! {{
-    #[allow(missing_docs)]
-    pub static ref WDF_FUNCTION_TABLE: &'static [crate::WDFFUNC] = {{
+#[allow(missing_docs)]
+pub static WDF_FUNCTION_TABLE: core::cell::LazyCell<&'static [crate::WDFFUNC]> = core::cell::LazyCell::new(|| {{
+    {{
         // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
         let wdf_function_table = unsafe {{ crate::WdfFunctions }};
-{WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
+    {WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
 
         // SAFETY: This is safe because:
         //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
@@ -72,10 +65,13 @@ lazy_static::lazy_static! {{
             debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<crate::WDFFUNC>()).is_ok());
             core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
         }}
-    }};
-}}"#
-    );
-    static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
+    }}
+}});"#
+)
+});
+
+static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r#"
 /// A procedural macro that allows WDF functions to be called by name.
 ///
@@ -125,18 +121,20 @@ macro_rules! call_unsafe_wdf_function_binding {{
         )
     }}
 }}"#
-    );
-    static ref TEST_STUBS_TEMPLATE: String = format!(
+    )
+});
+
+static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r"
-use crate::WDFFUNC;
+    use crate::WDFFUNC;
 
-/// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
-#[no_mangle]
-pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
-",
-    );
-}
-
+    /// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
+    #[no_mangle]
+    pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
+    ",
+    )
+});
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
