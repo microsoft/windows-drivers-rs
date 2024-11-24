@@ -11,6 +11,8 @@ categories = ["development-tools::build-utils", "development-tools::ffi"]
 
 [build-dependencies]
 rustversion.workspace = true
+serde = "1.0"
+serde_json = "1.0"
 
 [dependencies]
 anyhow.workspace = true
