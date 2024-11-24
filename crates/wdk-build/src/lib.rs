@@ -325,9 +325,6 @@ impl Config {
     pub fn get_rc_root_path(&self) -> Result<String, ConfigError> {
         let bin_directory = self.wdk_content_root.join("bin");
     
-        // Add Windows SDK library paths based on logic from WindowsDriver.KernelMode.props &
-        // WindowsDriver.UserMode.props in 
-        // NI(22H2) WDK
         let sdk_version = utils::get_latest_windows_sdk_version(bin_directory.as_path())?;
         let windows_sdk_rc_path = bin_directory
             .join(sdk_version)
