@@ -549,7 +549,9 @@ impl Config {
 
                     umdf_definitions
                 }
-                DriverConfig::Package => unreachable!("Package driver should not be running binary build"),
+                DriverConfig::Package => {
+                    unreachable!("Package driver should not be running binary build")
+                }
             }
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
@@ -611,7 +613,9 @@ impl Config {
                 (config.umdf_version_major, config.target_umdf_version_minor)
             }
             DriverConfig::Wdm => return None,
-            DriverConfig::Package => unreachable!("Package driver should not be running binary build"),
+            DriverConfig::Package => {
+                unreachable!("Package driver should not be running binary build")
+            }
         };
 
         Some(format!(

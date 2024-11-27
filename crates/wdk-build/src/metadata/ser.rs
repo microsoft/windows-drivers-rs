@@ -34,8 +34,10 @@ pub const SEQ_ELEMENT_SEPARATOR: char = ';';
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{
-///     metadata::{self, to_map, driver_settings::{ DriverConfig, KmdfConfig }},
+/// use wdk_build::metadata::{
+///     self,
+///     driver_settings::{DriverConfig, KmdfConfig},
+///     to_map,
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -80,8 +82,10 @@ where
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{
-///     metadata::{self, to_map_with_prefix, driver_settings::{ DriverConfig, KmdfConfig }},
+/// use wdk_build::metadata::{
+///     self,
+///     driver_settings::{DriverConfig, KmdfConfig},
+///     to_map_with_prefix,
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
