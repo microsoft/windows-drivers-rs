@@ -285,7 +285,7 @@ pub struct SerializerSeq<'a> {
     delimited_string: String,
 }
 
-impl<'a> ser::SerializeSeq for SerializerSeq<'a> {
+impl ser::SerializeSeq for SerializerSeq<'_> {
     type Error = Error;
     type Ok = Option<String>;
 
