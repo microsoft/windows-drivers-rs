@@ -449,6 +449,7 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 
 [tasks.copy-package-files-to-package]
 private = true
+condition = { env_set = ["WDK_BUILD_METADATA-DRIVER_INSTALL-PACKAGE_FILES"] }
 script_runner = "@rust"
 script_runner_args = [
   "--base-path",
