@@ -1,0 +1,6 @@
+[package]
+name = "sample_app"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

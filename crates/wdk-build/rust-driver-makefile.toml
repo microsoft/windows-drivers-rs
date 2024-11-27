@@ -303,6 +303,24 @@ args = [
 private = true
 dependencies = ["setup-wdk-config-env-vars", "generate-driver-binary-file"]
 env = { "WDK_BUILD_DRIVER_EXTENSION" = { source = "${WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE}", default_value = "UNKNOWN_EXTENSION", mapping = { "WDM" = "sys", "KMDF" = "sys", "UMDF" = "dll" } } }
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+condition_script = '''
+#!@rust
+
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! anyhow = "1"
+//! ```
+#![allow(unused_doc_comments)]
+
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::driver_model_is_not_package_condition_script()
+}
+'''
 script_runner = "@rust"
 script_runner_args = [
   "--base-path",
@@ -327,6 +345,24 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 [tasks.copy-pdb-to-package]
 private = true
 dependencies = ["build"]
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+condition_script = '''
+#!@rust
+
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! anyhow = "1"
+//! ```
+#![allow(unused_doc_comments)]
+
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::driver_model_is_not_package_condition_script()
+}
+'''
 script_runner = "@rust"
 script_runner_args = [
   "--base-path",
@@ -373,6 +409,24 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
 [tasks.copy-map-to-package]
 private = true
 dependencies = ["build"]
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+condition_script = '''
+#!@rust
+
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! anyhow = "1"
+//! ```
+#![allow(unused_doc_comments)]
+
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::driver_model_is_not_package_condition_script()
+}
+'''
 script_runner = "@rust"
 script_runner_args = [
   "--base-path",
@@ -392,6 +446,25 @@ wdk_build::cargo_make::copy_to_driver_package_folder(
     )),
 )?
 '''
+
+[tasks.copy-package-files-to-package]
+private = true
+condition = { env_set = ["WDK_BUILD_METADATA-DRIVER_INSTALL-PACKAGE_FILES"] }
+script_runner = "@rust"
+script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! ```
+#![allow(unused_doc_comments)]
+
+wdk_build::cargo_make::copy_package_files_to_driver_package_folder()?
+'''
+
 
 [tasks.inf2cat]
 private = true
@@ -474,6 +547,24 @@ args = [
 [tasks.sign-driver-binary]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "copy-driver-binary-to-package"]
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+condition_script = '''
+#!@rust
+
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! anyhow = "1"
+//! ```
+#![allow(unused_doc_comments)]
+
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::driver_model_is_not_package_condition_script()
+}
+'''
 env = { "WDK_BUILD_SIGNTOOL_SIGN_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.${WDK_BUILD_DRIVER_EXTENSION}" }
 run_task = "signtool-sign"
 
@@ -492,6 +583,24 @@ args = ["verify", "/v", "/pa", "${WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE}"]
 [tasks.verify-signature-driver-binary]
 private = true
 dependencies = ["setup-wdk-config-env-vars", "sign-driver-binary"]
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+condition_script = '''
+#!@rust
+
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! anyhow = "1"
+//! ```
+#![allow(unused_doc_comments)]
+
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::driver_model_is_not_package_condition_script()
+}
+'''
 env = { "WDK_BUILD_SIGNTOOL_VERIFY_INPUT_FILE" = "${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package/${CARGO_MAKE_CRATE_FS_NAME}.${WDK_BUILD_DRIVER_EXTENSION}" }
 run_task = "signtool-verify"
 
@@ -509,6 +618,7 @@ dependencies = [
   "copy-inf-to-package",
   "copy-map-to-package",
   "copy-certificate-to-package",
+  "copy-package-files-to-package",
   "sign-driver-binary",
   "verify-signature-driver-binary",
   "sign-cat",

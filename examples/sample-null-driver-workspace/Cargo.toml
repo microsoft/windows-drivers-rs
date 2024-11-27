@@ -1,0 +1,33 @@
+[workspace]
+members = ["crates/sample-app", "crates/driver"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+description = "A sample NULL driver that demonstrates compiling NULL drivers in RUST"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["windows", "driver", "sample", "example"]
+categories = ["hardware-support"]
+publish = false
+
+[workspace.metadata.wdk.driver-model]
+driver-type = "PACKAGE"
+
+[workspace.metadata.wdk.driver-install]
+package-files = [
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/sample_app.exe",
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/sample_app.pdb",
+]
+
+[workspace.dependencies]
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true

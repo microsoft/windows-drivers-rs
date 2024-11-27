@@ -16,6 +16,10 @@ use super::{
 /// as a separator between different node names.
 pub const KEY_NAME_SEPARATOR: char = '-';
 
+/// delimiter used to separate the different elemets in a sequence.
+/// Sequence elements are serialized into a single string with this delimiter.
+pub const SEQ_ELEMENT_SEPARATOR: char = ';';
+
 /// Serialize a value into a [`Map`] where the keys represent a
 /// `KEY_NAME_SEPARATOR`-seperated list of field names.
 ///
@@ -30,10 +34,10 @@ pub const KEY_NAME_SEPARATOR: char = '-';
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{
-///     metadata::{self, to_map},
-///     DriverConfig,
-///     KmdfConfig,
+/// use wdk_build::metadata::{
+///     self,
+///     driver_settings::{DriverConfig, KmdfConfig},
+///     to_map,
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -42,6 +46,7 @@ pub const KEY_NAME_SEPARATOR: char = '-';
 ///         target_kmdf_version_minor: 23,
 ///         minimum_kmdf_version_minor: None,
 ///     }),
+///     driver_install: None,
 /// };
 ///
 /// let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -77,10 +82,10 @@ where
 /// ```rust
 /// use std::collections::BTreeMap;
 ///
-/// use wdk_build::{
-///     metadata::{self, to_map_with_prefix},
-///     DriverConfig,
-///     KmdfConfig,
+/// use wdk_build::metadata::{
+///     self,
+///     driver_settings::{DriverConfig, KmdfConfig},
+///     to_map_with_prefix,
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -89,6 +94,7 @@ where
 ///         target_kmdf_version_minor: 33,
 ///         minimum_kmdf_version_minor: Some(31),
 ///     }),
+///     driver_install: None,
 /// };
 ///
 /// let output = to_map_with_prefix::<BTreeMap<_, _>>("WDK_BUILD_METADATA", &wdk_metadata).unwrap();
@@ -153,9 +159,9 @@ pub struct Serializer<'a> {
 
 impl<'a> ser::Serializer for &'a mut Serializer<'a> {
     type Error = Error;
-    type Ok = ();
+    type Ok = Option<String>;
     type SerializeMap = Impossible<Self::Ok, Self::Error>;
-    type SerializeSeq = Impossible<Self::Ok, Self::Error>;
+    type SerializeSeq = SerializerSeq<'a>;
     type SerializeStruct = Self;
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
@@ -166,115 +172,43 @@ impl<'a> ser::Serializer for &'a mut Serializer<'a> {
         // simple types
         bytes newtype_struct newtype_variant unit_struct unit_variant
         // complex types (returns SerializeXYZ types)
-        map seq struct_variant tuple tuple_struct tuple_variant
+        map struct_variant tuple tuple_struct tuple_variant
     }
 
     fn serialize_str(self, value: &str) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_bool(self, value: bool) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_char(self, value: char) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_i8(self, value: i8) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_i16(self, value: i16) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_i32(self, value: i32) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_i64(self, value: i64) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_f32(self, value: f32) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_f64(self, value: f64) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_none(self) -> Result<Self::Ok> {
@@ -289,82 +223,101 @@ impl<'a> ser::Serializer for &'a mut Serializer<'a> {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok> {
-        Ok(())
+        Ok(None)
     }
 
     fn serialize_u8(self, value: u8) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_u16(self, value: u16) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_u32(self, value: u32) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_u64(self, value: u64) -> Result<Self::Ok> {
-        self.dst.push((
-            self.root_key_name
-                .clone()
-                .ok_or_else(|| Error::EmptySerializationKeyName {
-                    value_being_serialized: value.to_string(),
-                })?,
-            value.to_string(),
-        ));
-        Ok(())
+        Ok(Some(value.to_string()))
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
         Ok(self)
     }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        Ok(SerializerSeq::new(self.root_key_name.clone(), self.dst))
+    }
 }
 
 impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
     type Error = Error;
-    type Ok = ();
+    type Ok = Option<String>;
 
-    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<Self::Ok>
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        value.serialize(&mut Serializer::with_prefix(
-            self.root_key_name.as_ref().map_or_else(
-                || key.to_string(),
-                |root_key_name| format!("{root_key_name}{KEY_NAME_SEPARATOR}{key}"),
-            ),
-            self.dst,
-        ))?;
+        let new_root_key_name = self.root_key_name.clone().map_or_else(
+            || key.to_string(),
+            |root_key_name| format!("{root_key_name}{KEY_NAME_SEPARATOR}{key}"),
+        );
+
+        let mut serializer = Serializer::with_prefix(new_root_key_name.clone(), self.dst);
+        let value_string = value.serialize(&mut serializer)?;
+
+        if let Some(value_string) = value_string {
+            self.dst.push((new_root_key_name, value_string));
+        }
+
         Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
+        Ok(None)
+    }
+}
+
+pub struct SerializerSeq<'a> {
+    root_key_name: Option<String>,
+    dst: &'a mut Vec<(String, String)>,
+    delimited_string: String,
+}
+
+impl ser::SerializeSeq for SerializerSeq<'_> {
+    type Error = Error;
+    type Ok = Option<String>;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        let root_key_name = self.root_key_name.clone().unwrap();
+        let mut serializer = Serializer::with_prefix(root_key_name, self.dst);
+        let value_string = value.serialize(&mut serializer)?.unwrap_or_else(|| {
+            unimplemented!(
+                "Sequence serializer for elements of type {} is not suppoted",
+                std::any::type_name::<T>(),
+            )
+        });
+
+        self.delimited_string.push_str(&value_string);
+        self.delimited_string.push(SEQ_ELEMENT_SEPARATOR);
         Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok> {
+        // Remove the trailing delimiter.
+        let delimited_string = if self.delimited_string.is_empty() {
+            String::new()
+        } else {
+            self.delimited_string[..self.delimited_string.len() - 1].to_string()
+        };
+
+        self.dst
+            .push((self.root_key_name.unwrap(), delimited_string));
+        Ok(None)
     }
 }
 
@@ -383,6 +336,17 @@ impl<'a> Serializer<'a> {
         Self {
             root_key_name: Some(prefix),
             dst,
+        }
+    }
+}
+
+impl<'a> SerializerSeq<'a> {
+    /// Create a new instance of the `SerializerSeq` struct
+    pub fn new(root_key_name: Option<String>, dst: &'a mut Vec<(String, String)>) -> Self {
+        Self {
+            root_key_name,
+            dst,
+            delimited_string: String::new(),
         }
     }
 }
@@ -587,7 +551,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::{metadata, DriverConfig, KmdfConfig, UmdfConfig};
+    use crate::metadata::{
+        self,
+        driver_install::DriverInstall,
+        driver_settings::{DriverConfig, KmdfConfig, UmdfConfig},
+    };
 
     #[test]
     fn test_kmdf() {
@@ -597,6 +565,7 @@ mod tests {
                 target_kmdf_version_minor: 23,
                 minimum_kmdf_version_minor: Some(21),
             }),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -615,6 +584,7 @@ mod tests {
                 target_kmdf_version_minor: 23,
                 minimum_kmdf_version_minor: None,
             }),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -635,6 +605,7 @@ mod tests {
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: Some(31),
             }),
+            driver_install: None,
         };
 
         let output =
@@ -666,6 +637,7 @@ mod tests {
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: Some(31),
             }),
+            driver_install: None,
         };
 
         let output = to_map::<HashMap<_, _>>(&wdk_metadata).unwrap();
@@ -684,6 +656,7 @@ mod tests {
                 target_umdf_version_minor: 23,
                 minimum_umdf_version_minor: Some(21),
             }),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -702,6 +675,7 @@ mod tests {
                 target_umdf_version_minor: 23,
                 minimum_umdf_version_minor: None,
             }),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -718,6 +692,7 @@ mod tests {
     fn test_wdm() {
         let wdk_metadata = metadata::Wdk {
             driver_model: DriverConfig::Wdm,
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -742,5 +717,100 @@ mod tests {
                 value_2,
             } if key == "KEY_NAME" && value_1 == "VALUE_1" && value_2 == "VALUE_2"
         ));
+    }
+
+    #[test]
+    fn test_package_files() {
+        let package_files = vec![
+            "file1.exe".to_string(),
+            "file2.sys".to_string(),
+            "file3.dll".to_string(),
+        ];
+
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Wdm,
+            driver_install: Some(DriverInstall {
+                package_files: package_files.clone(),
+            }),
+        };
+
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
+
+        assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
+        assert_eq!(
+            output["DRIVER_INSTALL-PACKAGE_FILES"],
+            package_files.join(";")
+        );
+    }
+
+    #[test]
+    fn test_diverse_package_files() {
+        let package_files = vec![
+            "typical.exe".to_string(),
+            "with whitespace.sys".to_string(),
+            "underscored_file_.dll".to_string(),
+            "noextension".to_string(),
+        ];
+
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Wdm,
+            driver_install: Some(DriverInstall {
+                package_files: package_files.clone(),
+            }),
+        };
+
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
+
+        assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
+        assert_eq!(
+            output["DRIVER_INSTALL-PACKAGE_FILES"],
+            package_files.join(";")
+        );
+    }
+
+    #[test]
+    fn test_empty_package_files() {
+        let wdk_metadata = metadata::Wdk {
+            driver_model: DriverConfig::Wdm,
+            driver_install: Some(DriverInstall {
+                package_files: vec![],
+            }),
+        };
+
+        let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
+
+        assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
+        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], "");
+    }
+
+    #[derive(Serialize)]
+    struct UnsupportedSequenceStruct {
+        field1: u8,
+        field2: u8,
+    }
+    #[derive(Serialize)]
+    struct UnsupportedSequenceParentStruct {
+        sequence: Vec<UnsupportedSequenceStruct>,
+    }
+    #[test]
+    #[should_panic(
+        expected = "not implemented: Sequence serializer for elements of type \
+                    &wdk_build::metadata::ser::tests::UnsupportedSequenceStruct is not suppoted"
+    )]
+    fn test_unsupported_seq() {
+        let unsuppoted_struct = UnsupportedSequenceParentStruct {
+            sequence: vec![
+                UnsupportedSequenceStruct {
+                    field1: 1,
+                    field2: 2,
+                },
+                UnsupportedSequenceStruct {
+                    field1: 3,
+                    field2: 4,
+                },
+            ],
+        };
+
+        let _output = to_map::<BTreeMap<_, _>>(&unsuppoted_struct).unwrap();
     }
 }

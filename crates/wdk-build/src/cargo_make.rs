@@ -65,6 +65,15 @@ const CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY";
 const CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR: &str = "CARGO_MAKE_CURRENT_TASK_NAME";
 
+/// The environment variable that cargo-make uses to store driver model type
+const WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE_ENV_VAR: &str =
+    "WDK_BUILD_METADATA-DRIVER_MODEL-DRIVER_TYPE";
+
+/// The environment variable that cargo-make uses to store additional files to
+/// be pacakaged with the driver
+const WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES_ENV_VAR: &str =
+    "WDK_BUILD_METADATA-DRIVER_INSTALL-PACKAGE_FILES";
+
 /// `clap` uses an exit code of 2 for usage errors: <https://github.com/clap-rs/clap/blob/14fd853fb9c5b94e371170bbd0ca2bf28ef3abff/clap_builder/src/util/mod.rs#L30C18-L30C28>
 const CLAP_USAGE_EXIT_CODE: i32 = 2;
 
@@ -725,6 +734,7 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
         std::fs::create_dir(&package_folder_path)?;
     }
 
+    eprintln!("Copying {path_to_copy:?} to {package_folder_path:?}");
     let destination_path = package_folder_path.join(
         path_to_copy
             .file_name()
@@ -1104,6 +1114,75 @@ pub fn driver_sample_infverif_condition_script() -> anyhow::Result<()> {
         }
         Ok(())
     })
+}
+
+/// `cargo-make` condition script for driver flow tasks in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error whenever it determines that the
+/// the driver model is a package and the task should be skipped.
+///
+/// # Panics
+///
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
+/// Panics if `WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE` is not set in the
+/// environment
+pub fn driver_model_is_not_package_condition_script() -> anyhow::Result<()> {
+    condition_script(|| {
+        let driver_type = env::var(WDK_BUILD_METADATA_DRIVER_MODEL_DRIVER_TYPE_ENV_VAR)
+            .expect("A driver type should exist in the WDK build metadata");
+        if driver_type == "PACKAGE" {
+            // cargo_make will interpret returning an error from the rust-script
+            // condition_script as skipping the task
+            return Err::<(), anyhow::Error>(anyhow::Error::msg(format!(
+                "Skipping {}  task The driver model is a package.",
+                env::var(CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR)
+                    .expect("CARGO_MAKE_CURRENT_TASK_NAME should be set by cargo-make")
+            )));
+        }
+        Ok(())
+    })
+}
+
+/// Copy the addition files specified in the wdk metadata to the  Driver Package
+/// folder
+///
+///  # Errors
+///
+/// This function returns an error if the package files specified in the
+/// metadata are not found.
+///
+/// # Panics
+///
+/// Panics if `WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES` is not set in
+/// the environment
+pub fn copy_package_files_to_driver_package_folder() -> Result<(), ConfigError> {
+    let package_files: Vec<String> =
+        env::var(WDK_BUILD_METADATA_DRIVER_INSTALL_PACKAGE_FILES_ENV_VAR)
+            .expect("The package files should be set by the wdk-build-init task")
+            .split_terminator(metadata::ser::SEQ_ELEMENT_SEPARATOR)
+            .map(String::from)
+            .collect();
+
+    let env_variable_regex = regex::Regex::new(r"\$\{(\w+)\}").unwrap();
+    package_files.iter().try_for_each(|package_file| {
+        // Evaluate environment variables in the package file path.
+        let package_file_evaluated = env_variable_regex
+            .replace_all(package_file, |captures: &regex::Captures| {
+                print!("Evaluating environment variable {}", &captures[1]);
+                env::var(&captures[1]).unwrap_or_else(|_| {
+                    panic!("The environment variable {} should be set", &captures[1])
+                })
+            })
+            .to_string();
+
+        let package_file_path = Path::new(&package_file_evaluated);
+        copy_to_driver_package_folder(package_file_path)
+    })?;
+
+    Ok(())
 }
 
 #[cfg(test)]

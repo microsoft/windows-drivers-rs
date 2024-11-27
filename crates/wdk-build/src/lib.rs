@@ -13,7 +13,11 @@
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 
 pub use bindgen::BuilderExt;
-use metadata::TryFromCargoMetadataError;
+use metadata::{
+    driver_install::DriverInstall,
+    driver_settings::DriverConfig,
+    TryFromCargoMetadataError,
+};
 
 pub mod cargo_make;
 pub mod metadata;
@@ -39,42 +43,8 @@ pub struct Config {
     cpu_architecture: CpuArchitecture,
     /// Build configuration of driver
     pub driver_config: DriverConfig,
-}
-
-/// The driver type with its associated configuration parameters
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(
-    tag = "DRIVER_TYPE",
-    deny_unknown_fields,
-    rename_all = "UPPERCASE",
-    from = "DeserializableDriverConfig"
-)]
-pub enum DriverConfig {
-    /// Windows Driver Model
-    Wdm,
-    /// Kernel Mode Driver Framework
-    Kmdf(KmdfConfig),
-    /// User Mode Driver Framework
-    Umdf(UmdfConfig),
-}
-
-/// Private enum identical to [`DriverConfig`] but with different tag name to
-/// deserialize from.
-///
-/// [`serde_derive`] doesn't support different tag names for serialization vs.
-/// deserialization, and also doesn't support aliases for tag names, so the
-/// `from` attribute is used in conjunction with this type to facilitate a
-/// different tag name for deserialization.
-///
-/// Relevant Github Issues:
-/// * <https://github.com/serde-rs/serde/issues/2776>
-/// * <https://github.com/serde-rs/serde/issues/2324>
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
-#[serde(tag = "driver-type", deny_unknown_fields, rename_all = "UPPERCASE")]
-enum DeserializableDriverConfig {
-    Wdm,
-    Kmdf(KmdfConfig),
-    Umdf(UmdfConfig),
+    /// Driver installation settings
+    pub driver_install: Option<DriverInstall>,
 }
 
 /// The CPU architecture that's configured to be compiled for
@@ -84,36 +54,6 @@ pub enum CpuArchitecture {
     Amd64,
     /// ARM64 CPU architecture. Also known as aarch64.
     Arm64,
-}
-
-/// The configuration parameters for KMDF drivers
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(
-    deny_unknown_fields,
-    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
-)]
-pub struct KmdfConfig {
-    /// Major KMDF Version
-    pub kmdf_version_major: u8,
-    /// Minor KMDF Version (Target Version)
-    pub target_kmdf_version_minor: u8,
-    /// Minor KMDF Version (Minimum Required)
-    pub minimum_kmdf_version_minor: Option<u8>,
-}
-
-/// The configuration parameters for UMDF drivers
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(
-    deny_unknown_fields,
-    rename_all(serialize = "SCREAMING_SNAKE_CASE", deserialize = "kebab-case")
-)]
-pub struct UmdfConfig {
-    /// Major UMDF Version
-    pub umdf_version_major: u8,
-    /// Minor UMDF Version (Target Version)
-    pub target_umdf_version_minor: u8,
-    /// Minor UMDF Version (Minimum Required)
-    pub minimum_umdf_version_minor: Option<u8>,
 }
 
 /// Errors that could result from configuring a build via [`wdk-build`]
@@ -188,6 +128,14 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
+
+    /// Error returned when wdk build runs for
+    /// [`metadata::driver_settings::DriverConfig::Package`]
+    #[error(
+        "Package driver model does not support building binaries. It should be used for Inf only \
+         drivers."
+    )]
+    UnsupportedDriverConfig,
 }
 
 impl Default for Config {
@@ -200,6 +148,7 @@ impl Default for Config {
             ),
             driver_config: DriverConfig::Wdm,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
+            driver_install: None,
         }
     }
 }
@@ -249,6 +198,7 @@ impl Config {
 
         Ok(Self {
             driver_config: wdk_metadata.driver_model,
+            driver_install: wdk_metadata.driver_install,
             ..Default::default()
         })
     }
@@ -292,6 +242,7 @@ impl Config {
         let serialized_wdk_metadata_map =
             metadata::to_map::<std::collections::BTreeMap<_, _>>(&metadata::Wdk {
                 driver_model: self.driver_config.clone(),
+                driver_install: self.driver_install.clone(),
             })?;
 
         for cfg_key in EXPORTED_CFG_SETTINGS.iter().map(|(key, _)| *key) {
@@ -347,6 +298,9 @@ impl Config {
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
+            DriverConfig::Package => {
+                return Err(ConfigError::UnsupportedDriverConfig);
+            }
         });
         if !km_or_um_include_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -406,6 +360,9 @@ impl Config {
                         .strip_extended_length_path_prefix()?,
                 );
             }
+            DriverConfig::Package => {
+                return Err(ConfigError::UnsupportedDriverConfig);
+            }
         }
 
         Ok(include_paths)
@@ -438,6 +395,9 @@ impl Config {
                     }
                     DriverConfig::Umdf(_) => {
                         format!("um/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                    DriverConfig::Package => {
+                        return Err(ConfigError::UnsupportedDriverConfig);
                     }
                 });
         if !windows_sdk_library_path.is_dir() {
@@ -489,6 +449,9 @@ impl Config {
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
+            }
+            DriverConfig::Package => {
+                return Err(ConfigError::UnsupportedDriverConfig);
             }
         }
 
@@ -586,6 +549,9 @@ impl Config {
 
                     umdf_definitions
                 }
+                DriverConfig::Package => {
+                    unreachable!("Package driver should not be running binary build")
+                }
             }
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
@@ -647,6 +613,9 @@ impl Config {
                 (config.umdf_version_major, config.target_umdf_version_minor)
             }
             DriverConfig::Wdm => return None,
+            DriverConfig::Package => {
+                unreachable!("Package driver should not be running binary build")
+            }
         };
 
         Some(format!(
@@ -741,6 +710,9 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
+            DriverConfig::Package => {
+                return Err(ConfigError::UnsupportedDriverConfig);
+            }
         }
 
         // Emit linker arguments common to all configs
@@ -774,56 +746,6 @@ impl Config {
             .expect("CARGO_CFG_TARGET_FEATURE should be set by Cargo");
 
         enabled_cpu_target_features.contains(STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME)
-    }
-}
-
-impl From<DeserializableDriverConfig> for DriverConfig {
-    fn from(config: DeserializableDriverConfig) -> Self {
-        match config {
-            DeserializableDriverConfig::Wdm => Self::Wdm,
-            DeserializableDriverConfig::Kmdf(kmdf_config) => Self::Kmdf(kmdf_config),
-            DeserializableDriverConfig::Umdf(umdf_config) => Self::Umdf(umdf_config),
-        }
-    }
-}
-
-impl Default for KmdfConfig {
-    #[must_use]
-    fn default() -> Self {
-        // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
-        Self {
-            kmdf_version_major: 1,
-            target_kmdf_version_minor: 33,
-            minimum_kmdf_version_minor: None,
-        }
-    }
-}
-
-impl KmdfConfig {
-    /// Creates a new [`KmdfConfig`] with default values
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Default for UmdfConfig {
-    #[must_use]
-    fn default() -> Self {
-        // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
-        Self {
-            umdf_version_major: 2,
-            target_umdf_version_minor: 33,
-            minimum_umdf_version_minor: None,
-        }
-    }
-}
-
-impl UmdfConfig {
-    /// Creates a new [`UmdfConfig`] with default values
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
     }
 }
 
@@ -996,6 +918,8 @@ mod tests {
     use std::assert_matches::assert_matches;
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
+    use metadata::driver_settings::{KmdfConfig, UmdfConfig};
+
     use super::*;
 
     /// Runs function after modifying environment variables, and returns the
@@ -1158,6 +1082,18 @@ mod tests {
     }
 
     #[test]
+    fn package_config() {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+            driver_config: DriverConfig::Package,
+            ..Config::default()
+        });
+
+        #[cfg(nightly_toolchain)]
+        assert_matches!(config.driver_config, DriverConfig::Package);
+        assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
+    }
+
+    #[test]
     fn test_try_from_cargo_str() {
         assert_eq!(
             CpuArchitecture::try_from_cargo_str("x86_64"),
@@ -1171,8 +1107,9 @@ mod tests {
     }
 
     mod compute_wdffunctions_symbol_name {
+        use metadata::driver_settings::{KmdfConfig, UmdfConfig};
+
         use super::*;
-        use crate::{KmdfConfig, UmdfConfig};
 
         #[test]
         fn kmdf() {
@@ -1216,6 +1153,17 @@ mod tests {
             let result = config.compute_wdffunctions_symbol_name();
 
             assert_eq!(result, None);
+        }
+
+        #[test]
+        #[should_panic = "Package driver should not be running binary build"]
+        fn package() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Package,
+                ..Default::default()
+            });
+
+            let _ = config.compute_wdffunctions_symbol_name();
         }
     }
 }

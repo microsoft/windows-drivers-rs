@@ -736,6 +736,7 @@ dependencies = [
  "clap-cargo",
  "lazy_static",
  "paste",
+ "regex",
  "rustversion",
  "serde",
  "serde_json",
