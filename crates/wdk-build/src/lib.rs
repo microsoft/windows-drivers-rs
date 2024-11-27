@@ -13,9 +13,11 @@
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 
 pub use bindgen::BuilderExt;
-use metadata::TryFromCargoMetadataError;
-use metadata::driver_install::DriverInstall;
-use metadata::driver_settings::DriverConfig;
+use metadata::{
+    driver_install::DriverInstall,
+    driver_settings::DriverConfig,
+    TryFromCargoMetadataError,
+};
 
 pub mod cargo_make;
 pub mod metadata;
@@ -42,7 +44,7 @@ pub struct Config {
     /// Build configuration of driver
     pub driver_config: DriverConfig,
     /// Driver installation settings
-    pub driver_install: Option<DriverInstall>
+    pub driver_install: Option<DriverInstall>,
 }
 
 /// The CPU architecture that's configured to be compiled for
@@ -127,8 +129,12 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
 
-    /// Error returned when wdk build runs for [`metadata::driver_settings::DriverConfig::Package`]
-    #[error("Package driver model does not support building binaries. It should be used for Inf only drivers.")]
+    /// Error returned when wdk build runs for
+    /// [`metadata::driver_settings::DriverConfig::Package`]
+    #[error(
+        "Package driver model does not support building binaries. It should be used for Inf only \
+         drivers."
+    )]
     UnsupportedDriverConfig,
 }
 
@@ -294,7 +300,7 @@ impl Config {
             DriverConfig::Umdf(_) => "um",
             DriverConfig::Package => {
                 return Err(ConfigError::UnsupportedDriverConfig);
-            },
+            }
         });
         if !km_or_um_include_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -353,10 +359,10 @@ impl Config {
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
-            },
+            }
             DriverConfig::Package => {
                 return Err(ConfigError::UnsupportedDriverConfig);
-            },
+            }
         }
 
         Ok(include_paths)
@@ -392,7 +398,7 @@ impl Config {
                     }
                     DriverConfig::Package => {
                         return Err(ConfigError::UnsupportedDriverConfig);
-                    },
+                    }
                 });
         if !windows_sdk_library_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
@@ -443,10 +449,10 @@ impl Config {
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
-            },
+            }
             DriverConfig::Package => {
                 return Err(ConfigError::UnsupportedDriverConfig);
-            },
+            }
         }
 
         // Reverse order of library paths so that paths pushed later into the vec take
@@ -543,7 +549,7 @@ impl Config {
 
                     umdf_definitions
                 }
-                DriverConfig::Package => unreachable!()
+                DriverConfig::Package => unreachable!("Package driver should not be running binary build"),
             }
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
@@ -605,7 +611,7 @@ impl Config {
                 (config.umdf_version_major, config.target_umdf_version_minor)
             }
             DriverConfig::Wdm => return None,
-            DriverConfig::Package => unreachable!(),
+            DriverConfig::Package => unreachable!("Package driver should not be running binary build"),
         };
 
         Some(format!(
@@ -702,7 +708,7 @@ impl Config {
             }
             DriverConfig::Package => {
                 return Err(ConfigError::UnsupportedDriverConfig);
-            },
+            }
         }
 
         // Emit linker arguments common to all configs
@@ -907,6 +913,7 @@ mod tests {
     #[cfg(nightly_toolchain)]
     use std::assert_matches::assert_matches;
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
+
     use metadata::driver_settings::{KmdfConfig, UmdfConfig};
 
     use super::*;
@@ -1078,10 +1085,7 @@ mod tests {
         });
 
         #[cfg(nightly_toolchain)]
-        assert_matches!(
-            config.driver_config,
-            DriverConfig::Package
-        );
+        assert_matches!(config.driver_config, DriverConfig::Package);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
     }
 
@@ -1099,8 +1103,9 @@ mod tests {
     }
 
     mod compute_wdffunctions_symbol_name {
-        use super::*;
         use metadata::driver_settings::{KmdfConfig, UmdfConfig};
+
+        use super::*;
 
         #[test]
         fn kmdf() {
@@ -1147,7 +1152,7 @@ mod tests {
         }
 
         #[test]
-        #[should_panic]
+        #[should_panic = "Package driver should not be running binary build"]
         fn package() {
             let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
                 driver_config: DriverConfig::Package,

@@ -2,7 +2,8 @@
 // License: MIT OR Apache-2.0
 
 use serde::{
-    ser::{self, Impossible}, Serialize
+    ser::{self, Impossible},
+    Serialize,
 };
 
 use super::{
@@ -34,7 +35,7 @@ pub const SEQ_ELEMENT_SEPARATOR: char = ';';
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{self, to_map, driver_settings::{ DriverConfig, KmdfConfig },
+///     metadata::{self, to_map, driver_settings::{ DriverConfig, KmdfConfig }},
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -43,7 +44,7 @@ pub const SEQ_ELEMENT_SEPARATOR: char = ';';
 ///         target_kmdf_version_minor: 23,
 ///         minimum_kmdf_version_minor: None,
 ///     }),
-///     driver_install: Default::default(),
+///     driver_install: None,
 /// };
 ///
 /// let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -80,7 +81,7 @@ where
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{self, to_map, driver_settings::{ DriverConfig, KmdfConfig },
+///     metadata::{self, to_map_with_prefix, driver_settings::{ DriverConfig, KmdfConfig }},
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -89,7 +90,7 @@ where
 ///         target_kmdf_version_minor: 33,
 ///         minimum_kmdf_version_minor: Some(31),
 ///     }),
-///     driver_install: Default::default(),
+///     driver_install: None,
 /// };
 ///
 /// let output = to_map_with_prefix::<BTreeMap<_, _>>("WDK_BUILD_METADATA", &wdk_metadata).unwrap();
@@ -156,8 +157,8 @@ impl<'a> ser::Serializer for &'a mut Serializer<'a> {
     type Error = Error;
     type Ok = Option<String>;
     type SerializeMap = Impossible<Self::Ok, Self::Error>;
-    type SerializeStruct = Self;
     type SerializeSeq = SerializerSeq<'a>;
+    type SerializeStruct = Self;
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
@@ -242,10 +243,7 @@ impl<'a> ser::Serializer for &'a mut Serializer<'a> {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Ok(SerializerSeq::new(
-            self.root_key_name.clone(),
-            self.dst,
-        ))
+        Ok(SerializerSeq::new(self.root_key_name.clone(), self.dst))
     }
 }
 
@@ -257,20 +255,16 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
     where
         T: ?Sized + Serialize,
     {
-        
         let new_root_key_name = self.root_key_name.clone().map_or_else(
             || key.to_string(),
             |root_key_name| format!("{root_key_name}{KEY_NAME_SEPARATOR}{key}"),
         );
 
         let mut serializer = Serializer::with_prefix(new_root_key_name.clone(), self.dst);
-        let value_string  = value.serialize(&mut serializer)?;
-       
+        let value_string = value.serialize(&mut serializer)?;
+
         if let Some(value_string) = value_string {
-            self.dst.push((
-                new_root_key_name,
-                value_string,
-            ));
+            self.dst.push((new_root_key_name, value_string));
         }
 
         Ok(())
@@ -284,20 +278,20 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
 pub struct SerializerSeq<'a> {
     root_key_name: Option<String>,
     dst: &'a mut Vec<(String, String)>,
-    delimited_string: String
+    delimited_string: String,
 }
 
-impl <'a> ser::SerializeSeq for SerializerSeq<'a> {
+impl<'a> ser::SerializeSeq for SerializerSeq<'a> {
     type Error = Error;
     type Ok = Option<String>;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
-        T: ? Sized + Serialize,
+        T: ?Sized + Serialize,
     {
         let root_key_name = self.root_key_name.clone().unwrap();
         let mut serializer = Serializer::with_prefix(root_key_name, self.dst);
-        let value_string  = value.serialize(&mut serializer)?.unwrap_or_else(|| {
+        let value_string = value.serialize(&mut serializer)?.unwrap_or_else(|| {
             unimplemented!(
                 "Sequence serializer for elements of type {} is not suppoted",
                 std::any::type_name::<T>(),
@@ -308,7 +302,7 @@ impl <'a> ser::SerializeSeq for SerializerSeq<'a> {
         self.delimited_string.push(SEQ_ELEMENT_SEPARATOR);
         Ok(())
     }
-    
+
     fn end(self) -> Result<Self::Ok> {
         // Remove the trailing delimiter.
         let delimited_string = if self.delimited_string.is_empty() {
@@ -317,10 +311,8 @@ impl <'a> ser::SerializeSeq for SerializerSeq<'a> {
             self.delimited_string[..self.delimited_string.len() - 1].to_string()
         };
 
-        self.dst.push((
-            self.root_key_name.unwrap(),
-            delimited_string,
-        ));
+        self.dst
+            .push((self.root_key_name.unwrap(), delimited_string));
         Ok(None)
     }
 }
@@ -350,7 +342,7 @@ impl<'a> SerializerSeq<'a> {
         Self {
             root_key_name,
             dst,
-            delimited_string: String::new()
+            delimited_string: String::new(),
         }
     }
 }
@@ -555,7 +547,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::metadata::{self, driver_install::DriverInstall, driver_settings::{DriverConfig, KmdfConfig, UmdfConfig}};
+    use crate::metadata::{
+        self,
+        driver_install::DriverInstall,
+        driver_settings::{DriverConfig, KmdfConfig, UmdfConfig},
+    };
 
     #[test]
     fn test_kmdf() {
@@ -565,7 +561,7 @@ mod tests {
                 target_kmdf_version_minor: 23,
                 minimum_kmdf_version_minor: Some(21),
             }),
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -584,7 +580,7 @@ mod tests {
                 target_kmdf_version_minor: 23,
                 minimum_kmdf_version_minor: None,
             }),
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -605,7 +601,7 @@ mod tests {
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: Some(31),
             }),
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output =
@@ -637,7 +633,7 @@ mod tests {
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: Some(31),
             }),
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output = to_map::<HashMap<_, _>>(&wdk_metadata).unwrap();
@@ -656,7 +652,7 @@ mod tests {
                 target_umdf_version_minor: 23,
                 minimum_umdf_version_minor: Some(21),
             }),
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -675,7 +671,7 @@ mod tests {
                 target_umdf_version_minor: 23,
                 minimum_umdf_version_minor: None,
             }),
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -692,7 +688,7 @@ mod tests {
     fn test_wdm() {
         let wdk_metadata = metadata::Wdk {
             driver_model: DriverConfig::Wdm,
-            driver_install: Default::default(),
+            driver_install: None,
         };
 
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
@@ -737,7 +733,10 @@ mod tests {
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
-        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";"));
+        assert_eq!(
+            output["DRIVER_INSTALL-PACKAGE_FILES"],
+            package_files.join(";")
+        );
     }
 
     #[test]
@@ -759,7 +758,10 @@ mod tests {
         let output = to_map::<BTreeMap<_, _>>(&wdk_metadata).unwrap();
 
         assert_eq!(output["DRIVER_MODEL-DRIVER_TYPE"], "WDM");
-        assert_eq!(output["DRIVER_INSTALL-PACKAGE_FILES"], package_files.join(";"));
+        assert_eq!(
+            output["DRIVER_INSTALL-PACKAGE_FILES"],
+            package_files.join(";")
+        );
     }
 
     #[test]
@@ -787,12 +789,21 @@ mod tests {
         sequence: Vec<UnsupportedSequenceStruct>,
     }
     #[test]
-    #[should_panic(expected = "not implemented: Sequence serializer for elements of type &wdk_build::metadata::ser::tests::UnsupportedSequenceStruct is not suppoted")]
+    #[should_panic(
+        expected = "not implemented: Sequence serializer for elements of type \
+                    &wdk_build::metadata::ser::tests::UnsupportedSequenceStruct is not suppoted"
+    )]
     fn test_unsupported_seq() {
         let unsuppoted_struct = UnsupportedSequenceParentStruct {
             sequence: vec![
-                UnsupportedSequenceStruct { field1: 1, field2: 2 },
-                UnsupportedSequenceStruct { field1: 3, field2: 4 },
+                UnsupportedSequenceStruct {
+                    field1: 1,
+                    field2: 2,
+                },
+                UnsupportedSequenceStruct {
+                    field1: 3,
+                    field2: 4,
+                },
             ],
         };
 

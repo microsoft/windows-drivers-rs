@@ -1,10 +1,12 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! Types for the `DriverConfig` section of the `metadata.wdk` section of the `Cargo.toml`
-//! 
-//! This section is used to specify the driver type and its associated configuration parameters.
-//! This corresponds with the settings in the `Driver Model` property pages
+//! Types for the `DriverConfig` section of the `metadata.wdk` section of the
+//! `Cargo.toml`
+//!
+//! This section is used to specify the driver type and its associated
+//! configuration parameters. This corresponds with the settings in the `Driver
+//! Model` property pages
 
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +26,7 @@ pub enum DriverConfig {
     /// User Mode Driver Framework
     Umdf(UmdfConfig),
     /// INF only drivers e.g. null drivers and extension INFs
-    Package
+    Package,
 }
 
 /// Private enum identical to [`DriverConfig`] but with different tag name to
@@ -44,7 +46,7 @@ enum DeserializableDriverConfig {
     Wdm,
     Kmdf(KmdfConfig),
     Umdf(UmdfConfig),
-    Package
+    Package,
 }
 
 /// The configuration parameters for KMDF drivers

@@ -23,10 +23,10 @@ use tracing_subscriber::{
 };
 use wdk_build::{
     configure_wdk_library_build_and_then,
+    metadata::driver_settings::{DriverConfig, KmdfConfig, UmdfConfig},
     BuilderExt,
     Config,
     ConfigError,
-    metadata::driver_settings::{DriverConfig, KmdfConfig, UmdfConfig},
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =

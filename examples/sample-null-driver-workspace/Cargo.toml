@@ -17,7 +17,10 @@ publish = false
 driver-type = "PACKAGE"
 
 [workspace.metadata.wdk.driver-install]
-package-files = ["${WDK_BUILD_OUTPUT_DIRECTORY}/sample_app.exe", "${WDK_BUILD_OUTPUT_DIRECTORY}/sample_app.pdb"]
+package-files = [
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/sample_app.exe",
+  "${WDK_BUILD_OUTPUT_DIRECTORY}/sample_app.pdb",
+]
 
 [workspace.dependencies]
 
