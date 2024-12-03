@@ -3,6 +3,9 @@
 The release process for this repository leverages [`release-plz`](https://github.com/MarcoIeni/release-plz) to automate some of the steps. Only maintainers with the necessary permissions can release new versions of this repository.
 
 1. Install `release-plz`: One option is by running `cargo install --locked release-plz`
+   1. Ensure you are running the latest version of `release-plz`
+1. Install `cargo-semver-checks`: One option is by running `cargo install --locked cargo-semver-checks`
+   1. Ensure you are running the latest version of `cargo-semver-checks`    
 1. Checkout the latest code on `main` branch
 1. Create a release PR: `release-plz release-pr --git-token <Github Token>`
 1. In the Pull Request:
