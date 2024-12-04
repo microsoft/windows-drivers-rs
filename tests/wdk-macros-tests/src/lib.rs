@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::{path::PathBuf, sync::LazyLock};
 use fs4::FileExt;
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;

@@ -40,6 +40,7 @@ use syn::{
     TypeBareFn,
     TypePath,
 };
+
 /// A procedural macro that allows WDF functions to be called by name.
 ///
 /// This macro is only intended to be used in the `wdk-sys` crate. Users wanting
