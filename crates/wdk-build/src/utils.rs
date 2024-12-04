@@ -128,19 +128,6 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
         }
     }
 
-    // Check WDKContentRoot environment variable
-    if let Ok(wdk_content_root) = env::var("WDKContentRoot") {
-        let path = Path::new(wdk_content_root.as_str());
-        if path.is_dir() {
-            return Some(path.to_path_buf());
-        }
-        eprintln!(
-            "WDKContentRoot({}) was found in environment, but does not exist or is not a valid \
-             directory.",
-            path.display()
-        );
-    }
-
     // Check HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed
     // Roots@KitsRoot10 registry key
     if let Some(path) = read_registry_key_string_value(
