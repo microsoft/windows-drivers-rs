@@ -21,6 +21,7 @@ anyhow.workspace = true
 bindgen.workspace = true
 cargo_metadata.workspace = true
 cc.workspace = true
+once_cell.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -28,6 +29,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wdk-build.workspace = true
 
 [dependencies]
+once_cell.workspace = true
 rustversion.workspace = true
 wdk-macros.workspace = true
 
@@ -72,3 +74,4 @@ redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
 
 [package.metadata.cargo-machete]
+ignored = ["once_cell"]
