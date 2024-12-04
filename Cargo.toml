@@ -27,8 +27,12 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+# Workspace Crates
+wdk = { path = "crates/wdk", version = "0.3.0" }
+wdk-alloc = { path = "crates/wdk-alloc", version = "0.3.0" }
 wdk-build = { path = "crates/wdk-build", version = "0.3.0" }
 wdk-macros = { path = "crates/wdk-macros", version = "0.3.0" }
+wdk-panic = { path = "crates/wdk-panic", version = "0.3.0" }
 wdk-sys = { path = "crates/wdk-sys", version = "0.3.0" }
 
 # External Crates

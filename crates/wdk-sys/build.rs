@@ -22,8 +22,13 @@ use tracing_subscriber::{
     EnvFilter,
 };
 use wdk_build::{
-    configure_wdk_library_build_and_then, BuilderExt, Config, ConfigError, DriverConfig,
-    KmdfConfig, UmdfConfig,
+    configure_wdk_library_build_and_then,
+    BuilderExt,
+    Config,
+    ConfigError,
+    DriverConfig,
+    KmdfConfig,
+    UmdfConfig,
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
@@ -94,7 +99,7 @@ impl FunctionTable {{
 /// Static instance of the function table to be used throughout generated code. 
 pub static WDF_FUNCTION_TABLE: FunctionTable = FunctionTable::new();
 "#
-)
+    )
 });
 
 static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
@@ -154,12 +159,12 @@ macro_rules! call_unsafe_wdf_function_binding {{
 static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
     format!(
         r"
-    use crate::WDFFUNC;
+use crate::WDFFUNC;
 
-    /// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
-    #[no_mangle]
-    pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
-    ",
+/// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
+#[no_mangle]
+pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
+",
     )
 });
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;

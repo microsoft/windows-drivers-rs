@@ -29,10 +29,12 @@ pub use kernel_mode::*;
 mod kernel_mode {
 
     use core::alloc::{GlobalAlloc, Layout};
-
+    
     use wdk_sys::{
         ntddk::{ExAllocatePool2, ExFreePool},
-        POOL_FLAG_NON_PAGED, SIZE_T, ULONG,
+        POOL_FLAG_NON_PAGED,
+        SIZE_T,
+        ULONG,
     };
 
     /// Allocator implementation to use with `#[global_allocator]` to allow use
