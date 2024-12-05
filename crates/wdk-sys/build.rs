@@ -10,12 +10,12 @@ use std::{
     env,
     io::Write,
     path::{Path, PathBuf},
+    sync::LazyLock,
     thread,
 };
 
 use anyhow::Context;
 use bindgen::CodegenConfig;
-use lazy_static::lazy_static;
 use tracing::{info, info_span, Span};
 use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
@@ -47,35 +47,64 @@ const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
 const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
         let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
 
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-lazy_static! {
-    static ref WDF_FUNCTION_TABLE_TEMPLATE: String = format!(
-        r#"
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-lazy_static::lazy_static! {{
-    #[allow(missing_docs)]
-    pub static ref WDF_FUNCTION_TABLE: &'static [crate::WDFFUNC] = {{
-        // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_table = unsafe {{ crate::WdfFunctions }};
-{WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
+static WDF_FUNCTION_TABLE_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        r"
+extern crate alloc;
 
-        // SAFETY: This is safe because:
-        //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
-        //            bytes, and is guaranteed to be aligned and it must be properly aligned.
-        //         2. `WdfFunctions` points to `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` consecutive properly initialized values of
-        //            type `WDFFUNC`.
-        //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
-        //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
-        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
-        unsafe {{
-            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<crate::WDFFUNC>()).is_ok());
-            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
+/// Struct to encapsulate a function table.
+/// Lazily initializes on access via index operation.
+pub struct FunctionTable {{
+    inner: once_cell::race::OnceBox<alloc::boxed::Box<[crate::WDFFUNC]>>
+}}
+
+impl core::ops::Index<usize> for FunctionTable {{
+    type Output = crate::WDFFUNC;
+
+    fn index(&self, index: usize) -> &Self::Output {{
+        &(**(self.get_function_table()))[index]
+    }}
+}}
+    
+impl FunctionTable {{
+    /// Initializes new FunctionTable.
+    /// Will not contain data until accessed via index operator.
+    pub const fn new() -> FunctionTable {{
+        FunctionTable {{
+            inner: once_cell::race::OnceBox::new()
         }}
-    }};
-}}"#
-    );
-    static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
+    }}
+
+    fn get_function_table(&self) -> &alloc::boxed::Box<[crate::WDFFUNC]> {{
+        self.inner.get_or_init(|| {{
+            // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
+            let wdf_function_table = unsafe {{ crate::WdfFunctions }};
+            {WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
+
+            // SAFETY: This is safe because:
+            //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
+            //            bytes, and is guaranteed to be aligned and it must be properly aligned.
+            //         2. `WdfFunctions` points to `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` consecutive properly initialized values of
+            //            type `WDFFUNC`.
+            //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
+            //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
+            //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
+            unsafe {{
+                debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<crate::WDFFUNC>()).is_ok());
+                alloc::boxed::Box::new(core::slice::from_raw_parts(wdf_function_table, wdf_function_count).into())
+            }}
+        }})
+    }}
+}}
+
+/// Static instance of the function table to be used throughout generated code. 
+pub static WDF_FUNCTION_TABLE: FunctionTable = FunctionTable::new();
+"
+    )
+});
+
+static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r#"
 /// A procedural macro that allows WDF functions to be called by name.
 ///
@@ -125,8 +154,11 @@ macro_rules! call_unsafe_wdf_function_binding {{
         )
     }}
 }}"#
-    );
-    static ref TEST_STUBS_TEMPLATE: String = format!(
+    )
+});
+
+static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r"
 use crate::WDFFUNC;
 
@@ -134,9 +166,8 @@ use crate::WDFFUNC;
 #[no_mangle]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
 ",
-    );
-}
-
+    )
+});
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
