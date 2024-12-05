@@ -48,7 +48,8 @@ const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
         let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
 
 static WDF_FUNCTION_TABLE_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
-    format!(r"
+    format!(
+        r"
 extern crate alloc;
 
 /// Struct to encapsulate a function table.
