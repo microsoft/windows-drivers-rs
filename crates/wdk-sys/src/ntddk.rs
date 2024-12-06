@@ -8,6 +8,7 @@
 //! module, but are available in the top-level `wdk_sys` module.
 
 pub use bindings::*;
+use crate::{PIRP, PIO_STACK_LOCATION};
 
 #[allow(missing_docs)]
 mod bindings {
@@ -17,4 +18,34 @@ mod bindings {
     use crate::types::*;
 
     include!(concat!(env!("OUT_DIR"), "/ntddk.rs"));
+}
+
+/// The IoGetCurrentIrpStackLocation routine returns a pointer to the caller's I/O stack location in 
+/// the specified IRP.
+/// 
+/// # Parameters
+/// - irp: PIRP - A pointer to the IRP.
+/// 
+/// # Returns
+/// IoGetCurrentIrpStackLocation returns a pointer to an IO_STACK_LOCATION structure that contains 
+/// the I/O stack location for the driver.
+///
+/// # Safety
+/// This function directly accesses raw pointers and must only be used
+/// when it is guaranteed that the provided `irp` is valid and properly
+/// initialised. Using an invalid or uninitialised `irp` will result
+/// in undefined behavior.
+#[allow(non_snake_case)]
+pub unsafe fn IoGetCurrentIrpStackLocation(irp: PIRP) -> PIO_STACK_LOCATION {
+    unsafe { 
+        assert!((*irp).CurrentLocation <= (*irp).StackCount + 1);
+    
+        // Access the union fields inside the IRP
+        (*irp)
+        .Tail
+        .Overlay
+        .__bindgen_anon_2
+        .__bindgen_anon_1
+        .CurrentStackLocation
+    }
 }
