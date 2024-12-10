@@ -150,3 +150,6 @@ macro_rules! PAGED_CODE {
         debug_assert!(unsafe { KeGetCurrentIrql() <= APC_LEVEL as u8 });
     };
 }
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub use ntddk::InitializeObjectAttributes;
