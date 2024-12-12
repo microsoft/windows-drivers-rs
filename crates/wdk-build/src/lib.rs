@@ -981,6 +981,9 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
 
+/// This currently only exports the driver type, but may export more metadata in
+/// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
+/// values
 static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
     LazyLock::new(|| vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])]);
 
