@@ -20,4 +20,4 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/wdf.rs"));
 }
 
-include!(concat!(env!("OUT_DIR"), "/wdf_function_table.rs"));
+include!(concat!(env!("OUT_DIR"), "/wdf_function_count.rs"));
