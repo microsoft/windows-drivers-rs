@@ -755,7 +755,6 @@ dependencies = [
  "bindgen",
  "cargo_metadata",
  "cc",
- "once_cell",
  "rustversion",
  "serde_json",
  "thiserror",

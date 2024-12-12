@@ -2,6 +2,7 @@
 // License: MIT OR Apache-2.0
 
 use std::{path::PathBuf, sync::LazyLock};
+
 use fs4::FileExt;
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
@@ -17,17 +18,20 @@ const TOOLCHAIN_CHANNEL_NAME: &str = "beta";
 #[rustversion::nightly]
 const TOOLCHAIN_CHANNEL_NAME: &str = "nightly";
 
-static TESTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| {[env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect()});
-static INPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| {TESTS_FOLDER_PATH.join("inputs")});
-pub static MACROTEST_INPUT_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| {INPUTS_FOLDER_PATH.join("macrotest")});
-pub static TRYBUILD_INPUT_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| {INPUTS_FOLDER_PATH.join("trybuild")});
-static OUTPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| {TESTS_FOLDER_PATH.join("outputs")});
-static TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| {OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME)});
+static TESTS_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect());
+static INPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| TESTS_FOLDER_PATH.join("inputs"));
+pub static MACROTEST_INPUT_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| INPUTS_FOLDER_PATH.join("macrotest"));
+pub static TRYBUILD_INPUT_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| INPUTS_FOLDER_PATH.join("trybuild"));
+static OUTPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| TESTS_FOLDER_PATH.join("outputs"));
+static TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME));
 pub static MACROTEST_OUTPUT_FOLDER_PATH: LazyLock<PathBuf> =
-    LazyLock::new(|| {TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("macrotest")});
+    LazyLock::new(|| TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("macrotest"));
 pub static TRYBUILD_OUTPUT_FOLDER_PATH: LazyLock<PathBuf> =
-    LazyLock::new(|| {TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("trybuild")});
-
+    LazyLock::new(|| TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("trybuild"));
 
 /// Given a filename `f` which contains code utilizing
 /// [`wdk_sys::call_unsafe_wdf_function_binding`], generates a pair of tests to

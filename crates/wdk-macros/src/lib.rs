@@ -230,7 +230,8 @@ impl DerivedASTFragments {
                 //         function table index and the correct function pointer type.
                 unsafe {
                     let wdf_function_table = wdk_sys::WdfFunctions;
-        
+                    let wdf_function_count = wdk_sys::wdf::get_wdf_function_count();
+
                     // SAFETY: This is safe because:
                     //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
                     //            bytes, and is guaranteed to be aligned and it must be properly aligned.
@@ -239,10 +240,10 @@ impl DerivedASTFragments {
                     //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
                     //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
                     //            larger than `isize::MAX`. This is proven by the below `const_assert!`.
-                
-                    debug_assert!(isize::try_from(wdk_sys::wdf::WDF_FUNCTION_COUNT * core::mem::size_of::<wdk_sys::WDFFUNC>()).is_ok());
-                    let wdf_function_table = core::slice::from_raw_parts(wdf_function_table, wdk_sys::wdf::WDF_FUNCTION_COUNT);
-                
+
+                    debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<wdk_sys::WDFFUNC>()).is_ok());
+                    let wdf_function_table = core::slice::from_raw_parts(wdf_function_table, wdf_function_count);
+
                     core::mem::transmute(
                         // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
                         wdf_function_table[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],

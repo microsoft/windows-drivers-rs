@@ -5,7 +5,6 @@
 
 #![no_std]
 
-
 #[cfg(any(
     driver_model__driver_type = "WDM",
     driver_model__driver_type = "KMDF",

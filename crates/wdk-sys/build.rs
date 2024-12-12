@@ -35,16 +35,23 @@ const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
 const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING WDFFUNCTIONS SYMBOL NAME>";
+const WDF_FUNCTION_COUNT_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR EVALUATION CONTAINING WDF_FUNCTION_COUNT VALUE";
 
-const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
-// SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
-                                                        to be ever mutated by WDF.
-/// Number of functions in the WDF function table
-pub static WDF_FUNCTION_COUNT: usize = unsafe { crate::WdfFunctionCount } as usize;";
+const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str =
+    "(unsafe { crate::WdfFunctionCount }) as usize";
 
-const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
-/// Number of functions in the WDF function table
-pub static WDF_FUNCTION_COUNT: usize = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
+const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
+    "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize";
+
+const WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        r#"/// function to access the value of the number of functions in the WDF function table.
+pub fn get_wdf_function_count() -> usize {{
+    {WDF_FUNCTION_COUNT_PLACEHOLDER}
+}}"#
+    )
+});
 
 static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
     format!(
@@ -277,11 +284,14 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
         }
     };
 
-    let wdf_function_table_count_snippet = if is_wdf_function_count_generated {
-        WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL
-    } else {
-        WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX
-    };
+    let wdf_function_table_count_snippet = WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE.replace(
+        WDF_FUNCTION_COUNT_PLACEHOLDER,
+        if is_wdf_function_count_generated {
+            WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL
+        } else {
+            WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX
+        },
+    );
 
     generated_file.write_all(wdf_function_table_count_snippet.as_bytes())?;
     Ok(())

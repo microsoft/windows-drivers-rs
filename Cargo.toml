@@ -45,9 +45,6 @@ cfg-if = "1.0.0"
 clap = "4.5.9"
 clap-cargo = "0.14.1"
 itertools = "0.13.0"
-once_cell = { version = "1.20.2", default-features = false, features = [
-  "alloc",
-] }
 paste = "1.0.15"
 pretty_assertions = "1.4.0"
 proc-macro2 = "1.0.86"
