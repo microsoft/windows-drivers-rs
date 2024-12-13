@@ -23,6 +23,7 @@ jobs:
           - 17.0.6
 
         target_triple:
+          - i686-pc-windows-msvc
           - x86_64-pc-windows-msvc
           # - aarch64-pc-windows-msvc FIXME: find a way to validate the local makefile on aarch64
 

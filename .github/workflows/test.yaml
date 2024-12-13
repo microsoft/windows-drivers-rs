@@ -29,6 +29,7 @@ jobs:
           - release
 
         target_triple:
+          - i686-pc-windows-msvc
           - x86_64-pc-windows-msvc
           # - aarch64-pc-windows-msvc FIXME: Add support for executing ARM64 tests. Maybe use target specific test runner in emulator: https://doc.rust-lang.org/cargo/reference/config.html#target
 
