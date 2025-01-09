@@ -1008,17 +1008,19 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     })
 }
 
-/// 
 /// `cargo-make` condition script for `generate-certificate` task in
 /// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
-/// 
+///
 /// # Errors
-/// 
-/// This functions returns an error whenever it determines that the 
+///
+/// This functions returns an error whenever it determines that the
 /// `generate-certificate` `cargo-make` task should be skipped. This only
-/// occurs when the WdrLocalTestCert cannot be added from the build directory
-/// to WDRTestCertStore.
+/// occurs when the `WdrLocalTestCert` cannot be added from the build directory
+/// to `WDRTestCertStore`.
 /// 
+/// # Panics
+/// 
+/// Panics if certmgr is unable to be run.
 pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
         let output = Command::new("certmgr")
@@ -1032,19 +1034,21 @@ pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
             ])
             .arg(get_wdk_build_output_directory().join("WDRLocalTestCert.cer"))
             .output()
-            .expect("Failed to move certificate to build directory.");
+            .expect("Failed to run certmgr.exe.");
 
         match output.status.code() {
-            Some(0) => Err(anyhow::anyhow!("WDRLocalTestCert already in WDRTestCertStore. Skipping certificate generation.")),
+            Some(0) => Err(anyhow::anyhow!(
+                "WDRLocalTestCert already in WDRTestCertStore. Skipping certificate generation."
+            )),
             Some(1) => Ok(()),
             Some(_) => {
                 eprintln!("Unknown status code found from certmgr. Generating certificate.");
                 Ok(())
-            },
+            }
             None => {
                 eprintln!("No status code found from certmgr. Generating certificate.");
-                Ok(())    
-            },
+                Ok(())
+            }
         }
     })
 }
