@@ -1017,9 +1017,9 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
 /// `generate-certificate` `cargo-make` task should be skipped. This only
 /// occurs when the `WdrLocalTestCert` cannot be added from the build directory
 /// to `WDRTestCertStore`.
-/// 
+///
 /// # Panics
-/// 
+///
 /// Panics if certmgr is unable to be run.
 pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
