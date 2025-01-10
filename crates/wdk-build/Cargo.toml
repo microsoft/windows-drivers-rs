@@ -35,6 +35,11 @@ windows = { workspace = true, features = [
 [dev-dependencies]
 windows = { workspace = true, features = ["Win32_UI_Shell"] }
 
+[features]
+default = []
+
+hid = []
+
 [lints.rust.unexpected_cfgs]
 level = "warn"
 check-cfg = ["cfg(wdk_build_unstable)", "cfg(skip_umdf_static_crt_check)"]

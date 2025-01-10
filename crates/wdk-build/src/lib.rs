@@ -313,6 +313,7 @@ impl Config {
         Ok(())
     }
 
+    // TODO: deprecate in favor of include_paths()
     /// Return header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
@@ -411,6 +412,7 @@ impl Config {
         Ok(include_paths)
     }
 
+    // TODO: deprecate in favor of library_paths()
     /// Return library include paths required to build and link based off of
     /// the configuration of [`Config`].
     ///
@@ -498,6 +500,7 @@ impl Config {
         Ok(library_paths)
     }
 
+    // TODO: Deprecate in favor of preprocessor_definitions_iter
     /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
     pub fn get_preprocessor_definitions_iter(
@@ -624,6 +627,134 @@ impl Config {
         ]
         .into_iter()
         .map(std::string::ToString::to_string)
+    }
+
+    pub fn base_headers(&self) -> impl Iterator<Item = String> {
+        match &self.driver_config {
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                vec!["ntifs.h", "ntddk.h"]
+            }
+            DriverConfig::Umdf(_) => {
+                vec!["windows.h"]
+            }
+        }
+        .into_iter()
+        .map(std::string::ToString::to_string)
+    }
+
+    pub fn wdf_headers(&self) -> impl Iterator<Item = String> {
+        ["wdf.h"].into_iter().map(std::string::ToString::to_string)
+    }
+
+    #[cfg(feature = "hid")]
+    pub fn hid_headers(&self) -> impl Iterator<Item = String> {
+        // HID Headers list from https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
+        {
+            let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
+            if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                hid_headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+            }
+            if let DriverConfig::Kmdf(_) = self.driver_config {
+                hid_headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
+            }
+            hid_headers
+        }
+        .into_iter()
+        .map(std::string::ToString::to_string)
+    }
+
+    pub fn bindgen_base_header_contents(&self) -> String {
+        let mut header_contents = self.base_headers().fold(String::new(), |mut acc, header| {
+            acc.push_str(r#"#include ""#);
+            acc.push_str(&header);
+            acc.push_str("\"\n");
+            acc
+        });
+
+        if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+            // TODO: Why is there no definition for this struct? Maybe blocklist this struct
+            // in bindgen.
+            header_contents.push_str(
+                r"
+typedef union _KGDTENTRY64
+{
+  struct
+  {
+    unsigned short LimitLow;
+    unsigned short BaseLow;
+    union
+    {
+      struct
+      {
+        unsigned char BaseMiddle;
+        unsigned char Flags1;
+        unsigned char Flags2;
+        unsigned char BaseHigh;
+      } Bytes;
+      struct
+      {
+        unsigned long BaseMiddle : 8;
+        unsigned long Type : 5;
+        unsigned long Dpl : 2;
+        unsigned long Present : 1;
+        unsigned long LimitHigh : 4;
+        unsigned long System : 1;
+        unsigned long LongMode : 1;
+        unsigned long DefaultBig : 1;
+        unsigned long Granularity : 1;
+        unsigned long BaseHigh : 8;
+      } Bits;
+    };
+    unsigned long BaseUpper;
+    unsigned long MustBeZero;
+  };
+  unsigned __int64 Alignment;
+} KGDTENTRY64, *PKGDTENTRY64;
+
+typedef union _KIDTENTRY64
+{
+  struct
+  {
+    unsigned short OffsetLow;
+    unsigned short Selector;
+    unsigned short IstIndex : 3;
+    unsigned short Reserved0 : 5;
+    unsigned short Type : 5;
+    unsigned short Dpl : 2;
+    unsigned short Present : 1;
+    unsigned short OffsetMiddle;
+    unsigned long OffsetHigh;
+    unsigned long Reserved1;
+  };
+  unsigned __int64 Alignment;
+} KIDTENTRY64, *PKIDTENTRY64;
+",
+            );
+        }
+
+        header_contents
+    }
+
+    pub fn bindgen_wdf_header_contents(&self) -> Option<String> {
+        if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = self.driver_config {
+            return Some(self.wdf_headers().fold(String::new(), |mut acc, header| {
+                acc.push_str(r#"#include ""#);
+                acc.push_str(&header);
+                acc.push_str("\"\n");
+                acc
+            }));
+        }
+        None
+    }
+
+    #[cfg(feature = "hid")]
+    pub fn bindgen_hid_header_contents(&self) -> String {
+        self.hid_headers().fold(String::new(), |mut acc, header| {
+            acc.push_str(r#"#include ""#);
+            acc.push_str(&header);
+            acc.push_str("\"\n");
+            acc
+        })
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
@@ -842,8 +973,6 @@ impl CpuArchitecture {
     }
 
     /// Converts from a cargo-provided [`std::str`] to a [`CpuArchitecture`].
-    ///
-    /// #
     #[must_use]
     pub fn try_from_cargo_str<S: AsRef<str>>(cargo_str: S) -> Option<Self> {
         // Specifically not using the [`std::convert::TryFrom`] trait to be more
