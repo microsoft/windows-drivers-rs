@@ -698,6 +698,12 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=hal");
                 println!("cargo::rustc-link-lib=static=wmilib");
 
+                // Emit ARM64-specific libraries to link to derived from
+                // WindowsDriver.arm64.props
+                if self.cpu_architecture == CPUArchitecture::ARM64 {
+                    println!("cargo::rustc-link-lib=static=arm64rt");
+                }
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -716,6 +722,12 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=wmilib");
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
+
+                // Emit ARM64-specific libraries to link to derived from
+                // WindowsDriver.arm64.props
+                if self.cpu_architecture == CPUArchitecture::ARM64 {
+                    println!("cargo::rustc-link-lib=static=arm64rt");
+                }
 
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
