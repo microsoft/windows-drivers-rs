@@ -11,9 +11,12 @@ pub use bindings::*;
 
 #[allow(missing_docs)]
 mod bindings {
-    // allow wildcards for types module since underlying c code relies on all
-    // type definitions being in scope
-    #[allow(clippy::wildcard_imports)]
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "the underlying c code relies on all type definitions being in scope, which \
+                  results in the bindgen generated code relying on the generated types being in \
+                  scope as well"
+    )]
     use crate::types::*;
 
     include!(concat!(env!("OUT_DIR"), "/windows.rs"));

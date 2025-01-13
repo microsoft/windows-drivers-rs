@@ -38,6 +38,7 @@ wdk-macros.workspace = true
 default = []
 
 hid = []
+spb = []
 
 nightly = ["wdk-macros/nightly"]
 test-stubs = []
