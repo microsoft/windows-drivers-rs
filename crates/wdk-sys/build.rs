@@ -41,8 +41,10 @@ const WDF_FUNCTION_COUNT_PLACEHOLDER: &str =
 const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str =
     "(unsafe { crate::WdfFunctionCount }) as usize";
 
-const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
-    "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize";
+const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "// SAFETY: `crate::WdfFunctionCount` is \
+                                                          generated as a mutable static, but is \
+                                                          not supposed to be ever mutated by WDF.
+    crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize";
 
 static WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
     format!(
@@ -241,10 +243,11 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 }
 
 /// Generates a `wdf_function_count.rs` file in `OUT_DIR` which contains the
-/// definition of `WDF_FUNCTION_COUNT`. This is required to be generated here
-/// since the size of the table is derived from either a global symbol
-/// that newer WDF versions expose, or an enum that older versions use.
-fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Result<()> {
+/// definition of the function `get_wdf_function_count()`. This is required to
+/// be generated here since the size of the table is derived from either a
+/// global symbol that newer WDF versions expose, or an enum that older versions
+/// use.
+fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Result<()> {
     const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
 
     let generated_file_path = out_path.join("wdf_function_count.rs");
