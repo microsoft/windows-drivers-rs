@@ -1184,7 +1184,7 @@ mod tests {
                 || panic!("Couldn't get OS string"),
                 |os_env_string| os_env_string.to_string_lossy().into_owned(),
             );
-        assert_eq!(env_string.split(' ').last(), Some("/msft"));
+        assert_eq!(env_string.split(' ').next_back(), Some("/msft"));
 
         crate::cargo_make::setup_infverif_for_samples(WDK_TEST_NEW_INF_VERSION)?;
         let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
@@ -1192,7 +1192,7 @@ mod tests {
                 || panic!("Couldn't get OS string"),
                 |os_env_string| os_env_string.to_string_lossy().into_owned(),
             );
-        assert_eq!(env_string.split(' ').last(), Some("/samples"));
+        assert_eq!(env_string.split(' ').next_back(), Some("/samples"));
         Ok(())
     }
 }
