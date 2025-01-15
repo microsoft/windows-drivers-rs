@@ -700,7 +700,7 @@ impl Config {
 
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props
-                if self.cpu_architecture == CpuArchitecture::ARM64 {
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
                     println!("cargo::rustc-link-lib=static=arm64rt");
                 }
 
@@ -725,7 +725,7 @@ impl Config {
 
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props
-                if self.cpu_architecture == CpuArchitecture::ARM64 {
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
                     println!("cargo::rustc-link-lib=static=arm64rt");
                 }
 
