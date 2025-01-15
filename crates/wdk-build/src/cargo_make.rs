@@ -1015,15 +1015,18 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
 ///
 /// This functions returns an error whenever it determines that the
 /// `generate-certificate` `cargo-make` task should be skipped. This only
-/// occurs when the `WdrLocalTestCert` cannot be added from the build directory
-/// to `WDRTestCertStore`.
+/// occurs when `WdrLocalTestCert` already exists in `WDRTestCertStore`.
 ///
 /// # Panics
 ///
-/// Panics if certmgr is unable to be run.
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment.
 pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
-        let output = Command::new("certmgr")
+        let cert_save_location = get_wdk_build_output_directory().join("WDRLocalTestCert.cer");
+
+        let mut command = Command::new("certmgr");
+
+        command
             .args([
                 "-put",
                 "-s",
@@ -1032,13 +1035,23 @@ pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
                 "-n",
                 "WdrLocalTestCert",
             ])
-            .arg(get_wdk_build_output_directory().join("WDRLocalTestCert.cer"))
-            .output()
-            .expect("Failed to run certmgr.exe.");
+            .arg(cert_save_location);
+
+        let output = command.output().unwrap_or_else(|err| {
+            panic!(
+                "Failed to run certmgr.exe {} due to error: {}",
+                command
+                    .get_args()
+                    .map(|arg| arg.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                err
+            )
+        });
 
         match output.status.code() {
             Some(0) => Err(anyhow::anyhow!(
-                "WDRLocalTestCert already in WDRTestCertStore. Skipping certificate generation."
+                "WDRLocalTestCert found in WDRTestCertStore. Skipping certificate generation."
             )),
             Some(1) => Ok(()),
             Some(_) => {
@@ -1046,8 +1059,7 @@ pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
                 Ok(())
             }
             None => {
-                eprintln!("No status code found from certmgr. Generating certificate.");
-                Ok(())
+                unreachable!("Unreachable, no status code found from certmgr.");
             }
         }
     })
