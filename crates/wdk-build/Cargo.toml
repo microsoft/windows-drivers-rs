@@ -25,11 +25,15 @@ paste.workspace = true
 rustversion.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
+  "Win32_Security",
   "Win32_System_Registry",
+  "Win32_System_SystemServices",
 ] }
 
 [dev-dependencies]

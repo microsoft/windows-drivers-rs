@@ -7,20 +7,33 @@
 use std::{
     env,
     ffi::CStr,
+    mem::MaybeUninit,
     path::{Path, PathBuf},
 };
 
 use thiserror::Error;
 use windows::{
     core::{s, PCSTR},
-    Win32::System::Registry::{
-        RegCloseKey,
-        RegGetValueA,
-        RegOpenKeyExA,
-        HKEY,
-        HKEY_LOCAL_MACHINE,
-        KEY_READ,
-        RRF_RT_REG_SZ,
+    Win32::{
+        Foundation::HANDLE,
+        Security::{
+            AllocateAndInitializeSid,
+            CheckTokenMembership,
+            FreeSid,
+            SECURITY_NT_AUTHORITY,
+        },
+        System::{
+            Registry::{
+                RegCloseKey,
+                RegGetValueA,
+                RegOpenKeyExA,
+                HKEY,
+                HKEY_LOCAL_MACHINE,
+                KEY_READ,
+                RRF_RT_REG_SZ,
+            },
+            SystemServices::{DOMAIN_ALIAS_RID_ADMINS, SECURITY_BUILTIN_DOMAIN_RID},
+        },
     },
 };
 
@@ -268,6 +281,92 @@ pub fn get_wdk_version_number<S: AsRef<str> + ToString + ?Sized>(
          appropriate substring!",
     );
     Ok((*version_substring).to_string())
+}
+
+/// Detect if the current executing process is running with administrator
+/// privileges.
+///
+/// Based on example from <https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership#examples>
+pub fn is_running_as_admin() -> windows::core::Result<bool> {
+    const MIN_SUBAUTHORITY_COUNT: usize = 1;
+    const MAX_SUBAUTHORITY_COUNT: usize = 8;
+    const ADMINISTRATORS_GROUP_SUBAUTHORITIES: [u32; 2] = [
+        SECURITY_BUILTIN_DOMAIN_RID as u32,
+        DOMAIN_ALIAS_RID_ADMINS as u32,
+    ];
+
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() is guaranteed to be in the range of 1 \
+                  to 8 by the below assert"
+    )]
+    const ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN: u8 = {
+        assert!(
+            MIN_SUBAUTHORITY_COUNT <= ADMINISTRATORS_GROUP_SUBAUTHORITIES.len()
+                && ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() <= MAX_SUBAUTHORITY_COUNT
+        );
+
+        ADMINISTRATORS_GROUP_SUBAUTHORITIES.len() as u8
+    };
+
+    let subauthorities = const {
+        let mut subauthorities = [0_u32; MAX_SUBAUTHORITY_COUNT];
+
+        // Use while loop since iterators are not const evaluable
+        let mut i = 0;
+        while i < ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN {
+            subauthorities[i as usize] = ADMINISTRATORS_GROUP_SUBAUTHORITIES[i as usize];
+            i += 1;
+        }
+        subauthorities
+    };
+
+    let mut administrators_group_security_identifier = MaybeUninit::uninit();
+    // SAFETY: AllocateAndInitializeSid is called with valid arguments:
+    // * `SECURITY_NT_AUTHORITY` is a valid `SID_IDENTIFIER_AUTHORITY`
+    // * `ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN` is guaranteed to be in the range
+    //   of 1 to 8 by above const asserts
+    // * `subauthorities` is guaranteed to be initialized with
+    //   ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN subauthorties, followed by 0s
+    unsafe {
+        AllocateAndInitializeSid(
+            &SECURITY_NT_AUTHORITY,
+            ADMINISTRATORS_GROUP_SUBAUTHORITIES_LEN,
+            subauthorities[0],
+            subauthorities[1],
+            subauthorities[2],
+            subauthorities[3],
+            subauthorities[4],
+            subauthorities[5],
+            subauthorities[6],
+            subauthorities[7],
+            administrators_group_security_identifier.as_mut_ptr(),
+        )
+    }?;
+    let administrators_group_security_identifier =
+        // SAFETY: `administrators_group_security_identifier` is guaranteed to be initialized since `AllocateAndInitializeSid` has succeeded
+        unsafe { administrators_group_security_identifier.assume_init() };
+
+    let mut is_running_as_admin = MaybeUninit::uninit();
+    // SAFETY: `adminstrators_group_security_identifier` is a valid SID structure
+    unsafe {
+        CheckTokenMembership(
+            // use impersonation token from calling thread (or derived from this thread's primary
+            // token)
+            HANDLE::default(),
+            administrators_group_security_identifier,
+            is_running_as_admin.as_mut_ptr(),
+        )
+    }?;
+    let is_running_as_admin =
+    // SAFETY: `is_running_as_admin` is guaranteed to be initialized since `CheckTokenMembership` has succeeded
+    unsafe { is_running_as_admin.assume_init() }.as_bool();
+
+    // SAFETY: `administrators_group_security_identifier` is a valid SID allocated
+    // by AllocateAndInitializeSid
+    unsafe { FreeSid(administrators_group_security_identifier) };
+
+    Ok(is_running_as_admin)
 }
 
 /// Read a string value from a registry key

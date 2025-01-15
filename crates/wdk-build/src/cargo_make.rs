@@ -14,13 +14,18 @@
 use core::{fmt, ops::RangeFrom};
 use std::{
     env,
+    fs,
+    io,
     panic::UnwindSafe,
     path::{Path, PathBuf},
+    process::{self, Command},
 };
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
 use clap::{Args, Parser};
+use sha2::{Digest, Sha256};
+use tempfile::tempdir;
 use tracing::{instrument, trace};
 
 use crate::{
@@ -29,6 +34,7 @@ use crate::{
         detect_wdk_content_root,
         get_latest_windows_sdk_version,
         get_wdk_version_number,
+        is_running_as_admin,
         PathExt,
     },
     ConfigError,
@@ -1104,6 +1110,265 @@ pub fn driver_sample_infverif_condition_script() -> anyhow::Result<()> {
         }
         Ok(())
     })
+}
+
+/// `cargo-make` condition script for `install-certificate` task in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error whenever it determines that the
+/// `install-certifiacte` `cargo-make` task should be skipped (i.e. when the
+/// certificate is already installed)
+///
+/// # Panics
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
+pub fn install_certificate_condition_script() -> anyhow::Result<()> {
+    condition_script(|| {
+        if is_wdrlocaltestcert_installed()? {
+            let cargo_make_task_name = env::var(CARGO_MAKE_CURRENT_TASK_NAME_ENV_VAR)
+                .expect("CARGO_MAKE_CURRENT_TASK_NAME should be set by cargo-make");
+            return Err::<(), anyhow::Error>(anyhow::Error::msg(format!(
+                "WDRLocalTestCert is already installed. Skipping {cargo_make_task_name}"
+            )));
+        }
+
+        Ok(())
+    })
+}
+
+/// `cargo-make` script for `install-certificate` task in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error if:
+/// * The task is not run as an administrator
+/// * The certificate fails to be installed to the Trusted Root Certificate
+///   Authorities store
+/// * The certificate fails to be installed to the Trusted Publishers store
+///
+/// # Panics
+///
+/// This function will panic if the `WDK_BUILD_OUTPUT_DIRECTORY` environment
+/// variable is not set
+pub fn install_certificate() -> anyhow::Result<()> {
+    if !is_running_as_admin()? {
+        bail!(
+            "This task must be run as an administrator in order to install certificates to \
+             LocalMachine"
+        );
+    }
+
+    println!(
+        "Installing WDRLocalTestCert to Trusted Root Certificate Authorities store (Local \
+         Machine)..."
+    );
+    let output = Command::new("certmgr.exe")
+        .arg("-add")
+        .arg(
+            env::var("WDK_BUILD_OUTPUT_DIRECTORY")
+                .expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by wdk-build-init task")
+                + "/WDRLocalTestCert.cer",
+        )
+        .arg("-c")
+        .arg("-s")
+        .arg("-r")
+        .arg("localMachine")
+        .arg("ROOT")
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "WDRLocalTestCert failed to be added to Trusted Root Certificate Authorities store \
+             (Local Machine) with status: {}\n\nstdout:\n{}\nstderr:\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    println!("Installing WDRLocalTestCert to Trusted Publishers store (Local Machine)...");
+    let output = Command::new("certmgr.exe")
+        .arg("-add")
+        .arg(
+            env::var("WDK_BUILD_OUTPUT_DIRECTORY")
+                .expect("WDK_BUILD_OUTPUT_DIRECTORY should be set by wdk-build-init task")
+                + "/WDRLocalTestCert.cer",
+        )
+        .arg("-c")
+        .arg("-s")
+        .arg("-r")
+        .arg("localMachine")
+        .arg("TrustedPublisher")
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "WDRLocalTestCert failed to be added to Trusted Publishers store (Local Machine) with \
+             status: {}\n\nstdout:\n{}\nstderr:\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    println!(
+        "WDRLocalTestCert successfully installed to Trusted Root Certificate Authorities and \
+         Trusted Publishers stores (Local Machine)"
+    );
+    Ok(())
+}
+
+/// `cargo-make` script for `validate-certificate-installed` task in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This function returns an error if the `WDRLocalTestCert` certificate is not
+/// installed in both the `Trusted Root Certificate Authorities` and `Trusted
+/// Publishers` stores (Local Machine)
+pub fn validate_certificate_installed() -> anyhow::Result<()> {
+    if !is_wdrlocaltestcert_installed()? {
+        bail!(
+            "WDRLocalTestCert is not installed in both Trusted Root Certificate Authorities and \
+             Trusted Publishers stores (Local Machine)"
+        );
+    }
+
+    Ok(())
+}
+
+/// Checks if the `WDRLocalTestCert` certificate is installed in the `Trusted
+/// Root Certificate Authorities`, `Trusted Publishers`, and `WDRTestCertStore`
+/// stores (Local Machine).
+///
+/// This function exports the `WDRLocalTestCert` certificate from the specified
+/// certificate stores to a temporary folder, and checks if the certificates all
+/// match.
+///
+/// # Errors
+///
+/// This function will return an error if the:
+/// * temporary directory cannot be created
+/// * `certmgr.exe` command fails to execute
+/// * certificate cannot be exported from any of the specified stores.
+fn is_wdrlocaltestcert_installed() -> anyhow::Result<bool> {
+    const INSTALLED_ROOT_CERT_EXPORTED_FILENAME: &str = "WDRLocalTestCert-Local.cer";
+    const INSTALLED_TRUSTEDPUBLISHER_CERT_EXPORTED_FILENAME: &str =
+        "WDRLocalTestCert-Publisher.cer";
+    const INSTALLED_WDRTESTCERTSTORE_CERT_EXPORTED_FILENAME: &str =
+        "WDRLocalTestCert-WDRTestCertStore.cer";
+
+    let temporary_directory = tempdir()?;
+    let exported_root_cert_path = temporary_directory
+        .path()
+        .join(INSTALLED_ROOT_CERT_EXPORTED_FILENAME);
+    let exported_trustedpublisher_cert_path = temporary_directory
+        .path()
+        .join(INSTALLED_TRUSTEDPUBLISHER_CERT_EXPORTED_FILENAME);
+    let exported_wdrtestcertstore_cert_path = temporary_directory
+        .path()
+        .join(INSTALLED_WDRTESTCERTSTORE_CERT_EXPORTED_FILENAME);
+
+    // Export WDRLocalTestCert from "Trusted Root Certificate Authorities" store
+    // (Local Machine)
+    let output = export_certificate("localMachine", "ROOT", &exported_root_cert_path)?;
+    if !output.status.success() {
+        println!(
+            "WDRLocalTestCert not found in Trusted Root Certificate Authorities store (Local \
+             Machine). It is expected that the generate-certificate task has installed the \
+             signing certificate there: \n\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Ok(false);
+    }
+
+    // Export WDRLocalTestCert from "Trusted Publishers" store (Local Machine)
+    let output = export_certificate(
+        "localMachine",
+        "TrustedPublisher",
+        &exported_trustedpublisher_cert_path,
+    )?;
+    if !output.status.success() {
+        println!(
+            "WDRLocalTestCert not found in Trusted Publishers store (Local Machine). It is \
+             expected that the generate-certificate task has installed the signing certificate \
+             there: \n\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Ok(false);
+    }
+
+    // Export WDRLocalTestCert from "WDRTestCertStore" store
+    let output = export_certificate(
+        "currentUser",
+        "WDRTestCertStore",
+        &exported_wdrtestcertstore_cert_path,
+    )?;
+    if !output.status.success() {
+        bail!(
+            "WDRLocalTestCert not found in WDRTestCertStore store. It is expected that the \
+             generate-certificate task has installed the signing certificate there: \
+             \n\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // Validate that the installed certificates are the same via cert hashes
+    let wdr_test_cert_store_cert_hash = compute_file_hash(&exported_wdrtestcertstore_cert_path)?;
+    let root_cert_hash = compute_file_hash(&exported_root_cert_path)?;
+    let trusted_publisher_cert_hash = compute_file_hash(&exported_trustedpublisher_cert_path)?;
+    if wdr_test_cert_store_cert_hash != root_cert_hash {
+        println!(
+            "WDRLocalTestCert in WDRTestCertStore store does not match WDRLocalTestCert in \
+             Trusted Root Certificate Authorities store (Local Machine)"
+        );
+        return Ok(false);
+    }
+    if wdr_test_cert_store_cert_hash != trusted_publisher_cert_hash {
+        println!(
+            "WDRLocalTestCert in WDRTestCertStore store does not match WDRLocalTestCert in \
+             Trusted Publishers store (Local Machine)"
+        );
+        return Ok(false);
+    }
+
+    Ok(true)
+}
+
+fn export_certificate(
+    store_location: &str,
+    store_name: &str,
+    export_path: &Path,
+) -> io::Result<process::Output> {
+    Command::new("certmgr.exe")
+        .arg("-put")
+        .arg("-c")
+        .arg("-n")
+        .arg("WDRLocalTestCert")
+        .arg("-s")
+        .arg("-r")
+        .arg(store_location)
+        .arg(store_name)
+        .arg(export_path)
+        .output()
+}
+
+fn compute_file_hash(file_path: &Path) -> anyhow::Result<Vec<u8>> {
+    let mut file = fs::File::open(file_path)?;
+    let file_length = file.metadata()?.len();
+    let mut hasher = Sha256::new();
+    let bytes_copied = io::copy(&mut file, &mut hasher)?;
+    if bytes_copied != file_length {
+        bail!(
+            "Mismatch in length of file and bytes read to hasher. File length: {file_length}, \
+             Bytes read: {bytes_copied}, File path: {}",
+            file_path.display()
+        );
+    }
+    Ok(hasher.finalize().to_vec())
 }
 
 #[cfg(test)]
