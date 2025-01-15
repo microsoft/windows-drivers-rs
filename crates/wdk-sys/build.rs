@@ -398,7 +398,7 @@ fn main() -> anyhow::Result<()> {
                 );
 
                 info_span!("wdf_function_count.rs generation").in_scope(|| {
-                    generate_wdf_function_table(&out_path, &config)?;
+                    generate_wdf_function_count(&out_path, &config)?;
                     Ok::<(), std::io::Error>(())
                 })?;
 
