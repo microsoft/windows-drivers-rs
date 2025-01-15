@@ -943,7 +943,7 @@ where
 ///
 /// # Panics
 ///
-/// Panics if `CARGO_MAKE_CRATE_NAME` is not set in the environment
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
 pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
         // Get the current package name via `CARGO_MAKE_CRATE_NAME_ENV_VAR` instead of
