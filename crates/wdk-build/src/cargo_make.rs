@@ -1053,9 +1053,14 @@ pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
             Some(0) => Err(anyhow::anyhow!(
                 "WDRLocalTestCert found in WDRTestCertStore. Skipping certificate generation."
             )),
-            Some(1) => Ok(()),
+            Some(1) => {
+                println!(
+                    "WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate."
+                );
+                Ok(())
+            }
             Some(_) => {
-                eprintln!("Unknown status code found from certmgr. Generating certificate.");
+                eprintln!("Unknown status code found from certmgr. Generating new certificate.");
                 Ok(())
             }
             None => {
