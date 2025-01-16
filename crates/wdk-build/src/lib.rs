@@ -190,6 +190,13 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     SerdeError(#[from] metadata::Error),
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ApiSubset {
+    Base,
+    Wdf,
+    Hid,
+}
+
 impl Default for Config {
     #[must_use]
     fn default() -> Self {
@@ -629,53 +636,70 @@ impl Config {
         .map(std::string::ToString::to_string)
     }
 
-    pub fn base_headers(&self) -> impl Iterator<Item = String> {
-        match &self.driver_config {
-            DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                vec!["ntifs.h", "ntddk.h"]
+    pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
+        match api_subset {
+            ApiSubset::Base => match &self.driver_config {
+                DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                    vec!["ntifs.h", "ntddk.h"]
+                }
+                DriverConfig::Umdf(_) => {
+                    vec!["windows.h"]
+                }
+            },
+            ApiSubset::Wdf => {
+                if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = self.driver_config {
+                    vec!["wdf.h"]
+                } else {
+                    vec![]
+                }
             }
-            DriverConfig::Umdf(_) => {
-                vec!["windows.h"]
+            ApiSubset::Hid => {
+                // HID Headers list from https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
+                let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
+
+                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                    hid_headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+                }
+
+                if let DriverConfig::Kmdf(_) = self.driver_config {
+                    hid_headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
+                }
+
+                hid_headers
             }
         }
         .into_iter()
         .map(std::string::ToString::to_string)
     }
 
-    pub fn wdf_headers(&self) -> impl Iterator<Item = String> {
-        ["wdf.h"].into_iter().map(std::string::ToString::to_string)
-    }
+    pub fn bindgen_header_contents(
+        &self,
+        api_subsets: impl IntoIterator<Item = ApiSubset>,
+    ) -> String {
+        api_subsets
+            .into_iter()
+            .fold(String::new(), |mut acc, api_subset| {
+                acc.push_str(
+                    self.headers(api_subset)
+                        .fold(String::new(), |mut acc, header| {
+                            acc.push_str(r#"#include ""#);
+                            acc.push_str(&header);
+                            acc.push_str("\"\n");
+                            acc
+                        })
+                        .as_str(),
+                );
 
-    #[cfg(feature = "hid")]
-    pub fn hid_headers(&self) -> impl Iterator<Item = String> {
-        // HID Headers list from https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
-        {
-            let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
-            if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
-                hid_headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
-            }
-            if let DriverConfig::Kmdf(_) = self.driver_config {
-                hid_headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
-            }
-            hid_headers
-        }
-        .into_iter()
-        .map(std::string::ToString::to_string)
-    }
-
-    pub fn bindgen_base_header_contents(&self) -> String {
-        let mut header_contents = self.base_headers().fold(String::new(), |mut acc, header| {
-            acc.push_str(r#"#include ""#);
-            acc.push_str(&header);
-            acc.push_str("\"\n");
-            acc
-        });
-
-        if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
-            // TODO: Why is there no definition for this struct? Maybe blocklist this struct
-            // in bindgen.
-            header_contents.push_str(
-                r"
+                if api_subset == ApiSubset::Base
+                    && matches!(
+                        self.driver_config,
+                        DriverConfig::Wdm | DriverConfig::Kmdf(_)
+                    )
+                {
+                    // TODO: Why is there no definition for this struct? Maybe blocklist this struct
+                    // in bindgen.
+                    acc.push_str(
+                        r"
 typedef union _KGDTENTRY64
 {
   struct
@@ -729,32 +753,10 @@ typedef union _KIDTENTRY64
   unsigned __int64 Alignment;
 } KIDTENTRY64, *PKIDTENTRY64;
 ",
-            );
-        }
-
-        header_contents
-    }
-
-    pub fn bindgen_wdf_header_contents(&self) -> Option<String> {
-        if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = self.driver_config {
-            return Some(self.wdf_headers().fold(String::new(), |mut acc, header| {
-                acc.push_str(r#"#include ""#);
-                acc.push_str(&header);
-                acc.push_str("\"\n");
+                    );
+                }
                 acc
-            }));
-        }
-        None
-    }
-
-    #[cfg(feature = "hid")]
-    pub fn bindgen_hid_header_contents(&self) -> String {
-        self.hid_headers().fold(String::new(), |mut acc, header| {
-            acc.push_str(r#"#include ""#);
-            acc.push_str(&header);
-            acc.push_str("\"\n");
-            acc
-        })
+            })
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This

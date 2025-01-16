@@ -37,7 +37,7 @@ wdk-macros.workspace = true
 [features]
 default = []
 
-hid = ["wdk-build/hid"]
+hid = []
 
 nightly = ["wdk-macros/nightly"]
 test-stubs = []

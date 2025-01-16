@@ -25,6 +25,7 @@ use tracing_subscriber::{
 };
 use wdk_build::{
     configure_wdk_library_build_and_then,
+    ApiSubset,
     BuilderExt,
     Config,
     ConfigError,
@@ -217,21 +218,12 @@ fn initialize_tracing() -> Result<(), ParseError> {
 fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: constants.rs");
 
-    let header_contents = {
-        let mut contents = config.bindgen_base_header_contents();
-
-        if let Some(wdf_header_contents) = config.bindgen_wdf_header_contents() {
-            contents.push_str(&wdf_header_contents);
-        }
-
+    let header_contents = config.bindgen_header_contents([
+        ApiSubset::Base,
+        ApiSubset::Wdf,
         #[cfg(feature = "hid")]
-        if env::var("CARGO_FEATURE_HID").is_ok() {
-            // TODO: this check can be removed?
-            contents.push_str(&config.bindgen_hid_header_contents());
-        };
-
-        contents
-    };
+        ApiSubset::Hid,
+    ]);
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -248,20 +240,12 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
-    let header_contents = {
-        let mut contents = config.bindgen_base_header_contents();
-
-        if let Some(wdf_header_contents) = config.bindgen_wdf_header_contents() {
-            contents.push_str(&wdf_header_contents);
-        }
-
+    let header_contents = config.bindgen_header_contents([
+        ApiSubset::Base,
+        ApiSubset::Wdf,
         #[cfg(feature = "hid")]
-        if env::var("CARGO_FEATURE_HID").is_ok() {
-            contents.push_str(&config.bindgen_hid_header_contents());
-        };
-
-        contents
-    };
+        ApiSubset::Hid,
+    ]);
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -282,7 +266,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 
-    let header_contents = config.bindgen_base_header_contents();
+    let header_contents = config.bindgen_header_contents([ApiSubset::Base]);
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -297,14 +281,10 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    if let Some(wdf_header_contents) = config.bindgen_wdf_header_contents() {
+    if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
         info!("Generating bindings to WDK: wdf.rs");
 
-        let header_contents = {
-            let mut contents = config.bindgen_base_header_contents();
-            contents.push_str(&wdf_header_contents);
-            contents
-        };
+        let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]);
         trace!(header_contents = ?header_contents);
 
         let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -337,19 +317,7 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         if #[cfg(feature = "hid")] {
             info!("Generating bindings to WDK: hid.rs");
 
-            let header_contents = {
-                let mut contents = config.bindgen_base_header_contents();
-
-                if let Some(wdf_header_contents) = config.bindgen_wdf_header_contents() {
-                    contents.push_str(&wdf_header_contents);
-                }
-
-                if env::var("CARGO_FEATURE_HID").is_ok() {
-                    contents.push_str(&config.bindgen_hid_header_contents());
-                };
-
-                contents
-            };
+            let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid]);
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -358,9 +326,8 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
                 .header_contents("hid-input.h", &header_contents);
 
             // Only allowlist files in the hid-specific files to avoid duplicate definitions
-            for header_file in config.hid_headers()
+            for header_file in config.headers(ApiSubset::Hid)
             {
-
                 builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
             }
 
@@ -524,7 +491,7 @@ fn main() -> anyhow::Result<()> {
                 }
             });
 
-            if let Some(wdf_header_contents) = config.bindgen_wdf_header_contents() {
+            if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
                 let current_span = Span::current();
                 let config = &config;
                 let out_path = &out_path;
@@ -545,13 +512,14 @@ fn main() -> anyhow::Result<()> {
                                 {
                                     let mut wdf_c_file = File::create(&wdf_c_file_path)?;
                                     wdf_c_file.write_all(
-                                        config.bindgen_base_header_contents().as_bytes(),
-                                    )?;
-                                    wdf_c_file.write_all(wdf_header_contents.as_bytes())?;
-
-                                    #[cfg(feature = "hid")]
-                                    wdf_c_file.write_all(
-                                        config.bindgen_hid_header_contents().as_bytes(),
+                                        config
+                                            .bindgen_header_contents([
+                                                ApiSubset::Base,
+                                                ApiSubset::Wdf,
+                                                #[cfg(feature = "hid")]
+                                                ApiSubset::Hid,
+                                            ])
+                                            .as_bytes(),
                                     )?;
 
                                     // Explicitly sync_all to surface any IO errors (File::drop
