@@ -72,19 +72,9 @@ jobs:
 
       - name: Run Cargo Doc
         # proc-macro crates must be excluded to avoid cargo doc bug: https://github.com/rust-lang/cargo/issues/10368
-        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-macros
-
-      - name: Run Cargo Doc (--features nightly)
-        if: matrix.rust_toolchain == 'nightly'
-        # proc-macro crates must be excluded to avoid cargo doc bug: https://github.com/rust-lang/cargo/issues/10368
-        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-macros --features nightly
+        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-macros --all-features
 
       - name: Run Cargo Doc w/ proc-macro crates
         if: matrix.target_triple == 'x86_64-pc-windows-msvc'
         # cargo doc can only generate documentation for proc-macro crates when --target is not specified due to a cargo doc bug: https://github.com/rust-lang/cargo/issues/7677
-        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }}
-
-      - name: Run Cargo Doc w/ proc-macro crates (--features nightly)
-        if: ${{ matrix.target_triple == 'x86_64-pc-windows-msvc' && matrix.rust_toolchain == 'nightly' }}
-        # cargo doc can only generate documentation for proc-macro crates when --target is not specified due to a cargo doc bug: https://github.com/rust-lang/cargo/issues/7677
-        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --features nightly
+        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --all-features
