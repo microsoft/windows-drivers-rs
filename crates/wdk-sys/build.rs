@@ -38,12 +38,12 @@ const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
 const WDF_FUNCTION_COUNT_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR EXPRESSION FOR NUMBER OF WDF FUNCTIONS IN `wdk_sys::WdfFunctions`";
 
-const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str ="// SAFETY: `crate::WdfFunctionCount` is \
-                                                          generated as a mutable static, but is \
-                                                          not supposed to be ever mutated by WDF.
+const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str =
+    "// SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
+     to be ever mutated by WDF.
     (unsafe { crate::WdfFunctionCount }) as usize";
 
-const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = 
+const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
     "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize";
 
 static WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
