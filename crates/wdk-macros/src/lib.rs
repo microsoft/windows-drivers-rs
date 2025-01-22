@@ -230,7 +230,7 @@ impl DerivedASTFragments {
                 //         function table index and the correct function pointer type.
                 unsafe {
                     let wdf_function_table = wdk_sys::WdfFunctions;
-                    let wdf_function_count = wdk_sys::wdf::get_wdf_function_count();
+                    let wdf_function_count = wdk_sys::wdf::__private::get_wdf_function_count();
 
                     // SAFETY: This is safe because:
                     //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
