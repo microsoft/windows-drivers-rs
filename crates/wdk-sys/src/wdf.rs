@@ -20,9 +20,12 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/wdf.rs"));
 }
 
-// This is a temporary workaround to expose the generated function count. When
-// we are able to parse the configuration at runtime, we will be able to remove
-// the function count generation from `build.rs`.
+// This is a workaround to expose the generated function count to the
+// `call_unsafe_wdf_function_binding` proc-macro, so that the macro-generated
+// code can determine the slice size at runtime. When we are able to
+// conditionally compile based off a cfg range for WDF version, this module
+// can be removed and the runtime check can be replaced with a conditional
+// compilation: https://github.com/microsoft/windows-drivers-rs/issues/276
 #[doc(hidden)]
 pub mod __private {
     include!(concat!(env!("OUT_DIR"), "/wdf_function_count.rs"));
