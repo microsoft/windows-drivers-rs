@@ -48,13 +48,10 @@ const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
 
 static WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
     format!(
-        r"#[doc(hidden)]
-pub mod __private {{
-    /// Returns the number of functions available in the WDF function table.
-    /// Should not be used in public API.
-    pub fn get_wdf_function_count() -> usize {{
-        {WDF_FUNCTION_COUNT_PLACEHOLDER}
-    }}
+        r"/// Returns the number of functions available in the WDF function table.
+/// Should not be used in public API.
+pub fn get_wdf_function_count() -> usize {{
+    {WDF_FUNCTION_COUNT_PLACEHOLDER}
 }}"
     )
 });

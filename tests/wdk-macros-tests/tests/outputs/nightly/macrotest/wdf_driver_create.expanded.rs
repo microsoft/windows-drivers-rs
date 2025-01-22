@@ -25,7 +25,7 @@ pub extern "system" fn driver_entry(
                 ) -> NTSTATUS {
                     let wdf_function: wdk_sys::PFN_WDFDRIVERCREATE = Some(unsafe {
                         let wdf_function_table = wdk_sys::WdfFunctions;
-                        let wdf_function_count = wdk_sys::wdf::get_wdf_function_count();
+                        let wdf_function_count = wdk_sys::wdf::__private::get_wdf_function_count();
                         if true {
                             if !isize::try_from(
                                     wdf_function_count

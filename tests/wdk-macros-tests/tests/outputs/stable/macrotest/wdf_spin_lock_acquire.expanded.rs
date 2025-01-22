@@ -9,7 +9,7 @@ fn acquire_lock(wdf_spin_lock: wdk_sys::WDFSPINLOCK) {
                 pub unsafe fn wdf_spin_lock_acquire_impl(spin_lock__: WDFSPINLOCK) {
                     let wdf_function: wdk_sys::PFN_WDFSPINLOCKACQUIRE = Some(unsafe {
                         let wdf_function_table = wdk_sys::WdfFunctions;
-                        let wdf_function_count = wdk_sys::wdf::get_wdf_function_count();
+                        let wdf_function_count = wdk_sys::wdf::__private::get_wdf_function_count();
                         if true {
                             if !isize::try_from(
                                     wdf_function_count

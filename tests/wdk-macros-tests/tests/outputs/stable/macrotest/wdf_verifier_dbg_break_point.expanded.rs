@@ -9,7 +9,7 @@ fn foo() {
                 pub unsafe fn wdf_verifier_dbg_break_point_impl() {
                     let wdf_function: wdk_sys::PFN_WDFVERIFIERDBGBREAKPOINT = Some(unsafe {
                         let wdf_function_table = wdk_sys::WdfFunctions;
-                        let wdf_function_count = wdk_sys::wdf::get_wdf_function_count();
+                        let wdf_function_count = wdk_sys::wdf::__private::get_wdf_function_count();
                         if true {
                             if !isize::try_from(
                                     wdf_function_count
@@ -27,7 +27,7 @@ fn foo() {
                             wdf_function_count,
                         );
                         core::mem::transmute(
-                        wdf_function_table[wdk_sys::_WDFFUNCENUM::WdfVerifierDbgBreakPointTableIndex
+                            wdf_function_table[wdk_sys::_WDFFUNCENUM::WdfVerifierDbgBreakPointTableIndex
                                 as usize],
                         )
                     });
