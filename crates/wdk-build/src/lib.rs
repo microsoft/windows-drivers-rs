@@ -510,9 +510,7 @@ impl Config {
 
     /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
-    pub fn preprocessor_definitions(
-        &self,
-    ) -> impl Iterator<Item = (String, Option<String>)> {
+    pub fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)> {
         // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
         // WINVER=$(WINVER_VERSION);
         // WINNT=1;
