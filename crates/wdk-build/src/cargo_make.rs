@@ -1022,20 +1022,19 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
 /// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment.
 pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
-        let cert_save_location = get_wdk_build_output_directory().join("WDRLocalTestCert.cer");
-
         let mut command = Command::new("certmgr");
 
-        command
-            .args([
-                "-put",
-                "-s",
-                "WDRTestCertStore",
-                "-c",
-                "-n",
-                "WdrLocalTestCert",
-            ])
-            .arg(cert_save_location);
+        command.args([
+            "-put".as_ref(),
+            "-s".as_ref(),
+            "WDRTestCertStore".as_ref(),
+            "-c".as_ref(),
+            "-n".as_ref(),
+            "WdrLocalTestCert".as_ref(),
+            get_wdk_build_output_directory()
+                .join("WDRLocalTestCert.cer")
+                .as_os_str(),
+        ]);
 
         let output = command.output().unwrap_or_else(|err| {
             panic!(
@@ -1054,7 +1053,7 @@ pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
                 "WDRLocalTestCert found in WDRTestCertStore. Skipping certificate generation."
             )),
             Some(1) => {
-                println!(
+                eprintln!(
                     "WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate."
                 );
                 Ok(())
