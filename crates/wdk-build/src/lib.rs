@@ -190,10 +190,14 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     SerdeError(#[from] metadata::Error),
 }
 
+/// Subset of APIs in the Windows Driver Kit
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ApiSubset {
+    /// API subset typically required for all Windows drivers
     Base,
+    /// API subset required for WDF (Windows Driver Framework) drivers
     Wdf,
+    /// API subset for HID (Human Interface Device) drivers: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
     Hid,
 }
 
@@ -636,6 +640,11 @@ impl Config {
         .map(std::string::ToString::to_string)
     }
 
+    /// Returns a [`String`] iterator over all the headers for a given
+    /// [`ApiSubset`]
+    ///
+    /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
+    /// determine which headers to yield
     pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
         match api_subset {
             ApiSubset::Base => match &self.driver_config {
@@ -654,7 +663,6 @@ impl Config {
                 }
             }
             ApiSubset::Hid => {
-                // HID Headers list from https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
                 let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
 
                 if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
@@ -672,6 +680,12 @@ impl Config {
         .map(std::string::ToString::to_string)
     }
 
+    /// Returns a [`String`] containing the contents of a header file designed
+    /// for [`bindgen`] to processs
+    ///
+    /// The contents contains `#include`'ed headers based off the [`ApiSubset`]
+    /// and [`Config`], as well as any additional definitions required for the
+    /// headers to be processed sucessfully
     pub fn bindgen_header_contents(
         &self,
         api_subsets: impl IntoIterator<Item = ApiSubset>,
