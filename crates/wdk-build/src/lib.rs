@@ -675,7 +675,7 @@ impl Config {
     }
 
     /// Returns a [`String`] containing the contents of a header file designed
-    /// for [`bindgen`] to processs
+    /// for [`bindgen`](https://docs.rs/bindgen) to processs
     ///
     /// The contents contains `#include`'ed headers based off the [`ApiSubset`]
     /// and [`Config`], as well as any additional definitions required for the
