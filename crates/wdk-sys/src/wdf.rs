@@ -23,7 +23,7 @@ mod bindings {
 // This is a temporary workaround to expose the generated function count. When
 // we are able to parse the configuration at runtime, we will be able to remove
 // the function count generation from `build.rs`.
-#[allow(missing_docs)]
+#[doc(hidden)]
 pub mod __private {
     include!(concat!(env!("OUT_DIR"), "/wdf_function_count.rs"));
 }
