@@ -324,7 +324,6 @@ impl Config {
         Ok(())
     }
 
-    // TODO: deprecate in favor of include_paths()
     /// Return header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
@@ -332,8 +331,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
-        // FIXME: consider deprecating in favor of iter
+    pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");
@@ -420,10 +418,9 @@ impl Config {
             }
         }
 
-        Ok(include_paths)
+        Ok(include_paths.into_iter())
     }
 
-    // TODO: deprecate in favor of library_paths()
     /// Return library include paths required to build and link based off of
     /// the configuration of [`Config`].
     ///
@@ -433,7 +430,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    pub fn get_library_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
+    pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
 
         let library_directory = self.wdk_content_root.join("Lib");
@@ -508,13 +505,12 @@ impl Config {
         // Reverse order of library paths so that paths pushed later into the vec take
         // precedence
         library_paths.reverse();
-        Ok(library_paths)
+        Ok(library_paths.into_iter())
     }
 
-    // TODO: Deprecate in favor of preprocessor_definitions_iter
     /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
-    pub fn get_preprocessor_definitions_iter(
+    pub fn preprocessor_definitions(
         &self,
     ) -> impl Iterator<Item = (String, Option<String>)> {
         // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
@@ -833,10 +829,8 @@ typedef union _KIDTENTRY64
             };
         }
 
-        let library_paths: Vec<PathBuf> = self.get_library_paths()?;
-
         // Emit linker search paths
-        for path in library_paths {
+        for path in self.library_paths()? {
             println!("cargo::rustc-link-search={}", path.display());
         }
 

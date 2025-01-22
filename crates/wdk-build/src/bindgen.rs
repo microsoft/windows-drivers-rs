@@ -48,7 +48,7 @@ impl BuilderExt for Builder {
             // Building in eWDK can pollute system search path when clang-sys tries to detect
             // c_search_paths
             .detect_include_paths(false)
-            .clang_args(config.get_include_paths()?.iter().map(|include_path| {
+            .clang_args(config.include_paths()?.map(|include_path| {
                 format!(
                     "--include-directory={}",
                     include_path
@@ -58,7 +58,7 @@ impl BuilderExt for Builder {
             }))
             .clang_args(
                 config
-                    .get_preprocessor_definitions_iter()
+                    .preprocessor_definitions()
                     .map(|(key, value)| {
                         format!(
                             "--define-macro={key}{}",

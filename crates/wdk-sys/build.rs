@@ -528,12 +528,12 @@ fn main() -> anyhow::Result<()> {
                                 }
 
                                 let mut cc_builder = cc::Build::new();
-                                for (key, value) in config.get_preprocessor_definitions_iter() {
+                                for (key, value) in config.preprocessor_definitions() {
                                     cc_builder.define(&key, value.as_deref());
                                 }
 
                                 cc_builder
-                                    .includes(config.get_include_paths()?)
+                                    .includes(config.include_paths()?)
                                     .file(wdf_c_file_path)
                                     .compile("wdf");
                                 Ok::<(), ConfigError>(())
