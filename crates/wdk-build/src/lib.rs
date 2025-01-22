@@ -197,7 +197,7 @@ pub enum ApiSubset {
     Base,
     /// API subset required for WDF (Windows Driver Framework) drivers
     Wdf,
-    /// API subset for HID (Human Interface Device) drivers: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/
+    /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
     Hid,
 }
 
