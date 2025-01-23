@@ -7,7 +7,7 @@ additional_profiles = ["all-default-tasks"]
 [env]
 CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "${CARGO_MAKE_CARGO_ALL_FEATURES}"
-CARGO_MAKE_CLIPPY_ARGS = "--all-targets --all-features -- -D warnings"
+CARGO_MAKE_CLIPPY_ARGS = "--all-targets --all-features"
 CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "stable"
 RUSTFLAGS = "-D warnings"
 RUSTDOCFLAGS = "-D warnings"
