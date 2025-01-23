@@ -16,6 +16,7 @@ use std::{
     env,
     panic::UnwindSafe,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use anyhow::Context;
@@ -1002,6 +1003,67 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
                 eprintln!("Unexpected error: {unexpected_error:#?}");
                 // Do not silently skip task if unexpected error in parsing WDK Metadata occurs
                 Ok(())
+            }
+        }
+    })
+}
+
+/// `cargo-make` condition script for `generate-certificate` task in
+/// [`rust-driver-makefile.toml`](../rust-driver-makefile.toml)
+///
+/// # Errors
+///
+/// This functions returns an error whenever it determines that the
+/// `generate-certificate` `cargo-make` task should be skipped. This only
+/// occurs when `WdrLocalTestCert` already exists in `WDRTestCertStore`.
+///
+/// # Panics
+///
+/// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment.
+pub fn generate_certificate_condition_script() -> anyhow::Result<()> {
+    condition_script(|| {
+        let mut command = Command::new("certmgr");
+
+        command.args([
+            "-put".as_ref(),
+            "-s".as_ref(),
+            "WDRTestCertStore".as_ref(),
+            "-c".as_ref(),
+            "-n".as_ref(),
+            "WdrLocalTestCert".as_ref(),
+            get_wdk_build_output_directory()
+                .join("WDRLocalTestCert.cer")
+                .as_os_str(),
+        ]);
+
+        let output = command.output().unwrap_or_else(|err| {
+            panic!(
+                "Failed to run certmgr.exe {} due to error: {}",
+                command
+                    .get_args()
+                    .map(|arg| arg.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                err
+            )
+        });
+
+        match output.status.code() {
+            Some(0) => Err(anyhow::anyhow!(
+                "WDRLocalTestCert found in WDRTestCertStore. Skipping certificate generation."
+            )),
+            Some(1) => {
+                eprintln!(
+                    "WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate."
+                );
+                Ok(())
+            }
+            Some(_) => {
+                eprintln!("Unknown status code found from certmgr. Generating new certificate.");
+                Ok(())
+            }
+            None => {
+                unreachable!("Unreachable, no status code found from certmgr.");
             }
         }
     })
