@@ -325,12 +325,11 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
                 .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
                 .header_contents("hid-input.h", &header_contents);
 
-            // Only allowlist files in the hid-specific files to avoid duplicate definitions
-            for header_file in config.headers(ApiSubset::Hid)
-            {
-                builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-            }
-
+                // Only allowlist files in the hid-specific files to avoid duplicate definitions
+                for header_file in config.headers(ApiSubset::Hid)
+                {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
                 builder
             };
             trace!(bindgen_builder = ?bindgen_builder);
