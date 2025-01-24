@@ -71,6 +71,8 @@ impl BuilderExt for Builder {
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
             .blocklist_item("ExAllocatePool") // Deprecated
+            .opaque_type("_KGDTENTRY64") // No definition in WDK
+            .opaque_type("_KIDTENTRY64") // No definition in WDK
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
             .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_XPF_MCA_SECTION")

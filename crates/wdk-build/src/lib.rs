@@ -675,7 +675,7 @@ impl Config {
     }
 
     /// Returns a [`String`] containing the contents of a header file designed
-    /// for [`bindgen`](https://docs.rs/bindgen) to processs
+    /// for [`bindgen`](https://docs.rs/bindgen) to process
     ///
     /// The contents contain `#include`'ed headers based off the [`ApiSubset`]
     /// and [`Config`], as well as any additional definitions required for the
@@ -686,85 +686,11 @@ impl Config {
     ) -> String {
         api_subsets
             .into_iter()
-            .fold(String::new(), |mut acc, api_subset| {
-                acc.push_str(
-                    self.headers(api_subset)
-                        .fold(String::new(), |mut acc, header| {
-                            acc.push_str(r#"#include ""#);
-                            acc.push_str(&header);
-                            acc.push_str("\"\n");
-                            acc
-                        })
-                        .as_str(),
-                );
-
-                if api_subset == ApiSubset::Base
-                    && matches!(
-                        self.driver_config,
-                        DriverConfig::Wdm | DriverConfig::Kmdf(_)
-                    )
-                {
-                    // TODO: Why is there no definition for this struct? Maybe blocklist this struct
-                    // in bindgen.
-                    acc.push_str(
-                        r"
-typedef union _KGDTENTRY64
-{
-  struct
-  {
-    unsigned short LimitLow;
-    unsigned short BaseLow;
-    union
-    {
-      struct
-      {
-        unsigned char BaseMiddle;
-        unsigned char Flags1;
-        unsigned char Flags2;
-        unsigned char BaseHigh;
-      } Bytes;
-      struct
-      {
-        unsigned long BaseMiddle : 8;
-        unsigned long Type : 5;
-        unsigned long Dpl : 2;
-        unsigned long Present : 1;
-        unsigned long LimitHigh : 4;
-        unsigned long System : 1;
-        unsigned long LongMode : 1;
-        unsigned long DefaultBig : 1;
-        unsigned long Granularity : 1;
-        unsigned long BaseHigh : 8;
-      } Bits;
-    };
-    unsigned long BaseUpper;
-    unsigned long MustBeZero;
-  };
-  unsigned __int64 Alignment;
-} KGDTENTRY64, *PKGDTENTRY64;
-
-typedef union _KIDTENTRY64
-{
-  struct
-  {
-    unsigned short OffsetLow;
-    unsigned short Selector;
-    unsigned short IstIndex : 3;
-    unsigned short Reserved0 : 5;
-    unsigned short Type : 5;
-    unsigned short Dpl : 2;
-    unsigned short Present : 1;
-    unsigned short OffsetMiddle;
-    unsigned long OffsetHigh;
-    unsigned long Reserved1;
-  };
-  unsigned __int64 Alignment;
-} KIDTENTRY64, *PKIDTENTRY64;
-",
-                    );
-                }
-                acc
+            .flat_map(|api_subset| {
+                self.headers(api_subset)
+                    .map(|header| format!("#include \"{header}\"\n"))
             })
+            .collect::<String>()
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
@@ -1335,6 +1261,66 @@ mod tests {
         assert_eq!(CpuArchitecture::try_from_cargo_str("arm"), None);
     }
 
+    mod bindgen_header_contents {
+        use super::*;
+        use crate::{KmdfConfig, UmdfConfig};
+
+        #[test]
+        fn wdm() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Wdm,
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base]),
+                r#"#include "ntifs.h"
+#include "ntddk.h"
+#include "ntstrsafe.h"
+"#,
+            );
+        }
+
+        #[test]
+        fn kmdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Kmdf(KmdfConfig {
+                    kmdf_version_major: 1,
+                    target_kmdf_version_minor: 33,
+                    minimum_kmdf_version_minor: None,
+                }),
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
+                r#"#include "ntifs.h"
+#include "ntddk.h"
+#include "ntstrsafe.h"
+#include "wdf.h"
+"#,
+            );
+        }
+
+        #[test]
+        fn umdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+                driver_config: DriverConfig::Umdf(UmdfConfig {
+                    umdf_version_major: 2,
+                    target_umdf_version_minor: 15,
+                    minimum_umdf_version_minor: None,
+                }),
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
+                r#"#include "windows.h"
+#include "wdf.h"
+"#,
+            );
+        }
+    }
     mod compute_wdffunctions_symbol_name {
         use super::*;
         use crate::{KmdfConfig, UmdfConfig};
