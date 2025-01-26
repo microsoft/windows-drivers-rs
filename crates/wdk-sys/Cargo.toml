@@ -35,8 +35,10 @@ wdk-macros.workspace = true
 [features]
 default = []
 
+gpio = []
 hid = []
 spb = []
+parallel-ports = ["gpio"]
 
 nightly = ["wdk-macros/nightly"]
 test-stubs = []

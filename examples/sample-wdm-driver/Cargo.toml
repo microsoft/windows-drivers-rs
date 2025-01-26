@@ -31,8 +31,10 @@ wdk-sys = { path = "../../crates/wdk-sys", version = "0.3.0" }
 [features]
 default = []
 
+gpio = ["wdk-sys/gpio"]
 hid = ["wdk-sys/hid"]
 spb = ["wdk-sys/spb"]
+parallel-ports = ["wdk-sys/parallel-ports"]
 
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
