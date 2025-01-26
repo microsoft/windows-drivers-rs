@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! Direct FFI bindings to SPB APIs from the Windows Driver Kit (WDK)
+//! Direct FFI bindings to GPIO APIs from the Windows Driver Kit (WDK)
 //!
 //! This module contains all bindings to functions, constants, methods,
-//! constructors and destructors in the following headers: `spb.h`, `spbcx.h`,
-//! `reshub.h`, `pwmutil.h`. Types are not included in this module, but are
-//! available in the top-level `wdk_sys` module.
+//! constructors and destructors in the following headers: `gpio.h`,
+//! `gpioclx.h`. Types are not included in this module, but are available in the
+//! top-level `wdk_sys` module.
 
 #[allow(
     missing_docs,
@@ -27,7 +27,7 @@ mod bindings {
     )]
     use crate::types::*;
 
-    include!(concat!(env!("OUT_DIR"), "/spb.rs"));
+    include!(concat!(env!("OUT_DIR"), "/gpio.rs"));
 }
 #[allow(
     unused_imports,
