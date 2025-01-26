@@ -195,7 +195,7 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
 pub enum ApiSubset {
     /// API subset typically required for all Windows drivers
     Base,
-    /// API subset required for WDF (Windows Driver Framework) drivers
+    /// API subset required for WDF (Windows Driver Framework) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_wdf/>
     Wdf,
     /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
     Hid,

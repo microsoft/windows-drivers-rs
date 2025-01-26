@@ -153,7 +153,6 @@ pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::pt
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
-    // TODO: rename all references of constants to constant and variables
     ("constants.rs", generate_constants),
     ("types.rs", generate_types),
     ("base.rs", generate_base),
