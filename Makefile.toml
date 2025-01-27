@@ -6,9 +6,10 @@ additional_profiles = ["all-default-tasks"]
 
 [env]
 CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
-CARGO_MAKE_CLIPPY_ARGS = "--all-targets -- -D warnings"
-RUSTFLAGS = "-D warnings"
+CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "${CARGO_MAKE_CARGO_ALL_FEATURES}"
+CARGO_MAKE_CLIPPY_ARGS = "--all-targets --all-features"
 CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "stable"
+RUSTFLAGS = "-D warnings"
 RUSTDOCFLAGS = "-D warnings"
 
 [tasks.wdk-pre-commit-flow]
@@ -71,12 +72,10 @@ alias = "pre-test"
 
 [tasks.nightly-test]
 extend = "test"
-env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--features nightly" }
 toolchain = "nightly"
 
 [tasks.post-nightly-test]
 extend = "post-test"
-env = { CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = { unset = true } }
 
 [tasks.nightly-clippy-flow]
 extend = "clippy-flow"

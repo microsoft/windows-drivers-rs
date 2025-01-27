@@ -96,9 +96,8 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 
 ### Generating Documentation
 
-* To compile and open documentation: `cargo doc --locked --open`
-  * To include nightly features: `cargo +nightly doc --locked --open --features nightly`
-  * To open docs for non-host architecture: `cargo doc --locked --open --target <target-triple> --workspace --exclude wdk-macros`
+* To compile and open documentation: `cargo doc --locked --all-features --open`
+  * To open docs for non-host architecture: `cargo doc --locked --all-features --open --target <target-triple> --workspace --exclude wdk-macros`
     * `--target` is incompatible with `proc-macro` crates due to a [cargo bug](https://github.com/rust-lang/cargo/issues/10368)
 
 ### Policy on using Nightly/Unstable Features
@@ -113,7 +112,7 @@ The crates in this repository are designed to work with `stable` rust. Some of t
 
 ### Build and Test
 
-To **only build** the workspace: `cargo build`
+To **only build** the workspace: `cargo build --locked --all-features`
 
 To **both** build and package the samples in the workspace: `cargo make --cwd .\crates\<driver-name>`
 
@@ -123,13 +122,13 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 **_Functional Correctness:_**
 
-* `cargo test --locked`
+* `cargo test --locked --all-features`
   * To test `nightly` features: `cargo +nightly test --locked --features nightly`
 
 **_Static Analysis and Linting:_**
 
-* `cargo clippy --locked --all-targets -- -D warnings`
-  * To lint `nightly` features: `cargo +nightly clippy --locked --all-targets --features nightly -- -D warnings`
+* `cargo clippy --locked --all-features --all-targets -- -D warnings`
+  * To lint `nightly` features: `cargo +nightly clippy --locked --all-features --all-targets --features nightly -- -D warnings`
 
 **_Formatting:_**
 
@@ -146,8 +145,7 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 **_Rust Documentation Build Test_**
 
-* `cargo doc --locked`
-  * To build docs for `nightly` features: `cargo +nightly doc --locked --features nightly`
+* `cargo doc --locked --all-features`
 
 ### A Note on Code-Style
 

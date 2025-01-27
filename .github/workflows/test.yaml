@@ -73,8 +73,4 @@ jobs:
           tool: cargo-expand@1.0.85
 
       - name: Run Cargo Test
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
-
-      - name: Run Cargo Test (--features nightly)
-        if: matrix.rust_toolchain == 'nightly'
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --features nightly
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-features
