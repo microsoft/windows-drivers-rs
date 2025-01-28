@@ -713,6 +713,15 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.KernelMode.WDM.props in Ni(22H2)
                 // WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:DriverEntry");
+
+                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
+                // might not run` since `rustc` has no support for `/KERNEL`
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // Ignore `LNK4216: Exported entry point DriverEntry` since Rust currently
+                // provides no way to set a symbol's name without also exporting the symbol:
+                // https://github.com/rust-lang/rust/issues/67399
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -738,6 +747,10 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.KernelMode.KMDF.props in
                 // Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
+
+                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
+                // might not run` since `rustc` has no support for `/KERNEL`
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
