@@ -7,6 +7,11 @@ use bindgen::{
     callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
 };
+use grep::{
+    regex::RegexMatcher,
+    searcher::{sinks::UTF8, SearcherBuilder},
+};
+use walkdir::WalkDir;
 
 use crate::{Config, ConfigError};
 
@@ -22,6 +27,20 @@ pub trait BuilderExt {
     /// a builder
     fn wdk_default(
         c_header_files: Vec<&str>,
+        config: impl Borrow<Config>,
+    ) -> Result<Builder, ConfigError>;
+
+    /// Returns self (`Builder`) with opaque types for Windows handle types
+    /// added to the bindgen configuration. This is necessary as the bindgen
+    /// resolution for the `DECLARE_HANDLE` macro does not properly detect these
+    /// generated handle types as opaque.
+    ///
+    /// # Errors
+    ///
+    /// Implementation may return a `wdk_build::ConfigError` if unable to
+    /// resolve include paths
+    fn opaque_windows_handle_types(
+        self,
         config: impl Borrow<Config>,
     ) -> Result<Builder, ConfigError>;
 }
@@ -89,85 +108,6 @@ impl BuilderExt for Builder {
             .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
             .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
-            // Declare handle types defined with DECLARE_HANDLE as opaque
-            // wdm.h
-            .opaque_type("POHANDLE__")
-            .opaque_type("PO_EPM_HANDLE__")
-            // wdf_types.h
-            .opaque_type("WDFDRIVER__")
-            .opaque_type("WDFDEVICE__")
-            .opaque_type("WDFWMIPROVIDER__")
-            .opaque_type("WDFWMIINSTANCE__")
-            .opaque_type("WDFQUEUE__")
-            .opaque_type("WDFREQUEST__")
-            .opaque_type("WDFFILEOBJECT__")
-            .opaque_type("WDFDPC__")
-            .opaque_type("WDFTIMER__")
-            .opaque_type("WDFWORKITEM__")
-            .opaque_type("WDFINTERRUPT__")
-            .opaque_type("WDFWAITLOCK__")
-            .opaque_type("WDFSPINLOCK__")
-            .opaque_type("WDFMEMORY__")
-            .opaque_type("WDFLOOKASIDE__")
-            .opaque_type("WDFIOTARGET__")
-            .opaque_type("WDFUSBDEVICE__")
-            .opaque_type("WDFUSBINTERFACE__")
-            .opaque_type("WDFUSBPIPE__")
-            .opaque_type("WDFDMAENABLER__")
-            .opaque_type("WDFDMATRANSACTION__")
-            .opaque_type("WDFCOMMONBUFFER__")
-            .opaque_type("WDFKEY__")
-            .opaque_type("WDFSTRING__")
-            .opaque_type("WDFCOLLECTION__")
-            .opaque_type("WDFCHILDLIST__")
-            .opaque_type("WDFIORESREQLIST__")
-            .opaque_type("WDFIORESLIST__")
-            .opaque_type("WDFCMRESLIST__")
-            .opaque_type("WDFCOMPANION__")
-            .opaque_type("WDFTASKQUEUE__")
-            .opaque_type("WDFCOMPANIONTARGET__")
-            // minwindef.h
-            .opaque_type("HKEY__")
-            .opaque_type("HMETAFILE__")
-            .opaque_type("HINSTANCE__")
-            .opaque_type("HRGN__")
-            .opaque_type("HRSRC__")
-            .opaque_type("HSPRITE__")
-            .opaque_type("HLSURF__")
-            .opaque_type("HSTR__")
-            .opaque_type("HTASK__")
-            .opaque_type("HWINSTA__")
-            .opaque_type("HKL__")
-            //windef.h
-            .opaque_type("HWND__")
-            .opaque_type("HHOOK__")
-            .opaque_type("HEVENT__")
-            .opaque_type("HGDIOBJ__")
-            .opaque_type("HACCEL__")
-            .opaque_type("HBITMAP__")
-            .opaque_type("HBRUSH__")
-            .opaque_type("HCOLORSPACE__")
-            .opaque_type("HDC__")
-            .opaque_type("HGLRC__")    
-            .opaque_type("HDESK__")
-            .opaque_type("HENHMETAFILE__")
-            .opaque_type("HFONT__")
-            .opaque_type("HICON__")
-            .opaque_type("HMENU__")
-            .opaque_type("HPALETTE__")
-            .opaque_type("HPEN__")
-            .opaque_type("HWINEVENTHOOK__")
-            .opaque_type("HMONITOR__")
-            .opaque_type("HUMPD__")
-            .opaque_type("HCURSOR__")    
-            .opaque_type("DPI_AWARENESS_CONTEXT__")
-            // WinUser.h
-            .opaque_type("HTOUCHINPUT__")
-            .opaque_type("HSYNTHETICPOINTERDEVICE__")
-            .opaque_type("HRAWINPUT__")
-            .opaque_type("HGESTUREINFO__")
-            // WinNls.h
-            .opaque_type("HSAVEDUILANGUAGES__")
             // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
             .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
@@ -178,8 +118,75 @@ impl BuilderExt for Builder {
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease);
-
         Ok(builder)
+    }
+
+    /// Returns self (`Builder`) with opaque types for Windows handle types
+    /// added to the bindgen configuration. This is necessary as the bindgen
+    /// resolution for the `DECLARE_HANDLE` macro does not properly detect these
+    /// generated handle types as opaque.
+    ///
+    /// # Errors
+    ///
+    /// Implementation may return a `wdk_build::ConfigError` if unable to
+    /// resolve include paths
+    fn opaque_windows_handle_types(
+        mut self,
+        config: impl Borrow<Config>,
+    ) -> Result<Self, ConfigError> {
+        let config: &Config = config.borrow();
+
+        // We create a new matcher with the pattern as follows:
+        // From the beginning of the string, we want any amount of whitespace followed
+        // by the `DECLARE_HANDLE` string, which should be followed by any amount
+        // of whitepsace before an opening parentheses. The pattern is then
+        // repeated to be inclusive of the string DECLARE_NDIS_HANDLE, which is a
+        // function macro that expands to `DECLARE_HANDLE`.
+        let matcher = RegexMatcher::new_line_matcher(
+            "(^\\s*DECLARE_HANDLE\\s*\\()|(^\\s*DECLARE_NDIS_HANDLE\\s*\\()",
+        )
+        .expect("Failed to create matcher for grep.");
+
+        // For each include path, we recursively step through the directory using
+        // `WalkDir`, then search for matches to our `RegexMatcher` pattern. We push all
+        // results to the vector `results`.
+        let mut results = Vec::new();
+        for include_path in config.get_include_paths()? {
+            for entry in WalkDir::new(include_path)
+                .into_iter()
+                .filter_map(std::result::Result::ok)
+            {
+                if !entry.file_type().is_file() {
+                    continue;
+                }
+                let _ = SearcherBuilder::new().build().search_path(
+                    &matcher,
+                    entry.path(),
+                    UTF8(|_lnum, line| {
+                        // We find the open and closed parentheses in each line, and push the
+                        // trimmed substring between them to the results vector. The
+                        // `DECLARE_HANDLE` macro adds two underscores to
+                        // the end of the handle type, so we add them
+                        // to match.
+                        let open_paren_index = line.find('(');
+                        let close_paren_index = line.find(')');
+                        results.push(format!(
+                            "{}__",
+                            line[open_paren_index.unwrap() + 1..close_paren_index.unwrap()].trim()
+                        ));
+                        Ok(true)
+                    }),
+                );
+            }
+        }
+        for result in results {
+            self = self
+                .clone()
+                .opaque_type(result.as_str())
+                .no_copy(result.as_str())
+                .no_default(result);
+        }
+        Ok(self)
     }
 }
 
@@ -199,12 +206,6 @@ impl ParseCallbacks for WdkCallbacks {
             }
         }
         None
-    }
-
-    fn func_macro(&self, name: &str, _value: &[&[u8]]) {
-        if name == "DECLARE_HANDLE" {
-            println!("{:?}", _value);
-        }
     }
 }
 
