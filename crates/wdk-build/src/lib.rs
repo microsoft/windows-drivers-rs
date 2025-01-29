@@ -840,6 +840,12 @@ typedef union _KIDTENTRY64
                 println!("cargo::rustc-link-lib=static=hal");
                 println!("cargo::rustc-link-lib=static=wmilib");
 
+                // Emit ARM64-specific libraries to link to derived from
+                // WindowsDriver.arm64.props
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    println!("cargo::rustc-link-lib=static=arm64rt");
+                }
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -849,6 +855,15 @@ typedef union _KIDTENTRY64
                 // Linker arguments derived from WindowsDriver.KernelMode.WDM.props in Ni(22H2)
                 // WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:DriverEntry");
+
+                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
+                // might not run` since `rustc` has no support for `/KERNEL`
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // Ignore `LNK4216: Exported entry point DriverEntry` since Rust currently
+                // provides no way to set a symbol's name without also exporting the symbol:
+                // https://github.com/rust-lang/rust/issues/67399
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -859,6 +874,12 @@ typedef union _KIDTENTRY64
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
 
+                // Emit ARM64-specific libraries to link to derived from
+                // WindowsDriver.arm64.props
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    println!("cargo::rustc-link-lib=static=arm64rt");
+                }
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -868,6 +889,10 @@ typedef union _KIDTENTRY64
                 // Linker arguments derived from WindowsDriver.KernelMode.KMDF.props in
                 // Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
+
+                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
+                // might not run` since `rustc` has no support for `/KERNEL`
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
