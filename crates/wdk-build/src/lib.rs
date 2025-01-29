@@ -679,7 +679,7 @@ impl Config {
     ///
     /// The contents contain `#include`'ed headers based off the [`ApiSubset`]
     /// and [`Config`], as well as any additional definitions required for the
-    /// headers to be processed sucessfully
+    /// headers to be processed successfully
     pub fn bindgen_header_contents(
         &self,
         api_subsets: impl IntoIterator<Item = ApiSubset>,
@@ -1057,7 +1057,7 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 ///
 /// Cargo build graphs that have no valid WDK configurations will emit a
 /// warning, but will still return [`Ok`]. This allows libraries
-/// designed for multiple configurations to sucessfully compile when built in
+/// designed for multiple configurations to successfully compile when built in
 /// isolation.
 ///
 /// # Errors
@@ -1096,7 +1096,7 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
 ///
 /// Cargo build graphs that have no valid WDK configurations will emit a
 /// warning, but will still return [`Ok`]. This allows libraries
-/// designed for multiple configurations to sucessfully compile when built in
+/// designed for multiple configurations to successfully compile when built in
 /// isolation.
 ///
 /// # Errors
