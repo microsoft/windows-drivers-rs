@@ -139,7 +139,7 @@ impl BuilderExt for Builder {
         // We create a new matcher with the pattern as follows:
         // From the beginning of the string, we want any amount of whitespace followed
         // by the `DECLARE_HANDLE` string, which should be followed by any amount
-        // of whitepsace before an opening parentheses. The pattern is then
+        // of whitespace before an opening parentheses. The pattern is then
         // repeated to be inclusive of the string DECLARE_NDIS_HANDLE, which is a
         // function macro that expands to `DECLARE_HANDLE`.
         let matcher = RegexMatcher::new_line_matcher(
