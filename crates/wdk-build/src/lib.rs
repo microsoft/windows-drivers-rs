@@ -22,6 +22,8 @@ mod utils;
 
 mod bindgen;
 
+mod resource_compile;
+
 use std::{env, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
@@ -313,6 +315,36 @@ impl Config {
         Ok(())
     }
 
+    /// Returns Resource Compile path to build and link based off of
+    /// the architecture platform
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the required paths do not
+    /// exist.
+    pub fn get_rc_root_path(&self) -> Result<String, ConfigError> {
+        let bin_directory = self.wdk_content_root.join("bin");
+    
+        let sdk_version = utils::get_latest_windows_sdk_version(bin_directory.as_path())?;
+        let windows_sdk_rc_path = bin_directory
+            .join(sdk_version)
+            .join(self.cpu_architecture.as_windows_str());
+    
+        if !windows_sdk_rc_path.is_dir() {
+            return Err(ConfigError::DirectoryNotFound {
+                directory: windows_sdk_rc_path.to_string_lossy().into(),
+            });
+        }
+    
+        let rc_path = windows_sdk_rc_path
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?
+            .to_string_lossy()
+            .into_owned();
+    
+        Ok(rc_path)
+    }
+
     /// Return header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
@@ -323,38 +355,23 @@ impl Config {
     pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
         // FIXME: consider deprecating in favor of iter
         let mut include_paths = vec![];
-
+    
         let include_directory = self.wdk_content_root.join("Include");
-
+    
         // Add windows sdk include paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
         let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())?;
         let windows_sdk_include_path = include_directory.join(sdk_version);
-
-        let crt_include_path = windows_sdk_include_path.join("km/crt");
-        if !crt_include_path.is_dir() {
+    
+        let km_include_path = windows_sdk_include_path.join("km");
+        if !km_include_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
-                directory: crt_include_path.to_string_lossy().into(),
+                directory: km_include_path.to_string_lossy().into(),
             });
         }
         include_paths.push(
-            crt_include_path
-                .canonicalize()?
-                .strip_extended_length_path_prefix()?,
-        );
-
-        let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
-            DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
-            DriverConfig::Umdf(_) => "um",
-        });
-        if !km_or_um_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: km_or_um_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            km_or_um_include_path
+            km_include_path
                 .canonicalize()?
                 .strip_extended_length_path_prefix()?,
         );
@@ -370,7 +387,19 @@ impl Config {
                 .canonicalize()?
                 .strip_extended_length_path_prefix()?,
         );
-
+        
+        let um_include_path = windows_sdk_include_path.join("um");
+        if !um_include_path.is_dir() {
+            return Err(ConfigError::DirectoryNotFound {
+                directory: um_include_path.to_string_lossy().into(),
+            });
+        }
+        include_paths.push(
+            um_include_path
+                .canonicalize()?
+                .strip_extended_length_path_prefix()?,
+        );
+    
         // Add other driver type-specific include paths
         match &self.driver_config {
             DriverConfig::Wdm => {}
@@ -407,7 +436,7 @@ impl Config {
                 );
             }
         }
-
+    
         Ok(include_paths)
     }
 
@@ -689,7 +718,11 @@ impl Config {
         for path in library_paths {
             println!("cargo::rustc-link-search={}", path.display());
         }
-
+        resource_compile::generate_and_compile_rc_file(
+            self.get_include_paths()?,
+            self.get_rc_root_path()?,
+        );
+        
         match &self.driver_config {
             DriverConfig::Wdm => {
                 // Emit WDM-specific libraries to link to
