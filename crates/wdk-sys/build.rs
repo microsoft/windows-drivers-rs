@@ -23,12 +23,10 @@ use tracing_subscriber::{
 };
 use wdk_build::{
     configure_wdk_library_build_and_then,
+    metadata::driver_settings::{DriverConfig, KmdfConfig, UmdfConfig},
     BuilderExt,
     Config,
     ConfigError,
-    DriverConfig,
-    KmdfConfig,
-    UmdfConfig,
 };
 
 const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
@@ -224,6 +222,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let outfile_name = match &config.driver_config {
         DriverConfig::Wdm | DriverConfig::Kmdf(_) => "ntddk.rs",
         DriverConfig::Umdf(_) => "windows.rs",
+        DriverConfig::Package => unreachable!("Package driver should not be running binary build"),
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 

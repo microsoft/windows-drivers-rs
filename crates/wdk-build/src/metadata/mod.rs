@@ -13,6 +13,8 @@ pub use error::{Error, Result};
 pub use map::Map;
 pub use ser::{to_map, to_map_with_prefix, Serializer};
 
+pub mod driver_install;
+pub mod driver_settings;
 pub(crate) mod ser;
 
 mod error;
@@ -22,10 +24,10 @@ use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
 use cargo_metadata::Metadata;
+use driver_install::DriverInstall;
+use driver_settings::DriverConfig;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use crate::DriverConfig;
 
 /// Metadata specified in the `metadata.wdk` section of the `Cargo.toml`
 /// of a crate that depends on the WDK, or in a cargo workspace.
@@ -40,6 +42,8 @@ use crate::DriverConfig;
 pub struct Wdk {
     /// Metadata corresponding to the `Driver Model` property page in the WDK
     pub driver_model: DriverConfig,
+    /// Metadata corresponding to the `Driver Install` property page in the WDK
+    pub driver_install: Option<DriverInstall>,
 }
 
 /// Errors that could result from trying to construct a
