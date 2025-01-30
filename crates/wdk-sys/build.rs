@@ -214,6 +214,7 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
     Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        .opaque_windows_handle_types(config)?
         .with_codegen_config(CodegenConfig::TYPES)
         .generate()
         .expect("Bindings should succeed to generate")
