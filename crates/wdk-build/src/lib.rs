@@ -190,6 +190,17 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     SerdeError(#[from] metadata::Error),
 }
 
+/// Subset of APIs in the Windows Driver Kit
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ApiSubset {
+    /// API subset typically required for all Windows drivers
+    Base,
+    /// API subset required for WDF (Windows Driver Framework) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_wdf/>
+    Wdf,
+    /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
+    Hid,
+}
+
 impl Default for Config {
     #[must_use]
     fn default() -> Self {
@@ -320,8 +331,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
-        // FIXME: consider deprecating in favor of iter
+    pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");
@@ -408,7 +418,7 @@ impl Config {
             }
         }
 
-        Ok(include_paths)
+        Ok(include_paths.into_iter())
     }
 
     /// Return library include paths required to build and link based off of
@@ -420,7 +430,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    pub fn get_library_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
+    pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
 
         let library_directory = self.wdk_content_root.join("Lib");
@@ -495,14 +505,12 @@ impl Config {
         // Reverse order of library paths so that paths pushed later into the vec take
         // precedence
         library_paths.reverse();
-        Ok(library_paths)
+        Ok(library_paths.into_iter())
     }
 
     /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
-    pub fn get_preprocessor_definitions_iter(
-        &self,
-    ) -> impl Iterator<Item = (String, Option<String>)> {
+    pub fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)> {
         // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
         // WINVER=$(WINVER_VERSION);
         // WINNT=1;
@@ -541,10 +549,13 @@ impl Config {
         .chain(
             match self.driver_config {
                 DriverConfig::Wdm => {
-                    vec![]
+                    vec![
+                        ("_KERNEL_MODE", None), // Normally defined by msvc via /kernel flag
+                    ]
                 }
                 DriverConfig::Kmdf(kmdf_config) => {
                     let mut kmdf_definitions = vec![
+                        ("_KERNEL_MODE", None), // Normally defined by msvc via /kernel flag
                         ("KMDF_VERSION_MAJOR", Some(kmdf_config.kmdf_version_major)),
                         (
                             "KMDF_VERSION_MINOR",
@@ -623,6 +634,139 @@ impl Config {
         .map(std::string::ToString::to_string)
     }
 
+    /// Returns a [`String`] iterator over all the headers for a given
+    /// [`ApiSubset`]
+    ///
+    /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
+    /// determine which headers to yield
+    pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
+        match api_subset {
+            ApiSubset::Base => match &self.driver_config {
+                DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                    vec!["ntifs.h", "ntddk.h"]
+                }
+                DriverConfig::Umdf(_) => {
+                    vec!["windows.h"]
+                }
+            },
+            ApiSubset::Wdf => {
+                if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = self.driver_config {
+                    vec!["wdf.h"]
+                } else {
+                    vec![]
+                }
+            }
+            ApiSubset::Hid => {
+                let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
+
+                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                    hid_headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+                }
+
+                if let DriverConfig::Kmdf(_) = self.driver_config {
+                    hid_headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
+                }
+
+                hid_headers
+            }
+        }
+        .into_iter()
+        .map(std::string::ToString::to_string)
+    }
+
+    /// Returns a [`String`] containing the contents of a header file designed
+    /// for [`bindgen`](https://docs.rs/bindgen) to processs
+    ///
+    /// The contents contain `#include`'ed headers based off the [`ApiSubset`]
+    /// and [`Config`], as well as any additional definitions required for the
+    /// headers to be processed successfully
+    pub fn bindgen_header_contents(
+        &self,
+        api_subsets: impl IntoIterator<Item = ApiSubset>,
+    ) -> String {
+        api_subsets
+            .into_iter()
+            .fold(String::new(), |mut acc, api_subset| {
+                acc.push_str(
+                    self.headers(api_subset)
+                        .fold(String::new(), |mut acc, header| {
+                            acc.push_str(r#"#include ""#);
+                            acc.push_str(&header);
+                            acc.push_str("\"\n");
+                            acc
+                        })
+                        .as_str(),
+                );
+
+                if api_subset == ApiSubset::Base
+                    && matches!(
+                        self.driver_config,
+                        DriverConfig::Wdm | DriverConfig::Kmdf(_)
+                    )
+                {
+                    // TODO: Why is there no definition for this struct? Maybe blocklist this struct
+                    // in bindgen.
+                    acc.push_str(
+                        r"
+typedef union _KGDTENTRY64
+{
+  struct
+  {
+    unsigned short LimitLow;
+    unsigned short BaseLow;
+    union
+    {
+      struct
+      {
+        unsigned char BaseMiddle;
+        unsigned char Flags1;
+        unsigned char Flags2;
+        unsigned char BaseHigh;
+      } Bytes;
+      struct
+      {
+        unsigned long BaseMiddle : 8;
+        unsigned long Type : 5;
+        unsigned long Dpl : 2;
+        unsigned long Present : 1;
+        unsigned long LimitHigh : 4;
+        unsigned long System : 1;
+        unsigned long LongMode : 1;
+        unsigned long DefaultBig : 1;
+        unsigned long Granularity : 1;
+        unsigned long BaseHigh : 8;
+      } Bits;
+    };
+    unsigned long BaseUpper;
+    unsigned long MustBeZero;
+  };
+  unsigned __int64 Alignment;
+} KGDTENTRY64, *PKGDTENTRY64;
+
+typedef union _KIDTENTRY64
+{
+  struct
+  {
+    unsigned short OffsetLow;
+    unsigned short Selector;
+    unsigned short IstIndex : 3;
+    unsigned short Reserved0 : 5;
+    unsigned short Type : 5;
+    unsigned short Dpl : 2;
+    unsigned short Present : 1;
+    unsigned short OffsetMiddle;
+    unsigned long OffsetHigh;
+    unsigned long Reserved1;
+  };
+  unsigned __int64 Alignment;
+} KIDTENTRY64, *PKIDTENTRY64;
+",
+                    );
+                }
+                acc
+            })
+    }
+
     /// Configure a Cargo build of a library that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
@@ -683,10 +827,8 @@ impl Config {
             };
         }
 
-        let library_paths: Vec<PathBuf> = self.get_library_paths()?;
-
         // Emit linker search paths
-        for path in library_paths {
+        for path in self.library_paths()? {
             println!("cargo::rustc-link-search={}", path.display());
         }
 
@@ -864,8 +1006,6 @@ impl CpuArchitecture {
     }
 
     /// Converts from a cargo-provided [`std::str`] to a [`CpuArchitecture`].
-    ///
-    /// #
     #[must_use]
     pub fn try_from_cargo_str<S: AsRef<str>>(cargo_str: S) -> Option<Self> {
         // Specifically not using the [`std::convert::TryFrom`] trait to be more
@@ -917,7 +1057,7 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 ///
 /// Cargo build graphs that have no valid WDK configurations will emit a
 /// warning, but will still return [`Ok`]. This allows libraries
-/// designed for multiple configurations to sucessfully compile when built in
+/// designed for multiple configurations to successfully compile when built in
 /// isolation.
 ///
 /// # Errors
@@ -956,7 +1096,7 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
 ///
 /// Cargo build graphs that have no valid WDK configurations will emit a
 /// warning, but will still return [`Ok`]. This allows libraries
-/// designed for multiple configurations to sucessfully compile when built in
+/// designed for multiple configurations to successfully compile when built in
 /// isolation.
 ///
 /// # Errors

@@ -7,6 +7,10 @@ on:
 
 name: Lint
 
+env:
+  RUSTFLAGS: >-
+    -D warnings
+
 jobs:
   clippy:
     name: Clippy
@@ -71,11 +75,7 @@ jobs:
           targets: ${{ matrix.target_triple }}
 
       - name: Run Cargo Clippy
-        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets -- -D warnings
-
-      - name: Run Cargo Clippy (--features nightly)
-        if: matrix.rust_toolchain == 'nightly'
-        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets --features nightly -- -D warnings
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets --all-features
 
   unused_deps:
     name: Detect Unused Cargo Dependencies
