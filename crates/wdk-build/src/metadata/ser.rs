@@ -370,7 +370,7 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer<'a> {
 
 impl<'a> Serializer<'a> {
     /// Create a new instance of the `Serializer` struct
-    pub fn new(dst: &'a mut Vec<(String, String)>) -> Self {
+    pub const fn new(dst: &'a mut Vec<(String, String)>) -> Self {
         Self {
             root_key_name: None,
             dst,
@@ -379,7 +379,7 @@ impl<'a> Serializer<'a> {
 
     /// Create a new instance of the `Serializer` struct with a prefix used as
     /// the root for all keys
-    pub fn with_prefix(prefix: String, dst: &'a mut Vec<(String, String)>) -> Self {
+    pub const fn with_prefix(prefix: String, dst: &'a mut Vec<(String, String)>) -> Self {
         Self {
             root_key_name: Some(prefix),
             dst,

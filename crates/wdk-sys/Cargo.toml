@@ -21,6 +21,7 @@ anyhow.workspace = true
 bindgen.workspace = true
 cargo_metadata.workspace = true
 cc.workspace = true
+cfg-if.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -33,6 +34,9 @@ wdk-macros.workspace = true
 
 [features]
 default = []
+
+hid = []
+
 nightly = ["wdk-macros/nightly"]
 test-stubs = []
 
