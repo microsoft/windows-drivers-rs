@@ -199,6 +199,8 @@ pub enum ApiSubset {
     Wdf,
     /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
     Hid,
+    /// API subset for SPB (Serial Peripheral Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_spb/>
+    Spb,
 }
 
 impl Default for Config {
@@ -643,7 +645,7 @@ impl Config {
         match api_subset {
             ApiSubset::Base => match &self.driver_config {
                 DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                    vec!["ntifs.h", "ntddk.h"]
+                    vec!["ntifs.h", "ntddk.h", "ntstrsafe.h"]
                 }
                 DriverConfig::Umdf(_) => {
                     vec!["windows.h"]
@@ -668,6 +670,19 @@ impl Config {
                 }
 
                 hid_headers
+            }
+            ApiSubset::Spb => {
+                let mut spb_headers = vec!["spb.h", "reshub.h"];
+
+                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                    spb_headers.extend(["pwmutil.h"]);
+                }
+
+                if let DriverConfig::Kmdf(_) = self.driver_config {
+                    spb_headers.extend(["spb/1.1/spbcx.h"]);
+                }
+
+                spb_headers
             }
         }
         .into_iter()
@@ -1273,6 +1288,7 @@ mod tests {
                 config.bindgen_header_contents([ApiSubset::Base]),
                 r#"#include "ntifs.h"
 #include "ntddk.h"
+#include "ntstrsafe.h"
 "#,
             );
         }
@@ -1292,6 +1308,7 @@ mod tests {
                 config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
                 r#"#include "ntifs.h"
 #include "ntddk.h"
+#include "ntstrsafe.h"
 #include "wdf.h"
 "#,
             );
