@@ -22,7 +22,7 @@ mod utils;
 
 mod bindgen;
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, sync::LazyLock};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
@@ -1146,14 +1146,11 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
 
-// This currently only exports the driver type, but may export more metadata in
-// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
-// values
-lazy_static::lazy_static! {
-    // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-    static ref EXPORTED_CFG_SETTINGS: Vec<(&'static str, Vec<&'static str>)> =
-        vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])];
-}
+/// This currently only exports the driver type, but may export more metadata in
+/// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
+/// values
+static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
+    LazyLock::new(|| vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])]);
 
 #[cfg(test)]
 mod tests {
