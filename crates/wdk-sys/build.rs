@@ -12,12 +12,12 @@ use std::{
     io::Write,
     panic,
     path::{Path, PathBuf},
+    sync::LazyLock,
     thread,
 };
 
 use anyhow::Context;
 use bindgen::CodegenConfig;
-use lazy_static::lazy_static;
 use tracing::{info, info_span, trace, Span};
 use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
@@ -34,61 +34,33 @@ use wdk_build::{
     UmdfConfig,
 };
 
-const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
-    "<PLACEHOLDER FOR IDENTIFIER FOR VARIABLE CORRESPONDING TO NUMBER OF WDF FUNCTIONS>";
-const WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER: &str =
-    "<PLACEHOLDER FOR DECLARATION OF wdf_function_count VARIABLE>";
 const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
 const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING WDFFUNCTIONS SYMBOL NAME>";
+const WDF_FUNCTION_COUNT_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR EXPRESSION FOR NUMBER OF WDF FUNCTIONS IN `wdk_sys::WdfFunctions`";
 
-/// Rust code snippet that declares and initializes `wdf_function_count` based
-/// off the bindgen-generated `WdfFunctionCount` symbol
-///
-/// This is only used in configurations where WDF generates a
-/// `WdfFunctionCount`.
-const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
-        // SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
-                                                              to be ever mutated by WDF.
-        let wdf_function_count = unsafe { crate::WdfFunctionCount } as usize;";
-/// Rust code snippet that declares and initializes `wdf_function_count` based
-/// off the bindgen-generated `WdfFunctionTableNumEntries` constant
-///
-/// This is only used in older WDF versions that didn't generate a
-/// `WdfFunctionCount` symbol
-const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
-        let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
+const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str =
+    "// SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
+     to be ever mutated by WDF.
+    (unsafe { crate::WdfFunctionCount }) as usize";
 
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-lazy_static! {
-    static ref WDF_FUNCTION_TABLE_TEMPLATE: String = format!(
-        r#"
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-lazy_static::lazy_static! {{
-    #[allow(missing_docs)]
-    pub static ref WDF_FUNCTION_TABLE: &'static [crate::WDFFUNC] = {{
-        // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_table = unsafe {{ crate::WdfFunctions }};
-{WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
+const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
+    "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize";
 
-        // SAFETY: This is safe because:
-        //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
-        //            bytes, and is guaranteed to be aligned and it must be properly aligned.
-        //         2. `WdfFunctions` points to `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` consecutive properly initialized values of
-        //            type `WDFFUNC`.
-        //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
-        //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
-        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
-        unsafe {{
-            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<crate::WDFFUNC>()).is_ok());
-            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
-        }}
-    }};
-}}"#
-    );
-    static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
+static WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        r"/// Returns the number of functions available in the WDF function table.
+/// Should not be used in public API.
+pub fn get_wdf_function_count() -> usize {{
+    {WDF_FUNCTION_COUNT_PLACEHOLDER}
+}}"
+    )
+});
+
+static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r#"
 /// A procedural macro that allows WDF functions to be called by name.
 ///
@@ -138,18 +110,20 @@ macro_rules! call_unsafe_wdf_function_binding {{
         )
     }}
 }}"#
-    );
-    static ref TEST_STUBS_TEMPLATE: String = format!(
+    )
+});
+
+static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r"
 use crate::WDFFUNC;
 
 /// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
 #[no_mangle]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
-"
-    );
-}
-
+",
+    )
+});
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
@@ -347,15 +321,15 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     }
 }
 
-/// Generates a `wdf_function_table.rs` file in `OUT_DIR` which contains the
-/// definition of `WDF_FUNCTION_TABLE`. This is required to be generated here
-/// since the size of the table is derived from either a global symbol
-/// (`WDF_FUNCTION_COUNT`) that newer WDF versions expose, or an enum that older
-/// versions use.
-fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Result<()> {
+/// Generates a `wdf_function_count.rs` file in `OUT_DIR` which contains the
+/// definition of the function `get_wdf_function_count()`. This is required to
+/// be generated here since the size of the table is derived from either a
+/// global symbol that newer WDF versions expose, or an enum that older versions
+/// use.
+fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Result<()> {
     const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
 
-    let generated_file_path = out_path.join("wdf_function_table.rs");
+    let generated_file_path = out_path.join("wdf_function_count.rs");
     let mut generated_file = std::fs::File::create(generated_file_path)?;
 
     let is_wdf_function_count_generated = match *config {
@@ -392,26 +366,16 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
         }
     };
 
-    let wdf_function_table_code_snippet = if is_wdf_function_count_generated {
-        WDF_FUNCTION_TABLE_TEMPLATE
-            .replace(NUM_WDF_FUNCTIONS_PLACEHOLDER, "crate::WdfFunctionCount")
-            .replace(
-                WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER,
-                WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL,
-            )
-    } else {
-        WDF_FUNCTION_TABLE_TEMPLATE
-            .replace(
-                NUM_WDF_FUNCTIONS_PLACEHOLDER,
-                "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries",
-            )
-            .replace(
-                WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER,
-                WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX,
-            )
-    };
+    let wdf_function_table_count_snippet = WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE.replace(
+        WDF_FUNCTION_COUNT_PLACEHOLDER,
+        if is_wdf_function_count_generated {
+            WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL
+        } else {
+            WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX
+        },
+    );
 
-    generated_file.write_all(wdf_function_table_code_snippet.as_bytes())?;
+    generated_file.write_all(wdf_function_table_count_snippet.as_bytes())?;
     Ok(())
 }
 
@@ -540,8 +504,8 @@ fn main() -> anyhow::Result<()> {
                         .expect("Scoped Thread should spawn successfully"),
                 );
 
-                info_span!("wdf_function_table.rs generation").in_scope(|| {
-                    generate_wdf_function_table(out_path, config)?;
+                info_span!("wdf_function_count.rs generation").in_scope(|| {
+                    generate_wdf_function_count(out_path, config)?;
                     Ok::<(), std::io::Error>(())
                 })?;
 
