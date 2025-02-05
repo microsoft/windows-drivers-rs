@@ -1,6 +1,7 @@
 {
   "rust-analyzer.rustfmt.extraArgs": [
-    "+nightly"
+    "+nightly",
+    "--all"
   ],
   "rust-analyzer.rustfmt.rangeFormatting.enable": true,
   "evenBetterToml.formatter.crlf": true,

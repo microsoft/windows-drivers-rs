@@ -31,6 +31,7 @@ wdk-sys = { path = "../../crates/wdk-sys", version = "0.3.0" }
 default = []
 
 hid = ["wdk-sys/hid"]
+spb = ["wdk-sys/spb"]
 
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 

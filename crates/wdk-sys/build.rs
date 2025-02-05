@@ -132,6 +132,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("base.rs", generate_base),
     ("wdf.rs", generate_wdf),
     ("hid.rs", generate_hid),
+    ("spb.rs", generate_spb),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -196,6 +197,8 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Wdf,
         #[cfg(feature = "hid")]
         ApiSubset::Hid,
+        #[cfg(feature = "spb")]
+        ApiSubset::Spb,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -218,6 +221,8 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Wdf,
         #[cfg(feature = "hid")]
         ApiSubset::Hid,
+        #[cfg(feature = "spb")]
+        ApiSubset::Spb,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -268,10 +273,6 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             .allowlist_file("(?i).*wdf.*");
         trace!(bindgen_builder = ?bindgen_builder);
 
-        // As of NI WDK, this may generate an empty file due to no non-type and non-var
-        // items in the wdf headers(i.e. functions are all inlined). This step is
-        // intentionally left here in case older/newer WDKs have non-inlined functions
-        // or new WDKs may introduce non-inlined functions.
         Ok(bindgen_builder
             .generate()
             .expect("Bindings should succeed to generate")
@@ -316,6 +317,42 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
             info!(
             "Skipping hid.rs generation since hid feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "spb")] {
+            info!("Generating bindings to WDK: spb.rs");
+
+            let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                 let mut builder = bindgen::Builder::wdk_default(config)?
+                .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                .header_contents("spb-input.h", &header_contents);
+
+                // Only allowlist files in the spb-specific files to avoid duplicate definitions
+                for header_file in config.headers(ApiSubset::Spb)
+                {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("spb.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when spb feature is not enabled
+
+            info!(
+            "Skipping spb.rs generation since spb feature is not enabled");
             Ok(())
         }
     }
@@ -480,6 +517,8 @@ fn main() -> anyhow::Result<()> {
                                                 ApiSubset::Wdf,
                                                 #[cfg(feature = "hid")]
                                                 ApiSubset::Hid,
+                                                #[cfg(feature = "spb")]
+                                                ApiSubset::Spb,
                                             ])
                                             .as_bytes(),
                                     )?;
