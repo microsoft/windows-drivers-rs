@@ -34,6 +34,7 @@ default = []
 
 hid = ["wdk-sys/hid"]
 spb = ["wdk-sys/spb"]
+storage = ["wdk-sys/storage"]
 
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 

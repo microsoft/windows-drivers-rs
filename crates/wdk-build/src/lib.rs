@@ -201,6 +201,8 @@ pub enum ApiSubset {
     Hid,
     /// API subset for SPB (Serial Peripheral Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_spb/>
     Spb,
+    /// API subset for Storage drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_storage/>
+    Storage,
 }
 
 impl Default for Config {
@@ -683,6 +685,37 @@ impl Config {
                 }
 
                 spb_headers
+            }
+            ApiSubset::Storage => {
+                let mut storage_headers = vec![
+                    "ehstorioctl.h",
+                    "ntddcdrm.h",
+                    "ntddcdvd.h",
+                    "ntdddisk.h",
+                    "ntddmmc.h",
+                    "ntddscsi.h",
+                    "ntddstor.h",
+                    "ntddtape.h",
+                    "ntddvol.h",
+                    "ufs.h",
+                ];
+
+                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                    storage_headers.extend([
+                        "mountdev.h",
+                        "mountmgr.h",
+                        "ntddchgr.h",
+                        "ntdddump.h",
+                        "storduid.h",
+                        "storport.h",
+                    ]);
+                }
+
+                if let DriverConfig::Kmdf(_) = self.driver_config {
+                    storage_headers.extend(["ehstorbandmgmt.h"]);
+                }
+
+                storage_headers
             }
         }
         .into_iter()

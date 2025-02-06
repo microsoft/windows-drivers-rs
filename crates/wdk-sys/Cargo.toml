@@ -37,6 +37,7 @@ default = []
 
 hid = []
 spb = []
+storage = []
 
 nightly = ["wdk-macros/nightly"]
 test-stubs = []

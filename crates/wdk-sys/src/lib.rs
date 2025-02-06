@@ -49,6 +49,16 @@ pub mod hid;
 ))]
 pub mod spb;
 
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "storage"
+))]
+pub mod storage;
+
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
 
