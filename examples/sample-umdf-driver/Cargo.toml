@@ -32,8 +32,9 @@ default = []
 
 gpio = ["wdk-sys/gpio"]
 hid = ["wdk-sys/hid"]
-spb = ["wdk-sys/spb"]
 parallel-ports = ["wdk-sys/parallel-ports"]
+spb = ["wdk-sys/spb"]
+storage = ["wdk-sys/storage"]
 
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 

@@ -37,8 +37,9 @@ default = []
 
 gpio = []
 hid = []
-spb = []
 parallel-ports = ["gpio"]
+spb = []
+storage = []
 
 nightly = ["wdk-macros/nightly"]
 test-stubs = []

@@ -135,6 +135,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("hid.rs", generate_hid),
     ("parallel_ports.rs", generate_parallel_ports),
     ("spb.rs", generate_spb),
+    ("storage.rs", generate_storage),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -201,10 +202,12 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Gpio,
         #[cfg(feature = "hid")]
         ApiSubset::Hid,
-        #[cfg(feature = "spb")]
-        ApiSubset::Spb,
         #[cfg(feature = "parallel-ports")]
         ApiSubset::ParallelPorts,
+        #[cfg(feature = "spb")]
+        ApiSubset::Spb,
+        #[cfg(feature = "storage")]
+        ApiSubset::Storage,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -229,10 +232,12 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Gpio,
         #[cfg(feature = "hid")]
         ApiSubset::Hid,
-        #[cfg(feature = "spb")]
-        ApiSubset::Spb,
         #[cfg(feature = "parallel-ports")]
         ApiSubset::ParallelPorts,
+        #[cfg(feature = "spb")]
+        ApiSubset::Spb,
+        #[cfg(feature = "storage")]
+        ApiSubset::Storage,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -440,6 +445,45 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             let _ = (out_path, config); // Silence unused variable warnings when spb feature is not enabled
 
             info!("Skipping spb.rs generation since spb feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "storage")] {
+            info!("Generating bindings to WDK: storage.rs");
+
+            let header_contents = config.bindgen_header_contents([
+                ApiSubset::Base,
+                ApiSubset::Wdf,
+                ApiSubset::Storage,
+            ]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("storage-input.h", &header_contents);
+
+                // Only allowlist files in the storage-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Storage) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("storage.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when storage feature is not enabled
+
+            info!("Skipping storage.rs generation since storage feature is not enabled");
             Ok(())
         }
     }
