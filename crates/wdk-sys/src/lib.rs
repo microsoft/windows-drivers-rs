@@ -5,8 +5,6 @@
 
 #![no_std]
 
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-pub use wdf::WDF_FUNCTION_TABLE;
 #[cfg(any(
     driver_model__driver_type = "WDM",
     driver_model__driver_type = "KMDF",
@@ -24,11 +22,42 @@ pub use crate::{constants::*, types::*};
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub mod ntddk;
+
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
 
 #[cfg(driver_model__driver_type = "UMDF")]
 pub mod windows;
+
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "hid"
+))]
+pub mod hid;
+
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "spb"
+))]
+pub mod spb;
+
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "storage"
+))]
+pub mod storage;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;

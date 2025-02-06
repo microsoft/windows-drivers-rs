@@ -25,10 +25,8 @@ pub trait BuilderExt {
     ///
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
-    fn wdk_default(
-        c_header_files: Vec<&str>,
-        config: impl Borrow<Config>,
-    ) -> Result<Builder, ConfigError>;
+    fn wdk_default(config: impl Borrow<Config>) -> Result<Builder, ConfigError>;
+
 
     /// Returns self (`Builder`) with opaque types for Windows handle types
     /// added to the bindgen configuration. This is necessary as the bindgen
@@ -58,19 +56,10 @@ impl BuilderExt for Builder {
     ///
     /// Will return `wdk_build::ConfigError` if any of the resolved include or
     /// library paths do not exist
-    fn wdk_default(
-        c_header_files: Vec<&str>,
-        config: impl Borrow<Config>,
-    ) -> Result<Self, ConfigError> {
+    fn wdk_default(config: impl Borrow<Config>) -> Result<Self, ConfigError> {
         let config = config.borrow();
 
-        let mut builder = Self::default();
-
-        for c_header in c_header_files {
-            builder = builder.header(c_header);
-        }
-
-        builder = builder
+        let builder = Self::default()
             .use_core() // Can't use std for kernel code
             .derive_default(true) // allows for default initializing structs
             // CStr types are safer and easier to work with when interacting with string constants
@@ -79,7 +68,7 @@ impl BuilderExt for Builder {
             // Building in eWDK can pollute system search path when clang-sys tries to detect
             // c_search_paths
             .detect_include_paths(false)
-            .clang_args(config.get_include_paths()?.iter().map(|include_path| {
+            .clang_args(config.include_paths()?.map(|include_path| {
                 format!(
                     "--include-directory={}",
                     include_path
@@ -89,7 +78,7 @@ impl BuilderExt for Builder {
             }))
             .clang_args(
                 config
-                    .get_preprocessor_definitions_iter()
+                    .preprocessor_definitions()
                     .map(|(key, value)| {
                         format!(
                             "--define-macro={key}{}",
@@ -102,6 +91,8 @@ impl BuilderExt for Builder {
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
             .blocklist_item("ExAllocatePool") // Deprecated
+            .opaque_type("_KGDTENTRY64") // No definition in WDK
+            .opaque_type("_KIDTENTRY64") // No definition in WDK
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
             .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_XPF_MCA_SECTION")

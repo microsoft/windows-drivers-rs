@@ -27,9 +27,13 @@ wdk = { path = "../../crates/wdk", version = "0.3.0" }
 wdk-panic = { path = "../../crates/wdk-panic", version = "0.3.0" }
 wdk-sys = { path = "../../crates/wdk-sys", version = "0.3.0" }
 
-
 [features]
 default = []
+
+hid = ["wdk-sys/hid"]
+spb = ["wdk-sys/spb"]
+storage = ["wdk-sys/storage"]
+
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
 [profile.dev]

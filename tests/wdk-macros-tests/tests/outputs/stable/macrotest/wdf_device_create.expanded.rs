@@ -17,8 +17,26 @@ extern "C" fn evt_driver_device_add(
                     device__: *mut WDFDEVICE,
                 ) -> NTSTATUS {
                     let wdf_function: wdk_sys::PFN_WDFDEVICECREATE = Some(unsafe {
+                        let wdf_function_table = wdk_sys::WdfFunctions;
+                        let wdf_function_count = wdk_sys::wdf::__private::get_wdf_function_count();
+                        if true {
+                            if !isize::try_from(
+                                    wdf_function_count
+                                        * core::mem::size_of::<wdk_sys::WDFFUNC>(),
+                                )
+                                .is_ok()
+                            {
+                                ::core::panicking::panic(
+                                    "assertion failed: isize::try_from(wdf_function_count *\n            core::mem::size_of::<wdk_sys::WDFFUNC>()).is_ok()",
+                                )
+                            }
+                        }
+                        let wdf_function_table = core::slice::from_raw_parts(
+                            wdf_function_table,
+                            wdf_function_count,
+                        );
                         core::mem::transmute(
-                            wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateTableIndex
+                            wdf_function_table[wdk_sys::_WDFFUNCENUM::WdfDeviceCreateTableIndex
                                 as usize],
                         )
                     });
