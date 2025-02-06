@@ -219,7 +219,6 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
-
     let header_contents = config.bindgen_header_contents([
         ApiSubset::Base,
         ApiSubset::Wdf,

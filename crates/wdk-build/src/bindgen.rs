@@ -27,7 +27,6 @@ pub trait BuilderExt {
     /// a builder
     fn wdk_default(config: impl Borrow<Config>) -> Result<Builder, ConfigError>;
 
-
     /// Returns self (`Builder`) with opaque types for Windows handle types
     /// added to the bindgen configuration. This is necessary as the bindgen
     /// resolution for the `DECLARE_HANDLE` macro does not properly detect these
