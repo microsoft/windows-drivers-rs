@@ -141,7 +141,7 @@ impl BuilderExt for Builder {
         // `WalkDir`, then search for matches to our `RegexMatcher` pattern. We push all
         // results to the vector `results`.
         let mut results = Vec::new();
-        for include_path in config.get_include_paths()? {
+        for include_path in config.include_paths()? {
             for entry in WalkDir::new(include_path)
                 .into_iter()
                 .filter_map(std::result::Result::ok)
