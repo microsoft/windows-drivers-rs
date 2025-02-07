@@ -16,6 +16,8 @@ use std::{
     thread,
 };
 
+wdk_build::implement_wdk_default!(bindgen);
+
 use anyhow::Context;
 use bindgen::CodegenConfig;
 use tracing::{info, info_span, trace, Span};
@@ -23,8 +25,6 @@ use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
     EnvFilter,
 };
-
-wdk_build::implement_wdk_default!(bindgen);
 use wdk_build::{
     configure_wdk_library_build_and_then,
     ApiSubset,

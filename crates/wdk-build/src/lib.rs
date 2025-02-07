@@ -11,7 +11,6 @@
 //! models (WDM, KMDF, UMDF).
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
-#![feature(inherent_associated_types)]
 
 use metadata::TryFromCargoMetadataError;
 
@@ -220,8 +219,6 @@ impl Default for Config {
 }
 
 impl Config {
-    pub type Error = ConfigError;
-
     /// Create a new [`Config`] with default values
     #[must_use]
     pub fn new() -> Self {
@@ -237,7 +234,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, Self::Error> {
+    fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
 
         let library_directory = self.wdk_content_root.join("Lib");
@@ -258,7 +255,7 @@ impl Config {
                     }
                 });
         if !windows_sdk_library_path.is_dir() {
-            return Err(Self::Error::DirectoryNotFound {
+            return Err(ConfigError::DirectoryNotFound {
                 directory: windows_sdk_library_path.to_string_lossy().into(),
             });
         }
@@ -279,7 +276,7 @@ impl Config {
                     kmdf_config.target_kmdf_version_minor
                 ));
                 if !kmdf_library_path.is_dir() {
-                    return Err(Self::Error::DirectoryNotFound {
+                    return Err(ConfigError::DirectoryNotFound {
                         directory: kmdf_library_path.to_string_lossy().into(),
                     });
                 }
@@ -297,7 +294,7 @@ impl Config {
                     umdf_config.target_umdf_version_minor,
                 ));
                 if !umdf_library_path.is_dir() {
-                    return Err(Self::Error::DirectoryNotFound {
+                    return Err(ConfigError::DirectoryNotFound {
                         directory: umdf_library_path.to_string_lossy().into(),
                     });
                 }
@@ -331,7 +328,7 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the resolved top-level Cargo manifest path is not valid UTF-8
-    pub fn from_env_auto() -> Result<Self, Self::Error> {
+    pub fn from_env_auto() -> Result<Self, ConfigError> {
         let top_level_manifest = find_top_level_cargo_manifest();
         let cargo_metadata = MetadataCommand::new()
             .manifest_path(&top_level_manifest)
@@ -390,7 +387,7 @@ impl Config {
     /// Expose `cfg` settings based on this [`Config`] to enable conditional
     /// compilation. This emits specially formatted prints to Cargo based on
     /// this [`Config`].
-    fn emit_cfg_settings(&self) -> Result<(), Self::Error> {
+    fn emit_cfg_settings(&self) -> Result<(), ConfigError> {
         Self::emit_check_cfg_settings();
 
         let serialized_wdk_metadata_map =
@@ -622,7 +619,7 @@ impl Config {
     ///
     /// This function will return an error if the [`Config`] fails to be
     /// serialized
-    pub fn configure_library_build(&self) -> Result<(), Self::Error> {
+    pub fn configure_library_build(&self) -> Result<(), ConfigError> {
         self.emit_cfg_settings()
     }
 
@@ -662,15 +659,15 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the invoked from outside a Cargo build environment
-    pub fn configure_binary_build(&self) -> Result<(), Self::Error> {
+    pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
         if !Self::is_crt_static_linked() {
             cfg_if::cfg_if! {
                 if #[cfg(all(wdk_build_unstable, skip_umdf_static_crt_check))] {
                     if !matches!(self.driver_config, DriverConfig::Umdf(_)) {
-                        return Err(Self::Error::StaticCrtNotEnabled);
+                        return Err(ConfigError::StaticCrtNotEnabled);
                     }
                 } else {
-                    return Err(Self::Error::StaticCrtNotEnabled);
+                    return Err(ConfigError::StaticCrtNotEnabled);
                 }
             };
         }
@@ -790,20 +787,7 @@ impl Config {
 
         enabled_cpu_target_features.contains(STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME)
     }
-}
-
-/// Trait defining the configuration methods needed for WDK binding
-pub trait WdkBuilderConfig {
-    type Error;
-
-    fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)>;
-    fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, Self::Error>;
-    fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String>;
-}
-
-impl WdkBuilderConfig for Config {
-    type Error = ConfigError;
-
+    
     /// Return header include paths required to build and link based off of the
     /// configuration of `Config`
     ///
@@ -811,7 +795,7 @@ impl WdkBuilderConfig for Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, Self::Error> {
+    pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");
@@ -824,7 +808,7 @@ impl WdkBuilderConfig for Config {
 
         let crt_include_path = windows_sdk_include_path.join("km/crt");
         if !crt_include_path.is_dir() {
-            return Err(Self::Error::DirectoryNotFound {
+            return Err(ConfigError::DirectoryNotFound {
                 directory: crt_include_path.to_string_lossy().into(),
             });
         }
@@ -839,7 +823,7 @@ impl WdkBuilderConfig for Config {
             DriverConfig::Umdf(_) => "um",
         });
         if !km_or_um_include_path.is_dir() {
-            return Err(Self::Error::DirectoryNotFound {
+            return Err(ConfigError::DirectoryNotFound {
                 directory: km_or_um_include_path.to_string_lossy().into(),
             });
         }
@@ -851,7 +835,7 @@ impl WdkBuilderConfig for Config {
 
         let kit_shared_include_path = windows_sdk_include_path.join("shared");
         if !kit_shared_include_path.is_dir() {
-            return Err(Self::Error::DirectoryNotFound {
+            return Err(ConfigError::DirectoryNotFound {
                 directory: kit_shared_include_path.to_string_lossy().into(),
             });
         }
@@ -870,7 +854,7 @@ impl WdkBuilderConfig for Config {
                     kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ));
                 if !kmdf_include_path.is_dir() {
-                    return Err(Self::Error::DirectoryNotFound {
+                    return Err(ConfigError::DirectoryNotFound {
                         directory: kmdf_include_path.to_string_lossy().into(),
                     });
                 }
@@ -886,7 +870,7 @@ impl WdkBuilderConfig for Config {
                     umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
                 ));
                 if !umdf_include_path.is_dir() {
-                    return Err(Self::Error::DirectoryNotFound {
+                    return Err(ConfigError::DirectoryNotFound {
                         directory: umdf_include_path.to_string_lossy().into(),
                     });
                 }
@@ -903,7 +887,7 @@ impl WdkBuilderConfig for Config {
 
     /// Return an iterator of strings that represent compiler flags (i.e.
     /// warnings, settings, etc.) used by bindgen to parse WDK headers
-    fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String> {
+    pub fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String> {
         vec![
             // Enable Microsoft C/C++ extensions and compatibility options (https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions)
             "-fms-compatibility",
@@ -930,10 +914,6 @@ impl WdkBuilderConfig for Config {
         ]
         .into_iter()
         .map(std::string::ToString::to_string)
-    }
-
-    fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)> {
-        self.preprocessor_definitions()
     }
 }
 

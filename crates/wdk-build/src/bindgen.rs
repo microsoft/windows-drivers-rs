@@ -3,7 +3,6 @@
 #[macro_export]
 macro_rules! implement_wdk_default {
     ($bindgen_mod:ident) => {
-        use wdk_build::WdkBuilderConfig;
         use $bindgen_mod as wdk_bindgen;
 
         #[derive(Debug)]
@@ -26,27 +25,26 @@ macro_rules! implement_wdk_default {
                 item_info: wdk_bindgen::callbacks::ItemInfo<'_>,
             ) -> Option<String> {
                 if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
-                    if matches!(item_info.kind, ::$bindgen_mod::callbacks::ItemKind::Var) {
-                        if item_info.name == wdf_function_table_symbol_name {
-                            return Some("WdfFunctions".to_string());
-                        }
+                    if matches!(item_info.kind, ::bindgen::callbacks::ItemKind::Var)
+                        && item_info.name == wdf_function_table_symbol_name
+                    {
+                        return Some("WdfFunctions".to_string());
                     }
                 }
                 None
             }
         }
-
+        
         pub struct WdkBuilder {
             builder: wdk_bindgen::Builder,
         }
-
+        
         impl WdkBuilder {
-            #[must_use]
-            pub fn wdk_default<C: WdkBuilderConfig>(
+            pub fn wdk_default(
                 wdf_function_table_symbol_name: Option<String>,
-                config: &C,
-            ) -> Result<Self, C::Error> {
-                Ok(WdkBuilder {
+                config: &::wdk_build::Config,
+            ) -> Result<Self, ::wdk_build::ConfigError> {
+                Ok(Self {
                     builder: wdk_bindgen::Builder::default()
                         .use_core()
                         .derive_default(true)
@@ -65,7 +63,7 @@ macro_rules! implement_wdk_default {
                                         value.map(|v| format!("={v}")).unwrap_or_default()
                                     )
                                 })
-                                .chain(C::wdk_bindgen_compiler_flags()),
+                                .chain(::wdk_build::Config::wdk_bindgen_compiler_flags()),
                         )
                         .blocklist_item("ExAllocatePoolWithTag")
                         .blocklist_item("ExAllocatePoolWithQuotaTag")
@@ -82,36 +80,31 @@ macro_rules! implement_wdk_default {
                         .must_use_type("NTSTATUS")
                         .must_use_type("HRESULT")
                         .default_enum_style(wdk_bindgen::EnumVariation::ModuleConsts)
-                        .parse_callbacks(Box::new(WdkCallbacks::new(
-                            wdf_function_table_symbol_name,
-                        )))
+                        .parse_callbacks(Box::new(WdkCallbacks::new(wdf_function_table_symbol_name)))
                         .formatter(wdk_bindgen::Formatter::Prettyplease),
                 })
             }
-
+        
             #[must_use]
             pub fn builder(self) -> wdk_bindgen::Builder {
                 self.builder
             }
         }
-
+        
         /// Extension trait for `bindgen::Builder`
         pub trait WdkBuilderExt {
-            #[must_use]
-
-            fn wdk_default<C: WdkBuilderConfig>(
-                config: &C,
-            ) -> Result<wdk_bindgen::Builder, C::Error>;
+            fn wdk_default(
+                config: &::wdk_build::Config,
+            ) -> Result<wdk_bindgen::Builder, ::wdk_build::ConfigError>;
         }
-
+        
         /// Implementation of `wdk_default` for `bindgen::Builder`
         impl WdkBuilderExt for wdk_bindgen::Builder {
-            #[must_use]
-            fn wdk_default<C: WdkBuilderConfig>(
-                config: &C,
-            ) -> Result<wdk_bindgen::Builder, C::Error> {
+            fn wdk_default(
+                config: &::wdk_build::Config,
+            ) -> Result<wdk_bindgen::Builder, ::wdk_build::ConfigError> {
                 Ok(WdkBuilder::wdk_default(
-                    Some(C::wdk_bindgen_compiler_flags().collect()),
+                    Some(::wdk_build::Config::wdk_bindgen_compiler_flags().collect()),
                     config,
                 )?
                 .builder())
