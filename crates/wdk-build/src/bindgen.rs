@@ -25,7 +25,7 @@ macro_rules! implement_wdk_default {
                 item_info: wdk_bindgen::callbacks::ItemInfo<'_>,
             ) -> Option<String> {
                 if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
-                    if matches!(item_info.kind, ::bindgen::callbacks::ItemKind::Var)
+                    if matches!(item_info.kind, wdk_bindgen::callbacks::ItemKind::Var)
                         && item_info.name == wdf_function_table_symbol_name
                     {
                         return Some("WdfFunctions".to_string());
