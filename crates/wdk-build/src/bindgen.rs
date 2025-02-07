@@ -1,122 +1,123 @@
-// Copyright (c) Microsoft Corporation
-// License: MIT OR Apache-2.0
+#![allow(non_snake_case, missing_docs)]
 
-use std::borrow::Borrow;
+#[macro_export]
+macro_rules! implement_wdk_default {
+    ($bindgen_mod:ident) => {
+        use wdk_build::WdkBuilderConfig;
+        use $bindgen_mod as wdk_bindgen;
 
-use bindgen::{
-    callbacks::{ItemInfo, ItemKind, ParseCallbacks},
-    Builder,
-};
+        #[derive(Debug)]
+        pub struct WdkCallbacks {
+            wdf_function_table_symbol_name: Option<String>,
+        }
 
-use crate::{Config, ConfigError};
-
-/// An extension trait that provides a way to create a [`bindgen::Builder`]
-/// configured for generating bindings to the wdk
-pub trait BuilderExt {
-    /// Returns a `bindgen::Builder` with the default configuration for
-    /// generation of bindings to the WDK
-    ///
-    /// # Errors
-    ///
-    /// Implementation may return `wdk_build::ConfigError` if it fails to create
-    /// a builder
-    fn wdk_default(config: impl Borrow<Config>) -> Result<Builder, ConfigError>;
-}
-
-#[derive(Debug)]
-struct WdkCallbacks {
-    wdf_function_table_symbol_name: Option<String>,
-}
-
-impl BuilderExt for Builder {
-    /// Returns a `bindgen::Builder` with the default configuration for
-    /// generation of bindings to the WDK
-    ///
-    /// # Errors
-    ///
-    /// Will return `wdk_build::ConfigError` if any of the resolved include or
-    /// library paths do not exist
-    fn wdk_default(config: impl Borrow<Config>) -> Result<Self, ConfigError> {
-        let config = config.borrow();
-
-        let builder = Self::default()
-            .use_core() // Can't use std for kernel code
-            .derive_default(true) // allows for default initializing structs
-            // CStr types are safer and easier to work with when interacting with string constants
-            // from C
-            .generate_cstr(true)
-            // Building in eWDK can pollute system search path when clang-sys tries to detect
-            // c_search_paths
-            .detect_include_paths(false)
-            .clang_args(config.include_paths()?.map(|include_path| {
-                format!(
-                    "--include-directory={}",
-                    include_path
-                        .to_str()
-                        .expect("Non Unicode paths are not supported")
-                )
-            }))
-            .clang_args(
-                config
-                    .preprocessor_definitions()
-                    .map(|(key, value)| {
-                        format!(
-                            "--define-macro={key}{}",
-                            value.map(|v| format!("={v}")).unwrap_or_default()
-                        )
-                    })
-                    .chain(Config::wdk_bindgen_compiler_flags()),
-            )
-            .blocklist_item("ExAllocatePoolWithTag") // Deprecated
-            .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
-            .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
-            .blocklist_item("ExAllocatePool") // Deprecated
-            .opaque_type("_KGDTENTRY64") // No definition in WDK
-            .opaque_type("_KIDTENTRY64") // No definition in WDK
-            // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP
-            .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
-            .blocklist_item(".*WHEA_XPF_MCA_SECTION")
-            .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
-            .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
-            .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
-            // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
-            .no_default(".*tagMONITORINFOEXA")
-            .must_use_type("NTSTATUS")
-            .must_use_type("HRESULT")
-            // Defaults enums to generate as a set of constants contained in a module (default value
-            // is EnumVariation::Consts which generates enums as global constants)
-            .default_enum_style(bindgen::EnumVariation::ModuleConsts)
-            .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-            .parse_callbacks(Box::new(WdkCallbacks::new(config)))
-            .formatter(bindgen::Formatter::Prettyplease);
-
-        Ok(builder)
-    }
-}
-
-impl ParseCallbacks for WdkCallbacks {
-    fn generated_name_override(&self, item_info: ItemInfo) -> Option<String> {
-        // Override the generated name for the WDF function table symbol, since bindgen is unable to currently translate the #define automatically: https://github.com/rust-lang/rust-bindgen/issues/2544
-        if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
-            if let ItemInfo {
-                name: item_name,
-                kind: ItemKind::Var,
-                ..
-            } = item_info
-            {
-                if item_name == wdf_function_table_symbol_name {
-                    return Some("WdfFunctions".to_string());
+        impl WdkCallbacks {
+            #[must_use]
+            pub const fn new(wdf_function_table_symbol_name: Option<String>) -> Self {
+                Self {
+                    wdf_function_table_symbol_name,
                 }
             }
         }
-        None
-    }
+
+        impl wdk_bindgen::callbacks::ParseCallbacks for WdkCallbacks {
+            fn generated_name_override(
+                &self,
+                item_info: wdk_bindgen::callbacks::ItemInfo<'_>,
+            ) -> Option<String> {
+                if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
+                    if matches!(item_info.kind, ::$bindgen_mod::callbacks::ItemKind::Var) {
+                        if item_info.name == wdf_function_table_symbol_name {
+                            return Some("WdfFunctions".to_string());
+                        }
+                    }
+                }
+                None
+            }
+        }
+
+        pub struct WdkBuilder {
+            builder: wdk_bindgen::Builder,
+        }
+
+        impl WdkBuilder {
+            #[must_use]
+            pub fn wdk_default<C: WdkBuilderConfig>(
+                wdf_function_table_symbol_name: Option<String>,
+                config: &C,
+            ) -> Result<Self, C::Error> {
+                Ok(WdkBuilder {
+                    builder: wdk_bindgen::Builder::default()
+                        .use_core()
+                        .derive_default(true)
+                        .generate_cstr(true)
+                        .detect_include_paths(false)
+                        .clang_args(config.include_paths()?.map(|include_path| {
+                            format!("--include-directory={}", include_path.to_string_lossy())
+                        }))
+                        .clang_args(
+                            config
+                                .preprocessor_definitions()
+                                .map(|(key, value)| {
+                                    format!(
+                                        "--define-macro={}{}",
+                                        key,
+                                        value.map(|v| format!("={v}")).unwrap_or_default()
+                                    )
+                                })
+                                .chain(C::wdk_bindgen_compiler_flags()),
+                        )
+                        .blocklist_item("ExAllocatePoolWithTag")
+                        .blocklist_item("ExAllocatePoolWithQuotaTag")
+                        .blocklist_item("ExAllocatePoolWithTagPriority")
+                        .blocklist_item("ExAllocatePool")
+                        .opaque_type("_KGDTENTRY64")
+                        .opaque_type("_KIDTENTRY64")
+                        .blocklist_item(".*MCG_CAP(?:__bindgen.*)?")
+                        .blocklist_item(".*WHEA_XPF_MCA_SECTION")
+                        .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
+                        .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
+                        .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
+                        .no_default(".*tagMONITORINFOEXA")
+                        .must_use_type("NTSTATUS")
+                        .must_use_type("HRESULT")
+                        .default_enum_style(wdk_bindgen::EnumVariation::ModuleConsts)
+                        .parse_callbacks(Box::new(WdkCallbacks::new(
+                            wdf_function_table_symbol_name,
+                        )))
+                        .formatter(wdk_bindgen::Formatter::Prettyplease),
+                })
+            }
+
+            #[must_use]
+            pub fn builder(self) -> wdk_bindgen::Builder {
+                self.builder
+            }
+        }
+
+        /// Extension trait for `bindgen::Builder`
+        pub trait WdkBuilderExt {
+            #[must_use]
+
+            fn wdk_default<C: WdkBuilderConfig>(
+                config: &C,
+            ) -> Result<wdk_bindgen::Builder, C::Error>;
+        }
+
+        /// Implementation of `wdk_default` for `bindgen::Builder`
+        impl WdkBuilderExt for wdk_bindgen::Builder {
+            #[must_use]
+            fn wdk_default<C: WdkBuilderConfig>(
+                config: &C,
+            ) -> Result<wdk_bindgen::Builder, C::Error> {
+                Ok(WdkBuilder::wdk_default(
+                    Some(C::wdk_bindgen_compiler_flags().collect()),
+                    config,
+                )?
+                .builder())
+            }
+        }
+    };
 }
 
-impl WdkCallbacks {
-    fn new(config: &Config) -> Self {
-        Self {
-            wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
-        }
-    }
-}
+pub use implement_wdk_default;

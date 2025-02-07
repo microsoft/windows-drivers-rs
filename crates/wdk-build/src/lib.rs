@@ -11,8 +11,8 @@
 //! models (WDM, KMDF, UMDF).
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
+#![feature(inherent_associated_types)]
 
-pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
 
 pub mod cargo_make;
@@ -220,10 +220,99 @@ impl Default for Config {
 }
 
 impl Config {
+    pub type Error = ConfigError;
+
     /// Create a new [`Config`] with default values
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Return library include paths required to build and link based off of
+    /// the configuration of [`Config`].
+    ///
+    /// For UMDF drivers, this assumes a "Windows-Driver" Target Platform.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the required paths do not
+    /// exist.
+    fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, Self::Error> {
+        let mut library_paths = vec![];
+
+        let library_directory = self.wdk_content_root.join("Lib");
+
+        // Add windows sdk library paths
+        // Based off of logic from WindowsDriver.KernelMode.props &
+        // WindowsDriver.UserMode.props in NI(22H2) WDK
+        let sdk_version = utils::get_latest_windows_sdk_version(library_directory.as_path())?;
+        let windows_sdk_library_path =
+            library_directory
+                .join(sdk_version)
+                .join(match self.driver_config {
+                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                    DriverConfig::Umdf(_) => {
+                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                });
+        if !windows_sdk_library_path.is_dir() {
+            return Err(Self::Error::DirectoryNotFound {
+                directory: windows_sdk_library_path.to_string_lossy().into(),
+            });
+        }
+        library_paths.push(
+            windows_sdk_library_path
+                .canonicalize()?
+                .strip_extended_length_path_prefix()?,
+        );
+
+        // Add other driver type-specific library paths
+        match &self.driver_config {
+            DriverConfig::Wdm => (),
+            DriverConfig::Kmdf(kmdf_config) => {
+                let kmdf_library_path = library_directory.join(format!(
+                    "wdf/kmdf/{}/{}.{}",
+                    self.cpu_architecture.as_windows_str(),
+                    kmdf_config.kmdf_version_major,
+                    kmdf_config.target_kmdf_version_minor
+                ));
+                if !kmdf_library_path.is_dir() {
+                    return Err(Self::Error::DirectoryNotFound {
+                        directory: kmdf_library_path.to_string_lossy().into(),
+                    });
+                }
+                library_paths.push(
+                    kmdf_library_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
+            }
+            DriverConfig::Umdf(umdf_config) => {
+                let umdf_library_path = library_directory.join(format!(
+                    "wdf/umdf/{}/{}.{}",
+                    self.cpu_architecture.as_windows_str(),
+                    umdf_config.umdf_version_major,
+                    umdf_config.target_umdf_version_minor,
+                ));
+                if !umdf_library_path.is_dir() {
+                    return Err(Self::Error::DirectoryNotFound {
+                        directory: umdf_library_path.to_string_lossy().into(),
+                    });
+                }
+                library_paths.push(
+                    umdf_library_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
+            }
+        }
+
+        // Reverse order of library paths so that paths pushed later into the vec take
+        // precedence
+        library_paths.reverse();
+        Ok(library_paths.into_iter())
     }
 
     /// Create a [`Config`] from parsing the top-level Cargo manifest into a
@@ -242,7 +331,7 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the resolved top-level Cargo manifest path is not valid UTF-8
-    pub fn from_env_auto() -> Result<Self, ConfigError> {
+    pub fn from_env_auto() -> Result<Self, Self::Error> {
         let top_level_manifest = find_top_level_cargo_manifest();
         let cargo_metadata = MetadataCommand::new()
             .manifest_path(&top_level_manifest)
@@ -301,7 +390,7 @@ impl Config {
     /// Expose `cfg` settings based on this [`Config`] to enable conditional
     /// compilation. This emits specially formatted prints to Cargo based on
     /// this [`Config`].
-    fn emit_cfg_settings(&self) -> Result<(), ConfigError> {
+    fn emit_cfg_settings(&self) -> Result<(), Self::Error> {
         Self::emit_check_cfg_settings();
 
         let serialized_wdk_metadata_map =
@@ -326,190 +415,6 @@ impl Config {
         }
 
         Ok(())
-    }
-
-    /// Return header include paths required to build and link based off of the
-    /// configuration of `Config`
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
-    pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
-        let mut include_paths = vec![];
-
-        let include_directory = self.wdk_content_root.join("Include");
-
-        // Add windows sdk include paths
-        // Based off of logic from WindowsDriver.KernelMode.props &
-        // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())?;
-        let windows_sdk_include_path = include_directory.join(sdk_version);
-
-        let crt_include_path = windows_sdk_include_path.join("km/crt");
-        if !crt_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: crt_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            crt_include_path
-                .canonicalize()?
-                .strip_extended_length_path_prefix()?,
-        );
-
-        let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
-            DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
-            DriverConfig::Umdf(_) => "um",
-        });
-        if !km_or_um_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: km_or_um_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            km_or_um_include_path
-                .canonicalize()?
-                .strip_extended_length_path_prefix()?,
-        );
-
-        let kit_shared_include_path = windows_sdk_include_path.join("shared");
-        if !kit_shared_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: kit_shared_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            kit_shared_include_path
-                .canonicalize()?
-                .strip_extended_length_path_prefix()?,
-        );
-
-        // Add other driver type-specific include paths
-        match &self.driver_config {
-            DriverConfig::Wdm => {}
-            DriverConfig::Kmdf(kmdf_config) => {
-                let kmdf_include_path = include_directory.join(format!(
-                    "wdf/kmdf/{}.{}",
-                    kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
-                ));
-                if !kmdf_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: kmdf_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(
-                    kmdf_include_path
-                        .canonicalize()?
-                        .strip_extended_length_path_prefix()?,
-                );
-            }
-            DriverConfig::Umdf(umdf_config) => {
-                let umdf_include_path = include_directory.join(format!(
-                    "wdf/umdf/{}.{}",
-                    umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
-                ));
-                if !umdf_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: umdf_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(
-                    umdf_include_path
-                        .canonicalize()?
-                        .strip_extended_length_path_prefix()?,
-                );
-            }
-        }
-
-        Ok(include_paths.into_iter())
-    }
-
-    /// Return library include paths required to build and link based off of
-    /// the configuration of [`Config`].
-    ///
-    /// For UMDF drivers, this assumes a "Windows-Driver" Target Platform.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if any of the required paths do not
-    /// exist.
-    pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
-        let mut library_paths = vec![];
-
-        let library_directory = self.wdk_content_root.join("Lib");
-
-        // Add windows sdk library paths
-        // Based off of logic from WindowsDriver.KernelMode.props &
-        // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let sdk_version = utils::get_latest_windows_sdk_version(library_directory.as_path())?;
-        let windows_sdk_library_path =
-            library_directory
-                .join(sdk_version)
-                .join(match self.driver_config {
-                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
-                    }
-                    DriverConfig::Umdf(_) => {
-                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
-                    }
-                });
-        if !windows_sdk_library_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: windows_sdk_library_path.to_string_lossy().into(),
-            });
-        }
-        library_paths.push(
-            windows_sdk_library_path
-                .canonicalize()?
-                .strip_extended_length_path_prefix()?,
-        );
-
-        // Add other driver type-specific library paths
-        match &self.driver_config {
-            DriverConfig::Wdm => (),
-            DriverConfig::Kmdf(kmdf_config) => {
-                let kmdf_library_path = library_directory.join(format!(
-                    "wdf/kmdf/{}/{}.{}",
-                    self.cpu_architecture.as_windows_str(),
-                    kmdf_config.kmdf_version_major,
-                    kmdf_config.target_kmdf_version_minor
-                ));
-                if !kmdf_library_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: kmdf_library_path.to_string_lossy().into(),
-                    });
-                }
-                library_paths.push(
-                    kmdf_library_path
-                        .canonicalize()?
-                        .strip_extended_length_path_prefix()?,
-                );
-            }
-            DriverConfig::Umdf(umdf_config) => {
-                let umdf_library_path = library_directory.join(format!(
-                    "wdf/umdf/{}/{}.{}",
-                    self.cpu_architecture.as_windows_str(),
-                    umdf_config.umdf_version_major,
-                    umdf_config.target_umdf_version_minor,
-                ));
-                if !umdf_library_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: umdf_library_path.to_string_lossy().into(),
-                    });
-                }
-                library_paths.push(
-                    umdf_library_path
-                        .canonicalize()?
-                        .strip_extended_length_path_prefix()?,
-                );
-            }
-        }
-
-        // Reverse order of library paths so that paths pushed later into the vec take
-        // precedence
-        library_paths.reverse();
-        Ok(library_paths.into_iter())
     }
 
     /// Return an iterator of strings that represent compiler definitions
@@ -605,37 +510,6 @@ impl Config {
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
         )
-    }
-
-    /// Return an iterator of strings that represent compiler flags (i.e.
-    /// warnings, settings, etc.) used by bindgen to parse WDK headers
-    pub fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String> {
-        vec![
-            // Enable Microsoft C/C++ extensions and compatibility options (https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions)
-            "-fms-compatibility",
-            "-fms-extensions",
-            "-fdelayed-template-parsing",
-            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the
-            // file is actually driverspecs.h)
-            "--warn-=no-nonportable-include-path",
-            // Windows SDK & DDK use pshpack and poppack headers to change packing
-            "--warn-=no-pragma-pack",
-            "--warn-=no-ignored-attributes",
-            "--warn-=no-ignored-pragma-intrinsic",
-            "--warn-=no-visibility",
-            "--warn-=no-microsoft-anon-tag",
-            "--warn-=no-microsoft-enum-forward-reference",
-            // Don't warn for deprecated declarations. Deprecated items should be explicitly
-            // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
-            // definitions will trigger a -WDeprecated warning
-            "--warn-=no-deprecated-declarations",
-            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
-            // `_variable` are separate tokens already, and don't need `##` to concatenate
-            // them)
-            "--warn-=no-invalid-token-paste",
-        ]
-        .into_iter()
-        .map(std::string::ToString::to_string)
     }
 
     /// Returns a [`String`] iterator over all the headers for a given
@@ -748,7 +622,7 @@ impl Config {
     ///
     /// This function will return an error if the [`Config`] fails to be
     /// serialized
-    pub fn configure_library_build(&self) -> Result<(), ConfigError> {
+    pub fn configure_library_build(&self) -> Result<(), Self::Error> {
         self.emit_cfg_settings()
     }
 
@@ -788,15 +662,15 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the invoked from outside a Cargo build environment
-    pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
+    pub fn configure_binary_build(&self) -> Result<(), Self::Error> {
         if !Self::is_crt_static_linked() {
             cfg_if::cfg_if! {
                 if #[cfg(all(wdk_build_unstable, skip_umdf_static_crt_check))] {
                     if !matches!(self.driver_config, DriverConfig::Umdf(_)) {
-                        return Err(ConfigError::StaticCrtNotEnabled);
+                        return Err(Self::Error::StaticCrtNotEnabled);
                     }
                 } else {
-                    return Err(ConfigError::StaticCrtNotEnabled);
+                    return Err(Self::Error::StaticCrtNotEnabled);
                 }
             };
         }
@@ -915,6 +789,151 @@ impl Config {
             .expect("CARGO_CFG_TARGET_FEATURE should be set by Cargo");
 
         enabled_cpu_target_features.contains(STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME)
+    }
+}
+
+/// Trait defining the configuration methods needed for WDK binding
+pub trait WdkBuilderConfig {
+    type Error;
+
+    fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)>;
+    fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, Self::Error>;
+    fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String>;
+}
+
+impl WdkBuilderConfig for Config {
+    type Error = ConfigError;
+
+    /// Return header include paths required to build and link based off of the
+    /// configuration of `Config`
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the required paths do not
+    /// exist.
+    fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, Self::Error> {
+        let mut include_paths = vec![];
+
+        let include_directory = self.wdk_content_root.join("Include");
+
+        // Add windows sdk include paths
+        // Based off of logic from WindowsDriver.KernelMode.props &
+        // WindowsDriver.UserMode.props in NI(22H2) WDK
+        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())?;
+        let windows_sdk_include_path = include_directory.join(sdk_version);
+
+        let crt_include_path = windows_sdk_include_path.join("km/crt");
+        if !crt_include_path.is_dir() {
+            return Err(Self::Error::DirectoryNotFound {
+                directory: crt_include_path.to_string_lossy().into(),
+            });
+        }
+        include_paths.push(
+            crt_include_path
+                .canonicalize()?
+                .strip_extended_length_path_prefix()?,
+        );
+
+        let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
+            DriverConfig::Umdf(_) => "um",
+        });
+        if !km_or_um_include_path.is_dir() {
+            return Err(Self::Error::DirectoryNotFound {
+                directory: km_or_um_include_path.to_string_lossy().into(),
+            });
+        }
+        include_paths.push(
+            km_or_um_include_path
+                .canonicalize()?
+                .strip_extended_length_path_prefix()?,
+        );
+
+        let kit_shared_include_path = windows_sdk_include_path.join("shared");
+        if !kit_shared_include_path.is_dir() {
+            return Err(Self::Error::DirectoryNotFound {
+                directory: kit_shared_include_path.to_string_lossy().into(),
+            });
+        }
+        include_paths.push(
+            kit_shared_include_path
+                .canonicalize()?
+                .strip_extended_length_path_prefix()?,
+        );
+
+        // Add other driver type-specific include paths
+        match &self.driver_config {
+            DriverConfig::Wdm => {}
+            DriverConfig::Kmdf(kmdf_config) => {
+                let kmdf_include_path = include_directory.join(format!(
+                    "wdf/kmdf/{}.{}",
+                    kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
+                ));
+                if !kmdf_include_path.is_dir() {
+                    return Err(Self::Error::DirectoryNotFound {
+                        directory: kmdf_include_path.to_string_lossy().into(),
+                    });
+                }
+                include_paths.push(
+                    kmdf_include_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
+            }
+            DriverConfig::Umdf(umdf_config) => {
+                let umdf_include_path = include_directory.join(format!(
+                    "wdf/umdf/{}.{}",
+                    umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
+                ));
+                if !umdf_include_path.is_dir() {
+                    return Err(Self::Error::DirectoryNotFound {
+                        directory: umdf_include_path.to_string_lossy().into(),
+                    });
+                }
+                include_paths.push(
+                    umdf_include_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
+            }
+        }
+
+        Ok(include_paths.into_iter())
+    }
+
+    /// Return an iterator of strings that represent compiler flags (i.e.
+    /// warnings, settings, etc.) used by bindgen to parse WDK headers
+    fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String> {
+        vec![
+            // Enable Microsoft C/C++ extensions and compatibility options (https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions)
+            "-fms-compatibility",
+            "-fms-extensions",
+            "-fdelayed-template-parsing",
+            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the
+            // file is actually driverspecs.h)
+            "--warn-=no-nonportable-include-path",
+            // Windows SDK & DDK use pshpack and poppack headers to change packing
+            "--warn-=no-pragma-pack",
+            "--warn-=no-ignored-attributes",
+            "--warn-=no-ignored-pragma-intrinsic",
+            "--warn-=no-visibility",
+            "--warn-=no-microsoft-anon-tag",
+            "--warn-=no-microsoft-enum-forward-reference",
+            // Don't warn for deprecated declarations. Deprecated items should be explicitly
+            // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
+            // definitions will trigger a -WDeprecated warning
+            "--warn-=no-deprecated-declarations",
+            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
+            // `_variable` are separate tokens already, and don't need `##` to concatenate
+            // them)
+            "--warn-=no-invalid-token-paste",
+        ]
+        .into_iter()
+        .map(std::string::ToString::to_string)
+    }
+
+    fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)> {
+        self.preprocessor_definitions()
     }
 }
 

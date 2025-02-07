@@ -23,10 +23,11 @@ use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
     EnvFilter,
 };
+
+wdk_build::implement_wdk_default!(bindgen);
 use wdk_build::{
     configure_wdk_library_build_and_then,
     ApiSubset,
-    BuilderExt,
     Config,
     ConfigError,
     DriverConfig,
