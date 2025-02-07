@@ -23,11 +23,21 @@ pub use crate::{constants::*, types::*};
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub mod ntddk;
 
+#[cfg(driver_model__driver_type = "UMDF")]
+pub mod windows;
+
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
 
-#[cfg(driver_model__driver_type = "UMDF")]
-pub mod windows;
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "gpio"
+))]
+pub mod gpio;
 
 #[cfg(all(
     any(
@@ -38,6 +48,16 @@ pub mod windows;
     feature = "hid"
 ))]
 pub mod hid;
+
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "parallel-ports"
+))]
+pub mod parallel_ports;
 
 #[cfg(all(
     any(

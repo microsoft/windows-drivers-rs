@@ -35,7 +35,9 @@ wdk-macros.workspace = true
 [features]
 default = []
 
+gpio = []
 hid = []
+parallel-ports = ["gpio"]
 spb = []
 storage = []
 

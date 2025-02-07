@@ -197,8 +197,12 @@ pub enum ApiSubset {
     Base,
     /// API subset required for WDF (Windows Driver Framework) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_wdf/>
     Wdf,
+    /// API subset for GPIO (General Purpose Input/Output) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_gpio/>
+    Gpio,
     /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
     Hid,
+    /// API subset for Parallel Ports drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_parports/>
+    ParallelPorts,
     /// API subset for SPB (Serial Peripheral Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_spb/>
     Spb,
     /// API subset for Storage drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_storage/>
@@ -660,6 +664,15 @@ impl Config {
                     vec![]
                 }
             }
+            ApiSubset::Gpio => {
+                let mut gpio_headers = vec!["gpio.h"];
+
+                if let DriverConfig::Kmdf(_) = self.driver_config {
+                    gpio_headers.extend(["gpioclx.h"]);
+                }
+
+                gpio_headers
+            }
             ApiSubset::Hid => {
                 let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
 
@@ -672,6 +685,15 @@ impl Config {
                 }
 
                 hid_headers
+            }
+            ApiSubset::ParallelPorts => {
+                let mut parallel_ports_headers = vec!["ntddpar.h", "ntddser.h"];
+
+                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                    parallel_ports_headers.extend(["parallel.h"]);
+                }
+
+                parallel_ports_headers
             }
             ApiSubset::Spb => {
                 let mut spb_headers = vec!["spb.h", "reshub.h"];
