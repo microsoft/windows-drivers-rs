@@ -1,0 +1,92 @@
+;===================================================================
+; Sample UMDF Driver
+; Copyright (c) Microsoft Corporation
+;===================================================================
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Sample
+ClassGuid   = {78A1C341-4539-11d3-B88D-00C04FAD5171}
+Provider    = %ProviderString%
+PnpLockDown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+##driver_name_placeholder##.dll = 1,,
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SampleClassReg
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+; ================= Install section =================
+
+[Manufacturer]
+%StdMfg%=Standard,NT$ARCH$.10.0...16299, NT$ARCH$.10.0...22000
+
+[Standard.NT$ARCH$.10.0...16299]
+%DeviceDesc%=SampleUMDFDevice_W10, root\SAMPLE_UMDF_HW_ID
+
+[Standard.NT$ARCH$.10.0...22000]
+%DeviceDesc%=SampleUMDFDevice_W11, root\SAMPLE_UMDF_HW_ID
+
+[SampleUMDFDevice_W10.NT]
+CopyFiles=Drivers_Dir
+
+[SampleUMDFDevice_W11.NT]
+CopyFiles=Drivers_Dir
+Include=WUDFRD.inf
+Needs=WUDFRD.NT
+
+[Drivers_Dir]
+##driver_name_placeholder##.dll
+
+[SampleUMDFDevice_W11.NT.HW]
+Include=WUDFRD.inf
+Needs=WUDFRD.NT.HW
+
+; ================= Service installation =================
+[SampleUMDFDevice_W10.NT.Services]
+AddService = WUDFRd, 0x000001fa,WUDFRD_ServiceInstall
+
+[WUDFRD_ServiceInstall]
+DisplayName    = %ServiceDesc%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary = %12%\WUDFRd.sys
+
+[SampleUMDFDevice_W11.NT.Services]
+Include=WUDFRD.inf
+Needs=WUDFRD.NT.Services
+
+; ================= WDF specific section =================
+[SampleUMDFDevice_W10.NT.Wdf]
+UmdfService=##driver_name_placeholder##, SampleUMDFDevice_Install
+UmdfServiceOrder=##driver_name_placeholder##
+
+[SampleUMDFDevice_W11.NT.Wdf]
+UmdfService=##driver_name_placeholder##, SampleUMDFDevice_Install
+UmdfServiceOrder=##driver_name_placeholder##
+
+[SampleUMDFDevice_Install]
+UmdfLibraryVersion=$UMDFVERSION$
+ServiceBinary = %13%\##driver_name_placeholder##.dll
+
+; ================= Strings =================
+[Strings]
+ProviderString         = "TODO-Set-Provider"
+StdMfg                 = "(Standard system devices)"
+DiskId1                = "Sample UMDF Installation Disk #1"
+DeviceDesc             = "Sample UMDF Rust Device"
+ServiceDesc            = "Sample UMDF Rust Service"
+ClassName              = "Sample Device"

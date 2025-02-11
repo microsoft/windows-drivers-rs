@@ -1,0 +1,64 @@
+;===================================================================
+; Sample WDM Driver
+; Copyright (c) Microsoft Corporation
+;===================================================================
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Sample
+ClassGuid   = {78A1C341-4539-11d3-B88D-00C04FAD5171}
+Provider    = %ProviderString%
+PnpLockDown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+##driver_name_placeholder##.sys = 1,,
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SampleClassReg
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+; ================= Install section =================
+
+[Manufacturer]
+%StdMfg%=Standard,NT$ARCH$.10.0...16299
+
+[Standard.NT$ARCH$.10.0...16299]
+%DeviceDesc%=SampleWDMDevice, root\SAMPLE_WDM_HW_ID
+
+[SampleWDMDevice.NT$ARCH$]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+##driver_name_placeholder##.sys
+
+; ================= Service installation =================
+[SampleWDMDevice.NT$ARCH$.Services]
+AddService = SampleWDMService, %SPSVCINST_ASSOCSERVICE%, Sample_WDM_Service_Install
+
+[Sample_WDM_Service_Install]
+DisplayName    = %ServiceDesc%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START 
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\##driver_name_placeholder##.sys
+
+; ================= Strings =================
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ProviderString         = "TODO-Set-Provider"
+StdMfg                 = "(Standard system devices)"
+DiskId1                = "Sample WDM Installation Disk #1"
+DeviceDesc             = "Sample WDM Rust Device"
+ServiceDesc            = "Sample WDM Rust Service"
+ClassName              = "Sample Device"

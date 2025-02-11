@@ -1,0 +1,21 @@
+[package]
+name = "cargo-wdk"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+clap = { workspace = true, features = ["derive"] }
+cargo_metadata.workspace = true
+wdk-build.workspace = true
+serde_json.workspace = true
+include_dir = "0.7.4"
+log = "0.4.25"
+log4rs = "1.3.0"
+toml = "0.8.19"
+clap-verbosity-flag = "3.0.2"
+mockall = "0.13.1"
+
+[lints.clippy]
+unwrap_used = "deny"

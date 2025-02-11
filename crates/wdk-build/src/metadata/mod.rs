@@ -18,7 +18,7 @@ pub(crate) mod ser;
 mod error;
 mod map;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
 use camino::Utf8PathBuf;
 use cargo_metadata::Metadata;
@@ -172,4 +172,11 @@ pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item 
     cargo_manifest_paths.insert(workspace_manifest_path);
 
     cargo_manifest_paths
+}
+
+/// Get the cargo metadata at a given path
+pub fn get_cargo_metadata_at_path(manifest_path: &PathBuf) -> cargo_metadata::Result<Metadata> {
+    cargo_metadata::MetadataCommand::new()
+    .manifest_path(&manifest_path.join("Cargo.toml"))
+    .exec()
 }
