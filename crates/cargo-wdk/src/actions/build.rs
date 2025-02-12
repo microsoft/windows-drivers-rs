@@ -1,8 +1,8 @@
-use crate::errors::CommandError;
 use crate::log as logger;
-use crate::providers::exec::RunCommand;
-use anyhow::Result;
 use log::{debug, info};
+use anyhow::Result;
+use crate::errors::CommandError;
+use crate::providers::exec::RunCommand;
 
 pub struct BuildAction<'a> {
     package_name: &'a str,
@@ -11,16 +11,8 @@ pub struct BuildAction<'a> {
 }
 
 impl<'a> BuildAction<'a> {
-    pub fn new(
-        package_name: &'a str,
-        verbosity_level: clap_verbosity_flag::Verbosity,
-        command_exec: &'a dyn RunCommand,
-    ) -> Self {
-        Self {
-            package_name,
-            verbosity_level,
-            command_exec,
-        }
+    pub fn new(package_name: &'a str, verbosity_level: clap_verbosity_flag::Verbosity, command_exec: &'a dyn RunCommand) -> Self {
+        Self { package_name, verbosity_level, command_exec}
     }
 
     pub fn run(&self) -> Result<(), CommandError> {

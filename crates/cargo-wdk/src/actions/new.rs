@@ -16,23 +16,20 @@ pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 pub struct NewAction<'a> {
     driver_project_name: String,
     driver_type: String,
+    wdk_version: String,
     cwd: PathBuf,
     command_exec: &'a dyn RunCommand,
 }
 
 impl<'a> NewAction<'a> {
-    pub fn new(
-        driver_project_name: String,
-        driver_type: String,
-        cwd: PathBuf,
-        command_exec: &'a dyn RunCommand,
-    ) -> Result<Self> {
+    pub fn new(driver_project_name: String, driver_type: String, wdk_version: String, cwd: PathBuf, command_exec: &'a dyn RunCommand) -> Result<Self>{
         // TODO: Pre-validation checks
         Ok(Self {
             driver_project_name,
             driver_type,
+            wdk_version,
             cwd,
-            command_exec,
+            command_exec
         })
     }
     pub fn create_new_project(&mut self) -> Result<()> {

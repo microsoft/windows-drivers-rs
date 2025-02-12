@@ -1,8 +1,8 @@
 use std::{ops::RangeFrom, path::PathBuf, result::Result};
 
-use crate::providers::exec::RunCommand;
 use log::{debug, info};
 use wdk_build::DriverConfig;
+use crate::providers::exec::RunCommand;
 
 use super::{error::PackageDriverError, FSProvider, WdkBuildProvider};
 
@@ -38,7 +38,7 @@ pub struct PackageDriver<'a> {
     arch: &'a str,
     os_mapping: &'a str,
     driver_model: DriverConfig,
-
+    
     // Injected deps
     wdk_build_provider: &'a dyn WdkBuildProvider,
     command_exec: &'a dyn RunCommand,
@@ -63,32 +63,25 @@ impl<'a> PackageDriver<'a> {
         let src_inx_file_path = working_dir.join(format!("{}.inx", package_name));
 
         // all paths inside target directory
-        let src_driver_binary_file_path =
-            target_dir.join(format!("{}.{}", package_name, src_driver_binary_extension));
+        let src_driver_binary_file_path = target_dir.join(format!("{}.{}", package_name, src_driver_binary_extension));
         let src_pdb_file_path = target_dir.join(format!("{}.pdb", package_name));
-        let src_map_file_path = target_dir
-            .join("deps")
-            .join(format!("{}.map", package_name));
+        let src_map_file_path = target_dir.join("deps").join(format!("{}.map", package_name));
         let src_cert_file_path = target_dir.join(format!("{}.cer", WDR_LOCAL_TEST_CERT));
 
+
         // destination paths
-        let dest_driver_binary_extension =
-            if matches!(driver_model, DriverConfig::Kmdf(_) | DriverConfig::Wdm) {
-                "sys"
-            } else {
-                "dll"
-            };
-        let src_renamed_driver_binary_file_path =
-            target_dir.join(format!("{}.{}", package_name, dest_driver_binary_extension));
-        let dest_root_package_folder: PathBuf =
-            target_dir.join(format!("{}_package", package_name));
+        let dest_driver_binary_extension = if matches!(driver_model, DriverConfig::Kmdf(_) | DriverConfig::Wdm) {
+            "sys"
+        } else {
+            "dll"
+        };
+        let src_renamed_driver_binary_file_path = target_dir.join(format!("{}.{}", package_name, dest_driver_binary_extension));
+        let dest_root_package_folder: PathBuf = target_dir.join(format!("{}_package", package_name));
         let dest_inf_file_path = dest_root_package_folder.join(format!("{}.inf", package_name));
-        let dest_driver_binary_path = dest_root_package_folder
-            .join(format!("{}.{}", package_name, dest_driver_binary_extension));
+        let dest_driver_binary_path = dest_root_package_folder.join(format!("{}.{}", package_name, dest_driver_binary_extension));
         let dest_pdb_file_path = dest_root_package_folder.join(format!("{}.pdb", package_name));
         let dest_map_file_path = dest_root_package_folder.join(format!("{}.map", package_name));
-        let dest_cert_file_path =
-            dest_root_package_folder.join(format!("{}.cer", WDR_LOCAL_TEST_CERT));
+        let dest_cert_file_path = dest_root_package_folder.join(format!("{}.cer", WDR_LOCAL_TEST_CERT));
         let dest_cat_file_path = dest_root_package_folder.join(format!("{}.cat", package_name));
 
         if !fs_provider.exists(&dest_root_package_folder) {
@@ -133,49 +126,33 @@ impl<'a> PackageDriver<'a> {
     }
 
     fn check_inx_exists(&self) -> Result<(), PackageDriverError> {
-        debug!(
-            "Checking for .inx file, path: {}",
-            self.src_inx_file_path.to_string_lossy()
-        );
+        debug!("Checking for .inx file, path: {}", self.src_inx_file_path.to_string_lossy());
         if !self.fs_provider.exists(&self.src_inx_file_path) {
-            return Err(PackageDriverError::MissingInxSrcFileError(
-                self.src_inx_file_path.clone(),
-            ));
+            return Err(PackageDriverError::MissingInxSrcFileError(self.src_inx_file_path.clone()))
         }
         Ok(())
     }
 
     fn rename_driver_binary_extension(&self) -> Result<(), PackageDriverError> {
         debug!("Renaming driver binary extension from .dll to .sys");
-        if let Err(e) = self.fs_provider.rename(
-            &self.src_driver_binary_file_path,
-            &self.src_renamed_driver_binary_file_path,
-        ) {
+        if let Err(e) = self.fs_provider.rename(&self.src_driver_binary_file_path, &self.src_renamed_driver_binary_file_path) {
             return Err(PackageDriverError::CopyFileError {
                 src: self.src_driver_binary_file_path.clone(),
                 dest: self.src_renamed_driver_binary_file_path.clone(),
                 error: e,
-            });
+            })
         }
         Ok(())
     }
 
-    fn copy(
-        &self,
-        src_file_path: &'a PathBuf,
-        dest_file_path: &'a PathBuf,
-    ) -> Result<(), PackageDriverError> {
-        debug!(
-            "Copying src file {} to dest folder {}",
-            src_file_path.to_string_lossy(),
-            dest_file_path.to_string_lossy()
-        );
+    fn copy(&self, src_file_path: &'a PathBuf, dest_file_path: &'a PathBuf) -> Result<(), PackageDriverError> {
+        debug!("Copying src file {} to dest folder {}", src_file_path.to_string_lossy(), dest_file_path.to_string_lossy());
         if let Err(e) = self.fs_provider.copy(src_file_path, dest_file_path) {
             return Err(PackageDriverError::CopyFileError {
                 src: src_file_path.clone(),
                 dest: dest_file_path.clone(),
                 error: e,
-            });
+            })
         }
         Ok(())
     }
@@ -222,15 +199,11 @@ impl<'a> PackageDriver<'a> {
         Ok(())
     }
 
+    
     fn run_inf2cat(&self) -> Result<(), PackageDriverError> {
         info!("Running inf2cat command");
         let args = [
-            &format!(
-                "/driver:{}",
-                self.dest_root_package_folder
-                    .to_string_lossy()
-                    .trim_start_matches("\\\\?\\")
-            ),
+            &format!("/driver:{}", self.dest_root_package_folder.to_string_lossy().trim_start_matches("\\\\?\\")),
             &format!("/os:{}", self.os_mapping),
             "/uselocaltime",
         ];
@@ -257,7 +230,10 @@ impl<'a> PackageDriver<'a> {
     }
 
     fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageDriverError> {
-        let args = ["-s", WDR_TEST_CERT_STORE];
+        let args = [
+            "-s",
+            WDR_TEST_CERT_STORE,
+        ];
 
         match self.command_exec.run("certmgr.exe", &args, None) {
             Ok(output) => {
@@ -267,15 +243,17 @@ impl<'a> PackageDriver<'a> {
                             if stdout.contains(WDR_LOCAL_TEST_CERT) {
                                 return Ok(true);
                             }
-                        }
+                        },
                         Err(e) => {
                             return Err(PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutputError(e));
-                        }
+                        },
                     }
                 }
                 return Ok(false);
+            },
+            Err(e) => {
+                Err(PackageDriverError::VerifyCertExistsInStoreError(e))
             }
-            Err(e) => Err(PackageDriverError::VerifyCertExistsInStoreError(e)),
         }
     }
 
@@ -295,14 +273,15 @@ impl<'a> PackageDriver<'a> {
             &format!("CN={}", WDR_LOCAL_TEST_CERT), // FIXME: this should be a parameter
             &cert_path,
         ];
-
+    
+    
         if let Err(e) = self.command_exec.run("makecert", &args, None) {
             return Err(PackageDriverError::CertGenerationInStoreError(e));
         }
 
         Ok(())
     }
-
+    
     fn create_cert_file_from_store(&self) -> Result<(), PackageDriverError> {
         info!("Creating certificate file from WDRTestCertStore store using certmgr");
         let cert_path = self.src_cert_file_path.to_string_lossy();
@@ -332,19 +311,8 @@ impl<'a> PackageDriver<'a> {
     /// * `cert_store` - The certificate store to use for signing.
     /// * `cert_name` - The name of the certificate to use for signing.
     /// TODO: Add parameters for certificate store and name
-    fn run_signtool_sign(
-        &self,
-        file_path: &PathBuf,
-        cert_store: &str,
-        cert_name: &str,
-    ) -> Result<(), PackageDriverError> {
-        info!(
-            "Signing {} using signtool",
-            file_path
-                .file_name()
-                .expect("Unable to read file name from the path")
-                .to_string_lossy()
-        );
+    fn run_signtool_sign(&self, file_path: &PathBuf, cert_store: &str, cert_name: &str) -> Result<(), PackageDriverError> {
+        info!("Signing {} using signtool", file_path.file_name().expect("Unable to read file name from the path").to_string_lossy());
         let driver_binary_file_path = file_path.to_string_lossy();
         let args = [
             "sign",
@@ -367,17 +335,8 @@ impl<'a> PackageDriver<'a> {
         std::result::Result::Ok(())
     }
 
-    fn run_signtool_verify(
-        &self,
-        file_path: &PathBuf,
-    ) -> std::result::Result<(), PackageDriverError> {
-        info!(
-            "Verifying {} using signtool",
-            file_path
-                .file_name()
-                .expect("Unable to read file name from the path")
-                .to_string_lossy()
-        );
+    fn run_signtool_verify(&self, file_path: &PathBuf) -> std::result::Result<(), PackageDriverError> {
+        info!("Verifying {} using signtool", file_path.file_name().expect("Unable to read file name from the path").to_string_lossy());
         let driver_binary_file_path = file_path.to_string_lossy();
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
 
@@ -428,36 +387,22 @@ impl<'a> PackageDriver<'a> {
     pub fn run(&self) -> Result<(), PackageDriverError> {
         self.check_inx_exists()?;
         //TODO: rename is not necessary, but should confirm
-        info!(
-            "Copying files to target package folder: {}",
-            self.dest_root_package_folder.to_string_lossy()
-        );
+        info!("Copying files to target package folder: {}", self.dest_root_package_folder.to_string_lossy());
         self.rename_driver_binary_extension()?;
-        self.copy(
-            &self.src_renamed_driver_binary_file_path,
-            &self.dest_driver_binary_path,
-        )?;
+        self.copy(&self.src_renamed_driver_binary_file_path, &self.dest_driver_binary_path)?;
         self.copy(&self.src_pdb_file_path, &self.dest_pdb_file_path)?;
         self.copy(&self.src_inx_file_path, &self.dest_inf_file_path)?;
         self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
-        self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
         self.generate_certificate()?;
         self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-        self.run_signtool_sign(
-            &self.dest_driver_binary_path,
-            WDR_TEST_CERT_STORE,
-            WDR_LOCAL_TEST_CERT,
-        )?;
+        self.run_signtool_sign(&self.dest_driver_binary_path, WDR_TEST_CERT_STORE, WDR_LOCAL_TEST_CERT)?;
         self.run_signtool_verify(&self.dest_driver_binary_path)?;
-        self.run_signtool_sign(
-            &self.dest_cat_file_path,
-            WDR_TEST_CERT_STORE,
-            WDR_LOCAL_TEST_CERT,
-        )?;
+        self.run_signtool_sign(&self.dest_cat_file_path, WDR_TEST_CERT_STORE, WDR_LOCAL_TEST_CERT)?;
         self.run_signtool_verify(&self.dest_cat_file_path)?;
         self.run_infverif()?;
         Ok(())
     }
 }
+
