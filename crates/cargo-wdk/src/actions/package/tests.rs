@@ -35,8 +35,8 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
 
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = String::from("debug");
-    let target_arch = String::from("x86_64");
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
     let sample_class = true;
 
     // Emulated driver crate data
@@ -101,7 +101,7 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
 
     // check if final package directory is created
     let expected_driver_name_underscored = driver_name.replace("-", "_");
-    let expected_target_dir = cwd.join("target").join(&profile);
+    let expected_target_dir = cwd.join("target").join(&profile.to_string());
     let expected_final_package_dir_path =
         expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
     fs_provider_mock

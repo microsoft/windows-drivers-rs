@@ -23,8 +23,6 @@ nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
 [profile.dev]
 panic = "abort"
-lto = true
 
 [profile.release]
 panic = "abort"
-lto = true

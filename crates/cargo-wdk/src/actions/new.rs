@@ -1,7 +1,7 @@
 use std::{fs::create_dir_all, path::PathBuf};
 
 use crate::{
-    cli::Cli,
+    cli::{Cli, DriverType},
     errors::NewProjectError,
     providers::exec::RunCommand,
     utils::{append_to_file, read_file_to_string, write_to_file},
@@ -15,7 +15,7 @@ pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 pub struct NewAction<'a> {
     driver_project_name: String,
-    driver_type: String,
+    driver_type: DriverType,
     cwd: PathBuf,
     command_exec: &'a dyn RunCommand,
 }
@@ -23,7 +23,7 @@ pub struct NewAction<'a> {
 impl<'a> NewAction<'a> {
     pub fn new(
         driver_project_name: String,
-        driver_type: String,
+        driver_type: DriverType,
         cwd: PathBuf,
         command_exec: &'a dyn RunCommand,
     ) -> Result<Self> {
@@ -45,7 +45,7 @@ impl<'a> NewAction<'a> {
         self.update_cargo_toml()?;
         self.create_inx_file()?;
         self.copy_build_rs_template()?;
-        if matches!(self.driver_type.as_str(), "KMDF" | "WDM") {
+        if matches!(self.driver_type, DriverType::KMDF | DriverType::WDM) {
             self.copy_cargo_config()?;
         }
         debug!(
@@ -90,9 +90,9 @@ impl<'a> NewAction<'a> {
     pub fn copy_lib_rs_template(&self) -> Result<()> {
         debug!(
             "Copying lib.rs template for driver type: {}",
-            self.driver_type
+            self.driver_type.to_string()
         );
-        let template_path = PathBuf::from(&self.driver_type).join("lib.rs.tmp");
+        let template_path = PathBuf::from(&self.driver_type.to_string()).join("lib.rs.tmp");
         let template_file = TEMPLATES_DIR
             .get_file(template_path.to_str().unwrap())
             .ok_or_else(|| {
@@ -126,7 +126,7 @@ impl<'a> NewAction<'a> {
         cargo_toml_content = cargo_toml_content.replace("[dependencies]\n", "");
         write_to_file(&cargo_toml_path, cargo_toml_content.as_bytes())?;
 
-        let template_cargo_toml_path = PathBuf::from(&self.driver_type).join("Cargo.toml.tmp");
+        let template_cargo_toml_path = PathBuf::from(&self.driver_type.to_string()).join("Cargo.toml.tmp");
         let template_cargo_toml_file = TEMPLATES_DIR
             .get_file(template_cargo_toml_path.to_str().unwrap())
             .ok_or_else(|| {
@@ -143,7 +143,7 @@ impl<'a> NewAction<'a> {
             "Creating .inx file for driver: {}",
             self.driver_project_name
         );
-        let inx_template_path = PathBuf::from(&self.driver_type).join("driver_name.inx.tmp");
+        let inx_template_path = PathBuf::from(&self.driver_type.to_string()).join("driver_name.inx.tmp");
         let inx_template_file = TEMPLATES_DIR
             .get_file(inx_template_path.to_str().unwrap())
             .ok_or_else(|| {
