@@ -32,7 +32,7 @@ impl<'a> NewAction<'a> {
             driver_project_name,
             driver_type,
             cwd,
-            command_exec,
+            command_exec
         })
     }
     pub fn create_new_project(&mut self) -> Result<()> {

@@ -1,5 +1,5 @@
-use crate::errors::CommandError;
 use std::{path::PathBuf, string::FromUtf8Error};
+use crate::errors::CommandError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum PackageProjectError {

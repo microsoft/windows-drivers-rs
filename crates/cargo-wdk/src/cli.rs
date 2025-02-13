@@ -2,12 +2,12 @@ use std::fmt;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use crate::actions::new::NewAction;
-use crate::actions::package::PackageAction;
-use crate::providers::exec::CommandExec;
-use crate::providers::{fs, wdk_build};
 use anyhow::Ok;
 use clap::{Args, Parser, Subcommand};
+use crate::actions::package::PackageAction;
+use crate::actions::new::NewAction;
+use crate::providers::exec::CommandExec;
+use crate::providers::{fs, wdk_build};
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -28,30 +28,24 @@ pub struct Cli {
 
 impl Cli {
     pub fn run(self) -> anyhow::Result<()> {
-        let wdk_build = wdk_build::WdkBuild {};
-        let command_exec = CommandExec {};
-        let fs_provider = fs::FS {};
+        let wdk_build = wdk_build::WdkBuild{};
+        let command_exec= CommandExec{};
+        let fs_provider = fs::FS{};
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
-                let mut new_action = NewAction::new(
-                    cli_args.driver_project_name,
-                    cli_args.driver_type,
-                    cli_args.cwd,
-                    &command_exec,
-                )?;
+                let mut new_action = NewAction::new(cli_args.driver_project_name, cli_args.driver_type, cli_args.cwd, &command_exec)?;
                 new_action.create_new_project()
             }
             Subcmd::Build(cli_args) => {
-                let package_action = PackageAction::new(
-                    cli_args.cwd,
-                    cli_args.profile,
-                    cli_args.target_arch,
-                    cli_args.sample_class,
+                let package_action = PackageAction::new(cli_args.cwd, 
+                    cli_args.profile, 
+                    cli_args.target_arch, 
+                    cli_args.sample_class, 
                     self.verbose,
                     &wdk_build,
                     &command_exec,
-                    &fs_provider,
+                    &fs_provider
                 )?;
                 package_action.run()?;
                 Ok(())
@@ -65,7 +59,7 @@ pub enum Subcmd {
     #[clap(name = "new", about = "Create a new Windows Driver Kit project")]
     New(NewProjectArgs),
     #[clap(name = "build", about = "Build the Windows Driver Kit project")]
-    Build(PackageProjectArgs),
+    Build(PackageProjectArgs)
 }
 
 #[derive(Debug, Clone)]

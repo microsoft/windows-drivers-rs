@@ -1,13 +1,14 @@
-mod actions;
 mod cli;
 mod errors;
 mod log;
-mod providers;
+mod actions;
 mod utils;
+mod providers;
 
 use anyhow::Result;
 use clap::Parser;
 use cli::Cli;
+
 
 fn main() -> Result<()> {
     let cli: Cli = Cli::parse();
