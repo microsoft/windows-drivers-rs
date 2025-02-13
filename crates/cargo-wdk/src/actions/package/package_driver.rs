@@ -216,7 +216,7 @@ impl<'a> PackageDriver<'a> {
     }
 
     fn generate_certificate(&self) -> Result<(), PackageDriverError> {
-        if self.src_cert_file_path.exists() {
+        if self.fs_provider.exists(&self.src_cert_file_path) {
             return Ok(());
         }
 
