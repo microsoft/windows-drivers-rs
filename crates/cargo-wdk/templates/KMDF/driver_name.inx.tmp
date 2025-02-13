@@ -1,64 +1,64 @@
-;===================================================================
-; Sample KMDF Driver
-; Copyright (c) Microsoft Corporation
-;===================================================================
+;
+; KMDF.inf
+;
 
 [Version]
 Signature   = "$WINDOWS NT$"
-Class       = Sample
-ClassGuid   = {78A1C341-4539-11d3-B88D-00C04FAD5171}
-Provider    = %ProviderString%
-PnpLockDown = 1
+Class       = System ; TODO: specify appropriate Class
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Provider    = %ManufacturerName%
+CatalogFile = KMDF.cat
+DriverVer   = ; TODO: set DriverVer in stampinf property pages
+PnpLockdown = 1
 
 [DestinationDirs]
 DefaultDestDir = 13
 
 [SourceDisksNames]
-1 = %DiskId1%,,,""
+1 = %DiskName%,,,""
 
+FIXME: replace KMDF.sys with <driver_name_placeholder>
 [SourceDisksFiles]
-##driver_name_placeholder##.sys = 1,,
+KMDF.sys  = 1,,
 
-; ================= Class section =====================
-
-[ClassInstall32]
-Addreg=SampleClassReg
-
-[SampleClassReg]
-HKR,,,0,%ClassName%
-HKR,,Icon,,-5
-
-; ================= Install section =================
+;*****************************************
+; Install Section
+;*****************************************
 
 [Manufacturer]
-%StdMfg%=Standard,NT$ARCH$.10.0...16299
+%ManufacturerName% = Standard,NT$ARCH$.10.0...16299 ; %13% support introduced in build 16299
 
 [Standard.NT$ARCH$.10.0...16299]
-%DeviceDesc%=SampleKMDFDevice, root\SAMPLE_KMDF_HW_ID
+%KMDF.DeviceDesc% = KMDF_Device, Root\KMDF ; TODO: edit hw-id
 
-[SampleKMDFDevice.NT$ARCH$]
-CopyFiles=Drivers_Dir
+[KMDF_Device.NT]
+CopyFiles = File_Copy
 
-[Drivers_Dir]
-##driver_name_placeholder##.sys
+FIXME: replace KMDF.sys with <driver_name_placeholder>
+[File_Copy]
+KMDF.sys
 
-; ================= Service installation =================
-[SampleKMDFDevice.NT$ARCH$.Services]
-AddService = SampleKMDFService, %SPSVCINST_ASSOCSERVICE%, Sample_KMDF_Service_Install
+;-------------- Service installation
+[KMDF_Device.NT.Services]
+AddService = KMDF,%SPSVCINST_ASSOCSERVICE%, KMDF_Service_Inst
 
-[Sample_KMDF_Service_Install]
-DisplayName    = %ServiceDesc%
+; -------------- KMDF driver install sections
+[KMDF_Service_Inst]
+DisplayName    = %KMDF.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
-StartType      = 3               ; SERVICE_DEMAND_START 
+StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\##driver_name_placeholder##.sys
+ServiceBinary  = %13%\KMDF.sys
 
-; ================= Strings =================
+[KMDF_Device.NT.Wdf]
+KmdfService = KMDF, KMDF_wdfsect
+
+[KMDF_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
 [Strings]
 SPSVCINST_ASSOCSERVICE = 0x00000002
-ProviderString         = "TODO-Set-Provider"
-StdMfg                 = "(Standard system devices)"
-DiskId1                = "Sample KMDF Installation Disk #1"
-DeviceDesc             = "Sample KMDF Rust Device"
-ServiceDesc            = "Sample KMDF Rust Service"
-ClassName              = "Sample Device"
+ManufacturerName = "<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+DiskName = "KMDF Installation Disk"
+KMDF.DeviceDesc = "KMDF Device"
+KMDF.SVCDESC = "KMDF Service"

@@ -10,17 +10,31 @@ mod package_driver;
 use anyhow::Result;
 use log::{debug, info};
 use package_driver::PackageDriver;
-use std::{path::PathBuf, result::Result::Ok};
+use std::{fmt, path::PathBuf, result::Result::Ok};
 use wdk_build::metadata::Wdk;
 
 use super::build::BuildAction;
-use crate::providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider};
+use crate::{cli::{Profile, TargetArch}, providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider}};
+
+struct TargetTriplet(String);
+
+impl From<&TargetArch> for TargetTriplet {
+    fn from(target_arch: &TargetArch) -> Self {
+        Self(format!("{}-pc-windows-msvc", target_arch))
+    }
+}
+
+impl fmt::Display for TargetTriplet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 // #[derive(Debug)]
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
-    profile: String,
-    target_triplet: String,
+    profile: Profile,
+    target_triplet: TargetTriplet,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
@@ -31,8 +45,16 @@ pub struct PackageAction<'a> {
 }
 
 impl<'a> PackageAction<'a> {
-    pub fn new(working_dir: PathBuf, profile: String, target_arch: String, is_sample_class: bool, verbosity_level: clap_verbosity_flag::Verbosity, 
-                wdk_build_provider: &'a dyn WdkBuildProvider, command_exec: &'a dyn RunCommand, fs_provider: &'a dyn FSProvider) -> Result<Self> {
+    pub fn new(
+        working_dir: PathBuf,
+        profile: Profile,
+        target_arch: TargetArch,
+        is_sample_class: bool,
+        verbosity_level: clap_verbosity_flag::Verbosity,
+        wdk_build_provider: &'a dyn WdkBuildProvider,
+        command_exec: &'a dyn RunCommand,
+        fs_provider: &'a dyn FSProvider,
+    ) -> Result<Self> {
         // TODO: validate and init attrs here
         let path_env_var_values = wdk_build::cargo_make::setup_path()?;
         debug!("Values set into PATH env variable: {:?}", path_env_var_values.into_iter().collect::<Vec<String>>());
@@ -40,7 +62,7 @@ impl<'a> PackageAction<'a> {
         debug!("Initializing packaging for project at: {}", working_dir.display());
         // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because it is already canonicalized, * (wild chars) won't be resolved to actual paths
         let working_dir = fs_provider.canonicalize_path(working_dir)?;
-        let target_triplet = format!("{}-pc-windows-msvc", target_arch);
+        let target_triplet = TargetTriplet::from(&target_arch);
         Ok(Self {
             working_dir,
             profile,
@@ -60,7 +82,7 @@ impl<'a> PackageAction<'a> {
         let cargo_metadata = self.wdk_build_provider.get_cargo_metadata_at_path(&working_dir)?;
 
         // Get target directory for the profile.
-        let target_directory = cargo_metadata.target_directory.join(&self.profile);
+        let target_directory = cargo_metadata.target_directory.join(&self.profile.to_string());
 
         // Get WDK metadata once per workspace
         let wdk_metadata = Wdk::try_from(&cargo_metadata)?;

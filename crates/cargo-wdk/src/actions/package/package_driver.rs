@@ -4,7 +4,7 @@ use log::{debug, info};
 use wdk_build::DriverConfig;
 use crate::providers::exec::RunCommand;
 
-use super::{error::PackageDriverError, FSProvider, WdkBuildProvider};
+use super::{error::PackageDriverError, FSProvider, TargetTriplet, WdkBuildProvider};
 
 /// The first WDK version with the new `InfVerif` behavior.
 const MINIMUM_SAMPLES_FLAG_WDK_VERSION: u32 = 25798;
@@ -50,7 +50,7 @@ impl<'a> PackageDriver<'a> {
         package_name: &'a str,
         working_dir: &'a PathBuf,
         target_dir: &'a PathBuf,
-        target_triplet: &'a str,
+        target_triplet: &TargetTriplet,
         sample_class: bool,
         driver_model: DriverConfig,
         wdk_build_provider: &'a dyn WdkBuildProvider,
@@ -88,13 +88,13 @@ impl<'a> PackageDriver<'a> {
             fs_provider.create_dir(&dest_root_package_folder)?;
         }
 
-        let arch = match target_triplet {
+        let arch = match target_triplet.to_string().as_str() {
             "x86_64-pc-windows-msvc" => "amd64",
             "aarch64-pc-windows-msvc" => "arm64",
             _ => "UNKNOWN",
         };
 
-        let os_mapping = match target_triplet {
+        let os_mapping = match target_triplet.to_string().as_str() {
             "x86_64-pc-windows-msvc" => "10_x64",
             "aarch64-pc-windows-msvc" => "Server10_arm64",
             _ => "UNKNOWN",

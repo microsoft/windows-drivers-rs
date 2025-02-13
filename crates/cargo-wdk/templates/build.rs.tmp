@@ -1,4 +1,4 @@
-//! Build script for the `sample-kmdf-driver` crate.
+//! Build script for the Windows Rust Driver crate.
 //!
 //! Based on the [`wdk_build::Config`] parsed from the build tree, this build
 //! script will provide `Cargo` with the necessary information to build the
