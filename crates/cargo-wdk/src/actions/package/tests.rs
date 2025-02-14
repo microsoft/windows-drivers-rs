@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::Error,
+    os::windows::process::ExitStatusExt,
     path::PathBuf,
     process::{ExitStatus, Output},
     result::Result::Ok,
@@ -13,13 +14,10 @@ use wdk_build::{metadata::Wdk, DriverConfig};
 use super::PackageAction;
 use crate::{
     cli::{PackageProjectArgs, Profile, TargetArch},
+    errors::CommandError,
     providers::{exec::MockRunCommand, fs::MockFSProvider, wdk_build::MockWdkBuildProvider},
 };
 
-// Test name is of form Given When Then
-// Given: A simple driver project
-// When: Default values are provided
-// Then: It builds successfully
 #[test]
 pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_builds_successfully()
 {
@@ -108,7 +106,7 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
     fs_provider_mock
         .expect_exists()
         .with(eq(expected_final_package_dir_path.clone()))
-        .times(1)
+        .once()
         .returning(|_| true);
 
     // check if inx file exists
@@ -254,6 +252,14 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
         )
         .once()
         .returning(move |_, _, _| Ok(expected_output.to_owned()));
+
+    // check if self signed certificate exists
+    let expected_src_driver_cert_path = expected_target_dir.clone().join("WDRLocalTestCert.cer");
+    fs_provider_mock
+        .expect_exists()
+        .with(eq(expected_src_driver_cert_path))
+        .once()
+        .returning(|_| false);
 
     // check for cert in cert store using certmgr
     let expected_certmgr_command: &'static str = "certmgr.exe";
@@ -587,13 +593,16 @@ fn get_cargo_metadata_wdk_metadata(
     )
 }
 
+// Test name is of form Given When Then
+// Given: A driver project
+// When: Default values are provided
+// Then: It builds successfully
 #[test]
-pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_builds_successfully_simplified(
-) {
+pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -618,8 +627,8 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
+        profile.clone().to_string(),
+        target_arch.clone().to_string(),
         sample_class,
     );
     let package_project_action = package_project
@@ -628,7 +637,7 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
         .expect_cargo_build(driver_name, None)
-        .expect_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -637,6 +646,7 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
@@ -664,10 +674,342 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
     assert_eq!(run_result.is_ok(), true);
 }
 
+#[test]
+pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, &driver_name, &driver_version, Some(wdk_metadata));
+
+    let expected_certmgr_output = Output {
+        status: ExitStatus::default(),
+        stdout: r#"==============Certificate # 1 ==========
+                    Subject::
+                    [0,0] 2.5.4.3 (CN) WDRLocalTestCert
+                    Issuer::
+                    [0,0] 2.5.4.3 (CN) WDRLocalTestCert
+                    SerialNumber::
+                    5E 04 0D 63 35 20 76 A5 4A E1 96 BF CF 01 0F 96
+                    SHA1 Thumbprint::
+                        FB972842 C63CD369 E07D0C71 88E17921 B5813C71
+                    MD5 Thumbprint::
+                        832B3F18 707EA3F6 54465207 345A93F1
+                    Provider Type:: 1 Provider Name:: Microsoft Strong Cryptographic Provider Container: 68f79a6e-6afa-4ec7-be5b-16d6656edd3f KeySpec: 2
+                    NotBefore::
+                    Tue Jan 28 13:51:04 2025
+                    NotAfter::
+                    Sun Jan 01 05:29:59 2040
+                    ==============No CTLs ==========
+                    ==============No CRLs ==========
+                    ==============================================
+                    CertMgr Succeeded"#.as_bytes().to_vec(),
+        stderr: vec![],
+    };
+
+    let expected_create_cert_output = Output {
+        status: ExitStatus::default(),
+        stdout: vec![],
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone().to_string(),
+        target_arch.clone().to_string(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_simple_driver_project((workspace_member, package))
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root()
+        .expect_cargo_build(driver_name, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
+        .expect_stampinf(driver_name, &cwd, None)
+        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_certmgr_create_cert_from_store(&cwd, Some(expected_create_cert_output))
+        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
+        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
+        .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_verify_cat_file(driver_name, &cwd, None)
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_infverif(driver_name, &cwd, "KMDF", None);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), true);
+}
+
+#[test]
+pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_creating_it() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, &driver_name, &driver_version, Some(wdk_metadata));
+    let expected_certmgr_output = Output {
+        status: ExitStatus::default(),
+        stdout: r#"==============No Certificates ==========
+                            ==============No CTLs ==========
+                            ==============No CRLs ==========
+                            ==============================================
+                            CertMgr Succeeded"#
+            .as_bytes()
+            .to_vec(),
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone().to_string(),
+        target_arch.clone().to_string(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_simple_driver_project((workspace_member, package))
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root()
+        .expect_cargo_build(driver_name, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, false)
+        .expect_dir_created(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
+        .expect_stampinf(driver_name, &cwd, None)
+        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_makecert(&cwd, None)
+        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
+        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
+        .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_verify_cat_file(driver_name, &cwd, None)
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_infverif(driver_name, &cwd, "KMDF", None);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), true);
+}
+
+#[test]
+pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fail() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, &driver_name, &driver_version, Some(wdk_metadata));
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone().to_string(),
+        target_arch.clone().to_string(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_simple_driver_project((workspace_member, package))
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root()
+        .expect_cargo_build(driver_name, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, false)
+        .expect_dir_created(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, false);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), false);
+}
+
+#[test]
+pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_should_fail() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, &driver_name, &driver_version, Some(wdk_metadata));
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone().to_string(),
+        target_arch.clone().to_string(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_simple_driver_project((workspace_member, package))
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root()
+        .expect_cargo_build(driver_name, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, false);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), false);
+}
+
+#[test]
+pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package_should_fail() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = crate::cli::Profile::Debug;
+    let target_arch = crate::cli::TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, &driver_name, &driver_version, Some(wdk_metadata));
+
+    let expected_stampinf_output = Output {
+        status: ExitStatus::from_raw(1),
+        stdout: vec![],
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone().to_string(),
+        target_arch.clone().to_string(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_simple_driver_project((workspace_member, package))
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root()
+        .expect_cargo_build(driver_name, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
+        .expect_stampinf(driver_name, &cwd, Some(expected_stampinf_output));
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), false);
+}
+
 struct TestPackageAction {
     cwd: PathBuf,
-    profile: Profile,
-    target_arch: TargetArch,
+    profile: String,
+    target_arch: String,
     sample_class: bool,
 
     cargo_metadata: Option<Metadata>,
@@ -686,7 +1028,13 @@ trait TestSetupPackageExpectations {
     fn expect_path_canonicalization_package_root(self) -> Self;
     fn expect_path_canonicalization_workspace_root(self) -> Self;
     fn expect_path_canonicalization_cwd(self) -> Self;
-    fn expect_dir_exists(self, driver_name: &str, driver_dir: &PathBuf, does_exist: bool) -> Self;
+    fn expect_self_signed_cert_file_exists(self, driver_dir: &PathBuf, does_exist: bool) -> Self;
+    fn expect_final_package_dir_exists(
+        self,
+        driver_name: &str,
+        driver_dir: &PathBuf,
+        does_exist: bool,
+    ) -> Self;
     fn expect_dir_created(self, driver_name: &str, driver_dir: &PathBuf, created: bool) -> Self;
     fn expect_cargo_build(self, driver_name: &str, override_output: Option<Output>) -> Self;
     fn expect_inx_file_exists(
@@ -746,7 +1094,6 @@ trait TestSetupPackageExpectations {
     fn expect_certmgr_exists_check(self, override_output: Option<Output>) -> Self;
     fn expect_certmgr_create_cert_from_store(
         self,
-        driver_name: &str,
         driver_dir: &PathBuf,
         override_output: Option<Output>,
     ) -> Self;
@@ -792,7 +1139,7 @@ trait TestSetupPackageExpectations {
 }
 
 impl TestPackageAction {
-    fn new(cwd: PathBuf, profile: Profile, target_arch: TargetArch, sample_class: bool) -> Self {
+    fn new(cwd: PathBuf, profile: String, target_arch: String, sample_class: bool) -> Self {
         let mock_run_command = MockRunCommand::new();
         let mock_wdk_build_provider = MockWdkBuildProvider::new();
         let mock_fs_provider = MockFSProvider::new();
@@ -893,9 +1240,30 @@ impl TestSetupPackageExpectations for TestPackageAction {
         self
     }
 
-    fn expect_dir_exists(mut self, driver_name: &str, cwd: &PathBuf, does_exist: bool) -> Self {
+    fn expect_self_signed_cert_file_exists(
+        mut self,
+        driver_dir: &PathBuf,
+        does_exist: bool,
+    ) -> Self {
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_src_driver_cert_path =
+            expected_target_dir.clone().join("WDRLocalTestCert.cer");
+        self.mock_fs_provider
+            .expect_exists()
+            .with(eq(expected_src_driver_cert_path.clone()))
+            .once()
+            .returning(move |_| does_exist);
+        self
+    }
+
+    fn expect_final_package_dir_exists(
+        mut self,
+        driver_name: &str,
+        cwd: &PathBuf,
+        does_exist: bool,
+    ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = cwd.join("target").join(&self.profile.to_string());
+        let expected_target_dir = cwd.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         self.mock_fs_provider
@@ -906,8 +1274,26 @@ impl TestSetupPackageExpectations for TestPackageAction {
         self
     }
 
-    fn expect_dir_created(self, driver_name: &str, cwd: &PathBuf, created: bool) -> Self {
-        todo!()
+    fn expect_dir_created(mut self, driver_name: &str, cwd: &PathBuf, created: bool) -> Self {
+        let expected_driver_name_underscored = driver_name.replace("-", "_");
+        let expected_target_dir = cwd.join("target").join(&self.profile);
+        let expected_final_package_dir_path =
+            expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
+        self.mock_fs_provider
+            .expect_create_dir()
+            .with(eq(expected_final_package_dir_path.clone()))
+            .once()
+            .returning(move |_| {
+                if created {
+                    Ok(())
+                } else {
+                    Err(Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "create error",
+                    ))
+                }
+            });
+        self
     }
 
     fn expect_cargo_build(mut self, driver_name: &str, override_output: Option<Output>) -> Self {
@@ -962,7 +1348,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         driver_name: &str,
         driver_dir: &PathBuf,
     ) -> Self {
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_driver_name_underscored = driver_name.replace("-", "_");
         let expected_src_driver_dll_path =
             expected_target_dir.join(format!("{}.dll", expected_driver_name_underscored));
@@ -979,6 +1365,46 @@ impl TestSetupPackageExpectations for TestPackageAction {
         self
     }
 
+    // fn expect_inx_file_exists(
+    //     mut self,
+    //     driver_name: &str,
+    //     driver_dir: &PathBuf,
+    //     does_exist: bool,
+    // ) -> Self {
+    //     let expected_driver_name_underscored = driver_name.replace("-", "_");
+    //     let expected_inx_file_path =
+    //         driver_dir.join(format!("{}.inx", expected_driver_name_underscored));
+    //     self.mock_fs_provider
+    //         .expect_exists()
+    //         .with(eq(expected_inx_file_path))
+    //         .once()
+    //         .returning(move |_| does_exist);
+    //     self
+    // }
+
+    // fn expect_rename_driver_binary_dll_to_sys(
+    //     mut self,
+    //     driver_name: &str,
+    //     driver_dir: &PathBuf,
+    // ) -> Self {
+    //     let expected_target_dir =
+    // driver_dir.join("target").join(&self.profile.to_string());
+    //     let expected_driver_name_underscored = driver_name.replace("-", "_");
+    //     let expected_src_driver_dll_path =
+    //         expected_target_dir.join(format!("{}.dll",
+    // expected_driver_name_underscored));     let expected_src_driver_sys_path
+    // =         expected_target_dir.join(format!("{}.sys",
+    // expected_driver_name_underscored));     self.mock_fs_provider
+    //         .expect_rename()
+    //         .with(
+    //             eq(expected_src_driver_dll_path),
+    //             eq(expected_src_driver_sys_path.clone()),
+    //         )
+    //         .once()
+    //         .returning(|_, _| Ok(()));
+    //     self
+    // }
+
     fn expect_copy_driver_binary_sys_to_package_folder(
         mut self,
         driver_name: &str,
@@ -986,7 +1412,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1021,7 +1447,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1056,7 +1482,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1091,7 +1517,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1127,7 +1553,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1162,20 +1588,12 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // Run stampinf command
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_dest_driver_inf_path = expected_final_package_dir_path
             .clone()
             .join(format!("{}.inf", expected_driver_name_underscored));
-        let expected_output = match override_output {
-            Some(output) => output,
-            None => Output {
-                status: ExitStatus::default(),
-                stdout: vec![],
-                stderr: vec![],
-            },
-        };
 
         let expected_stampinf_command: &'static str = "stampinf";
         let wdk_metadata = Wdk::try_from(self.cargo_metadata.as_ref().unwrap()).unwrap();
@@ -1213,7 +1631,21 @@ impl TestSetupPackageExpectations for TestPackageAction {
                     },
                 )
                 .once()
-                .returning(move |_, _, _| Ok(expected_output.to_owned()));
+                .returning(move |_, _, _| match override_output.to_owned() {
+                    Some(output) => match output.status.code() {
+                        Some(0) => Ok(Output {
+                            status: ExitStatus::from_raw(0),
+                            stdout: vec![],
+                            stderr: vec![],
+                        }),
+                        _ => Err(CommandError::from_output("stampinf", &vec![], output)),
+                    },
+                    None => Ok(Output {
+                        status: ExitStatus::default(),
+                        stdout: vec![],
+                        stderr: vec![],
+                    }),
+                });
         }
         self
     }
@@ -1226,7 +1658,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // Run inf2cat command
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_output = match override_output {
@@ -1292,17 +1724,53 @@ impl TestSetupPackageExpectations for TestPackageAction {
     }
 
     fn expect_certmgr_create_cert_from_store(
-        self,
-        driver_name: &str,
+        mut self,
         driver_dir: &PathBuf,
         override_output: Option<Output>,
     ) -> Self {
-        todo!()
+        // create cert from store using certmgr
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_self_signed_cert_file_path =
+            expected_target_dir.clone().join("WDRLocalTestCert.cer");
+
+        let expected_certmgr_command: &'static str = "certmgr.exe";
+        let expected_certmgr_args: Vec<String> = vec![
+            "-put".to_string(),
+            "-s".to_string(),
+            "WDRTestCertStore".to_string(),
+            "-c".to_string(),
+            "-n".to_string(),
+            "WDRLocalTestCert".to_string(),
+            expected_self_signed_cert_file_path
+                .to_string_lossy()
+                .to_string(),
+        ];
+        let expected_output = match override_output {
+            Some(output) => output,
+            None => Output {
+                status: ExitStatus::default(),
+                stdout: vec![],
+                stderr: vec![],
+            },
+        };
+        self.mock_run_command
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      -> bool {
+                    command == expected_certmgr_command && args == expected_certmgr_args
+                },
+            )
+            .once()
+            .returning(move |_, _, _| Ok(expected_output.to_owned()));
+        self
     }
 
     fn expect_makecert(mut self, driver_dir: &PathBuf, override_output: Option<Output>) -> Self {
         // create self signed certificate using makecert
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_output = match override_output {
             Some(output) => output,
             None => Output {
@@ -1351,7 +1819,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_output = match override_output {
@@ -1406,7 +1874,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_output = match override_output {
@@ -1460,7 +1928,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_output = match override_output {
@@ -1508,7 +1976,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_output = match override_output {
@@ -1574,7 +2042,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
         let expected_infverif_command: &'static str = "infverif";
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = driver_dir.join("target").join(&self.profile);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_output = match override_output {
