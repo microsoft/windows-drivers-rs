@@ -1,20 +1,24 @@
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
 // Module imports
 mod error;
 use error::PackageProjectError;
 mod package_driver;
 
-
 // Non local imports
+use std::{fmt, path::PathBuf, result::Result::Ok};
+
 use anyhow::Result;
 use log::{debug, info};
 use package_driver::PackageDriver;
-use std::{fmt, path::PathBuf, result::Result::Ok};
 use wdk_build::metadata::Wdk;
 
 use super::build::BuildAction;
-use crate::{cli::{Profile, TargetArch}, providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider}};
+use crate::{
+    cli::{Profile, TargetArch},
+    providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider},
+};
 
 struct TargetTriplet(String);
 
@@ -57,10 +61,17 @@ impl<'a> PackageAction<'a> {
     ) -> Result<Self> {
         // TODO: validate and init attrs here
         let path_env_var_values = wdk_build::cargo_make::setup_path()?;
-        debug!("Values set into PATH env variable: {:?}", path_env_var_values.into_iter().collect::<Vec<String>>());
+        debug!(
+            "Values set into PATH env variable: {:?}",
+            path_env_var_values.into_iter().collect::<Vec<String>>()
+        );
 
-        debug!("Initializing packaging for project at: {}", working_dir.display());
-        // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because it is already canonicalized, * (wild chars) won't be resolved to actual paths
+        debug!(
+            "Initializing packaging for project at: {}",
+            working_dir.display()
+        );
+        // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because
+        // it is already canonicalized, * (wild chars) won't be resolved to actual paths
         let working_dir = fs_provider.canonicalize_path(working_dir)?;
         let target_triplet = TargetTriplet::from(&target_arch);
         Ok(Self {
@@ -78,11 +89,19 @@ impl<'a> PackageAction<'a> {
     // TODO: Add docs
     pub fn run(&self) -> Result<(), PackageProjectError> {
         // Get Cargo metadata at the current path
-        let working_dir: PathBuf = self.working_dir.to_string_lossy().trim_start_matches("\\\\?\\").into();
-        let cargo_metadata = self.wdk_build_provider.get_cargo_metadata_at_path(&working_dir)?;
+        let working_dir: PathBuf = self
+            .working_dir
+            .to_string_lossy()
+            .trim_start_matches("\\\\?\\")
+            .into();
+        let cargo_metadata = self
+            .wdk_build_provider
+            .get_cargo_metadata_at_path(&working_dir)?;
 
         // Get target directory for the profile.
-        let target_directory = cargo_metadata.target_directory.join(&self.profile.to_string());
+        let target_directory = cargo_metadata
+            .target_directory
+            .join(&self.profile.to_string());
 
         // Get WDK metadata once per workspace
         let wdk_metadata = Wdk::try_from(&cargo_metadata)?;
@@ -90,7 +109,9 @@ impl<'a> PackageAction<'a> {
         let workspace_packages = cargo_metadata.workspace_packages();
 
         // TODO: Add tests
-        let workspace_root = self.fs_provider.canonicalize_path(cargo_metadata.workspace_root.clone().into())?;
+        let workspace_root = self
+            .fs_provider
+            .canonicalize_path(cargo_metadata.workspace_root.clone().into())?;
 
         if workspace_root.eq(&self.working_dir) {
             debug!("Running from workspace root");
@@ -154,7 +175,14 @@ impl<'a> PackageAction<'a> {
         Ok(())
     }
 
-    fn build_and_package(&self, working_dir: &PathBuf, wdk_metadata: &Wdk, metadata: &serde_json::Value, package_name: String, target_dir: &PathBuf) -> Result<(), PackageProjectError> {
+    fn build_and_package(
+        &self,
+        working_dir: &PathBuf,
+        wdk_metadata: &Wdk,
+        metadata: &serde_json::Value,
+        package_name: String,
+        target_dir: &PathBuf,
+    ) -> Result<(), PackageProjectError> {
         info!("Processing package: {}", package_name);
         BuildAction::new(&package_name, self.verbosity_level, self.command_exec).run()?;
         if metadata.get("wdk").is_none() {

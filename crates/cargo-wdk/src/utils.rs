@@ -1,8 +1,11 @@
 // FIXME: Error types and rename file as file_utils.rs
+use std::{
+    fs::{File, OpenOptions},
+    io::{Read, Write},
+    path::PathBuf,
+};
+
 use crate::errors::FileError;
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
-use std::path::PathBuf;
 
 // Helper function to read the contents of a file into a string
 pub fn read_file_to_string(path: &PathBuf) -> Result<String, FileError> {
@@ -33,12 +36,14 @@ pub fn read_file_to_string(path: &PathBuf) -> Result<String, FileError> {
 // // Helper function to read the contents of a file into a byte vector
 // pub fn read_file_to_bytes(path: &PathBuf) -> Result<Vec<u8>, FileError> {
 //     if !path.exists() {
-//         return Err(FileError::OpenError(format!("File does not exist: {}", path.to_string_lossy())));
-//     }
+//         return Err(FileError::OpenError(format!("File does not exist: {}",
+// path.to_string_lossy())));     }
 //     let mut content = Vec::new();
-//     let mut file = File::open(path).map_err(|e| FileError::OpenError(format!("Failed to open file: {}: {}", path.to_string_lossy(), e)))?;
-//     file.read_to_end(&mut content).map_err(|e| FileError::ReadError(format!("Failed to read file: {}: {}", path.to_string_lossy(), e)))?;
-//     Ok(content)
+//     let mut file = File::open(path).map_err(|e|
+// FileError::OpenError(format!("Failed to open file: {}: {}",
+// path.to_string_lossy(), e)))?;     file.read_to_end(&mut content).map_err(|e|
+// FileError::ReadError(format!("Failed to read file: {}: {}",
+// path.to_string_lossy(), e)))?;     Ok(content)
 // }
 
 // Helper function to write data to a file

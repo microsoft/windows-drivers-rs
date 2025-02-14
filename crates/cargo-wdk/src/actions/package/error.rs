@@ -1,4 +1,5 @@
 use std::{path::PathBuf, string::FromUtf8Error};
+
 use crate::errors::CommandError;
 
 #[derive(thiserror::Error, Debug)]
@@ -23,7 +24,10 @@ pub enum PackageProjectError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum PackageDriverError {
-    #[error("Missing .inx file in source path: {0}, Please ensure you are in a Rust driver project directory.")]
+    #[error(
+        "Missing .inx file in source path: {0}, Please ensure you are in a Rust driver project \
+         directory."
+    )]
     MissingInxSrcFileError(PathBuf),
     #[error("Failed to copy file error, src: {src:?}, dest: {dest:?}, error: {error:?}")]
     CopyFileError {
@@ -39,7 +43,10 @@ pub enum PackageDriverError {
     CreateCertFileFromStoreError(CommandError),
     #[error("Checking for existence of cert in store using certmgr, error: {0}")]
     VerifyCertExistsInStoreError(CommandError),
-    #[error("Error reading stdout while checking for existence of cert in store using certmgr, error: {0}")]
+    #[error(
+        "Error reading stdout while checking for existence of cert in store using certmgr, error: \
+         {0}"
+    )]
     VerifyCertExistsInStoreInvalidCommandOutputError(FromUtf8Error),
     #[error("Error generating certificate to cert store using makecert, error: {0}")]
     CertGenerationInStoreError(CommandError),
@@ -50,7 +57,7 @@ pub enum PackageDriverError {
     #[error("Error verifying inf file using infverif, error: {0}")]
     InfVerificationError(CommandError),
 
-    //TODO: We can make this specific error instead of generic one
+    // TODO: We can make this specific error instead of generic one
     #[error("Error from wdk build, error: {0}")]
     WdkBuildConfigError(#[from] wdk_build::ConfigError),
     #[error("Io error, error: {0}")]

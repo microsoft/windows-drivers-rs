@@ -1,13 +1,15 @@
-use std::fmt;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{fmt, path::PathBuf, str::FromStr};
 
 use anyhow::Ok;
 use clap::{Args, Parser, Subcommand};
-use crate::actions::package::PackageAction;
-use crate::actions::new::NewAction;
-use crate::providers::exec::CommandExec;
-use crate::providers::{fs, wdk_build};
+
+use crate::{
+    actions::{
+        new::{DriverType, NewAction},
+        package::PackageAction,
+    },
+    providers::{exec::CommandExec, fs, wdk_build},
+};
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -28,24 +30,30 @@ pub struct Cli {
 
 impl Cli {
     pub fn run(self) -> anyhow::Result<()> {
-        let wdk_build = wdk_build::WdkBuild{};
-        let command_exec= CommandExec{};
-        let fs_provider = fs::FS{};
+        let wdk_build = wdk_build::WdkBuild {};
+        let command_exec = CommandExec {};
+        let fs_provider = fs::FS {};
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
-                let mut new_action = NewAction::new(cli_args.driver_project_name, cli_args.driver_type, cli_args.cwd, &command_exec)?;
+                let mut new_action = NewAction::new(
+                    cli_args.driver_project_name,
+                    cli_args.driver_type.into(),
+                    cli_args.cwd,
+                    &command_exec,
+                )?;
                 new_action.create_new_project()
             }
             Subcmd::Build(cli_args) => {
-                let package_action = PackageAction::new(cli_args.cwd, 
-                    cli_args.profile, 
-                    cli_args.target_arch, 
-                    cli_args.sample_class, 
+                let package_action = PackageAction::new(
+                    cli_args.cwd,
+                    cli_args.profile,
+                    cli_args.target_arch,
+                    cli_args.sample_class,
                     self.verbose,
                     &wdk_build,
                     &command_exec,
-                    &fs_provider
+                    &fs_provider,
                 )?;
                 package_action.run()?;
                 Ok(())
@@ -59,47 +67,46 @@ pub enum Subcmd {
     #[clap(name = "new", about = "Create a new Windows Driver Kit project")]
     New(NewProjectArgs),
     #[clap(name = "build", about = "Build the Windows Driver Kit project")]
-    Build(PackageProjectArgs)
+    Build(PackageProjectArgs),
 }
 
 #[derive(Debug, Clone)]
-pub enum DriverType {
+pub enum DriverTypeArg {
     KMDF,
     UMDF,
     WDM,
 }
 
-impl FromStr for DriverType {
+impl Into<DriverType> for DriverTypeArg {
+    fn into(self) -> DriverType {
+        match self {
+            DriverTypeArg::KMDF => DriverType::KMDF,
+            DriverTypeArg::UMDF => DriverType::UMDF,
+            DriverTypeArg::WDM => DriverType::WDM,
+        }
+    }
+}
+
+impl FromStr for DriverTypeArg {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "kmdf" => std::result::Result::Ok(DriverType::KMDF),
-            "umdf" => std::result::Result::Ok(DriverType::UMDF),
-            "wdm" => std::result::Result::Ok(DriverType::WDM),
+            "kmdf" => std::result::Result::Ok(DriverTypeArg::KMDF),
+            "umdf" => std::result::Result::Ok(DriverTypeArg::UMDF),
+            "wdm" => std::result::Result::Ok(DriverTypeArg::WDM),
             _ => Err(format!("'{}' is not a valid driver type", s)),
         }
     }
 }
 
-impl fmt::Display for DriverType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            DriverType::KMDF => "kmdf",
-            DriverType::UMDF => "umdf",
-            DriverType::WDM => "wdm",
-        };
-        write!(f, "{}", s)
-    }
-}
-
 #[derive(Debug, Args)]
 pub struct NewProjectArgs {
-    #[clap(help = "Driver Project Name", default_value = "")]
+    #[clap(help = "Driver Project Name")]
     pub driver_project_name: String,
 
-    #[clap(long, help = "Driver Type", index = 2)]
-    pub driver_type: DriverType,
+    #[clap(long, help = "Driver Type")]
+    pub driver_type: DriverTypeArg,
 
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
@@ -136,7 +143,7 @@ impl fmt::Display for Profile {
 #[derive(Debug, Clone)]
 pub enum TargetArch {
     X86_64,
-    Aarch64
+    Aarch64,
 }
 
 impl FromStr for TargetArch {

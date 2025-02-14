@@ -1,17 +1,33 @@
-use std::{fs::create_dir_all, path::PathBuf};
+use std::{fmt, fs::create_dir_all, path::PathBuf};
+
+use anyhow::{Ok, Result};
+use include_dir::{include_dir, Dir};
+use log::debug;
 
 use crate::{
-    cli::{Cli, DriverType},
     errors::NewProjectError,
     providers::exec::RunCommand,
     utils::{append_to_file, read_file_to_string, write_to_file},
 };
-use anyhow::{Ok, Result};
-use clap::{error::ErrorKind, CommandFactory, Error as ClapError};
-use include_dir::{include_dir, Dir};
-use log::{debug, error};
 
 pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
+
+pub enum DriverType {
+    KMDF,
+    UMDF,
+    WDM,
+}
+
+impl fmt::Display for DriverType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            DriverType::KMDF => "kmdf",
+            DriverType::UMDF => "umdf",
+            DriverType::WDM => "wdm",
+        };
+        write!(f, "{}", s)
+    }
+}
 
 pub struct NewAction<'a> {
     driver_project_name: String,
@@ -32,12 +48,12 @@ impl<'a> NewAction<'a> {
             driver_project_name,
             driver_type,
             cwd,
-            command_exec
+            command_exec,
         })
     }
+
     pub fn create_new_project(&mut self) -> Result<()> {
         debug!("Creating new project");
-        self.check_driver_project_name()?;
         self.run_cargo_new()?;
         self.cwd.push(&self.driver_project_name);
         self.driver_project_name = self.driver_project_name.replace("-", "_");
@@ -54,19 +70,6 @@ impl<'a> NewAction<'a> {
             self.cwd.display()
         );
         Ok(())
-    }
-
-    fn check_driver_project_name(&mut self) -> Result<()> {
-        debug!("Checking driver project name");
-        Ok(if self.driver_project_name.is_empty() {
-            let mut cmd = Cli::command();
-            let err = ClapError::raw(
-                ErrorKind::MissingRequiredArgument,
-                "Driver project name must be provided and cannot be empty.",
-            );
-            error!("Driver project name is missing");
-            err.format(&mut cmd).exit();
-        })
     }
 
     fn run_cargo_new(&self) -> Result<()> {
@@ -126,7 +129,8 @@ impl<'a> NewAction<'a> {
         cargo_toml_content = cargo_toml_content.replace("[dependencies]\n", "");
         write_to_file(&cargo_toml_path, cargo_toml_content.as_bytes())?;
 
-        let template_cargo_toml_path = PathBuf::from(&self.driver_type.to_string()).join("Cargo.toml.tmp");
+        let template_cargo_toml_path =
+            PathBuf::from(&self.driver_type.to_string()).join("Cargo.toml.tmp");
         let template_cargo_toml_file = TEMPLATES_DIR
             .get_file(template_cargo_toml_path.to_str().unwrap())
             .ok_or_else(|| {
@@ -143,7 +147,8 @@ impl<'a> NewAction<'a> {
             "Creating .inx file for driver: {}",
             self.driver_project_name
         );
-        let inx_template_path = PathBuf::from(&self.driver_type.to_string()).join("driver_name.inx.tmp");
+        let inx_template_path =
+            PathBuf::from(&self.driver_type.to_string()).join("driver_name.inx.tmp");
         let inx_template_file = TEMPLATES_DIR
             .get_file(inx_template_path.to_str().unwrap())
             .ok_or_else(|| {

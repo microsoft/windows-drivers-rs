@@ -1,5 +1,5 @@
-use std::io;
-use std::process::Output;
+use std::{io, process::Output};
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]

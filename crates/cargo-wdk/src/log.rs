@@ -1,5 +1,10 @@
-use log4rs::{append::console::ConsoleAppender, config::{Appender, Root}, encode::pattern::PatternEncoder, Config};
 use anyhow::Result;
+use log4rs::{
+    append::console::ConsoleAppender,
+    config::{Appender, Root},
+    encode::pattern::PatternEncoder,
+    Config,
+};
 
 pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) -> Result<()> {
     let stdout = ConsoleAppender::builder()
@@ -26,7 +31,9 @@ pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) -> Result<(
     Ok(())
 }
 
-pub fn get_cargo_verbose_flags<'a>(verbosity_level: clap_verbosity_flag::Verbosity) -> Option<&'a str> {
+pub fn get_cargo_verbose_flags<'a>(
+    verbosity_level: clap_verbosity_flag::Verbosity,
+) -> Option<&'a str> {
     match verbosity_level.filter() {
         clap_verbosity_flag::VerbosityFilter::Off => Some("-q"),
         clap_verbosity_flag::VerbosityFilter::Error => None,
