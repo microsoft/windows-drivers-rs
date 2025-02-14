@@ -15,7 +15,7 @@ use wdk_build::{metadata::Wdk, DriverConfig};
 use super::PackageAction;
 use crate::{
     actions::package::error::PackageProjectError,
-    cli::{PackageProjectArgs, TargetArch},
+    actions::{Profile, TargetArch},
     errors::CommandError,
     providers::{exec::MockRunCommand, fs::MockFSProvider, wdk_build::MockWdkBuildProvider},
 };
@@ -36,8 +36,8 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
 
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // Emulated driver crate data
@@ -440,17 +440,11 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
         .returning(|| Ok(26100));
 
     // Act
-    let def_package_project = PackageProjectArgs {
-        cwd: cwd,
+    let package_project = PackageAction::new(
+        cwd,
         profile,
         target_arch,
         sample_class,
-    };
-    let package_project = PackageAction::new(
-        def_package_project.cwd,
-        def_package_project.profile,
-        def_package_project.target_arch,
-        def_package_project.sample_class,
         clap_verbosity_flag::Verbosity::new(1, 0),
         &wdk_build_provider_mock,
         &run_command_mock,
@@ -603,8 +597,8 @@ fn get_cargo_metadata_wdk_metadata(
 pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -629,8 +623,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -661,8 +655,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
 
     let package_project = PackageAction::new(
         cwd,
-        profile,
-        target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
         clap_verbosity_flag::Verbosity::new(1, 0),
         package_project_action.mock_wdk_build_provider(),
@@ -680,8 +674,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
 pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = false;
 
     // driver project data
@@ -706,8 +700,8 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -757,8 +751,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Release;
-    let target_arch = crate::cli::TargetArch::Aarch64;
+    let profile = Profile::Release;
+    let target_arch = TargetArch::Aarch64;
     let sample_class = false;
 
     // driver project data
@@ -783,8 +777,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -833,8 +827,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
 pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -878,8 +872,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -929,8 +923,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
 pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_creating_it() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -954,8 +948,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1006,8 +1000,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
 pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1020,8 +1014,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1058,8 +1052,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1072,8 +1066,8 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1111,8 +1105,8 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1131,8 +1125,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1174,8 +1168,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1194,8 +1188,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1238,8 +1232,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1258,8 +1252,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1304,8 +1298,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1324,8 +1318,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1371,8 +1365,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1391,8 +1385,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1440,8 +1434,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = crate::cli::Profile::Debug;
-    let target_arch = crate::cli::TargetArch::X86_64;
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
     let sample_class = true;
 
     // driver project data
@@ -1460,8 +1454,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 
     let package_project = TestPackageAction::new(
         cwd.clone(),
-        profile.clone().to_string(),
-        &target_arch,
+        profile.clone(),
+        target_arch.clone(),
         sample_class,
     );
     let package_project_action = package_project
@@ -1510,19 +1504,14 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     );
 }
 
-fn from_target_arch_to_command_arg(target_arch: &TargetArch) -> String {
-    match target_arch {
-        TargetArch::X86_64 => "amd64".to_string(),
-        TargetArch::Aarch64 => "arm64".to_string(),
-    }
-}
 struct TestPackageAction {
     cwd: PathBuf,
-    profile: String,
-    target_arch: String,
+    profile: Profile,
+    target_arch: TargetArch,
     sample_class: bool,
 
     cargo_metadata: Option<Metadata>,
+    stampinf_arg: String,
     inf2cat_arg: String,
 
     // mocks
@@ -1650,11 +1639,14 @@ trait TestSetupPackageExpectations {
 }
 
 impl TestPackageAction {
-    fn new(cwd: PathBuf, profile: String, target_arch: &TargetArch, sample_class: bool) -> Self {
+    fn new(cwd: PathBuf, profile: Profile, target_arch: TargetArch, sample_class: bool) -> Self {
         let mock_run_command = MockRunCommand::new();
         let mock_wdk_build_provider = MockWdkBuildProvider::new();
         let mock_fs_provider = MockFSProvider::new();
-        let command_arg_arch = from_target_arch_to_command_arg(target_arch);
+        let command_arg_arch = match target_arch {
+            TargetArch::X86_64 => "amd64".to_string(),
+            TargetArch::Aarch64 => "arm64".to_string(),
+        };
         let command_arg_os_mapping = match target_arch {
             TargetArch::X86_64 => "/os:10_x64",
             TargetArch::Aarch64 => "/os:Server10_arm64",
@@ -1663,12 +1655,13 @@ impl TestPackageAction {
         Self {
             cwd,
             profile,
-            target_arch: command_arg_arch,
+            target_arch,
             sample_class,
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
             cargo_metadata: None,
+            stampinf_arg: command_arg_arch.to_string(),
             inf2cat_arg: command_arg_os_mapping.to_string(),
         }
     }
@@ -1763,7 +1756,9 @@ impl TestSetupPackageExpectations for TestPackageAction {
         driver_dir: &PathBuf,
         does_exist: bool,
     ) -> Self {
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir
+            .join("target")
+            .join(&self.profile.to_string().to_string());
         let expected_src_driver_cert_path =
             expected_target_dir.clone().join("WDRLocalTestCert.cer");
         self.mock_fs_provider
@@ -1781,7 +1776,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         does_exist: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = cwd.join("target").join(&self.profile);
+        let expected_target_dir = cwd.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         self.mock_fs_provider
@@ -1794,7 +1789,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn expect_dir_created(mut self, driver_name: &str, cwd: &PathBuf, created: bool) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = cwd.join("target").join(&self.profile);
+        let expected_target_dir = cwd.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         self.mock_fs_provider
@@ -1866,7 +1861,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         driver_name: &str,
         driver_dir: &PathBuf,
     ) -> Self {
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_driver_name_underscored = driver_name.replace("-", "_");
         let expected_src_driver_dll_path =
             expected_target_dir.join(format!("{}.dll", expected_driver_name_underscored));
@@ -1890,7 +1885,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1925,7 +1920,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1960,7 +1955,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -1995,7 +1990,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2031,7 +2026,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2066,7 +2061,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // Run stampinf command
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_dest_driver_inf_path = expected_final_package_dir_path
@@ -2087,7 +2082,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
                 "-d".to_string(),
                 "*".to_string(),
                 "-a".to_string(),
-                self.target_arch.clone(),
+                self.stampinf_arg.clone(),
                 "-c".to_string(),
                 expected_cat_file_name,
                 "-v".to_string(),
@@ -2136,7 +2131,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // Run inf2cat command
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
 
@@ -2219,7 +2214,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         // create cert from store using certmgr
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_self_signed_cert_file_path =
             expected_target_dir.clone().join("WDRLocalTestCert.cer");
 
@@ -2266,7 +2261,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn expect_makecert(mut self, driver_dir: &PathBuf, override_output: Option<Output>) -> Self {
         // create self signed certificate using makecert
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_makecert_command: &'static str = "makecert";
         let expected_src_driver_cert_path =
             expected_target_dir.clone().join("WDRLocalTestCert.cer");
@@ -2320,7 +2315,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_signtool_command: &'static str = "signtool";
@@ -2381,7 +2376,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_signtool_command: &'static str = "signtool";
@@ -2441,7 +2436,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_signtool_command: &'static str = "signtool";
@@ -2494,7 +2489,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_signtool_command: &'static str = "signtool";
@@ -2567,7 +2562,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
         let expected_infverif_command: &'static str = "infverif";
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile);
+        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let expected_dest_inf_file_path = expected_final_package_dir_path

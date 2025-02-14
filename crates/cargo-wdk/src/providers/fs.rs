@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    fs::{copy, create_dir, rename},
+    path::PathBuf,
+};
 
 use mockall::automock;
 
@@ -19,7 +22,7 @@ impl FSProvider for FS {
     }
 
     fn copy(&self, src: &PathBuf, dest: &PathBuf) -> Result<u64, std::io::Error> {
-        std::fs::copy(src, dest)
+        copy(src, dest)
     }
 
     fn exists(&self, path: &PathBuf) -> bool {
@@ -27,10 +30,10 @@ impl FSProvider for FS {
     }
 
     fn create_dir(&self, path: &PathBuf) -> Result<(), std::io::Error> {
-        std::fs::create_dir(path)
+        create_dir(path)
     }
 
     fn rename(&self, src: &PathBuf, dest: &PathBuf) -> Result<(), std::io::Error> {
-        std::fs::rename(src, dest)
+        rename(src, dest)
     }
 }

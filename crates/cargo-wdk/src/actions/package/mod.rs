@@ -14,17 +14,14 @@ use log::{debug, info};
 use package_driver::PackageDriver;
 use wdk_build::metadata::Wdk;
 
-use super::build::BuildAction;
-use crate::{
-    cli::{Profile, TargetArch},
-    providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider},
-};
+use super::{build::BuildAction, Profile, TargetArch};
+use crate::providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider};
 
 struct TargetTriplet(String);
 
 impl From<&TargetArch> for TargetTriplet {
     fn from(target_arch: &TargetArch) -> Self {
-        Self(format!("{}-pc-windows-msvc", target_arch))
+        Self(format!("{}-pc-windows-msvc", target_arch.to_string()))
     }
 }
 

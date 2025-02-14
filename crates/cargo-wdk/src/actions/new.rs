@@ -1,9 +1,10 @@
-use std::{fmt, fs::create_dir_all, path::PathBuf};
+use std::{fs::create_dir_all, path::PathBuf};
 
 use anyhow::{Ok, Result};
 use include_dir::{include_dir, Dir};
 use log::debug;
 
+use super::DriverType;
 use crate::{
     errors::NewProjectError,
     providers::exec::RunCommand,
@@ -11,23 +12,6 @@ use crate::{
 };
 
 pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
-
-pub enum DriverType {
-    KMDF,
-    UMDF,
-    WDM,
-}
-
-impl fmt::Display for DriverType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            DriverType::KMDF => "kmdf",
-            DriverType::UMDF => "umdf",
-            DriverType::WDM => "wdm",
-        };
-        write!(f, "{}", s)
-    }
-}
 
 pub struct NewAction<'a> {
     driver_project_name: String,
