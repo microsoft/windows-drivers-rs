@@ -207,6 +207,8 @@ pub enum ApiSubset {
     Spb,
     /// API subset for Storage drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_storage/>
     Storage,
+    /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
+    Usb,
 }
 
 impl Default for Config {
@@ -404,6 +406,21 @@ impl Config {
                 }
                 include_paths.push(
                     kmdf_include_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
+
+                // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
+                // normally does not automatically include this search path, but it is required
+                // here so that the headers can be processed sucessfully.
+                let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
+                if !ufx_include_path.is_dir() {
+                    return Err(ConfigError::DirectoryNotFound {
+                        directory: ufx_include_path.to_string_lossy().into(),
+                    });
+                }
+                include_paths.push(
+                    ufx_include_path
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
@@ -627,8 +644,8 @@ impl Config {
             "--warn-=no-ignored-attributes",
             "--warn-=no-ignored-pragma-intrinsic",
             "--warn-=no-visibility",
-            "--warn-=no-microsoft-anon-tag",
-            "--warn-=no-microsoft-enum-forward-reference",
+            "--warn-=no-switch",
+            "--warn-=no-comment",
             // Don't warn for deprecated declarations. Deprecated items should be explicitly
             // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
             // definitions will trigger a -WDeprecated warning
@@ -637,6 +654,8 @@ impl Config {
             // `_variable` are separate tokens already, and don't need `##` to concatenate
             // them)
             "--warn-=no-invalid-token-paste",
+            // Windows SDK & DDK headers rely on Microsoft extensions to C/C++
+            "--warn-=no-microsoft",
         ]
         .into_iter()
         .map(std::string::ToString::to_string)
@@ -738,6 +757,47 @@ impl Config {
                 }
 
                 storage_headers
+            }
+            ApiSubset::Usb => {
+                let mut usb_headers = vec![
+                    "usb.h",
+                    "usbfnbase.h",
+                    "usbioctl.h",
+                    "usbspec.h",
+                    "Usbpmapi.h",
+                ];
+
+                // Kernel Mode
+                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
+                    usb_headers.extend([
+                        "usbbusif.h",
+                        "usbdlib.h",
+                        "usbfnattach.h",
+                        "usbfnioctl.h",
+                    ]);
+                }
+
+                // WDF
+                if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = self.driver_config {
+                    usb_headers.extend(["wdfusb.h"]);
+                }
+
+                // KMDF
+                if let DriverConfig::Kmdf(_) = self.driver_config {
+                    usb_headers.extend([
+                        "ucm/1.0/UcmCx.h",
+                        "UcmTcpci/1.0/UcmTcpciCx.h",
+                        "UcmUcsi/1.0/UcmucsiCx.h",
+                        "ucx/1.6/ucxclass.h",
+                        "ude/1.1/UdeCx.h",
+                        "ufx/1.1/ufxbase.h",
+                        "ufx/1.1/ufxclient.h",
+                        "ufxproprietarycharger.h",
+                        "urs/1.0/UrsCx.h",
+                    ]);
+                }
+
+                usb_headers
             }
         }
         .into_iter()

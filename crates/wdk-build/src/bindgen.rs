@@ -71,6 +71,23 @@ impl BuilderExt for Builder {
             .blocklist_item("ExAllocatePoolWithQuotaTag") // Deprecated
             .blocklist_item("ExAllocatePoolWithTagPriority") // Deprecated
             .blocklist_item("ExAllocatePool") // Deprecated
+            .blocklist_item("USBD_CalculateUsbBandwidth") // Deprecated
+            .blocklist_item("USBD_CreateConfigurationRequest") // Deprecated
+            .blocklist_item("USBD_Debug_LogEntry") // Deprecated
+            .blocklist_item("USBD_GetUSBDIVersion") // Deprecated
+            .blocklist_item("USBD_ParseConfigurationDescriptor") // Deprecated
+            .blocklist_item("USBD_QueryBusTime") // Deprecated
+            .blocklist_item("USBD_RegisterHcFilter") // Deprecated
+            .blocklist_item("IOCTL_USB_DIAG_IGNORE_HUBS_OFF") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_DIAG_IGNORE_HUBS_ON") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_DIAGNOSTIC_MODE_OFF") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_DIAGNOSTIC_MODE_ON") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_GET_HUB_CAPABILITIES") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_HCD_DISABLE_PORT") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_HCD_ENABLE_PORT") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_HCD_GET_STATS_1") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_HCD_GET_STATS_2") // Deprecated/Internal-Use-Only
+            .blocklist_item("IOCTL_USB_RESET_HUB") // Deprecated/Internal-Use-Only
             .opaque_type("_KGDTENTRY64") // No definition in WDK
             .opaque_type("_KIDTENTRY64") // No definition in WDK
             // FIXME: bitfield generated with non-1byte alignment in _MCG_CAP

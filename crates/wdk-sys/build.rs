@@ -136,6 +136,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("parallel_ports.rs", generate_parallel_ports),
     ("spb.rs", generate_spb),
     ("storage.rs", generate_storage),
+    ("usb.rs", generate_usb),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -208,6 +209,8 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Spb,
         #[cfg(feature = "storage")]
         ApiSubset::Storage,
+        #[cfg(feature = "usb")]
+        ApiSubset::Usb,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -238,6 +241,8 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Spb,
         #[cfg(feature = "storage")]
         ApiSubset::Storage,
+        #[cfg(feature = "usb")]
+        ApiSubset::Usb,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -484,6 +489,42 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
             let _ = (out_path, config); // Silence unused variable warnings when storage feature is not enabled
 
             info!("Skipping storage.rs generation since storage feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "usb")] {
+            info!("Generating bindings to WDK: usb.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("usb-input.h", &header_contents);
+
+                // Only allowlist files in the usb-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Usb) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("usb.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
+
+            info!("Skipping usb.rs generation since usb feature is not enabled");
             Ok(())
         }
     }
