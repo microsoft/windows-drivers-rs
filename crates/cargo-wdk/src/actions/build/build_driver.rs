@@ -28,7 +28,6 @@ impl<'a> BuildAction<'a> {
             Some(flag) => vec!["build", flag, "-p", self.package_name],
             None => vec!["build", "-p", self.package_name],
         };
-
         self.command_exec.run("cargo", &args, None)?;
         debug!("Done");
         Ok(())

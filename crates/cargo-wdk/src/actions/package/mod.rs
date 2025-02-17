@@ -83,9 +83,7 @@ impl<'a> PackageAction<'a> {
         })
     }
 
-    // TODO: Add docs
     pub fn run(&self) -> Result<(), PackageProjectError> {
-        // Get Cargo metadata at the current path
         let working_dir: PathBuf = self
             .working_dir
             .to_string_lossy()
@@ -94,22 +92,14 @@ impl<'a> PackageAction<'a> {
         let cargo_metadata = self
             .wdk_build_provider
             .get_cargo_metadata_at_path(&working_dir)?;
-
-        // Get target directory for the profile.
         let target_directory = cargo_metadata
             .target_directory
             .join(&self.profile.to_string());
-
-        // Get WDK metadata once per workspace
         let wdk_metadata = Wdk::try_from(&cargo_metadata)?;
-
         let workspace_packages = cargo_metadata.workspace_packages();
-
-        // TODO: Add tests
         let workspace_root = self
             .fs_provider
             .canonicalize_path(cargo_metadata.workspace_root.clone().into())?;
-
         if workspace_root.eq(&self.working_dir) {
             debug!("Running from workspace root");
             let target_directory: PathBuf = target_directory.into();

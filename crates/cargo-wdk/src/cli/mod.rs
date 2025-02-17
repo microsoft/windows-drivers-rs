@@ -1,12 +1,13 @@
 mod args;
+mod error;
 
-use anyhow::Ok;
+use anyhow::{Ok, Result};
 use args::{NewProjectArgs, PackageProjectArgs};
 use clap::{Parser, Subcommand};
 
 use crate::{
     actions::{new::NewAction, package::PackageAction},
-    providers::{exec::CommandExec, fs, wdk_build},
+    providers::{exec::CommandExec, fs::FS, wdk_build},
 };
 
 #[derive(Debug, Parser)]
@@ -35,21 +36,20 @@ pub enum Subcmd {
 }
 
 impl Cli {
-    pub fn run(self) -> anyhow::Result<()> {
+    pub fn run(self) -> Result<()> {
         let wdk_build = wdk_build::WdkBuild {};
         let command_exec = CommandExec {};
-        let fs_provider = fs::FS {};
+        let fs_provider = FS {};
 
         match self.sub_cmd {
-            Subcmd::New(cli_args) => {
-                let mut new_action = NewAction::new(
-                    cli_args.driver_project_name,
-                    cli_args.driver_type.into(),
-                    cli_args.cwd,
-                    &command_exec,
-                )?;
-                new_action.create_new_project()
-            }
+            Subcmd::New(cli_args) => NewAction::new(
+                &cli_args.driver_project_name.0,
+                cli_args.driver_type.into(),
+                cli_args.cwd,
+                &command_exec,
+                &fs_provider,
+            )?
+            .run(),
             Subcmd::Build(cli_args) => {
                 let package_action = PackageAction::new(
                     cli_args.cwd,

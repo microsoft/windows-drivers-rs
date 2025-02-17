@@ -3,7 +3,6 @@ mod cli;
 mod errors;
 mod log;
 mod providers;
-mod utils;
 
 use anyhow::Result;
 use clap::Parser;

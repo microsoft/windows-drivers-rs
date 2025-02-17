@@ -1,9 +1,10 @@
 use std::fmt;
 
-mod build;
+pub mod build;
 pub mod new;
 pub mod package;
 
+#[derive(Debug, Clone)]
 pub enum DriverType {
     KMDF,
     UMDF,

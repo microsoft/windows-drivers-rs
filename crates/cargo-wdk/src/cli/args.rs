@@ -1,8 +1,49 @@
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::Result;
 use clap::Args;
 
+use super::error::{InvalidDriverProjectNameError, NewProjectArgsError};
 use crate::actions::{DriverType, Profile, TargetArch};
+
+#[derive(Debug, Clone)]
+pub struct ProjectNameArg(pub String);
+
+impl FromStr for ProjectNameArg {
+    type Err = NewProjectArgsError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(NewProjectArgsError::InvalidDriverProjectNameError(
+                s.to_string(),
+                InvalidDriverProjectNameError::EmptyProjectNameError,
+            ));
+        }
+        if !s
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(NewProjectArgsError::InvalidDriverProjectNameError(
+                s.to_string(),
+                InvalidDriverProjectNameError::NonAlphanumericProjectNameError,
+            ));
+        }
+        if !s.chars().next().unwrap().is_alphabetic() {
+            return Err(NewProjectArgsError::InvalidDriverProjectNameError(
+                s.to_string(),
+                InvalidDriverProjectNameError::InvalidStartCharacter,
+            ));
+        }
+        let invalid_names = vec!["crate", "self", "super", "extern", "_", "-", "new", "build"];
+        if invalid_names.contains(&s) {
+            return Err(NewProjectArgsError::InvalidDriverProjectNameError(
+                s.to_string(),
+                InvalidDriverProjectNameError::ReservedName(s.to_string()),
+            ));
+        }
+        std::result::Result::Ok(ProjectNameArg(s.to_string()))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum DriverTypeArg {
@@ -29,7 +70,7 @@ impl FromStr for DriverTypeArg {
             "kmdf" => std::result::Result::Ok(DriverTypeArg::KMDF),
             "umdf" => std::result::Result::Ok(DriverTypeArg::UMDF),
             "wdm" => std::result::Result::Ok(DriverTypeArg::WDM),
-            _ => Err(format!("'{}' is not a valid driver type", s)),
+            _ => Err(NewProjectArgsError::InvalidDriverTypeError(s.to_string()).to_string()),
         }
     }
 }
@@ -37,11 +78,9 @@ impl FromStr for DriverTypeArg {
 #[derive(Debug, Args)]
 pub struct NewProjectArgs {
     #[clap(help = "Driver Project Name")]
-    pub driver_project_name: String,
-
-    #[clap(long, help = "Driver Type")]
+    pub driver_project_name: ProjectNameArg,
+    #[clap(long, help = "Driver Type", index = 2)]
     pub driver_type: DriverTypeArg,
-
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
 }
@@ -66,8 +105,8 @@ impl FromStr for ProfileArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "debug" => Ok(ProfileArg::Debug),
-            "release" => Ok(ProfileArg::Release),
+            "debug" => std::result::Result::Ok(ProfileArg::Debug),
+            "release" => std::result::Result::Ok(ProfileArg::Release),
             _ => Err(format!("'{}' is not a valid profile", s)),
         }
     }
@@ -104,14 +143,10 @@ impl FromStr for TargetArchArg {
 pub struct PackageProjectArgs {
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
-
     #[clap(long, help = "Build Profile/Configuration", default_value = "debug")]
     pub profile: ProfileArg,
-
     #[clap(long, help = "Build Target", default_value = "x86_64")]
     pub target_arch: TargetArchArg,
-
-    // TODO: Deal with non-sample classes
     #[clap(long, help = "Sample Class", default_value = "true")]
     pub sample_class: bool,
 }

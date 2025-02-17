@@ -2,41 +2,42 @@ use std::{fs::create_dir_all, path::PathBuf};
 
 use anyhow::{Ok, Result};
 use include_dir::{include_dir, Dir};
-use log::debug;
+use log::{debug, info};
 
-use super::DriverType;
 use crate::{
+    actions::DriverType,
     errors::NewProjectError,
-    providers::exec::RunCommand,
-    utils::{append_to_file, read_file_to_string, write_to_file},
+    providers::{exec::RunCommand, fs::FSProvider},
 };
 
 pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-pub struct NewAction<'a> {
+pub struct NewDriver<'a> {
     driver_project_name: String,
     driver_type: DriverType,
     cwd: PathBuf,
     command_exec: &'a dyn RunCommand,
+    fs_provider: &'a dyn FSProvider,
 }
 
-impl<'a> NewAction<'a> {
+impl<'a> NewDriver<'a> {
     pub fn new(
         driver_project_name: String,
         driver_type: DriverType,
         cwd: PathBuf,
         command_exec: &'a dyn RunCommand,
+        fs_provider: &'a dyn FSProvider,
     ) -> Result<Self> {
-        // TODO: Pre-validation checks
         Ok(Self {
             driver_project_name,
             driver_type,
             cwd,
             command_exec,
+            fs_provider,
         })
     }
 
-    pub fn create_new_project(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
         debug!("Creating new project");
         self.run_cargo_new()?;
         self.cwd.push(&self.driver_project_name);
@@ -48,8 +49,8 @@ impl<'a> NewAction<'a> {
         if matches!(self.driver_type, DriverType::KMDF | DriverType::WDM) {
             self.copy_cargo_config()?;
         }
-        debug!(
-            "Project {} created successfully at {}!",
+        info!(
+            "New Driver Project {} created at {}",
             self.driver_project_name,
             self.cwd.display()
         );
@@ -61,16 +62,12 @@ impl<'a> NewAction<'a> {
             "Running cargo new for project: {}",
             self.driver_project_name
         );
-
         let args = ["new", "--lib", &self.driver_project_name, "--vcs", "none"];
-
         self.command_exec.run("cargo", &args, None)?;
-
         debug!(
             "Successfully ran cargo new for project: {}",
             self.driver_project_name
         );
-
         Ok(())
     }
 
@@ -86,7 +83,8 @@ impl<'a> NewAction<'a> {
                 NewProjectError::TemplateNotFoundError(template_path.to_string_lossy().into_owned())
             })?;
         let lib_rs_path = self.cwd.join("src/lib.rs");
-        write_to_file(&lib_rs_path, template_file.contents())?;
+        self.fs_provider
+            .write_to_file(&lib_rs_path, template_file.contents())?;
         Ok(())
     }
 
@@ -102,16 +100,18 @@ impl<'a> NewAction<'a> {
                 NewProjectError::TemplateNotFoundError(template_path.to_string_lossy().into_owned())
             })?;
         let lib_rs_path = self.cwd.join("build.rs");
-        write_to_file(&lib_rs_path, template_file.contents())?;
+        self.fs_provider
+            .write_to_file(&lib_rs_path, template_file.contents())?;
         Ok(())
     }
 
     pub fn update_cargo_toml(&self) -> Result<()> {
         debug!("Updating Cargo.toml for driver type: {}", self.driver_type);
         let cargo_toml_path = self.cwd.join("Cargo.toml");
-        let mut cargo_toml_content = read_file_to_string(&cargo_toml_path)?;
+        let mut cargo_toml_content = self.fs_provider.read_file_to_string(&cargo_toml_path)?;
         cargo_toml_content = cargo_toml_content.replace("[dependencies]\n", "");
-        write_to_file(&cargo_toml_path, cargo_toml_content.as_bytes())?;
+        self.fs_provider
+            .write_to_file(&cargo_toml_path, cargo_toml_content.as_bytes())?;
 
         let template_cargo_toml_path =
             PathBuf::from(&self.driver_type.to_string()).join("Cargo.toml.tmp");
@@ -122,7 +122,8 @@ impl<'a> NewAction<'a> {
                     template_cargo_toml_path.to_string_lossy().into_owned(),
                 )
             })?;
-        append_to_file(&cargo_toml_path, template_cargo_toml_file.contents())?;
+        self.fs_provider
+            .append_to_file(&cargo_toml_path, template_cargo_toml_file.contents())?;
         Ok(())
     }
 
@@ -144,7 +145,8 @@ impl<'a> NewAction<'a> {
         let substituted_inx_content =
             inx_content.replace("##driver_name_placeholder##", &self.driver_project_name);
         let inx_output_path = self.cwd.join(format!("{}.inx", self.driver_project_name));
-        write_to_file(&inx_output_path, substituted_inx_content.as_bytes())?;
+        self.fs_provider
+            .write_to_file(&inx_output_path, substituted_inx_content.as_bytes())?;
         Ok(())
     }
 
@@ -160,7 +162,8 @@ impl<'a> NewAction<'a> {
                     cargo_config_template_path.to_string_lossy().into_owned(),
                 )
             })?;
-        write_to_file(&cargo_config_path, cargo_config_template_file.contents())?;
+        self.fs_provider
+            .write_to_file(&cargo_config_path, cargo_config_template_file.contents())?;
         Ok(())
     }
 }
