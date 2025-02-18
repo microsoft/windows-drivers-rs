@@ -14,8 +14,7 @@ use wdk_build::{metadata::Wdk, DriverConfig};
 
 use super::PackageAction;
 use crate::{
-    actions::package::error::PackageProjectError,
-    actions::{Profile, TargetArch},
+    actions::{package::error::PackageProjectError, Profile, TargetArch},
     errors::CommandError,
     providers::{exec::MockRunCommand, fs::MockFSProvider, wdk_build::MockWdkBuildProvider},
 };
