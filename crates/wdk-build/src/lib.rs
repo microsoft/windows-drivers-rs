@@ -667,6 +667,14 @@ impl Config {
     /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
     /// determine which headers to yield
     pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
+        /// Some WDK headers have FORCEINLINE annotations in places that are not valid.
+        /// These are silently ignored by MSVC when compiling for C, but older versions
+        /// of Clang will error out even with MSVC compatibility mode enabled. This was
+        /// fixed in Clang 20, but if an older version of Clang is detected, the affected
+        /// headers must be skipped. See the Github Issue for more details:
+        /// https://github.com/llvm/llvm-project/issues/124869
+        const MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX: u32 = 20;
+
         match api_subset {
             ApiSubset::Base => match &self.driver_config {
                 DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
@@ -791,10 +799,31 @@ impl Config {
                         "ucx/1.6/ucxclass.h",
                         "ude/1.1/UdeCx.h",
                         "ufx/1.1/ufxbase.h",
-                        "ufx/1.1/ufxclient.h",
                         "ufxproprietarycharger.h",
                         "urs/1.0/UrsCx.h",
                     ]);
+
+                    let clang_version = ::bindgen::clang_version();
+                    match clang_version.parsed {
+                        Some((major, _minor))
+                            if major >= MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX =>
+                        {
+                            usb_headers.extend(["ufx/1.1/ufxclient.h"]);
+                        }
+                        Some(_) => {
+                            tracing::info!(
+                                "Skipping ufxclient.h due to FORCEINLINE bug in {}",
+                                clang_version.full
+                            );
+                        }
+                        None => {
+                            tracing::warn!(
+                                "Failed to parse semver Major and Minor components from full \
+                                 Clang version string: {}",
+                                clang_version.full
+                            );
+                        }
+                    }
                 }
 
                 usb_headers
