@@ -417,7 +417,9 @@ impl<'a> PackageDriver<'a> {
 
         let inf_path = self.dest_inf_file_path.to_string_lossy();
 
-        args.push(additional_args);
+        if self.sample_class {
+            args.push(additional_args);
+        }
         args.push(&inf_path);
 
         if let Err(e) = self.command_exec.run("infverif", &args, None) {
