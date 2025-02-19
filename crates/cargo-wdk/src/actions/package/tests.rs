@@ -459,8 +459,11 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
     assert_eq!(run_result.is_ok(), true);
 }
 
+#[derive(Clone)]
 struct TestMetadataPackage(String);
+#[derive(Clone)]
 struct TestMetadataWorkspaceMemberId(String);
+#[derive(Clone)]
 struct TestWdkMetadata(String);
 
 fn get_cargo_metadata(
@@ -635,7 +638,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -712,7 +715,7 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -789,7 +792,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -884,7 +887,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -960,7 +963,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1026,7 +1029,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1078,7 +1081,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1137,7 +1140,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1200,7 +1203,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1264,7 +1267,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1330,7 +1333,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1397,7 +1400,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1466,7 +1469,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         sample_class,
     );
     let package_project_action = package_project
-        .set_up_simple_driver_project((workspace_member, package))
+        .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root()
@@ -1509,6 +1512,131 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         run_result.err().unwrap().type_id(),
         TypeId::of::<PackageProjectError>()
     );
+}
+
+// Workspace related tests
+#[test]
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_default_values_are_provided_then_it_builds_successfully(
+) {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_version_1 = "0.0.1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_version_2 = "0.0.2";
+    let non_driver = "non-driver";
+    let non_driver_version = "0.0.3";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &cwd,
+        &driver_name_1,
+        &driver_version_1,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &cwd,
+        &driver_name_2,
+        &driver_version_2,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_3, package_3) =
+        get_cargo_metadata_package(&cwd, &non_driver, &non_driver_version, None);
+
+    let expected_certmgr_output = Output {
+        status: ExitStatus::default(),
+        stdout: r#"==============No Certificates ==========
+                            ==============No CTLs ==========
+                            ==============No CRLs ==========
+                            ==============================================
+                            CertMgr Succeeded"#
+            .as_bytes()
+            .to_vec(),
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_workspace_with_multiple_driver_projects(
+            Some(wdk_metadata),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+                (workspace_member_3, package_3),
+            ],
+        )
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root()
+        .expect_cargo_build(driver_name_1, None)
+        .expect_final_package_dir_exists(driver_name_1, &cwd, true)
+        .expect_inx_file_exists(driver_name_1, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name_1, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name_1, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd, true)
+        .expect_copy_map_file_to_package_folder(driver_name_1, &cwd, true)
+        .expect_stampinf(driver_name_1, &cwd, None)
+        .expect_inf2cat(driver_name_1, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output.clone()))
+        .expect_makecert(&cwd, None)
+        .expect_copy_self_signed_cert_file_to_package_folder(driver_name_1, &cwd, true)
+        .expect_signtool_sign_driver_binary_sys_file(driver_name_1, &cwd, None)
+        .expect_signtool_sign_cat_file(driver_name_1, &cwd, None)
+        .expect_signtool_verify_driver_binary_sys_file(driver_name_1, &cwd, None)
+        .expect_signtool_verify_cat_file(driver_name_1, &cwd, None)
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_infverif(driver_name_1, &cwd, "KMDF", None)
+        // Second driver project
+        .expect_cargo_build(driver_name_2, None)
+        .expect_final_package_dir_exists(driver_name_2, &cwd, true)
+        .expect_inx_file_exists(driver_name_2, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name_2, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name_2, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name_2, &cwd, true)
+        .expect_copy_map_file_to_package_folder(driver_name_2, &cwd, true)
+        .expect_stampinf(driver_name_2, &cwd, None)
+        .expect_inf2cat(driver_name_2, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_makecert(&cwd, None)
+        .expect_copy_self_signed_cert_file_to_package_folder(driver_name_2, &cwd, true)
+        .expect_signtool_sign_driver_binary_sys_file(driver_name_2, &cwd, None)
+        .expect_signtool_sign_cat_file(driver_name_2, &cwd, None)
+        .expect_signtool_verify_driver_binary_sys_file(driver_name_2, &cwd, None)
+        .expect_signtool_verify_cat_file(driver_name_2, &cwd, None)
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_infverif(driver_name_2, &cwd, "KMDF", None)
+        // Non-driver project
+        .expect_cargo_build(non_driver, None);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), true);
 }
 
 struct TestPackageAction {
@@ -1673,7 +1801,7 @@ impl TestPackageAction {
         }
     }
 
-    fn set_up_simple_driver_project(
+    fn set_up_standalone_driver_project(
         mut self,
         package_metadata: (TestMetadataWorkspaceMemberId, TestMetadataPackage),
     ) -> impl TestSetupPackageExpectations {
@@ -1696,10 +1824,24 @@ impl TestPackageAction {
     }
 
     fn set_up_workspace_with_multiple_driver_projects(
-        self,
-        workspace_additional_metadata: String,
-        package_metadata_list: Vec<(String, String)>,
+        mut self,
+        workspace_additional_metadata: Option<TestWdkMetadata>,
+        package_metadata_list: Vec<(TestMetadataWorkspaceMemberId, TestMetadataPackage)>,
     ) -> impl TestSetupPackageExpectations {
+        let cargo_toml_metadata = get_cargo_metadata(
+            &self.cwd,
+            package_metadata_list.iter().map(|p| p.1.clone()).collect(),
+            package_metadata_list.into_iter().map(|p| p.0).collect(),
+            workspace_additional_metadata,
+        );
+        let cargo_toml_metadata =
+            serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata).unwrap();
+        let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        self.mock_wdk_build_provider
+            .expect_get_cargo_metadata_at_path()
+            .once()
+            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+        self.cargo_metadata = Some(cargo_toml_metadata.clone());
         self
     }
 
