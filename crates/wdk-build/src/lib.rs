@@ -412,7 +412,7 @@ impl Config {
 
                 // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
                 // normally does not automatically include this search path, but it is required
-                // here so that the headers can be processed sucessfully.
+                // here so that the headers can be processed successfully.
                 let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
                 if !ufx_include_path.is_dir() {
                     return Err(ConfigError::DirectoryNotFound {
@@ -834,7 +834,7 @@ impl Config {
     /// compatibility enabled.
     ///
     /// This function checks if the current Clang version is 20.0 or newer,
-    /// where the issue was fixed. See 
+    /// where the issue was fixed. See
     /// <https://github.com/llvm/llvm-project/issues/124869> for details.
     fn should_include_ufxclient() -> bool {
         const MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX: u32 = 20;
