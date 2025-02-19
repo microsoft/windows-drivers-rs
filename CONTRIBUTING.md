@@ -70,6 +70,8 @@ Before you submit your Pull Request (PR) consider the following guidelines:
 * Commit your changes using a descriptive commit message
 * Push your fork to GitHub:
 * In GitHub, create a pull request
+  * Make sure to use the [Conventional Commits](https://www.conventionalcommits.org) specification
+   for the title of your PR.
 * If we suggest changes then:
   * Make the required updates.
   * Rebase your fork and force push to your GitHub repository (this will update your Pull Request):
