@@ -459,14 +459,18 @@ pub fn given_a_simple_driver_project_when_default_values_are_provided_then_it_bu
     assert_eq!(run_result.is_ok(), true);
 }
 
+struct TestMetadataPackage(String);
+struct TestMetadataWorkspaceMemberId(String);
+struct TestWdkMetadata(String);
+
 fn get_cargo_metadata(
     root_dir: &PathBuf,
-    package_list: Vec<String>,
-    workspace_member_list: Vec<String>,
-    metadata: Option<String>,
+    package_list: Vec<TestMetadataPackage>,
+    workspace_member_list: Vec<TestMetadataWorkspaceMemberId>,
+    metadata: Option<TestWdkMetadata>,
 ) -> String {
     let metadata_section = match metadata {
-        Some(metadata) => metadata,
+        Some(metadata) => metadata.0,
         None => String::from("null"),
     };
     format!(
@@ -483,11 +487,15 @@ fn get_cargo_metadata(
     }}"#,
         root_dir.join("target").to_string_lossy().escape_default(),
         root_dir.to_string_lossy().escape_default(),
-        package_list.join(", "),
+        package_list
+            .into_iter()
+            .map(|p| p.0)
+            .collect::<Vec<String>>()
+            .join(", "),
         // Require quotes around each member
         workspace_member_list
             .iter()
-            .map(|s| format!("\"{}\"", s))
+            .map(|s| format!("\"{}\"", s.0))
             .collect::<Vec<String>>()
             .join(", "),
         metadata_section
@@ -498,8 +506,8 @@ fn get_cargo_metadata_package(
     root_dir: &PathBuf,
     default_package_name: &str,
     default_package_version: &str,
-    metadata: Option<String>,
-) -> (String, String) {
+    metadata: Option<TestWdkMetadata>,
+) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage) {
     let package_id = format!(
         "path+file:///{}#{}@{}",
         root_dir.to_string_lossy().escape_default(),
@@ -507,12 +515,12 @@ fn get_cargo_metadata_package(
         default_package_version
     );
     let metadata_section = match metadata {
-        Some(metadata) => metadata,
+        Some(metadata) => metadata.0,
         None => String::from("null"),
     };
     (
-        package_id,
-        format!(
+        TestMetadataWorkspaceMemberId(package_id),
+        TestMetadataPackage(format!(
             r#"
             {{
             "name": "{}",
@@ -563,7 +571,7 @@ fn get_cargo_metadata_package(
                 .to_string_lossy()
                 .escape_default(),
             metadata_section
-        ),
+        )),
     )
 }
 
@@ -571,8 +579,8 @@ fn get_cargo_metadata_wdk_metadata(
     driver_type: &str,
     kmdf_version_major: u8,
     target_kmdf_version_minor: u8,
-) -> String {
-    format!(
+) -> TestWdkMetadata {
+    TestWdkMetadata(format!(
         r#"
         {{
             "wdk": {{
@@ -585,7 +593,7 @@ fn get_cargo_metadata_wdk_metadata(
         }}
     "#,
         driver_type, kmdf_version_major, target_kmdf_version_minor
-    )
+    ))
 }
 
 // Test name is of form Given When Then
@@ -1667,7 +1675,7 @@ impl TestPackageAction {
 
     fn set_up_simple_driver_project(
         mut self,
-        package_metadata: (String, String),
+        package_metadata: (TestMetadataWorkspaceMemberId, TestMetadataPackage),
     ) -> impl TestSetupPackageExpectations {
         let cargo_toml_metadata = get_cargo_metadata(
             &self.cwd,
