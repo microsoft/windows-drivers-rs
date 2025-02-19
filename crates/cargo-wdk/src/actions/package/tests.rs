@@ -38,7 +38,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -115,7 +115,7 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = false;
 
     // driver project data
@@ -192,7 +192,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Release;
-    let target_arch = TargetArch::Aarch64;
+    let target_arch = TargetArch::Arm64;
     let sample_class = false;
 
     // driver project data
@@ -268,7 +268,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -364,7 +364,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -441,7 +441,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -493,7 +493,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -546,7 +546,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -609,7 +609,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -673,7 +673,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -742,7 +742,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -812,7 +812,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -881,7 +881,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -956,7 +956,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1002,7 +1002,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1051,7 +1051,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1181,7 +1181,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("sample-kmdf-1");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1294,7 +1294,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1372,7 +1372,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("random-dir");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1442,7 +1442,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1514,7 +1514,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1586,7 +1586,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1640,7 +1640,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
     let profile = Profile::Debug;
-    let target_arch = TargetArch::X86_64;
+    let target_arch = TargetArch::X64;
     let sample_class = true;
 
     // driver project data
@@ -1835,12 +1835,12 @@ impl TestPackageAction {
         let mock_wdk_build_provider = MockWdkBuildProvider::new();
         let mock_fs_provider = MockFSProvider::new();
         let command_arg_arch = match target_arch {
-            TargetArch::X86_64 => "amd64".to_string(),
-            TargetArch::Aarch64 => "arm64".to_string(),
+            TargetArch::X64 => "amd64".to_string(),
+            TargetArch::Arm64 => "arm64".to_string(),
         };
         let command_arg_os_mapping = match target_arch {
-            TargetArch::X86_64 => "/os:10_x64",
-            TargetArch::Aarch64 => "/os:Server10_arm64",
+            TargetArch::X64 => "/os:10_x64",
+            TargetArch::Arm64 => "/os:Server10_arm64",
         };
 
         Self {

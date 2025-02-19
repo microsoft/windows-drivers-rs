@@ -7,7 +7,7 @@ use error::PackageProjectError;
 mod package_driver;
 
 // Non local imports
-use std::{fmt, path::PathBuf, result::Result::Ok};
+use std::{path::PathBuf, result::Result::Ok};
 
 use anyhow::Result;
 use log::{debug, info};
@@ -17,25 +17,11 @@ use wdk_build::metadata::Wdk;
 use super::{build::BuildAction, Profile, TargetArch};
 use crate::providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider};
 
-struct TargetTriplet(String);
-
-impl From<&TargetArch> for TargetTriplet {
-    fn from(target_arch: &TargetArch) -> Self {
-        Self(format!("{}-pc-windows-msvc", target_arch.to_string()))
-    }
-}
-
-impl fmt::Display for TargetTriplet {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 // #[derive(Debug)]
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Profile,
-    target_triplet: TargetTriplet,
+    target_arch: TargetArch,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
@@ -70,11 +56,10 @@ impl<'a> PackageAction<'a> {
         // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because
         // it is already canonicalized, * (wild chars) won't be resolved to actual paths
         let working_dir = fs_provider.canonicalize_path(working_dir)?;
-        let target_triplet = TargetTriplet::from(&target_arch);
         Ok(Self {
             working_dir,
             profile,
-            target_triplet,
+            target_arch,
             is_sample_class,
             verbosity_level,
             command_exec,
@@ -185,7 +170,7 @@ impl<'a> PackageAction<'a> {
             &package_name,
             &working_dir,
             target_dir,
-            &self.target_triplet,
+            &self.target_arch,
             self.is_sample_class,
             wdk_metadata.driver_model.clone(),
             self.wdk_build_provider,

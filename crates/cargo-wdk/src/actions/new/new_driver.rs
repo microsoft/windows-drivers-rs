@@ -46,7 +46,7 @@ impl<'a> NewDriver<'a> {
         self.update_cargo_toml()?;
         self.create_inx_file()?;
         self.copy_build_rs_template()?;
-        if matches!(self.driver_type, DriverType::KMDF | DriverType::WDM) {
+        if matches!(self.driver_type, DriverType::Kmdf | DriverType::Wdm) {
             self.copy_cargo_config()?;
         }
         info!(

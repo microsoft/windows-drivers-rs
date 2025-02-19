@@ -3,8 +3,8 @@ use std::{ops::RangeFrom, path::PathBuf, result::Result};
 use log::{debug, info};
 use wdk_build::DriverConfig;
 
-use super::{error::PackageDriverError, FSProvider, TargetTriplet, WdkBuildProvider};
-use crate::providers::exec::RunCommand;
+use super::{error::PackageDriverError, FSProvider, WdkBuildProvider};
+use crate::{actions::TargetArch, providers::exec::RunCommand};
 
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
 // flag is added to InfVerif CLI
@@ -48,7 +48,7 @@ impl<'a> PackageDriver<'a> {
         package_name: &'a str,
         working_dir: &'a PathBuf,
         target_dir: &'a PathBuf,
-        target_triplet: &TargetTriplet,
+        target_arch: &TargetArch,
         sample_class: bool,
         driver_model: DriverConfig,
         wdk_build_provider: &'a dyn WdkBuildProvider,
@@ -93,16 +93,14 @@ impl<'a> PackageDriver<'a> {
             fs_provider.create_dir(&dest_root_package_folder)?;
         }
 
-        let arch = match target_triplet.to_string().as_str() {
-            "x86_64-pc-windows-msvc" => "amd64",
-            "aarch64-pc-windows-msvc" => "arm64",
-            _ => "UNKNOWN",
+        let arch = match target_arch {
+            TargetArch::X64 => "amd64",
+            TargetArch::Arm64 => "arm64",
         };
 
-        let os_mapping = match target_triplet.to_string().as_str() {
-            "x86_64-pc-windows-msvc" => "10_x64",
-            "aarch64-pc-windows-msvc" => "Server10_arm64",
-            _ => "UNKNOWN",
+        let os_mapping = match target_arch {
+            TargetArch::X64 => "10_x64",
+            TargetArch::Arm64 => "Server10_arm64",
         };
 
         Ok(Self {

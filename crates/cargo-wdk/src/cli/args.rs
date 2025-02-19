@@ -47,17 +47,17 @@ impl FromStr for ProjectNameArg {
 
 #[derive(Debug, Clone)]
 pub enum DriverTypeArg {
-    KMDF,
-    UMDF,
-    WDM,
+    Kmdf,
+    Umdf,
+    Wdm,
 }
 
 impl Into<DriverType> for DriverTypeArg {
     fn into(self) -> DriverType {
         match self {
-            DriverTypeArg::KMDF => DriverType::KMDF,
-            DriverTypeArg::UMDF => DriverType::UMDF,
-            DriverTypeArg::WDM => DriverType::WDM,
+            DriverTypeArg::Kmdf => DriverType::Kmdf,
+            DriverTypeArg::Umdf => DriverType::Umdf,
+            DriverTypeArg::Wdm => DriverType::Wdm,
         }
     }
 }
@@ -67,9 +67,9 @@ impl FromStr for DriverTypeArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "kmdf" => std::result::Result::Ok(DriverTypeArg::KMDF),
-            "umdf" => std::result::Result::Ok(DriverTypeArg::UMDF),
-            "wdm" => std::result::Result::Ok(DriverTypeArg::WDM),
+            "kmdf" => std::result::Result::Ok(DriverTypeArg::Kmdf),
+            "umdf" => std::result::Result::Ok(DriverTypeArg::Umdf),
+            "wdm" => std::result::Result::Ok(DriverTypeArg::Wdm),
             _ => Err(NewProjectArgsError::InvalidDriverTypeError(s.to_string()).to_string()),
         }
     }
@@ -79,7 +79,7 @@ impl FromStr for DriverTypeArg {
 pub struct NewProjectArgs {
     #[clap(help = "Driver Project Name")]
     pub driver_project_name: ProjectNameArg,
-    #[clap(long, help = "Driver Type", index = 2)]
+    #[clap(long, help = "Driver Type", index = 2, ignore_case = true)]
     pub driver_type: DriverTypeArg,
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
@@ -114,15 +114,15 @@ impl FromStr for ProfileArg {
 
 #[derive(Debug, Clone)]
 pub enum TargetArchArg {
-    X86_64,
-    Aarch64,
+    X64,
+    Arm64,
 }
 
 impl Into<TargetArch> for TargetArchArg {
     fn into(self) -> TargetArch {
         match self {
-            TargetArchArg::X86_64 => TargetArch::X86_64,
-            TargetArchArg::Aarch64 => TargetArch::Aarch64,
+            TargetArchArg::X64 => TargetArch::X64,
+            TargetArchArg::Arm64 => TargetArch::Arm64,
         }
     }
 }
@@ -132,8 +132,8 @@ impl FromStr for TargetArchArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "x86_64" => std::result::Result::Ok(TargetArchArg::X86_64),
-            "aarch64" => std::result::Result::Ok(TargetArchArg::Aarch64),
+            "x64" => std::result::Result::Ok(TargetArchArg::X64),
+            "arm64" => std::result::Result::Ok(TargetArchArg::Arm64),
             _ => Err(format!("'{}' is not a valid target architecture", s)),
         }
     }
@@ -143,10 +143,20 @@ impl FromStr for TargetArchArg {
 pub struct PackageProjectArgs {
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
-    #[clap(long, help = "Build Profile/Configuration", default_value = "debug")]
+    #[clap(
+        long,
+        help = "Build Profile/Configuration",
+        default_value = "debug",
+        ignore_case = true
+    )]
     pub profile: ProfileArg,
-    #[clap(long, help = "Build Target", default_value = "x86_64")]
+    #[clap(long, help = "Build Target", default_value = "x64", ignore_case = true)]
     pub target_arch: TargetArchArg,
-    #[clap(long, help = "Sample Class", default_value = "true")]
+    #[clap(
+        long,
+        help = "Sample Class",
+        default_value = "true",
+        ignore_case = true
+    )]
     pub sample_class: bool,
 }

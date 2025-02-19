@@ -6,17 +6,17 @@ pub mod package;
 
 #[derive(Debug, Clone)]
 pub enum DriverType {
-    KMDF,
-    UMDF,
-    WDM,
+    Kmdf,
+    Umdf,
+    Wdm,
 }
 
 impl fmt::Display for DriverType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            DriverType::KMDF => "kmdf",
-            DriverType::UMDF => "umdf",
-            DriverType::WDM => "wdm",
+            DriverType::Kmdf => "kmdf",
+            DriverType::Umdf => "umdf",
+            DriverType::Wdm => "wdm",
         };
         write!(f, "{}", s)
     }
@@ -40,15 +40,15 @@ impl fmt::Display for Profile {
 
 #[derive(Debug, Clone)]
 pub enum TargetArch {
-    X86_64,
-    Aarch64,
+    X64,
+    Arm64,
 }
 
 impl ToString for TargetArch {
     fn to_string(&self) -> String {
         match self {
-            TargetArch::X86_64 => "x86_64".to_string(),
-            TargetArch::Aarch64 => "aarch64".to_string(),
+            TargetArch::X64 => "x86_64".to_string(),
+            TargetArch::Arm64 => "aarch64".to_string(),
         }
     }
 }
