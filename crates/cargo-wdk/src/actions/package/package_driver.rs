@@ -149,11 +149,11 @@ impl<'a> PackageDriver<'a> {
             &self.src_driver_binary_file_path,
             &self.src_renamed_driver_binary_file_path,
         ) {
-            return Err(PackageDriverError::CopyFileError {
-                src: self.src_driver_binary_file_path.clone(),
-                dest: self.src_renamed_driver_binary_file_path.clone(),
-                error: e,
-            });
+            return Err(PackageDriverError::CopyFileError(
+                self.src_driver_binary_file_path.clone(),
+                self.src_renamed_driver_binary_file_path.clone(),
+                e,
+            ));
         }
         Ok(())
     }
@@ -169,11 +169,11 @@ impl<'a> PackageDriver<'a> {
             dest_file_path.to_string_lossy()
         );
         if let Err(e) = self.fs_provider.copy(src_file_path, dest_file_path) {
-            return Err(PackageDriverError::CopyFileError {
-                src: src_file_path.clone(),
-                dest: dest_file_path.clone(),
-                error: e,
-            });
+            return Err(PackageDriverError::CopyFileError(
+                src_file_path.clone(),
+                dest_file_path.clone(),
+                e,
+            ));
         }
         Ok(())
     }

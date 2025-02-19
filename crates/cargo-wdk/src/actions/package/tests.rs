@@ -10,11 +10,18 @@ use std::{
 
 use cargo_metadata::Metadata;
 use mockall::predicate::eq;
-use wdk_build::{metadata::Wdk, DriverConfig};
+use wdk_build::{
+    metadata::{TryFromCargoMetadataError, Wdk},
+    DriverConfig,
+};
 
 use super::PackageAction;
 use crate::{
-    actions::{package::error::PackageProjectError, Profile, TargetArch},
+    actions::{
+        package::error::{PackageDriverError, PackageProjectError},
+        Profile,
+        TargetArch,
+    },
     errors::CommandError,
     providers::{exec::MockRunCommand, fs::MockFSProvider, wdk_build::MockWdkBuildProvider},
 };
@@ -589,13 +596,17 @@ fn get_cargo_metadata_wdk_metadata(
             "wdk": {{
                 "driver-model": {{
                     "driver-type": "{}",
-                    "kmdf-version-major": {},
-                    "target-kmdf-version-minor": {}
+                    "{}-version-major": {},
+                    "target-{}-version-minor": {}
                 }}
             }}
         }}
     "#,
-        driver_type, kmdf_version_major, target_kmdf_version_minor
+        driver_type,
+        driver_type.to_ascii_lowercase(),
+        kmdf_version_major,
+        driver_type.to_ascii_lowercase(),
+        target_kmdf_version_minor
     ))
 }
 
@@ -641,14 +652,14 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -718,14 +729,14 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -795,14 +806,14 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -890,14 +901,14 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -966,7 +977,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
@@ -974,7 +985,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -1032,7 +1043,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
@@ -1052,10 +1063,10 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(_, PackageDriverError::MissingInxSrcFileError(_))
+    ));
 }
 
 #[test]
@@ -1084,7 +1095,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -1105,10 +1116,10 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(_, PackageDriverError::CopyFileError(_, _, _))
+    ));
 }
 
 #[test]
@@ -1143,14 +1154,14 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, Some(expected_stampinf_output));
 
@@ -1168,10 +1179,10 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(_, PackageDriverError::StampinfError(_))
+    ));
 }
 
 #[test]
@@ -1206,14 +1217,14 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, Some(expected_inf2cat_output));
@@ -1232,10 +1243,10 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(_, PackageDriverError::Inf2CatError(_))
+    ));
 }
 
 #[test]
@@ -1270,14 +1281,14 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -1298,10 +1309,13 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(
+            _,
+            PackageDriverError::VerifyCertExistsInStoreError(_)
+        )
+    ));
 }
 
 #[test]
@@ -1336,14 +1350,14 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -1365,10 +1379,13 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(
+            _,
+            PackageDriverError::CertGenerationInStoreError(_)
+        )
+    ));
 }
 
 #[test]
@@ -1403,14 +1420,14 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -1434,10 +1451,10 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
-    );
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(_, PackageDriverError::DriverBinarySignError(_))
+    ));
 }
 
 #[test]
@@ -1472,14 +1489,14 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, None)
@@ -1508,15 +1525,107 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 
     let run_result = package_project.unwrap().run();
 
-    assert_eq!(
-        run_result.err().unwrap().type_id(),
-        TypeId::of::<PackageProjectError>()
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::PackageDriverError(_, PackageDriverError::InfVerificationError(_))
+    ));
+}
+
+#[test]
+pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_name = "non-driver";
+    let driver_version = "0.0.1";
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, &driver_name, &driver_version, None);
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
     );
+    let package_project_action = package_project
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_path_canonicalization_cwd();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::WdkMetadataParseError(
+            TryFromCargoMetadataError::NoWdkConfigurationsDetected
+        )
+    ));
+}
+
+#[test]
+pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let cargo_toml_metadata = invalid_driver_cargo_toml();
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_with_custom_toml(cargo_toml_metadata)
+        .expect_path_canonicalization_cwd();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile,
+        target_arch,
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+    assert!(matches!(
+        run_result.as_ref().err().unwrap(),
+        PackageProjectError::WdkMetadataParseError(
+            TryFromCargoMetadataError::WdkMetadataDeserialization {
+                metadata_source: _,
+                error_source: _
+            }
+        )
+    ));
 }
 
 // Workspace related tests
 #[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_default_values_are_provided_then_it_builds_successfully(
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_default_values_are_provided_then_it_packages_successfully(
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -1534,19 +1643,23 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     let non_driver_version = "0.0.3";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd,
+        &cwd.join(&driver_name_1),
         &driver_name_1,
         &driver_version_1,
         Some(wdk_metadata.clone()),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd,
+        &cwd.join(&driver_name_2),
         &driver_name_2,
         &driver_version_2,
         Some(wdk_metadata.clone()),
     );
-    let (workspace_member_3, package_3) =
-        get_cargo_metadata_package(&cwd, &non_driver, &non_driver_version, None);
+    let (workspace_member_3, package_3) = get_cargo_metadata_package(
+        &cwd.join(&non_driver),
+        &non_driver,
+        &non_driver_version,
+        None,
+    );
 
     let expected_certmgr_output = Output {
         status: ExitStatus::default(),
@@ -1568,6 +1681,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     );
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
+            &cwd,
             Some(wdk_metadata),
             vec![
                 (workspace_member_1, package_1),
@@ -1577,14 +1691,14 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         )
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_package_root()
+        .expect_path_canonicalization_all_package_roots()
         .expect_cargo_build(driver_name_1, None)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
-        .expect_inx_file_exists(driver_name_1, &cwd, true)
+        .expect_inx_file_exists(driver_name_1, &cwd.join(&driver_name_1), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name_1, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name_1, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd.join(driver_name_1), true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name_1, &cwd, true)
         .expect_stampinf(driver_name_1, &cwd, None)
         .expect_inf2cat(driver_name_1, &cwd, None)
@@ -1601,11 +1715,11 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         // Second driver project
         .expect_cargo_build(driver_name_2, None)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
-        .expect_inx_file_exists(driver_name_2, &cwd, true)
+        .expect_inx_file_exists(driver_name_2, &cwd.join(&driver_name_2), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name_2, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name_2, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name_2, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name_2, &cwd.join(driver_name_2), true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name_2, &cwd, true)
         .expect_stampinf(driver_name_2, &cwd, None)
         .expect_inf2cat(driver_name_2, &cwd, None)
@@ -1639,10 +1753,526 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     assert_eq!(run_result.is_ok(), true);
 }
 
+#[test]
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_driver_project_then_it_packages_driver_project_successfully(
+) {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root_dir.join("sample-kmdf-1");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_version_1 = "0.0.1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_version_2 = "0.0.2";
+    let non_driver = "non-driver";
+    let non_driver_version = "0.0.3";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&driver_name_1),
+        &driver_name_1,
+        &driver_version_1,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&driver_name_2),
+        &driver_name_2,
+        &driver_version_2,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_3, package_3) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&non_driver),
+        &non_driver,
+        &non_driver_version,
+        None,
+    );
+
+    let expected_certmgr_output = Output {
+        status: ExitStatus::default(),
+        stdout: r#"==============No Certificates ==========
+                            ==============No CTLs ==========
+                            ==============No CRLs ==========
+                            ==============================================
+                            CertMgr Succeeded"#
+            .as_bytes()
+            .to_vec(),
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
+        // going to be for the whole workspace
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            Some(wdk_metadata),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+                (workspace_member_3, package_3),
+            ],
+        )
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_package_root(&cwd)
+        .expect_cargo_build(driver_name_1, None)
+        .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
+        .expect_inx_file_exists(driver_name_1, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name_1, &workspace_root_dir, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
+        .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd, true, &workspace_root_dir)
+        .expect_copy_map_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
+        .expect_stampinf(driver_name_1, &workspace_root_dir, None)
+        .expect_inf2cat(driver_name_1, &workspace_root_dir, None)
+        .expect_self_signed_cert_file_exists(&workspace_root_dir, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output.clone()))
+        .expect_makecert(&workspace_root_dir, None)
+        .expect_copy_self_signed_cert_file_to_package_folder(
+            driver_name_1,
+            &workspace_root_dir,
+            true,
+        )
+        .expect_signtool_sign_driver_binary_sys_file(driver_name_1, &workspace_root_dir, None)
+        .expect_signtool_sign_cat_file(driver_name_1, &workspace_root_dir, None)
+        .expect_signtool_verify_driver_binary_sys_file(driver_name_1, &workspace_root_dir, None)
+        .expect_signtool_verify_cat_file(driver_name_1, &workspace_root_dir, None)
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_infverif(driver_name_1, &workspace_root_dir, "KMDF", None);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), true);
+}
+
+#[test]
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_driver_project_then_it_builds_but_skips_packaging(
+) {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root_dir.join("non-driver");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_version_1 = "0.0.1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_version_2 = "0.0.2";
+    let non_driver = "non-driver";
+    let non_driver_version = "0.0.3";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&driver_name_1),
+        &driver_name_1,
+        &driver_version_1,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&driver_name_2),
+        &driver_name_2,
+        &driver_version_2,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_3, package_3) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&non_driver),
+        &non_driver,
+        &non_driver_version,
+        None,
+    );
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
+        // going to be for the whole workspace
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            Some(wdk_metadata),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+                (workspace_member_3, package_3),
+            ],
+        )
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_cargo_build(&non_driver, None);
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert_eq!(run_result.is_ok(), true);
+}
+
+#[test]
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_workspace_folder_then_build_should_fail(
+) {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root_dir.join("random-dir");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_version_1 = "0.0.1";
+    let non_driver = "non-driver";
+    let non_driver_version = "0.0.3";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&driver_name_1),
+        &driver_name_1,
+        &driver_version_1,
+        Some(wdk_metadata.clone()),
+    );
+    let (workspace_member_3, package_3) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&non_driver),
+        &non_driver,
+        &non_driver_version,
+        None,
+    );
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
+        // going to be for the whole workspace
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            Some(wdk_metadata),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_3, package_3),
+            ],
+        )
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert!(matches!(
+        run_result.err().unwrap(),
+        PackageProjectError::NotAWorkspaceMemberError(_)
+    ));
+}
+
+#[test]
+pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type_1 = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_type_2 = "UMDF";
+    let driver_version_1 = "0.0.1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_version_2 = "0.0.2";
+    let wdk_metadata_1 = get_cargo_metadata_wdk_metadata(driver_type_1, 1, 33);
+    let wdk_metadata_2 = get_cargo_metadata_wdk_metadata(driver_type_2, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &cwd.join(&driver_name_1),
+        &driver_name_1,
+        &driver_version_1,
+        Some(wdk_metadata_1.clone()),
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &cwd.join(&driver_name_2),
+        &driver_name_2,
+        &driver_version_2,
+        Some(wdk_metadata_2.clone()),
+    );
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_workspace_with_multiple_driver_projects(
+            &cwd,
+            Some(wdk_metadata_1),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+            ],
+        )
+        .expect_path_canonicalization_cwd();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert!(matches!(
+        run_result.err().unwrap(),
+        PackageProjectError::WdkMetadataParseError(
+            TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
+                wdk_metadata_configurations: _
+            }
+        )
+    ));
+}
+
+#[test]
+pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let driver_type_1 = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_type_2 = "UMDF";
+    let driver_version_1 = "0.0.1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_version_2 = "0.0.2";
+    let wdk_metadata_1 = get_cargo_metadata_wdk_metadata(driver_type_1, 1, 33);
+    let wdk_metadata_2 = get_cargo_metadata_wdk_metadata(driver_type_2, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &cwd.join(&driver_name_1),
+        &driver_name_1,
+        &driver_version_1,
+        Some(wdk_metadata_1.clone()),
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &cwd.join(&driver_name_2),
+        &driver_name_2,
+        &driver_version_2,
+        Some(wdk_metadata_1.clone()),
+    );
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        .set_up_workspace_with_multiple_driver_projects(
+            &cwd,
+            Some(wdk_metadata_2),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+            ],
+        )
+        .expect_path_canonicalization_cwd();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert!(matches!(
+        run_result.err().unwrap(),
+        PackageProjectError::WdkMetadataParseError(
+            TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
+                wdk_metadata_configurations: _
+            }
+        )
+    ));
+}
+
+#[test]
+pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail(
+) {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let non_driver = "non-driver";
+    let non_driver_version = "0.0.3";
+    let (workspace_member_3, package_3) =
+        get_cargo_metadata_package(&cwd, &non_driver, &non_driver_version, None);
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
+        // going to be for the whole workspace
+        .set_up_workspace_with_multiple_driver_projects(
+            &cwd,
+            None,
+            vec![(workspace_member_3, package_3)],
+        )
+        .expect_path_canonicalization_cwd();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert!(matches!(
+        run_result.err().unwrap(),
+        PackageProjectError::WdkMetadataParseError(
+            TryFromCargoMetadataError::NoWdkConfigurationsDetected
+        )
+    ));
+}
+
+#[test]
+pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail(
+) {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root_dir.join("non-driver");
+    let profile = Profile::Debug;
+    let target_arch = TargetArch::X86_64;
+    let sample_class = true;
+
+    // driver project data
+    let non_driver = "non-driver";
+    let non_driver_version = "0.0.3";
+    let (workspace_member_3, package_3) = get_cargo_metadata_package(
+        &workspace_root_dir.join(&non_driver),
+        &non_driver,
+        &non_driver_version,
+        None,
+    );
+
+    let package_project = TestPackageAction::new(
+        cwd.clone(),
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+    );
+    let package_project_action = package_project
+        // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
+        // going to be for the whole workspace
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            None,
+            vec![(workspace_member_3, package_3)],
+        )
+        .expect_path_canonicalization_cwd();
+
+    let package_project = PackageAction::new(
+        cwd,
+        profile.clone(),
+        target_arch.clone(),
+        sample_class,
+        clap_verbosity_flag::Verbosity::new(1, 0),
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+    );
+    assert_eq!(package_project.is_ok(), true);
+
+    let run_result = package_project.unwrap().run();
+
+    assert!(matches!(
+        run_result.err().unwrap(),
+        PackageProjectError::WdkMetadataParseError(
+            TryFromCargoMetadataError::NoWdkConfigurationsDetected
+        )
+    ));
+}
+
 struct TestPackageAction {
     cwd: PathBuf,
     profile: Profile,
-    target_arch: TargetArch,
     sample_class: bool,
 
     cargo_metadata: Option<Metadata>,
@@ -1660,9 +2290,10 @@ struct TestPackageAction {
 // Output argument in any method means to override return output from default
 // success with no stdout/stderr
 trait TestSetupPackageExpectations {
-    fn expect_path_canonicalization_package_root(self) -> Self;
-    fn expect_path_canonicalization_workspace_root(self) -> Self;
     fn expect_path_canonicalization_cwd(self) -> Self;
+    fn expect_path_canonicalization_workspace_root(self) -> Self;
+    fn expect_path_canonicalization_all_package_roots(self) -> Self;
+    fn expect_path_canonicalization_package_root(self, driver_dir: &PathBuf) -> Self;
     fn expect_self_signed_cert_file_exists(self, driver_dir: &PathBuf, does_exist: bool) -> Self;
     fn expect_final_package_dir_exists(
         self,
@@ -1700,6 +2331,7 @@ trait TestSetupPackageExpectations {
         driver_name: &str,
         driver_dir: &PathBuf,
         is_success: bool,
+        workspace_root_dir: &PathBuf,
     ) -> Self;
     fn expect_copy_map_file_to_package_folder(
         self,
@@ -1790,7 +2422,6 @@ impl TestPackageAction {
         Self {
             cwd,
             profile,
-            target_arch,
             sample_class,
             mock_run_command,
             mock_wdk_build_provider,
@@ -1825,11 +2456,12 @@ impl TestPackageAction {
 
     fn set_up_workspace_with_multiple_driver_projects(
         mut self,
+        workspace_root_dir: &PathBuf,
         workspace_additional_metadata: Option<TestWdkMetadata>,
         package_metadata_list: Vec<(TestMetadataWorkspaceMemberId, TestMetadataPackage)>,
     ) -> impl TestSetupPackageExpectations {
         let cargo_toml_metadata = get_cargo_metadata(
-            &self.cwd,
+            workspace_root_dir,
             package_metadata_list.iter().map(|p| p.1.clone()).collect(),
             package_metadata_list.into_iter().map(|p| p.0).collect(),
             workspace_additional_metadata,
@@ -1846,9 +2478,17 @@ impl TestPackageAction {
     }
 
     fn set_up_with_custom_toml(
-        self,
-        cargo_toml_metadata: Metadata,
+        mut self,
+        cargo_toml_metadata: String,
     ) -> impl TestSetupPackageExpectations {
+        let cargo_toml_metadata =
+            serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata).unwrap();
+        let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        self.mock_wdk_build_provider
+            .expect_get_cargo_metadata_at_path()
+            .once()
+            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+        self.cargo_metadata = Some(cargo_toml_metadata.clone());
         self
     }
 }
@@ -1882,7 +2522,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         self
     }
 
-    fn expect_path_canonicalization_package_root(mut self) -> Self {
+    fn expect_path_canonicalization_all_package_roots(mut self) -> Self {
         self.cargo_metadata
             .as_ref()
             .unwrap()
@@ -1897,6 +2537,17 @@ impl TestSetupPackageExpectations for TestPackageAction {
                     .once()
                     .returning(move |_| Ok(package_root_path.to_owned()));
             });
+        self
+    }
+
+    fn expect_path_canonicalization_package_root(mut self, driver_dir: &PathBuf) -> Self {
+        let expected_package_root_path = driver_dir.clone();
+        let package_root_path_to_be_returned = driver_dir.clone();
+        self.mock_fs_provider
+            .expect_canonicalize_path()
+            .withf(move |d: &PathBuf| d.eq(&expected_package_root_path))
+            .once()
+            .returning(move |_| Ok(package_root_path_to_be_returned.to_owned()));
         self
     }
 
@@ -2102,9 +2753,12 @@ impl TestSetupPackageExpectations for TestPackageAction {
         driver_name: &str,
         driver_dir: &PathBuf,
         is_success: bool,
+        workspace_root_dir: &PathBuf,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace("-", "_");
-        let expected_target_dir = driver_dir.join("target").join(&self.profile.to_string());
+        let expected_target_dir = workspace_root_dir
+            .join("target")
+            .join(&self.profile.to_string());
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{}_package", expected_driver_name_underscored));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2759,4 +3413,90 @@ impl TestSetupPackageExpectations for TestPackageAction {
     fn mock_fs_provider(&self) -> &MockFSProvider {
         &self.mock_fs_provider
     }
+}
+
+fn invalid_driver_cargo_toml() -> String {
+    r#"
+        {
+            "packages": [
+                {
+                    "name": "sample_driver",
+                    "version": "0.0.1",
+                    "id": "path+file:///C:/tmp/sample-driver#0.0.1",
+                    "license": "MIT OR Apache-2.0",
+                    "license_file": null,
+                    "description": null,
+                    "source": null,
+                    "dependencies": [],
+                    "targets": [
+                        {
+                            "kind": [
+                                "cdylib"
+                            ],
+                            "crate_types": [
+                                "cdylib"
+                            ],
+                            "name": "sample_driver",
+                            "src_path": "C:\\tmp\\sample-driver\\src\\lib.rs",
+                            "edition": "2021",
+                            "doc": true,
+                            "doctest": false,
+                            "test": false
+                        },
+                        {
+                            "kind": [
+                                "custom-build"
+                            ],
+                            "crate_types": [
+                                "bin"
+                            ],
+                            "name": "build-script-build",
+                            "src_path": "C:\\tmp\\sample-driver\\build.rs",
+                            "edition": "2021",
+                            "doc": false,
+                            "doctest": false,
+                            "test": false
+                        }
+                    ],
+                    "features": {
+                        "default": [],
+                        "nightly": [
+                            "wdk/nightly",
+                            "wdk-sys/nightly"
+                        ]
+                    },
+                    "manifest_path": "C:\\tmp\\sample-driver\\Cargo.toml",
+                    "metadata": {
+                        "wdk": {}
+                    },
+                    "publish": [],
+                    "authors": [],
+                    "categories": [],
+                    "keywords": [],
+                    "readme": null,
+                    "repository": null,
+                    "homepage": null,
+                    "documentation": null,
+                    "edition": "2021",
+                    "links": null,
+                    "default_run": null,
+                    "rust_version": null
+                }
+            ],
+            "workspace_members": [
+                "path+file:///C:/tmp/sample-driver#0.0.1"
+            ],
+            "target_directory": "C:\\tmp\\sample-driver\\target",
+            "version": 1,
+            "workspace_root": "C:\\tmp\\sample-driver",
+            "metadata": {
+                "wdk": {
+                    "driver-model": {
+                        "driver-type": "KMDF"
+                    }
+                }
+            }
+        }
+    "#
+    .to_string()
 }

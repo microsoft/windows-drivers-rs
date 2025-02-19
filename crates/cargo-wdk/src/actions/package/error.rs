@@ -29,12 +29,8 @@ pub enum PackageDriverError {
          directory."
     )]
     MissingInxSrcFileError(PathBuf),
-    #[error("Failed to copy file error, src: {src:?}, dest: {dest:?}, error: {error:?}")]
-    CopyFileError {
-        src: PathBuf,
-        dest: PathBuf,
-        error: std::io::Error,
-    },
+    #[error("Failed to copy file error, src: {0:?}, dest: {1:?}, error: {2:?}")]
+    CopyFileError(PathBuf, PathBuf, std::io::Error),
     #[error("Error running stampinf command, error: {0}")]
     StampinfError(CommandError),
     #[error("Error running inf2cat command, error: {0}")]
