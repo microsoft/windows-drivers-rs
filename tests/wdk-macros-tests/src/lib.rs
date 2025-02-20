@@ -71,7 +71,7 @@ macro_rules! generate_macrotest_tests {
                         let symlink_target = &$crate::MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         let symlink_path = &$crate::MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         $crate::_create_symlink_if_nonexistent(symlink_path, symlink_target);
-                        $crate::expand(                            symlink_path);
+                        $crate::expand(symlink_path);
                     }
                 )?
 
@@ -84,8 +84,7 @@ macro_rules! generate_macrotest_tests {
                             let symlink_target = &$crate::MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             let symlink_path = &$crate::MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             $crate::_create_symlink_if_nonexistent(symlink_path, symlink_target);
-                            $crate::expand_args(
-                                symlink_path, &["--features", "nightly"]);
+                            $crate::expand_args(symlink_path, &["--features", "nightly"]);
                         }
                     )?
                 }
@@ -230,37 +229,40 @@ macro_rules! generate_call_unsafe_wdf_binding_tests {
 
 #[doc(hidden)]
 pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path::Path) {
-    // Use relative paths for symlink creation
+    // use relative paths for symlink creation
     let relative_target_path =
         pathdiff::diff_paths(target, link.parent().expect("link.parent() should exist"))
             .expect("target path should be resolvable as relative to link");
 
-    // Lock based off target_file so tests can run in parallel
+    // create flock based off target_file, so tests can run in parallel
     let target_file = std::fs::File::open(
         target
             .canonicalize()
             .expect("canonicalize of symlink target should succeed"),
     )
     .expect("target file should be successfully opened");
-    target_file
-        .lock_exclusive()
+
+    if !link.exists() || !link.is_symlink() || std::fs::read_link(link).expect("read_link of symlink should succeed") != target {
+        target_file
+        .lock_exclusive() 
         .expect("exclusive lock should be successfully acquired");
 
-    // Only create a new symlink if there isn't an existing one, or if the existing
-    // one points to the wrong place
-    if !link.exists() {
-        std::os::windows::fs::symlink_file(relative_target_path, link)
-            .expect("symlink creation should succeed");
-    } else if !link.is_symlink()
-        || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
-    {
-        std::fs::remove_file(link).expect("stale symlink removal should succeed");
-        // wait for deletion to complete
-        while !matches!(link.try_exists(), Ok(false)) {}
+        // Only create a new symlink if there isn't an existing one, or if the existing
+        // one points to the wrong place
+        if !link.exists() {
+            std::os::windows::fs::symlink_file(relative_target_path, link)
+                .expect("symlink creation should succeed");
+        } else if !link.is_symlink()
+            || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
+        {
+            std::fs::remove_file(link).expect("stale symlink removal should succeed");
+            // wait for deletion to complete
+            while !matches!(link.try_exists(), Ok(false)) {}
 
-        std::os::windows::fs::symlink_file(relative_target_path, link)
-            .expect("symlink creation should succeed");
-    } else {
-        // symlink already exists and points to the correct place
+            std::os::windows::fs::symlink_file(relative_target_path, link)
+                .expect("symlink creation should succeed");
+        } else {
+            // symlink already exists and points to the correct place
+        }
     }
 }
