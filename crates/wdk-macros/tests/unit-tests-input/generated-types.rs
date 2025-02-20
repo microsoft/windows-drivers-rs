@@ -8,7 +8,6 @@ pub mod _WDFFUNCENUM {
     pub const WdfVerifierDbgBreakPointTableIndex: Type = 367;
 }
 
-
 pub type PFN_WDFDRIVERCREATE = ::core::option::Option<
     unsafe extern "C" fn(
         DriverGlobals: PWDF_DRIVER_GLOBALS,
