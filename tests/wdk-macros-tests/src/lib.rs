@@ -234,7 +234,6 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
         pathdiff::diff_paths(target, link.parent().expect("link.parent() should exist"))
             .expect("target path should be resolvable as relative to link");
 
-    // create flock based off target_file, so tests can run in parallel
     let target_file = std::fs::File::open(
         target
             .canonicalize()
@@ -242,20 +241,24 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
     )
     .expect("target file should be successfully opened");
 
-    if !link.exists() || !link.is_symlink() || std::fs::read_link(link).expect("read_link of symlink should succeed") != target {
+    // only create a new symlink if there isn't an existing one, or if the existing
+    // one points to the wrong place
+    let link_needs_update = || {
+        !link.is_symlink()
+            || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
+    };
+    if !link.exists() || link_needs_update() {
+        // create flock based off target_file, so tests can run in parallel
         target_file
-        .lock_exclusive() 
-        .expect("exclusive lock should be successfully acquired");
+            .lock_exclusive()
+            .expect("exclusive lock should be successfully acquired");
 
-        // Only create a new symlink if there isn't an existing one, or if the existing
-        // one points to the wrong place
         if !link.exists() {
             std::os::windows::fs::symlink_file(relative_target_path, link)
                 .expect("symlink creation should succeed");
-        } else if !link.is_symlink()
-            || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
-        {
+        } else if link_needs_update() {
             std::fs::remove_file(link).expect("stale symlink removal should succeed");
+
             // wait for deletion to complete
             while !matches!(link.try_exists(), Ok(false)) {}
 
@@ -264,5 +267,10 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
         } else {
             // symlink already exists and points to the correct place
         }
+
+        // explicitly unlock the target_file to avoid waiting for windows to eventually
+        // automatically release the lock when target_file handle is closed
+        FileExt::unlock(&target_file)
+            .expect("file locks should be successfully released");
     }
 }
