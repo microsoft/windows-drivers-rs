@@ -210,7 +210,6 @@ pub enum ApiSubset {
 }
 
 impl Default for Config {
-    #[must_use]
     fn default() -> Self {
         Self {
             wdk_content_root: utils::detect_wdk_content_root().expect(
@@ -951,7 +950,6 @@ impl From<DeserializableDriverConfig> for DriverConfig {
 }
 
 impl Default for KmdfConfig {
-    #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
@@ -971,7 +969,6 @@ impl KmdfConfig {
 }
 
 impl Default for UmdfConfig {
-    #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
