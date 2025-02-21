@@ -1,5 +1,4 @@
 use std::{
-    any::{Any, TypeId},
     collections::HashMap,
     io::Error,
     os::windows::process::ExitStatusExt,
@@ -69,10 +68,11 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -146,10 +146,11 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -223,10 +224,11 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -318,10 +320,11 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -394,10 +397,11 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -460,10 +464,11 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, false);
@@ -512,10 +517,11 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -571,10 +577,11 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -634,10 +641,11 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -698,10 +706,11 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -767,10 +776,11 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -837,10 +847,11 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -906,10 +917,11 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name, None)
+        .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -973,6 +985,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     );
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
 
     let package_project = PackageAction::new(
@@ -1000,7 +1013,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
 pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail(
 ) {
     // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
+    let cwd = PathBuf::from("C:\\tmp\\sample-driver");
     let profile = Profile::Debug;
     let target_arch = TargetArch::X64;
     let sample_class = true;
@@ -1016,6 +1029,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     );
     let package_project_action = package_project
         .set_up_with_custom_toml(cargo_toml_metadata)
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
 
     let package_project = PackageAction::new(
@@ -1110,10 +1124,11 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
                 (workspace_member_3, package_3),
             ],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(driver_name_1, None)
+        .expect_cargo_build(driver_name_1, &cwd.join(&driver_name_1), None)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(&driver_name_1), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
@@ -1134,7 +1149,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_detect_wdk_build_number(25100u32)
         .expect_infverif(driver_name_1, &cwd, "KMDF", None)
         // Second driver project
-        .expect_cargo_build(driver_name_2, None)
+        .expect_cargo_build(driver_name_2, &cwd.join(&driver_name_2), None)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(&driver_name_2), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
@@ -1155,7 +1170,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_detect_wdk_build_number(25100u32)
         .expect_infverif(driver_name_2, &cwd, "KMDF", None)
         // Non-driver project
-        .expect_cargo_build(non_driver, None);
+        .expect_cargo_build(non_driver, &cwd.join(&non_driver), None);
 
     let package_project = PackageAction::new(
         cwd,
@@ -1242,10 +1257,11 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
                 (workspace_member_3, package_3),
             ],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root(&cwd)
-        .expect_cargo_build(driver_name_1, None)
+        .expect_cargo_build(driver_name_1, &cwd, None)
         .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
         .expect_inx_file_exists(driver_name_1, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
@@ -1343,10 +1359,11 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
                 (workspace_member_3, package_3),
             ],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
-        .expect_cargo_build(&non_driver, None);
+        .expect_cargo_build(&non_driver, &cwd, None);
 
     let package_project = PackageAction::new(
         cwd,
@@ -1363,77 +1380,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let run_result = package_project.unwrap().run();
 
     assert_eq!(run_result.is_ok(), true);
-}
-
-#[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_workspace_folder_then_build_should_fail(
-) {
-    // Input CLI args
-    let workspace_root_dir = PathBuf::from("C:\\tmp");
-    let cwd = workspace_root_dir.join("random-dir");
-    let profile = Profile::Debug;
-    let target_arch = TargetArch::X64;
-    let sample_class = true;
-
-    // driver project data
-    let driver_type = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_version_1 = "0.0.1";
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &workspace_root_dir.join(&driver_name_1),
-        &driver_name_1,
-        &driver_version_1,
-        Some(wdk_metadata.clone()),
-    );
-    let (workspace_member_3, package_3) = get_cargo_metadata_package(
-        &workspace_root_dir.join(&non_driver),
-        &non_driver,
-        &non_driver_version,
-        None,
-    );
-
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
-    let package_project_action = package_project
-        // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
-        // going to be for the whole workspace
-        .set_up_workspace_with_multiple_driver_projects(
-            &workspace_root_dir,
-            Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_3, package_3),
-            ],
-        )
-        .expect_path_canonicalization_cwd()
-        .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_all_package_roots();
-
-    let package_project = PackageAction::new(
-        cwd,
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-        clap_verbosity_flag::Verbosity::new(1, 0),
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-    );
-    assert_eq!(package_project.is_ok(), true);
-
-    let run_result = package_project.unwrap().run();
-
-    assert!(matches!(
-        run_result.err().unwrap(),
-        PackageProjectError::NotAWorkspaceMemberError(_)
-    ));
 }
 
 #[test]
@@ -1482,6 +1428,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
                 (workspace_member_2, package_2),
             ],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
 
     let package_project = PackageAction::new(
@@ -1554,6 +1501,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
                 (workspace_member_2, package_2),
             ],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
 
     let package_project = PackageAction::new(
@@ -1609,6 +1557,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
             None,
             vec![(workspace_member_3, package_3)],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
 
     let package_project = PackageAction::new(
@@ -1667,6 +1616,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
             None,
             vec![(workspace_member_3, package_3)],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
 
     let package_project = PackageAction::new(
@@ -1714,6 +1664,7 @@ struct TestPackageAction {
 // Output argument in any method means to override return output from default
 // success with no stdout/stderr
 trait TestSetupPackageExpectations {
+    fn expect_root_manifest_exists(self, root_dir: &PathBuf, does_exist: bool) -> Self;
     fn expect_path_canonicalization_cwd(self) -> Self;
     fn expect_path_canonicalization_workspace_root(self) -> Self;
     fn expect_path_canonicalization_all_package_roots(self) -> Self;
@@ -1726,7 +1677,12 @@ trait TestSetupPackageExpectations {
         does_exist: bool,
     ) -> Self;
     fn expect_dir_created(self, driver_name: &str, driver_dir: &PathBuf, created: bool) -> Self;
-    fn expect_cargo_build(self, driver_name: &str, override_output: Option<Output>) -> Self;
+    fn expect_cargo_build(
+        self,
+        driver_name: &str,
+        driver_dir: &PathBuf,
+        override_output: Option<Output>,
+    ) -> Self;
     fn expect_inx_file_exists(
         self,
         driver_name: &str,
@@ -1918,6 +1874,15 @@ impl TestPackageAction {
 }
 
 impl TestSetupPackageExpectations for TestPackageAction {
+    fn expect_root_manifest_exists(mut self, root_dir: &PathBuf, does_exist: bool) -> Self {
+        self.mock_fs_provider
+            .expect_exists()
+            .with(eq(root_dir.clone().join("Cargo.toml")))
+            .once()
+            .returning(move |_| does_exist);
+        self
+    }
+
     fn expect_path_canonicalization_cwd(mut self) -> Self {
         let cwd: PathBuf = self.cwd.clone();
         let expected_cwd = cwd.clone();
@@ -2033,13 +1998,31 @@ impl TestSetupPackageExpectations for TestPackageAction {
         self
     }
 
-    fn expect_cargo_build(mut self, driver_name: &str, override_output: Option<Output>) -> Self {
+    fn expect_cargo_build(
+        mut self,
+        driver_name: &str,
+        cwd: &PathBuf,
+        override_output: Option<Output>,
+    ) -> Self {
         // cargo build on the package
         let expected_cargo_command: &'static str = "cargo";
-        let expected_cargo_build_args: Vec<String> = vec!["build", "-v", "-p", &driver_name]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
+        let manifest_path = cwd
+            .clone()
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .trim_start_matches("\\\\?\\")
+            .to_string();
+        let expected_cargo_build_args: Vec<String> = vec![
+            "build",
+            "-v",
+            "--manifest-path",
+            &manifest_path,
+            "-p",
+            &driver_name,
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
         let expected_output = match override_output {
             Some(output) => output,
             None => Output {

@@ -20,6 +20,13 @@ pub enum PackageProjectError {
     PackageDriverInitError(String, PackageDriverError),
     #[error("Error packaging driver, package_name: {0}, error: {1}")]
     PackageDriverError(String, PackageDriverError),
+    #[error("No valid rust projects in the current working directory: {0}")]
+    NoValidRustProjectsInTheDirectory(PathBuf),
+    #[error(
+        "One or more rust (possibly driver) projects failed to package in the working directory: \
+         {0}"
+    )]
+    OneOrMoreRustProjectsFailedToBuild(PathBuf),
 }
 
 #[derive(thiserror::Error, Debug)]
