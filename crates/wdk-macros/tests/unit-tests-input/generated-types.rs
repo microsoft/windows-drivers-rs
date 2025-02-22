@@ -3,6 +3,11 @@
 
 //! Snippet of a bindgen-generated file containing types information used by tests for [`wdk_macros::call_unsafe_wdf_function_binding!`]
 
+pub mod _WDFFUNCENUM {
+    pub const WdfDriverCreateTableIndex: Type = 116;
+    pub const WdfVerifierDbgBreakPointTableIndex: Type = 367;
+}
+
 pub type PFN_WDFDRIVERCREATE = ::core::option::Option<
     unsafe extern "C" fn(
         DriverGlobals: PWDF_DRIVER_GLOBALS,
