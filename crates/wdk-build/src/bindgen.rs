@@ -7,6 +7,11 @@ use bindgen::{
     callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
 };
+use grep::{
+    regex::RegexMatcher,
+    searcher::{sinks::UTF8, SearcherBuilder},
+};
+use walkdir::WalkDir;
 
 use crate::{Config, ConfigError};
 
@@ -21,6 +26,20 @@ pub trait BuilderExt {
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
     fn wdk_default(config: impl Borrow<Config>) -> Result<Builder, ConfigError>;
+
+    /// Returns self (`Builder`) with opaque types for Windows handle types
+    /// added to the bindgen configuration. This is necessary as the bindgen
+    /// resolution for the `DECLARE_HANDLE` macro does not properly detect these
+    /// generated handle types as opaque.
+    ///
+    /// # Errors
+    ///
+    /// Implementation may return a `wdk_build::ConfigError` if unable to
+    /// resolve include paths
+    fn opaque_windows_handle_types(
+        self,
+        config: impl Borrow<Config>,
+    ) -> Result<Builder, ConfigError>;
 }
 
 #[derive(Debug)]
@@ -106,8 +125,75 @@ impl BuilderExt for Builder {
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease);
-
         Ok(builder)
+    }
+
+    /// Returns self (`Builder`) with opaque types for Windows handle types
+    /// added to the bindgen configuration. This is necessary as the bindgen
+    /// resolution for the `DECLARE_HANDLE` macro does not properly detect these
+    /// generated handle types as opaque.
+    ///
+    /// # Errors
+    ///
+    /// Implementation may return a `wdk_build::ConfigError` if unable to
+    /// resolve include paths
+    fn opaque_windows_handle_types(
+        mut self,
+        config: impl Borrow<Config>,
+    ) -> Result<Self, ConfigError> {
+        let config: &Config = config.borrow();
+
+        // We create a new matcher with the pattern as follows:
+        // From the beginning of the string, we want any amount of whitespace followed
+        // by the `DECLARE_HANDLE` string, which should be followed by any amount
+        // of whitespace before an opening parentheses. The pattern is then
+        // repeated to be inclusive of the string DECLARE_NDIS_HANDLE, which is a
+        // function macro that expands to `DECLARE_HANDLE`.
+        let matcher = RegexMatcher::new_line_matcher(
+            "(^\\s*DECLARE_HANDLE\\s*\\()|(^\\s*DECLARE_NDIS_HANDLE\\s*\\()",
+        )
+        .expect("Failed to create matcher for grep.");
+
+        // For each include path, we recursively step through the directory using
+        // `WalkDir`, then search for matches to our `RegexMatcher` pattern. We push all
+        // results to the vector `results`.
+        let mut results = Vec::new();
+        for include_path in config.include_paths()? {
+            for entry in WalkDir::new(include_path)
+                .into_iter()
+                .filter_map(std::result::Result::ok)
+            {
+                if !entry.file_type().is_file() {
+                    continue;
+                }
+                let _ = SearcherBuilder::new().build().search_path(
+                    &matcher,
+                    entry.path(),
+                    UTF8(|_lnum, line| {
+                        // We find the open and closed parentheses in each line, and push the
+                        // trimmed substring between them to the results vector. The
+                        // `DECLARE_HANDLE` macro adds two underscores to
+                        // the end of the handle type, so we add them
+                        // to match.
+                        let open_paren_index = line.find('(');
+                        let close_paren_index = line.find(')');
+                        results.push(format!(
+                            "{}__",
+                            line[open_paren_index.unwrap() + 1..close_paren_index.unwrap()].trim()
+                        ));
+                        Ok(true)
+                    }),
+                );
+            }
+        }
+        for result in results {
+            self = self
+                .clone()
+                .opaque_type(result.as_str())
+                .no_copy(result.as_str())
+                .no_default(result);
+        }
+        Ok(self)
     }
 }
 

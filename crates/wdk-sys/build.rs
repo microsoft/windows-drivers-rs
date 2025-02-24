@@ -247,6 +247,7 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
+        .opaque_windows_handle_types(config)?
         .with_codegen_config(CodegenConfig::TYPES)
         .header_contents("types-input.h", &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
