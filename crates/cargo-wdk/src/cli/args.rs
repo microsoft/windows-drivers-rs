@@ -162,6 +162,13 @@ pub struct PackageProjectArgs {
     pub target_arch: TargetArchArg,
     #[clap(
         long,
+        help = "Verify Signatures",
+        default_value = "false",
+        ignore_case = true
+    )]
+    pub verify_signature: bool,
+    #[clap(
+        long,
         help = "Sample Class",
         default_value = "true",
         ignore_case = true

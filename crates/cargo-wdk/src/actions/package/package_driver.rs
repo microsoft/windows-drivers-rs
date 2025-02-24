@@ -15,6 +15,7 @@ const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 /// Suports low level driver packaging operations
 pub struct PackageDriver<'a> {
     package_name: String,
+    verify_signature: bool,
     sample_class: bool,
 
     // src paths
@@ -65,6 +66,7 @@ impl<'a> PackageDriver<'a> {
         working_dir: &'a PathBuf,
         target_dir: &'a PathBuf,
         target_arch: &TargetArch,
+        verify_signature: bool,
         sample_class: bool,
         driver_model: DriverConfig,
         wdk_build_provider: &'a dyn WdkBuildProvider,
@@ -121,6 +123,7 @@ impl<'a> PackageDriver<'a> {
 
         Ok(Self {
             package_name,
+            verify_signature,
             sample_class,
             src_inx_file_path,
             src_driver_binary_file_path,
@@ -484,14 +487,18 @@ impl<'a> PackageDriver<'a> {
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
         )?;
-        self.run_signtool_verify(&self.dest_driver_binary_path)?;
         self.run_signtool_sign(
             &self.dest_cat_file_path,
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
         )?;
-        self.run_signtool_verify(&self.dest_cat_file_path)?;
         self.run_infverif()?;
+        // Verify signatures only when --verify-signature flag = true is passed
+        if self.verify_signature {
+            info!("Verifying signatures for driver binary and cat file using signtool");
+            self.run_signtool_verify(&self.dest_driver_binary_path)?;
+            self.run_signtool_verify(&self.dest_cat_file_path)?;
+        }
         Ok(())
     }
 }

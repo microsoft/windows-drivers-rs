@@ -1,8 +1,10 @@
 use std::{path::PathBuf, string::FromUtf8Error};
 use crate::providers::error::CommandError;
 
+use thiserror::Error;
+
 /// Errors for the package project action layer
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum PackageProjectError {
     #[error("Wdk Build Config Error")]
     WdkBuildConfigError(#[from] wdk_build::ConfigError),
@@ -30,7 +32,7 @@ pub enum PackageProjectError {
 }
 
 /// Errors for the low level package driver layer
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum PackageDriverError {
     #[error(
         "Missing .inx file in source path: {0}, Please ensure you are in a Rust driver project \

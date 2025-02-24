@@ -59,6 +59,7 @@ impl Cli {
                     cli_args.cwd,
                     cli_args.profile.into(),
                     cli_args.target_arch.into(),
+                    cli_args.verify_signature,
                     cli_args.sample_class,
                     self.verbose,
                     &wdk_build,

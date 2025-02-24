@@ -13,3 +13,6 @@ pub enum NewProjectError {
     #[error("Template file not found: {0}")]
     TemplateNotFoundError(String),
 }
+
+#[derive(Debug, Error)]
+pub enum NewDriverError {}
