@@ -84,11 +84,6 @@ impl<'a> PackageAction<'a> {
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
-        debug!(
-            "Found {} entries in the working directory: {:?}",
-            dirs.len(),
-            dirs
-        );
 
         let mut is_valid_dir_with_rust_projects = false;
         for dir in dirs.iter() {
