@@ -1,19 +1,7 @@
 use std::{io, process::Output};
-
 use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum NewProjectError {
-    #[error("File error: {0}")]
-    FileError(#[from] FileError),
-
-    #[error("Failed to execute cargo new: {0}")]
-    CargoNewError(#[from] std::io::Error),
-
-    #[error("Template file not found: {0}")]
-    TemplateNotFoundError(String),
-}
-
+/// Error type for std::process::command execution failures
 #[derive(Error, Debug)]
 pub enum CommandError {
     #[error("Command '{command}' with args {args:?} failed \n STDOUT: {stdout}")]
@@ -36,6 +24,7 @@ impl CommandError {
     }
 }
 
+/// Error type for std::file operations
 #[derive(Debug, Error)]
 pub enum FileError {
     #[error("Failed to write to file: {0}")]

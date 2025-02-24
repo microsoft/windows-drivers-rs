@@ -6,6 +6,7 @@ use clap::Args;
 use super::error::{InvalidDriverProjectNameError, NewProjectArgsError};
 use crate::actions::{DriverType, Profile, TargetArch};
 
+/// Type for Driver Project Name Argument
 #[derive(Debug, Clone)]
 pub struct ProjectNameArg(pub String);
 
@@ -45,6 +46,7 @@ impl FromStr for ProjectNameArg {
     }
 }
 
+/// Type for Driver Type Argument
 #[derive(Debug, Clone)]
 pub enum DriverTypeArg {
     Kmdf,
@@ -75,6 +77,8 @@ impl FromStr for DriverTypeArg {
     }
 }
 
+/// Arguments for the new project subcommand
+/// This struct is used to parse the command line arguments for creating a new driver project.
 #[derive(Debug, Args)]
 pub struct NewProjectArgs {
     #[clap(help = "Driver Project Name")]
@@ -85,6 +89,7 @@ pub struct NewProjectArgs {
     pub cwd: PathBuf,
 }
 
+/// Type for Profile Argument
 #[derive(Debug, Clone)]
 pub enum ProfileArg {
     Debug,
@@ -112,6 +117,7 @@ impl FromStr for ProfileArg {
     }
 }
 
+/// Type for Target Architecture Argument
 #[derive(Debug, Clone)]
 pub enum TargetArchArg {
     X64,
@@ -139,6 +145,8 @@ impl FromStr for TargetArchArg {
     }
 }
 
+/// Arguments for the package project subcommand
+/// This struct is used to parse the command line arguments for packaging a driver project.
 #[derive(Debug, Args)]
 pub struct PackageProjectArgs {
     #[clap(long, help = "Path to the project", default_value = ".")]

@@ -6,10 +6,12 @@ use std::{
 
 use mockall::automock;
 
-use crate::errors::FileError;
+use super::error::FileError;
 
+/// Provides limited access to std::fs methods
 pub(crate) struct FS {}
 
+/// A Provider trait with methods for file system access
 #[automock]
 pub(crate) trait FSProvider {
     fn rename(&self, src: &PathBuf, dest: &PathBuf) -> Result<(), std::io::Error>;

@@ -12,6 +12,7 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 
+/// Suports low level driver packaging operations
 pub struct PackageDriver<'a> {
     package_name: String,
     sample_class: bool,
@@ -44,6 +45,21 @@ pub struct PackageDriver<'a> {
 }
 
 impl<'a> PackageDriver<'a> {
+    /// Creates a new instance of `PackageDriver`.
+    /// # Arguments
+    /// * `package_name` - The name of the package.
+    /// * `working_dir` - The working directory.
+    /// * `target_dir` - The target directory.
+    /// * `target_arch` - The target architecture.
+    /// * `sample_class` - Whether the package is a sample class.
+    /// * `driver_model` - The driver model.
+    /// * `wdk_build_provider` - The WDK build provider.
+    /// * `command_exec` - The command execution provider.
+    /// * `fs_provider` - The file system provider.
+    /// # Returns
+    /// * `Result<Self, PackageDriverError>` - A result containing the new instance or an error.
+    /// # Errors
+    /// * `PackageDriverError::IoError` - If there is an IO error while creating the final package directory.
     pub fn new(
         package_name: &'a str,
         working_dir: &'a PathBuf,
@@ -427,6 +443,23 @@ impl<'a> PackageDriver<'a> {
         Ok(())
     }
 
+    /// Entry point method to run the low level driver packaging operations.
+    /// # Returns
+    /// * `Result<(), PackageDriverError>` - A result indicating success or failure.
+    /// # Errors
+    /// * `PackageDriverError::CopyFileError` - If there is an error copying a file.
+    /// * `PackageDriverError::CertGenerationInStoreError` - If there is an error generating a certificate in the store.
+    /// * `PackageDriverError::CreateCertFileFromStoreError` - If there is an error creating a certificate file from the store.
+    /// * `PackageDriverError::DriverBinarySignError` - If there is an error signing the driver binary.
+    /// * `PackageDriverError::DriverBinarySignVerificationError` - If there is an error verifying the driver binary signature.
+    /// * `PackageDriverError::Inf2CatError` - If there is an error running the inf2cat command.
+    /// * `PackageDriverError::InfVerificationError` - If there is an error verifying the inf file.
+    /// * `PackageDriverError::MissingInxSrcFileError` - If the .inx source file is missing.
+    /// * `PackageDriverError::StampinfError` - If there is an error running the stampinf command.
+    /// * `PackageDriverError::VerifyCertExistsInStoreError` - If there is an error verifying if the certificate exists in the store.
+    /// * `PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutputError` - If the command output is invalid when verifying if the certificate exists in the store.
+    /// * `PackageDriverError::WdkBuildConfigError` - If there is an error with the WDK build config.
+    /// * `PackageDriverError::IoError` - If there is an IO error.
     pub fn run(&self) -> Result<(), PackageDriverError> {
         self.check_inx_exists()?;
         // TODO: rename is not necessary, but should confirm

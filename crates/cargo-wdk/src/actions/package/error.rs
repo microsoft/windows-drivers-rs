@@ -1,7 +1,7 @@
 use std::{path::PathBuf, string::FromUtf8Error};
+use crate::providers::error::CommandError;
 
-use crate::errors::CommandError;
-
+/// Errors for the package project action layer
 #[derive(thiserror::Error, Debug)]
 pub enum PackageProjectError {
     #[error("Wdk Build Config Error")]
@@ -29,6 +29,7 @@ pub enum PackageProjectError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
 }
 
+/// Errors for the low level package driver layer
 #[derive(thiserror::Error, Debug)]
 pub enum PackageDriverError {
     #[error(

@@ -7,11 +7,13 @@ use anyhow::Result;
 use log::debug;
 use mockall::automock;
 
-use crate::errors::CommandError;
+use super::error::CommandError;
 
+/// Provides limited access to std::process::Command methods
 #[derive(Debug)]
 pub struct CommandExec {}
 
+/// A Provider trait with methods for command execution
 #[automock]
 pub trait RunCommand {
     fn run<'a>(

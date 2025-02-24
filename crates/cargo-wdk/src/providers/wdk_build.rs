@@ -2,8 +2,11 @@ use std::path::PathBuf;
 
 use cargo_metadata::Metadata;
 use mockall::automock;
+
+/// Provides limited access to wdk-build crate methods
 pub(crate) struct WdkBuild {}
 
+/// A Provider trait with methods from wdk-build crate
 #[automock]
 pub(crate) trait WdkBuildProvider {
     fn get_cargo_metadata_at_path(

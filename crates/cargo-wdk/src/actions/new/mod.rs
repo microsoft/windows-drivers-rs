@@ -1,4 +1,5 @@
 pub mod new_driver;
+mod error;
 
 use std::path::PathBuf;
 

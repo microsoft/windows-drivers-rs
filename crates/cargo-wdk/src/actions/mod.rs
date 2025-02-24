@@ -1,9 +1,14 @@
 use std::fmt;
 
+/// Business logic is divided into the following action modules
+/// * `new` - New action module
+/// * `build` - Build action module
+/// * `package` - Package action module
 pub mod build;
 pub mod new;
 pub mod package;
 
+/// DriverType for the action layer
 #[derive(Debug, Clone)]
 pub enum DriverType {
     Kmdf,
@@ -22,6 +27,7 @@ impl fmt::Display for DriverType {
     }
 }
 
+/// Profile for the action layer
 #[derive(Debug, Clone)]
 pub enum Profile {
     Debug,
@@ -38,6 +44,7 @@ impl fmt::Display for Profile {
     }
 }
 
+/// TargetArch for the action layer
 #[derive(Debug, Clone)]
 pub enum TargetArch {
     X64,

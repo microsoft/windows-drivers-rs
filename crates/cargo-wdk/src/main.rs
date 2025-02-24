@@ -1,6 +1,5 @@
 mod actions;
 mod cli;
-mod errors;
 mod log;
 mod providers;
 

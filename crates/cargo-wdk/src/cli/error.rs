@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+/// Validation errors for the arguments passed to new project sub command
 #[derive(Debug, Error)]
 pub enum NewProjectArgsError {
     #[error("Invalid driver project name: {0}, error: {1}")]
@@ -8,6 +9,7 @@ pub enum NewProjectArgsError {
     InvalidDriverTypeError(String),
 }
 
+/// Validation errors for the driver project name arg passed to new project sub command
 #[derive(Debug, Error)]
 pub enum InvalidDriverProjectNameError {
     #[error("Project name cannot be empty")]

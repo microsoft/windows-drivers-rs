@@ -6,6 +6,7 @@ use log4rs::{
     Config,
 };
 
+/// Initializes the logger with a console appender and a pattern encoder
 pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) -> Result<()> {
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{h({l:>5})}: {m}{n}")))
@@ -31,6 +32,7 @@ pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) -> Result<(
     Ok(())
 }
 
+/// Returns the cargo verbose flags based on the verbosity level
 pub fn get_cargo_verbose_flags<'a>(
     verbosity_level: clap_verbosity_flag::Verbosity,
 ) -> Option<&'a str> {

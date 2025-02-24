@@ -21,8 +21,7 @@ use crate::{
         Profile,
         TargetArch,
     },
-    errors::CommandError,
-    providers::{exec::MockRunCommand, fs::MockFSProvider, wdk_build::MockWdkBuildProvider},
+    providers::{exec::MockRunCommand, fs::MockFSProvider, wdk_build::MockWdkBuildProvider, error::CommandError},
 };
 
 ////////////////////////////////////////////////////////////////////////////////

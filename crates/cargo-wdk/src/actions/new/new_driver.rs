@@ -4,9 +4,9 @@ use anyhow::{Ok, Result};
 use include_dir::{include_dir, Dir};
 use log::{debug, info};
 
+use super::error::NewProjectError;
 use crate::{
     actions::DriverType,
-    errors::NewProjectError,
     providers::{exec::RunCommand, fs::FSProvider},
 };
 

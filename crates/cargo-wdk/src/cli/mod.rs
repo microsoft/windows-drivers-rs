@@ -10,6 +10,7 @@ use crate::{
     providers::{exec::CommandExec, fs::FS, wdk_build},
 };
 
+/// Top level command line interface for cargo wdk
 #[derive(Debug, Parser)]
 #[clap(
     name = "cargo wdk",
@@ -27,6 +28,7 @@ pub struct Cli {
     pub verbose: clap_verbosity_flag::Verbosity,
 }
 
+/// Subcommands for wdk
 #[derive(Debug, Subcommand)]
 pub enum Subcmd {
     #[clap(name = "new", about = "Create a new Windows Driver Kit project")]
@@ -36,6 +38,8 @@ pub enum Subcmd {
 }
 
 impl Cli {
+    /// Entry point method to construct and call actions based on the subcommand
+    /// and arguments provided by the user.
     pub fn run(self) -> Result<()> {
         let wdk_build = wdk_build::WdkBuild {};
         let command_exec = CommandExec {};

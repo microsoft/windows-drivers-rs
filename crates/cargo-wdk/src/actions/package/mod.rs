@@ -18,7 +18,8 @@ use wdk_build::metadata::Wdk;
 use super::{build::BuildAction, Profile, TargetArch};
 use crate::providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider};
 
-// #[derive(Debug)]
+/// Action that orchestrates the packaging of a driver project
+/// This also includes the build step as pre-requisite for packaging
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Profile,
@@ -33,6 +34,20 @@ pub struct PackageAction<'a> {
 }
 
 impl<'a> PackageAction<'a> {
+    /// Creates a new instance of `PackageAction`
+    /// # Arguments
+    /// * `working_dir` - The working directory to operate on
+    /// * `profile` - The profile to be used for cargo build and package target dir
+    /// * `target_arch` - The target architecture
+    /// * `is_sample_class` - Indicates if the driver is a sample class driver
+    /// * `verbosity_level` - The verbosity level for logging
+    /// * `wdk_build_provider` - The WDK build provider instance
+    /// * `command_exec` - The command execution provider instance
+    /// * `fs_provider` - The file system provider instance
+    /// # Returns
+    /// * `Result<Self>` - A result containing the new instance of `PackageAction` or an error
+    /// # Errors
+    /// * `PackageProjectError::IoError` - If there is an IO error while canonicalizing the working dir
     pub fn new(
         working_dir: PathBuf,
         profile: Profile,
@@ -66,6 +81,20 @@ impl<'a> PackageAction<'a> {
         })
     }
 
+    /// Entry point method to execute the packaging action flow
+    /// # Returns
+    /// * `Result<Self>` - A result containing an empty tuple or an error of type PackageProjectError
+    /// # Errors
+    /// * `PackageProjectError::NotAWorkspaceMemberError` - If the working directory is not a workspace member
+    /// * `PackageProjectError::PackageDriverInitError` - If there is an error initializing the package driver
+    /// * `PackageProjectError::PackageDriverError` - If there is an error during the package driver process
+    /// * `PackageProjectError::CargoMetadataParseError` - If there is an error parsing the Cargo metadata
+    /// * `PackageProjectError::WdkMetadataParseError` - If there is an error parsing the WDK metadata
+    /// * `PackageProjectError::WdkBuildConfigError` - If there is an error with the WDK build config
+    /// * `PackageProjectError::IoError` - Wraps all possible IO errors
+    /// * `PackageProjectError::CommandExecutionError` - If there is an error executing a command
+    /// * `PackageProjectError::NoValidRustProjectsInTheDirectory` - If no valid Rust projects are found in the directory
+    /// * `PackageProjectError::OneOrMoreRustProjectsFailedToBuild` - If one or more Rust projects fail to build
     pub fn run(&self) -> Result<(), PackageProjectError> {
         // Standalone driver/driver workspace support
         if self
