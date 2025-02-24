@@ -3,7 +3,7 @@ mod tests;
 
 // Module imports
 mod error;
-use cargo_metadata::Metadata;
+use cargo_metadata::{Metadata, Package};
 use error::PackageProjectError;
 mod package_driver;
 
@@ -11,7 +11,7 @@ mod package_driver;
 use std::{fs::read_dir, io, path::PathBuf, result::Result::Ok};
 
 use anyhow::Result;
-use log::{debug, error as log_error, info};
+use log::{debug, error as log_error, info, warn};
 use package_driver::PackageDriver;
 use wdk_build::metadata::Wdk;
 
@@ -193,7 +193,7 @@ impl<'a> PackageAction<'a> {
                 self.build_and_package(
                     &package_root_path,
                     &wdk_metadata,
-                    &package.metadata,
+                    &package,
                     package.name.clone(),
                     &target_directory,
                 )?;
@@ -228,7 +228,7 @@ impl<'a> PackageAction<'a> {
         self.build_and_package(
             &working_dir,
             &wdk_metadata,
-            &package.metadata,
+            &package,
             package.name.clone(),
             &target_directory.into(),
         )?;
@@ -256,7 +256,7 @@ impl<'a> PackageAction<'a> {
         &self,
         working_dir: &PathBuf,
         wdk_metadata: &Wdk,
-        metadata: &serde_json::Value,
+        package: &Package,
         package_name: String,
         target_dir: &PathBuf,
     ) -> Result<(), PackageProjectError> {
@@ -268,9 +268,16 @@ impl<'a> PackageAction<'a> {
             self.command_exec,
         )
         .run()?;
-        if metadata.get("wdk").is_none() {
-            debug!(
-                "No wdk metadata found. Skipping driver package workflow for package: {}",
+        if package.metadata.get("wdk").is_none() {
+            warn!(
+                "No package.metadata.wdk section found. Skipping driver package workflow for package: {}",
+                package_name
+            );
+            return Ok(());
+        }
+        if package.targets.iter().find(|t| t.kind.contains(&String::from("cdylib"))).is_none() {
+            warn!(
+                "No cdylib target found. Skipping driver package workflow for package: {}",
                 package_name
             );
             return Ok(());
