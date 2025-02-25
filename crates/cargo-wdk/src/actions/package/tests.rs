@@ -3229,10 +3229,10 @@ fn get_cargo_metadata_package(
             "targets": [
                 {{
                     "kind": [
-                        "bin"
+                        "cdylib"
                     ],
                     "crate_types": [
-                        "bin"
+                        "cdylib"
                     ],
                     "name": "{}",
                     "src_path": "{}",
