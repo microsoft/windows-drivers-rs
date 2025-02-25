@@ -9,7 +9,8 @@ pub enum NewProjectArgsError {
     InvalidDriverTypeError(String),
 }
 
-/// Validation errors for the driver project name arg passed to new project sub command
+/// Validation errors for the driver project name arg passed to new project sub
+/// command
 #[derive(Debug, Error)]
 pub enum InvalidDriverProjectNameError {
     #[error("Project name cannot be empty")]

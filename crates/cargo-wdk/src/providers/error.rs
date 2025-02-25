@@ -1,4 +1,5 @@
 use std::{io, process::Output};
+
 use thiserror::Error;
 
 /// Error type for std::process::command execution failures

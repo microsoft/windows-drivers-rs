@@ -1,7 +1,8 @@
 use std::{path::PathBuf, string::FromUtf8Error};
-use crate::providers::error::CommandError;
 
 use thiserror::Error;
+
+use crate::providers::error::CommandError;
 
 /// Errors for the package project action layer
 #[derive(Error, Debug)]

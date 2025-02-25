@@ -5,10 +5,10 @@ mod providers;
 
 use std::process::exit;
 
+use ::log::error;
 use anyhow::{Ok, Result};
 use clap::Parser;
 use cli::Cli;
-use ::log::error;
 
 fn main() -> Result<()> {
     let cli: Cli = Cli::parse();

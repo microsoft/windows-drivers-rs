@@ -78,7 +78,8 @@ impl FromStr for DriverTypeArg {
 }
 
 /// Arguments for the new project subcommand
-/// This struct is used to parse the command line arguments for creating a new driver project.
+/// This struct is used to parse the command line arguments for creating a new
+/// driver project.
 #[derive(Debug, Args)]
 pub struct NewProjectArgs {
     #[clap(help = "Driver Project Name")]
@@ -146,7 +147,8 @@ impl FromStr for TargetArchArg {
 }
 
 /// Arguments for the package project subcommand
-/// This struct is used to parse the command line arguments for packaging a driver project.
+/// This struct is used to parse the command line arguments for packaging a
+/// driver project.
 #[derive(Debug, Args)]
 pub struct PackageProjectArgs {
     #[clap(long, help = "Path to the project", default_value = ".")]

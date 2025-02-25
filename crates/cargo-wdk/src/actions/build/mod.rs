@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 use log::{debug, info};
 
-use crate::{log as logger, providers::exec::RunCommand, providers::error::CommandError};
+use crate::{
+    log as logger,
+    providers::{error::CommandError, exec::RunCommand},
+};
 
 /// Action to build a package using cargo
 pub struct BuildAction<'a> {
@@ -38,7 +41,8 @@ impl<'a> BuildAction<'a> {
 
     /// Entry point method to run the build action
     /// # Returns
-    /// * `Result<(), CommandError>` - Result indicating success or failure of the build action
+    /// * `Result<(), CommandError>` - Result indicating success or failure of
+    ///   the build action
     /// # Errors
     /// * `CommandError` - If the command execution fails
     pub fn run(&self) -> Result<(), CommandError> {

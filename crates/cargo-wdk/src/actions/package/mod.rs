@@ -38,7 +38,8 @@ impl<'a> PackageAction<'a> {
     /// Creates a new instance of `PackageAction`
     /// # Arguments
     /// * `working_dir` - The working directory to operate on
-    /// * `profile` - The profile to be used for cargo build and package target dir
+    /// * `profile` - The profile to be used for cargo build and package target
+    ///   dir
     /// * `target_arch` - The target architecture
     /// * `is_sample_class` - Indicates if the driver is a sample class driver
     /// * `verbosity_level` - The verbosity level for logging
@@ -46,9 +47,11 @@ impl<'a> PackageAction<'a> {
     /// * `command_exec` - The command execution provider instance
     /// * `fs_provider` - The file system provider instance
     /// # Returns
-    /// * `Result<Self>` - A result containing the new instance of `PackageAction` or an error
+    /// * `Result<Self>` - A result containing the new instance of
+    ///   `PackageAction` or an error
     /// # Errors
-    /// * `PackageProjectError::IoError` - If there is an IO error while canonicalizing the working dir
+    /// * `PackageProjectError::IoError` - If there is an IO error while
+    ///   canonicalizing the working dir
     pub fn new(
         working_dir: PathBuf,
         profile: Profile,
@@ -86,18 +89,28 @@ impl<'a> PackageAction<'a> {
 
     /// Entry point method to execute the packaging action flow
     /// # Returns
-    /// * `Result<Self>` - A result containing an empty tuple or an error of type PackageProjectError
+    /// * `Result<Self>` - A result containing an empty tuple or an error of
+    ///   type PackageProjectError
     /// # Errors
-    /// * `PackageProjectError::NotAWorkspaceMemberError` - If the working directory is not a workspace member
-    /// * `PackageProjectError::PackageDriverInitError` - If there is an error initializing the package driver
-    /// * `PackageProjectError::PackageDriverError` - If there is an error during the package driver process
-    /// * `PackageProjectError::CargoMetadataParseError` - If there is an error parsing the Cargo metadata
-    /// * `PackageProjectError::WdkMetadataParseError` - If there is an error parsing the WDK metadata
-    /// * `PackageProjectError::WdkBuildConfigError` - If there is an error with the WDK build config
+    /// * `PackageProjectError::NotAWorkspaceMemberError` - If the working
+    ///   directory is not a workspace member
+    /// * `PackageProjectError::PackageDriverInitError` - If there is an error
+    ///   initializing the package driver
+    /// * `PackageProjectError::PackageDriverError` - If there is an error
+    ///   during the package driver process
+    /// * `PackageProjectError::CargoMetadataParseError` - If there is an error
+    ///   parsing the Cargo metadata
+    /// * `PackageProjectError::WdkMetadataParseError` - If there is an error
+    ///   parsing the WDK metadata
+    /// * `PackageProjectError::WdkBuildConfigError` - If there is an error with
+    ///   the WDK build config
     /// * `PackageProjectError::IoError` - Wraps all possible IO errors
-    /// * `PackageProjectError::CommandExecutionError` - If there is an error executing a command
-    /// * `PackageProjectError::NoValidRustProjectsInTheDirectory` - If no valid Rust projects are found in the directory
-    /// * `PackageProjectError::OneOrMoreRustProjectsFailedToBuild` - If one or more Rust projects fail to build
+    /// * `PackageProjectError::CommandExecutionError` - If there is an error
+    ///   executing a command
+    /// * `PackageProjectError::NoValidRustProjectsInTheDirectory` - If no valid
+    ///   Rust projects are found in the directory
+    /// * `PackageProjectError::OneOrMoreRustProjectsFailedToBuild` - If one or
+    ///   more Rust projects fail to build
     pub fn run(&self) -> Result<(), PackageProjectError> {
         // Standalone driver/driver workspace support
         if self
@@ -297,12 +310,18 @@ impl<'a> PackageAction<'a> {
         .run()?;
         if package.metadata.get("wdk").is_none() {
             warn!(
-                "No package.metadata.wdk section found. Skipping driver package workflow for package: {}",
+                "No package.metadata.wdk section found. Skipping driver package workflow for \
+                 package: {}",
                 package_name
             );
             return Ok(());
         }
-        if package.targets.iter().find(|t| t.kind.contains(&String::from("cdylib"))).is_none() {
+        if package
+            .targets
+            .iter()
+            .find(|t| t.kind.contains(&String::from("cdylib")))
+            .is_none()
+        {
             warn!(
                 "No cdylib target found. Skipping driver package workflow for package: {}",
                 package_name

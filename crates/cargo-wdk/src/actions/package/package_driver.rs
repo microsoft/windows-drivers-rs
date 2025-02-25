@@ -58,9 +58,11 @@ impl<'a> PackageDriver<'a> {
     /// * `command_exec` - The command execution provider.
     /// * `fs_provider` - The file system provider.
     /// # Returns
-    /// * `Result<Self, PackageDriverError>` - A result containing the new instance or an error.
+    /// * `Result<Self, PackageDriverError>` - A result containing the new
+    ///   instance or an error.
     /// # Errors
-    /// * `PackageDriverError::IoError` - If there is an IO error while creating the final package directory.
+    /// * `PackageDriverError::IoError` - If there is an IO error while creating
+    ///   the final package directory.
     pub fn new(
         package_name: &'a str,
         working_dir: &'a PathBuf,
@@ -448,20 +450,34 @@ impl<'a> PackageDriver<'a> {
 
     /// Entry point method to run the low level driver packaging operations.
     /// # Returns
-    /// * `Result<(), PackageDriverError>` - A result indicating success or failure.
+    /// * `Result<(), PackageDriverError>` - A result indicating success or
+    ///   failure.
     /// # Errors
-    /// * `PackageDriverError::CopyFileError` - If there is an error copying a file.
-    /// * `PackageDriverError::CertGenerationInStoreError` - If there is an error generating a certificate in the store.
-    /// * `PackageDriverError::CreateCertFileFromStoreError` - If there is an error creating a certificate file from the store.
-    /// * `PackageDriverError::DriverBinarySignError` - If there is an error signing the driver binary.
-    /// * `PackageDriverError::DriverBinarySignVerificationError` - If there is an error verifying the driver binary signature.
-    /// * `PackageDriverError::Inf2CatError` - If there is an error running the inf2cat command.
-    /// * `PackageDriverError::InfVerificationError` - If there is an error verifying the inf file.
-    /// * `PackageDriverError::MissingInxSrcFileError` - If the .inx source file is missing.
-    /// * `PackageDriverError::StampinfError` - If there is an error running the stampinf command.
-    /// * `PackageDriverError::VerifyCertExistsInStoreError` - If there is an error verifying if the certificate exists in the store.
-    /// * `PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutputError` - If the command output is invalid when verifying if the certificate exists in the store.
-    /// * `PackageDriverError::WdkBuildConfigError` - If there is an error with the WDK build config.
+    /// * `PackageDriverError::CopyFileError` - If there is an error copying a
+    ///   file.
+    /// * `PackageDriverError::CertGenerationInStoreError` - If there is an
+    ///   error generating a certificate in the store.
+    /// * `PackageDriverError::CreateCertFileFromStoreError` - If there is an
+    ///   error creating a certificate file from the store.
+    /// * `PackageDriverError::DriverBinarySignError` - If there is an error
+    ///   signing the driver binary.
+    /// * `PackageDriverError::DriverBinarySignVerificationError` - If there is
+    ///   an error verifying the driver binary signature.
+    /// * `PackageDriverError::Inf2CatError` - If there is an error running the
+    ///   inf2cat command.
+    /// * `PackageDriverError::InfVerificationError` - If there is an error
+    ///   verifying the inf file.
+    /// * `PackageDriverError::MissingInxSrcFileError` - If the .inx source file
+    ///   is missing.
+    /// * `PackageDriverError::StampinfError` - If there is an error running the
+    ///   stampinf command.
+    /// * `PackageDriverError::VerifyCertExistsInStoreError` - If there is an
+    ///   error verifying if the certificate exists in the store.
+    /// * `PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutputError`
+    ///   - If the command output is invalid when verifying if the certificate
+    ///   exists in the store.
+    /// * `PackageDriverError::WdkBuildConfigError` - If there is an error with
+    ///   the WDK build config.
     /// * `PackageDriverError::IoError` - If there is an IO error.
     pub fn run(&self) -> Result<(), PackageDriverError> {
         self.check_inx_exists()?;
