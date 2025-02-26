@@ -167,18 +167,8 @@ pub struct PackageProjectArgs {
     pub profile: ProfileArg,
     #[clap(long, help = "Build Target", default_value = "x64", ignore_case = true)]
     pub target_arch: TargetArchArg,
-    #[clap(
-        long,
-        help = "Verify Signatures",
-        default_value = "false",
-        ignore_case = true
-    )]
+    #[clap(long, help = "Verify Signatures", default_value = "false")]
     pub verify_signature: bool,
-    #[clap(
-        long,
-        help = "Sample Class",
-        default_value = "true",
-        ignore_case = true
-    )]
+    #[clap(long, help = "Sample Class", default_value = "true")]
     pub sample_class: bool,
 }

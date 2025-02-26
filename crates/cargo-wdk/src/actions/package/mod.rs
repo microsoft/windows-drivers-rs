@@ -197,6 +197,8 @@ impl<'a> PackageAction<'a> {
                 self.working_dir.clone(),
             ));
         }
+
+        info!("Building and packaging completed successfully");
         Ok(())
     }
 

@@ -56,3 +56,7 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true

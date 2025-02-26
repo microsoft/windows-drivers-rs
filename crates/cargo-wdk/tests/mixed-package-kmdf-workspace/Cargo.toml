@@ -1,0 +1,25 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+# This workspace is used as a test for workspace-level WDK metadata configuration in cargo workspace that also contains non-WDK packages
+[workspace.metadata.wdk.driver-model]
+driver-type = "KMDF"
+kmdf-version-major = 1
+target-kmdf-version-minor = 33
+
+[workspace.dependencies]
+wdk = { path = "../../../../crates/wdk", version = "0.3.0" }
+wdk-alloc = { path = "../../../../crates/wdk-alloc", version = "0.3.0" }
+wdk-build = { path = "../../../../crates/wdk-build", version = "0.3.0" }
+wdk-macros = { path = "../../../../crates/wdk-macros", version = "0.3.0" }
+wdk-panic = { path = "../../../../crates/wdk-panic", version = "0.3.0" }
+wdk-sys = { path = "../../../../crates/wdk-sys", version = "0.3.0" }
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true
