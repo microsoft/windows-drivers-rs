@@ -421,6 +421,7 @@ fn get_wdf_function_info_map(
                 .to_syn_result(span, "unable to parse cache to JSON string")?;
             std::fs::write(&cached_function_fragments_map_path, generated_map_string)
                 .to_syn_result(span, "unable to write cache to file")?;
+            
             FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
             return Ok(generated_map);
         }
