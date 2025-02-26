@@ -46,17 +46,20 @@ impl Cli {
         let fs_provider = FS {};
 
         match self.sub_cmd {
-            Subcmd::New(cli_args) => NewAction::new(
-                &cli_args.driver_project_name.0,
-                cli_args.driver_type.into(),
-                cli_args.cwd,
-                &command_exec,
-                &fs_provider,
-            )?
-            .run(),
+            Subcmd::New(cli_args) => {
+                let new_action = NewAction::new(
+                    &cli_args.driver_project_name.0,
+                    cli_args.driver_type.into(),
+                    cli_args.cwd,
+                    &command_exec,
+                    &fs_provider,
+                )?;
+                new_action.run()?;
+                Ok(())
+            }
             Subcmd::Build(cli_args) => {
                 let package_action = PackageAction::new(
-                    cli_args.cwd,
+                    &cli_args.cwd,
                     cli_args.profile.into(),
                     cli_args.target_arch.into(),
                     cli_args.verify_signature,

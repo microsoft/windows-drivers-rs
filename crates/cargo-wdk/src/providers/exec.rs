@@ -9,7 +9,7 @@ use mockall::automock;
 
 use super::error::CommandError;
 
-/// Provides limited access to std::process::Command methods
+/// Provides limited access to `std::process::Command` methods
 #[derive(Debug)]
 pub struct CommandExec {}
 
@@ -49,7 +49,7 @@ impl RunCommand for CommandExec {
             .map_err(CommandError::IoError)?;
 
         if !output.status.success() {
-            return Err(CommandError::from_output(command, args, output));
+            return Err(CommandError::from_output(command, args, &output));
         }
 
         debug!(

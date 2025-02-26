@@ -53,7 +53,7 @@ impl<'a> PackageAction<'a> {
     /// * `PackageProjectError::IoError` - If there is an IO error while
     ///   canonicalizing the working dir
     pub fn new(
-        working_dir: PathBuf,
+        working_dir: &PathBuf,
         profile: Profile,
         target_arch: TargetArch,
         verify_signature: bool,
@@ -73,7 +73,7 @@ impl<'a> PackageAction<'a> {
         );
         // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because
         // it is already canonicalized, * (wild chars) won't be resolved to actual paths
-        let working_dir = fs_provider.canonicalize_path(working_dir)?;
+        let working_dir = fs_provider.canonicalize_path(working_dir.as_path())?;
         Ok(Self {
             working_dir,
             profile,
@@ -81,8 +81,8 @@ impl<'a> PackageAction<'a> {
             verify_signature,
             is_sample_class,
             verbosity_level,
-            command_exec,
             wdk_build_provider,
+            command_exec,
             fs_provider,
         })
     }
@@ -90,7 +90,7 @@ impl<'a> PackageAction<'a> {
     /// Entry point method to execute the packaging action flow
     /// # Returns
     /// * `Result<Self>` - A result containing an empty tuple or an error of
-    ///   type PackageProjectError
+    ///   type `PackageProjectError`
     /// # Errors
     /// * `PackageProjectError::NotAWorkspaceMemberError` - If the working
     ///   directory is not a workspace member
@@ -117,21 +117,19 @@ impl<'a> PackageAction<'a> {
             .fs_provider
             .exists(&self.working_dir.join("Cargo.toml"))
         {
-            let cargo_metadata = self.get_cargo_metadata(self.working_dir.clone())?;
-            return self.run_from_workspace_root(self.working_dir.clone(), cargo_metadata);
+            let cargo_metadata = self.get_cargo_metadata(&self.working_dir)?;
+            return self.run_from_workspace_root(&self.working_dir, &cargo_metadata);
         }
 
         // Emulated workspaces support
-        let dirs = read_dir(&self.working_dir)?
-            .map(|entry| entry)
-            .collect::<Result<Vec<_>, io::Error>>()?;
+        let dirs = read_dir(&self.working_dir)?.collect::<Result<Vec<_>, io::Error>>()?;
         info!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
 
         let mut is_valid_dir_with_rust_projects = false;
-        for dir in dirs.iter() {
+        for dir in &dirs {
             if dir.file_type()?.is_dir() && self.fs_provider.exists(&dir.path().join("Cargo.toml"))
             {
                 debug!(
@@ -169,9 +167,9 @@ impl<'a> PackageAction<'a> {
                         .expect("error reading the folder name")
                         .to_string_lossy()
                 );
-                match self.get_cargo_metadata(dir.path()) {
+                match self.get_cargo_metadata(&dir.path()) {
                     Ok(cargo_metadata) => {
-                        if let Err(e) = self.run_from_workspace_root(dir.path(), cargo_metadata) {
+                        if let Err(e) = self.run_from_workspace_root(&dir.path(), &cargo_metadata) {
                             did_fail_atleast_one_project = true;
                             log_error!(
                                 "Error packaging the child project: {}, error: {}",
@@ -204,18 +202,18 @@ impl<'a> PackageAction<'a> {
 
     fn run_from_workspace_root(
         &self,
-        working_dir: PathBuf,
-        cargo_metadata: Metadata,
+        working_dir: &PathBuf,
+        cargo_metadata: &Metadata,
     ) -> Result<(), PackageProjectError> {
         let target_directory = cargo_metadata
             .target_directory
-            .join(&self.profile.to_string());
-        let wdk_metadata = Wdk::try_from(&cargo_metadata)?;
+            .join(self.profile.to_string());
+        let wdk_metadata = Wdk::try_from(cargo_metadata)?;
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
             .fs_provider
-            .canonicalize_path(cargo_metadata.workspace_root.clone().into())?;
-        if workspace_root.eq(&working_dir) {
+            .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
+        if workspace_root.eq(working_dir) {
             debug!("Running from workspace root");
             let target_directory: PathBuf = target_directory.into();
             for package in workspace_packages {
@@ -225,7 +223,9 @@ impl<'a> PackageAction<'a> {
                     .expect("Unable to find package path from Cargo manifest path")
                     .into();
 
-                let package_root_path = self.fs_provider.canonicalize_path(package_root_path)?;
+                let package_root_path = self
+                    .fs_provider
+                    .canonicalize_path(package_root_path.as_path())?;
                 debug!(
                     "Processing workspace driver package: {}",
                     package_root_path.display()
@@ -233,7 +233,7 @@ impl<'a> PackageAction<'a> {
                 self.build_and_package(
                     &package_root_path,
                     &wdk_metadata,
-                    &package,
+                    package,
                     package.name.clone(),
                     &target_directory,
                 )?;
@@ -247,15 +247,15 @@ impl<'a> PackageAction<'a> {
                 .parent()
                 .expect("Unable to find package path from Cargo manifest path")
                 .into();
-            if let Ok(package_root_path) = self.fs_provider.canonicalize_path(package_root_path) {
-                debug!(
-                    "Processing workspace driver package: {}",
-                    package_root_path.display()
-                );
-                package_root_path.eq(&working_dir)
-            } else {
-                false
-            }
+            self.fs_provider
+                .canonicalize_path(package_root_path.as_path())
+                .map_or(false, |package_root_path| {
+                    debug!(
+                        "Processing workspace driver package: {}",
+                        package_root_path.display()
+                    );
+                    package_root_path.eq(working_dir)
+                })
         });
 
         if package.is_none() {
@@ -264,11 +264,11 @@ impl<'a> PackageAction<'a> {
             ));
         }
 
-        let package = package.unwrap();
+        let package = package.expect("Package cannot be empty");
         self.build_and_package(
-            &working_dir,
+            working_dir,
             &wdk_metadata,
-            &package,
+            package,
             package.name.clone(),
             &target_directory.into(),
         )?;
@@ -280,7 +280,7 @@ impl<'a> PackageAction<'a> {
 
     fn get_cargo_metadata(
         &self,
-        working_dir: PathBuf,
+        working_dir: &PathBuf,
     ) -> Result<cargo_metadata::Metadata, PackageProjectError> {
         let working_dir_path_trimmed: PathBuf = working_dir
             .to_string_lossy()
@@ -303,7 +303,7 @@ impl<'a> PackageAction<'a> {
         info!("Processing package: {}", package_name);
         BuildAction::new(
             &package_name,
-            &working_dir,
+            working_dir,
             self.verbosity_level,
             self.command_exec,
         )
@@ -316,11 +316,10 @@ impl<'a> PackageAction<'a> {
             );
             return Ok(());
         }
-        if package
+        if !package
             .targets
             .iter()
-            .find(|t| t.kind.contains(&String::from("cdylib")))
-            .is_none()
+            .any(|t| t.kind.contains(&String::from("cdylib")))
         {
             warn!(
                 "No cdylib target found. Skipping driver package workflow for package: {}",
@@ -332,7 +331,7 @@ impl<'a> PackageAction<'a> {
         debug!("Found wdk metadata in package: {}", package_name);
         let package_driver = PackageDriver::new(
             &package_name,
-            &working_dir,
+            working_dir,
             target_dir,
             &self.target_arch,
             self.verify_signature,
@@ -346,7 +345,10 @@ impl<'a> PackageAction<'a> {
             return Err(PackageProjectError::PackageDriverInitError(package_name, e));
         }
 
-        if let Err(e) = package_driver.unwrap().run() {
+        if let Err(e) = package_driver
+            .expect("PackageDriver failed to initialize")
+            .run()
+        {
             return Err(PackageProjectError::PackageDriverError(package_name, e));
         }
         info!("Processing completed for package: {}", package_name);

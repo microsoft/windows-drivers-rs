@@ -29,20 +29,25 @@ impl FromStr for ProjectNameArg {
                 InvalidDriverProjectNameError::NonAlphanumericProjectNameError,
             ));
         }
-        if !s.chars().next().unwrap().is_alphabetic() {
+        if !s
+            .chars()
+            .next()
+            .expect("Project name cannot be empty")
+            .is_alphabetic()
+        {
             return Err(NewProjectArgsError::InvalidDriverProjectNameError(
                 s.to_string(),
                 InvalidDriverProjectNameError::InvalidStartCharacter,
             ));
         }
-        let invalid_names = vec!["crate", "self", "super", "extern", "_", "-", "new", "build"];
+        let invalid_names = ["crate", "self", "super", "extern", "_", "-", "new", "build"];
         if invalid_names.contains(&s) {
             return Err(NewProjectArgsError::InvalidDriverProjectNameError(
                 s.to_string(),
                 InvalidDriverProjectNameError::ReservedName(s.to_string()),
             ));
         }
-        std::result::Result::Ok(ProjectNameArg(s.to_string()))
+        std::result::Result::Ok(Self(s.to_string()))
     }
 }
 
@@ -57,9 +62,9 @@ pub enum DriverTypeArg {
 impl Into<DriverType> for DriverTypeArg {
     fn into(self) -> DriverType {
         match self {
-            DriverTypeArg::Kmdf => DriverType::Kmdf,
-            DriverTypeArg::Umdf => DriverType::Umdf,
-            DriverTypeArg::Wdm => DriverType::Wdm,
+            Self::Kmdf => DriverType::Kmdf,
+            Self::Umdf => DriverType::Umdf,
+            Self::Wdm => DriverType::Wdm,
         }
     }
 }
@@ -69,9 +74,9 @@ impl FromStr for DriverTypeArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "kmdf" => std::result::Result::Ok(DriverTypeArg::Kmdf),
-            "umdf" => std::result::Result::Ok(DriverTypeArg::Umdf),
-            "wdm" => std::result::Result::Ok(DriverTypeArg::Wdm),
+            "kmdf" => std::result::Result::Ok(Self::Kmdf),
+            "umdf" => std::result::Result::Ok(Self::Umdf),
+            "wdm" => std::result::Result::Ok(Self::Wdm),
             _ => Err(NewProjectArgsError::InvalidDriverTypeError(s.to_string()).to_string()),
         }
     }
@@ -100,8 +105,8 @@ pub enum ProfileArg {
 impl Into<Profile> for ProfileArg {
     fn into(self) -> Profile {
         match self {
-            ProfileArg::Debug => Profile::Debug,
-            ProfileArg::Release => Profile::Release,
+            Self::Debug => Profile::Debug,
+            Self::Release => Profile::Release,
         }
     }
 }
@@ -111,9 +116,9 @@ impl FromStr for ProfileArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "debug" => std::result::Result::Ok(ProfileArg::Debug),
-            "release" => std::result::Result::Ok(ProfileArg::Release),
-            _ => Err(format!("'{}' is not a valid profile", s)),
+            "debug" => std::result::Result::Ok(Self::Debug),
+            "release" => std::result::Result::Ok(Self::Release),
+            _ => Err(format!("'{s}' is not a valid profile")),
         }
     }
 }
@@ -128,8 +133,8 @@ pub enum TargetArchArg {
 impl Into<TargetArch> for TargetArchArg {
     fn into(self) -> TargetArch {
         match self {
-            TargetArchArg::X64 => TargetArch::X64,
-            TargetArchArg::Arm64 => TargetArch::Arm64,
+            Self::X64 => TargetArch::X64,
+            Self::Arm64 => TargetArch::Arm64,
         }
     }
 }
@@ -139,9 +144,9 @@ impl FromStr for TargetArchArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "x64" => std::result::Result::Ok(TargetArchArg::X64),
-            "arm64" => std::result::Result::Ok(TargetArchArg::Arm64),
-            _ => Err(format!("'{}' is not a valid target architecture", s)),
+            "x64" => std::result::Result::Ok(Self::X64),
+            "arm64" => std::result::Result::Ok(Self::Arm64),
+            _ => Err(format!("'{s}' is not a valid target architecture")),
         }
     }
 }

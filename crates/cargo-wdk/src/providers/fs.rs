@@ -1,91 +1,75 @@
 use std::{
     fs::{copy, create_dir, rename, File, OpenOptions},
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use mockall::automock;
 
 use super::error::FileError;
 
-/// Provides limited access to std::fs methods
-pub(crate) struct FS {}
+/// Provides limited access to `std::fs` methods
+pub struct FS {}
 
 /// A Provider trait with methods for file system access
 #[automock]
-pub(crate) trait FSProvider {
-    fn rename(&self, src: &PathBuf, dest: &PathBuf) -> Result<(), std::io::Error>;
-    fn canonicalize_path(&self, path: PathBuf) -> Result<PathBuf, std::io::Error>;
-    fn copy(&self, src: &PathBuf, dest: &PathBuf) -> Result<u64, std::io::Error>;
-    fn exists(&self, path: &PathBuf) -> bool;
-    fn create_dir(&self, path: &PathBuf) -> Result<(), std::io::Error>;
-    fn read_file_to_string(&self, path: &PathBuf) -> Result<String, FileError>;
-    fn write_to_file(&self, path: &PathBuf, data: &[u8]) -> Result<(), FileError>;
-    fn append_to_file(&self, path: &PathBuf, data: &[u8]) -> Result<(), FileError>;
+pub trait FSProvider {
+    fn rename(&self, src: &Path, dest: &Path) -> Result<(), std::io::Error>;
+    fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, std::io::Error>;
+    fn copy(&self, src: &Path, dest: &Path) -> Result<u64, std::io::Error>;
+    fn exists(&self, path: &Path) -> bool;
+    fn create_dir(&self, path: &Path) -> Result<(), std::io::Error>;
+    fn read_file_to_string(&self, path: &Path) -> Result<String, FileError>;
+    fn write_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError>;
+    fn append_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError>;
 }
 
 impl FSProvider for FS {
-    fn canonicalize_path(&self, path: PathBuf) -> Result<PathBuf, std::io::Error> {
+    fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         path.canonicalize()
     }
 
-    fn copy(&self, src: &PathBuf, dest: &PathBuf) -> Result<u64, std::io::Error> {
+    fn copy(&self, src: &Path, dest: &Path) -> Result<u64, std::io::Error> {
         copy(src, dest)
     }
 
-    fn exists(&self, path: &PathBuf) -> bool {
+    fn exists(&self, path: &Path) -> bool {
         path.exists()
     }
 
-    fn create_dir(&self, path: &PathBuf) -> Result<(), std::io::Error> {
+    fn create_dir(&self, path: &Path) -> Result<(), std::io::Error> {
         create_dir(path)
     }
 
-    fn rename(&self, src: &PathBuf, dest: &PathBuf) -> Result<(), std::io::Error> {
+    fn rename(&self, src: &Path, dest: &Path) -> Result<(), std::io::Error> {
         rename(src, dest)
     }
 
-    fn read_file_to_string(&self, path: &PathBuf) -> Result<String, FileError> {
+    fn read_file_to_string(&self, path: &Path) -> Result<String, FileError> {
         if !path.exists() {
-            return Err(FileError::OpenError(format!(
-                "File does not exist: {}",
-                path.to_string_lossy()
-            )));
+            return Err(FileError::NotFound(path.to_owned()));
         }
         let mut content = String::new();
-        let mut file = File::open(path).map_err(|e| {
-            FileError::OpenError(format!(
-                "Failed to open file: {}: {}",
-                path.to_string_lossy(),
-                e
-            ))
-        })?;
-        file.read_to_string(&mut content).map_err(|e| {
-            FileError::ReadError(format!(
-                "Failed to read file: {}: {}",
-                path.to_string_lossy(),
-                e
-            ))
-        })?;
+        let mut file = File::open(path).map_err(|e| FileError::OpenError(path.to_owned(), e))?;
+        file.read_to_string(&mut content)
+            .map_err(|e| FileError::ReadError(path.to_owned(), e))?;
         Ok(content)
     }
 
-    fn write_to_file(&self, path: &PathBuf, data: &[u8]) -> Result<(), FileError> {
-        let mut file = File::create(path)
-            .map_err(|_| FileError::WriteError(path.to_string_lossy().to_string()))?;
+    fn write_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
+        let mut file = File::create(path).map_err(|e| FileError::WriteError(path.to_owned(), e))?;
         file.write_all(data)
-            .map_err(|_| FileError::WriteError(path.to_string_lossy().to_string()))?;
+            .map_err(|e| FileError::WriteError(path.to_owned(), e))?;
         Ok(())
     }
 
-    fn append_to_file(&self, path: &PathBuf, data: &[u8]) -> Result<(), FileError> {
+    fn append_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
         let mut file = OpenOptions::new()
-            .write(true)
             .append(true)
             .open(path)
-            .map_err(|_| FileError::AppendError(path.to_string_lossy().to_string()))?;
+            .map_err(|e| FileError::AppendError(path.to_owned(), e))?;
         file.write_all(data)
-            .map_err(|_| FileError::WriteError(path.to_string_lossy().to_string()))?;
+            .map_err(|e| FileError::WriteError(path.to_owned(), e))?;
         Ok(())
     }
 }

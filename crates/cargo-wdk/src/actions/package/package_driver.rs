@@ -1,4 +1,8 @@
-use std::{ops::RangeFrom, path::PathBuf, result::Result};
+use std::{
+    ops::RangeFrom,
+    path::{Path, PathBuf},
+    result::Result,
+};
 
 use log::{debug, info};
 use wdk_build::DriverConfig;
@@ -65,8 +69,8 @@ impl<'a> PackageDriver<'a> {
     ///   the final package directory.
     pub fn new(
         package_name: &'a str,
-        working_dir: &'a PathBuf,
-        target_dir: &'a PathBuf,
+        working_dir: &'a Path,
+        target_dir: &'a Path,
         target_arch: &TargetArch,
         verify_signature: bool,
         sample_class: bool,
@@ -78,15 +82,13 @@ impl<'a> PackageDriver<'a> {
         let package_name = package_name.replace("-", "_");
         // src paths
         let src_driver_binary_extension = "dll";
-        let src_inx_file_path = working_dir.join(format!("{}.inx", package_name));
+        let src_inx_file_path = working_dir.join(format!("{package_name}.inx"));
 
         // all paths inside target directory
         let src_driver_binary_file_path =
-            target_dir.join(format!("{}.{}", package_name, src_driver_binary_extension));
-        let src_pdb_file_path = target_dir.join(format!("{}.pdb", package_name));
-        let src_map_file_path = target_dir
-            .join("deps")
-            .join(format!("{}.map", package_name));
+            target_dir.join(format!("{package_name}.{src_driver_binary_extension}"));
+        let src_pdb_file_path = target_dir.join(format!("{package_name}.pdb"));
+        let src_map_file_path = target_dir.join("deps").join(format!("{package_name}.map"));
         let src_cert_file_path = target_dir.join(format!("{}.cer", WDR_LOCAL_TEST_CERT));
 
         // destination paths
@@ -97,17 +99,16 @@ impl<'a> PackageDriver<'a> {
                 "dll"
             };
         let src_renamed_driver_binary_file_path =
-            target_dir.join(format!("{}.{}", package_name, dest_driver_binary_extension));
-        let dest_root_package_folder: PathBuf =
-            target_dir.join(format!("{}_package", package_name));
-        let dest_inf_file_path = dest_root_package_folder.join(format!("{}.inf", package_name));
-        let dest_driver_binary_path = dest_root_package_folder
-            .join(format!("{}.{}", package_name, dest_driver_binary_extension));
-        let dest_pdb_file_path = dest_root_package_folder.join(format!("{}.pdb", package_name));
-        let dest_map_file_path = dest_root_package_folder.join(format!("{}.map", package_name));
+            target_dir.join(format!("{package_name}.{dest_driver_binary_extension}"));
+        let dest_root_package_folder: PathBuf = target_dir.join(format!("{package_name}_package"));
+        let dest_inf_file_path = dest_root_package_folder.join(format!("{package_name}.inf"));
+        let dest_driver_binary_path =
+            dest_root_package_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
+        let dest_pdb_file_path = dest_root_package_folder.join(format!("{package_name}.pdb"));
+        let dest_map_file_path = dest_root_package_folder.join(format!("{package_name}.map"));
         let dest_cert_file_path =
             dest_root_package_folder.join(format!("{}.cer", WDR_LOCAL_TEST_CERT));
-        let dest_cat_file_path = dest_root_package_folder.join(format!("{}.cat", package_name));
+        let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
 
         if !fs_provider.exists(&dest_root_package_folder) {
             fs_provider.create_dir(&dest_root_package_folder)?;
@@ -179,8 +180,8 @@ impl<'a> PackageDriver<'a> {
 
     fn copy(
         &self,
-        src_file_path: &'a PathBuf,
-        dest_file_path: &'a PathBuf,
+        src_file_path: &'a Path,
+        dest_file_path: &'a Path,
     ) -> Result<(), PackageDriverError> {
         debug!(
             "Copying src file {} to dest folder {}",
@@ -189,8 +190,8 @@ impl<'a> PackageDriver<'a> {
         );
         if let Err(e) = self.fs_provider.copy(src_file_path, dest_file_path) {
             return Err(PackageDriverError::CopyFileError(
-                src_file_path.clone(),
-                dest_file_path.clone(),
+                src_file_path.to_path_buf(),
+                dest_file_path.to_path_buf(),
                 e,
             ));
         }
@@ -208,7 +209,7 @@ impl<'a> PackageDriver<'a> {
                 "-u {}.{}",
                 umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
             ),
-            DriverConfig::Wdm => "".to_string(),
+            DriverConfig::Wdm => String::new(),
         };
 
         // TODO: Does it generate cat file relative to inf file path or we need to
@@ -291,7 +292,7 @@ impl<'a> PackageDriver<'a> {
                         }
                     }
                 }
-                return Ok(false);
+                Ok(false)
             }
             Err(e) => Err(PackageDriverError::VerifyCertExistsInStoreError(e)),
         }
@@ -310,7 +311,7 @@ impl<'a> PackageDriver<'a> {
             "-ss",
             WDR_TEST_CERT_STORE, // FIXME: this should be a parameter
             "-n",
-            &format!("CN={}", WDR_LOCAL_TEST_CERT), // FIXME: this should be a parameter
+            &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
             &cert_path,
         ];
 
@@ -349,11 +350,11 @@ impl<'a> PackageDriver<'a> {
     ///
     /// * `file_path` - The path to the file to be signed.
     /// * `cert_store` - The certificate store to use for signing.
-    /// * `cert_name` - The name of the certificate to use for signing.
-    /// TODO: Add parameters for certificate store and name
+    /// * `cert_name` - The name of the certificate to use for signing. TODO:
+    ///   Add parameters for certificate store and name
     fn run_signtool_sign(
         &self,
-        file_path: &PathBuf,
+        file_path: &Path,
         cert_store: &str,
         cert_name: &str,
     ) -> Result<(), PackageDriverError> {
@@ -386,10 +387,7 @@ impl<'a> PackageDriver<'a> {
         std::result::Result::Ok(())
     }
 
-    fn run_signtool_verify(
-        &self,
-        file_path: &PathBuf,
-    ) -> std::result::Result<(), PackageDriverError> {
+    fn run_signtool_verify(&self, file_path: &Path) -> std::result::Result<(), PackageDriverError> {
         info!(
             "Verifying {} using signtool",
             file_path
@@ -411,8 +409,7 @@ impl<'a> PackageDriver<'a> {
 
     fn run_infverif(&self) -> Result<(), PackageDriverError> {
         info!("Running InfVerif command");
-        let mut additional_args = "";
-        if self.sample_class {
+        let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
             if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
                 debug!(
@@ -424,8 +421,10 @@ impl<'a> PackageDriver<'a> {
             }
             // FIXME: Update the range end and the logic after /sample flag is added to
             // InfVerif CLI
-            additional_args = "/msft";
-        }
+            "/msft"
+        } else {
+            ""
+        };
         let mut args = vec![
             "/v",
             match self.driver_model {
@@ -475,7 +474,7 @@ impl<'a> PackageDriver<'a> {
     ///   error verifying if the certificate exists in the store.
     /// * `PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutputError`
     ///   - If the command output is invalid when verifying if the certificate
-    ///   exists in the store.
+    ///     exists in the store.
     /// * `PackageDriverError::WdkBuildConfigError` - If there is an error with
     ///   the WDK build config.
     /// * `PackageDriverError::IoError` - If there is an IO error.

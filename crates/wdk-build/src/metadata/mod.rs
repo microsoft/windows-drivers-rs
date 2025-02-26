@@ -18,7 +18,7 @@ pub(crate) mod ser;
 mod error;
 mod map;
 
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::Path};
 
 use camino::Utf8PathBuf;
 use cargo_metadata::Metadata;
@@ -174,9 +174,30 @@ pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item 
     cargo_manifest_paths
 }
 
-/// Get the cargo metadata at a given path
-pub fn get_cargo_metadata_at_path(manifest_path: &PathBuf) -> cargo_metadata::Result<Metadata> {
+/// Get the Cargo metadata at a given path.
+///
+/// This function executes the `cargo metadata` command to retrieve the metadata
+/// for the Cargo project located at the specified path. The metadata includes
+/// information about the project's dependencies, targets, and other relevant
+/// details.
+///
+/// # Arguments
+///
+/// * `manifest_path` - A reference to a `PathBuf` that specifies the path to
+///   the directory containing the `Cargo.toml` file.
+///
+/// # Returns
+///
+/// This function returns a `cargo_metadata::Result<Metadata>`, which is a
+/// result type that contains the `Metadata` on success or a
+/// `cargo_metadata::Error` on failure.
+///
+/// # Errors
+///
+/// This function will return an error if the `cargo metadata` command fails to
+/// execute or if the specified path does not contain a valid `Cargo.toml` file.
+pub fn get_cargo_metadata_at_path(manifest_path: &Path) -> cargo_metadata::Result<Metadata> {
     cargo_metadata::MetadataCommand::new()
-        .manifest_path(&manifest_path.join("Cargo.toml"))
+        .manifest_path(manifest_path.join("Cargo.toml"))
         .exec()
 }
