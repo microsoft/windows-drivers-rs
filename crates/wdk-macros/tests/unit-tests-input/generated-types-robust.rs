@@ -6,11 +6,11 @@
 pub mod _WDFFUNCENUM {
     pub const WdfDriverCreateTableIndex: Type = 116;
     pub const WdfVerifierDbgBreakPointTableIndex: Type = 367;
-    // Some entries in `WDFFUNCENUM` do not correspond to bindgen-generated functions. 
+    // Some entries in `WDFFUNCENUM` do not correspond to bindgen-generated functions (ex. private WDF APIs).
     // Parsing these entries should ignore the generated error from `generate_parameters_and_return_type()`.
     pub const WdfCxDeviceInitAllocateTableIndex: Type = 396;
     // Some entries in `WDFFUNCENUM` do not correspond to a legitimate TableIndex, like `WdfFunctionTableNumEntries`. 
-    // Build script should ignore any entry that doesn't end in `TableIndex` .
+    // Build script should ignore any entry that doesn't end in `TableIndex`.
     pub const WdfFunctionTableNumEntries: Type = 458;
 }
 
