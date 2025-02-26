@@ -44,6 +44,7 @@ cc = "1.2.10"
 cfg-if = "1.0.0"
 clap = "4.5.9"
 clap-cargo = "0.14.1"
+clap-verbosity-flag = "3.0.2"
 itertools = "0.13.0"
 paste = "1.0.15"
 pretty_assertions = "1.4.1"
@@ -57,6 +58,8 @@ thiserror = "1.0.69"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 windows = "0.58.0"
+include_dir = "0.7.4"
+mockall = "0.13.1"
 
 # The following workspace.metadata.wdk sections can be uncommented to configure the workspace for a specific WDK configuration (ex. for rust-analyzer to resolve things for a specific configuration)
 

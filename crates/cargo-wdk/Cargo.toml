@@ -11,11 +11,12 @@ clap = { workspace = true, features = ["derive"] }
 cargo_metadata.workspace = true
 wdk-build.workspace = true
 serde_json.workspace = true
-include_dir = "0.7.4"
+include_dir.workspace = true
+clap-verbosity-flag.workspace = true
+mockall.workspace = true
+# TODO: Plan to move away from these deps
 log = "0.4.25"
 log4rs = "1.3.0"
-clap-verbosity-flag = "3.0.2"
-mockall = "0.13.1"
 
 [lints.clippy]
 unwrap_used = "deny"
