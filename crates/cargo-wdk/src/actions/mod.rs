@@ -50,12 +50,3 @@ pub enum TargetArch {
     X64,
     Arm64,
 }
-
-impl ToString for TargetArch {
-    fn to_string(&self) -> String {
-        match self {
-            Self::X64 => "x86_64".to_string(),
-            Self::Arm64 => "aarch64".to_string(),
-        }
-    }
-}

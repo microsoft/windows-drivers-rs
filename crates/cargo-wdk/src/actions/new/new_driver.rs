@@ -1,4 +1,7 @@
-use std::{fs::create_dir_all, path::PathBuf};
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+};
 
 use include_dir::{include_dir, Dir};
 use log::{debug, info};
@@ -20,26 +23,26 @@ pub struct NewDriver<'a> {
 
 impl<'a> NewDriver<'a> {
     pub fn new(
-        driver_project_name: String,
+        driver_project_name: &'a str,
         driver_type: DriverType,
-        cwd: PathBuf,
+        cwd: &'a Path,
         command_exec: &'a dyn RunCommand,
         fs_provider: &'a dyn FSProvider,
-    ) -> Result<Self, NewDriverError> {
-        Ok(Self {
+    ) -> Self {
+        let cwd = cwd.join(driver_project_name);
+        let driver_project_name = driver_project_name.replace('-', "_");
+        Self {
             driver_project_name,
             driver_type,
             cwd,
             command_exec,
             fs_provider,
-        })
+        }
     }
 
-    pub fn run(&mut self) -> Result<(), NewDriverError> {
+    pub fn run(&self) -> Result<(), NewDriverError> {
         debug!("Creating new project");
         self.run_cargo_new()?;
-        self.cwd.push(&self.driver_project_name);
-        self.driver_project_name = self.driver_project_name.replace("-", "_");
         self.copy_lib_rs_template()?;
         self.update_cargo_toml()?;
         self.create_inx_file()?;
@@ -62,7 +65,7 @@ impl<'a> NewDriver<'a> {
         );
         let args = ["new", "--lib", &self.driver_project_name, "--vcs", "none"];
         if let Err(e) = self.command_exec.run("cargo", &args, None) {
-            return Err(NewDriverError::CargoNewError(e));
+            return Err(NewDriverError::CargoNewCommand(e));
         }
         debug!(
             "Successfully ran cargo new for project: {}",
@@ -77,11 +80,9 @@ impl<'a> NewDriver<'a> {
             self.driver_type.to_string()
         );
         let template_path = PathBuf::from(&self.driver_type.to_string()).join("lib.rs.tmp");
-        let template_file = TEMPLATES_DIR
-            .get_file(template_path.to_str().unwrap())
-            .ok_or_else(|| {
-                NewDriverError::TemplateNotFoundError(template_path.to_string_lossy().into_owned())
-            })?;
+        let template_file = TEMPLATES_DIR.get_file(&template_path).ok_or_else(|| {
+            NewDriverError::TemplateNotFound(template_path.to_string_lossy().into_owned())
+        })?;
         let lib_rs_path = self.cwd.join("src/lib.rs");
         self.fs_provider
             .write_to_file(&lib_rs_path, template_file.contents())?;
@@ -94,11 +95,9 @@ impl<'a> NewDriver<'a> {
             self.driver_type
         );
         let template_path = PathBuf::from("build.rs.tmp");
-        let template_file = TEMPLATES_DIR
-            .get_file(template_path.to_str().unwrap())
-            .ok_or_else(|| {
-                NewDriverError::TemplateNotFoundError(template_path.to_string_lossy().into_owned())
-            })?;
+        let template_file = TEMPLATES_DIR.get_file(&template_path).ok_or_else(|| {
+            NewDriverError::TemplateNotFound(template_path.to_string_lossy().into_owned())
+        })?;
         let lib_rs_path = self.cwd.join("build.rs");
         self.fs_provider
             .write_to_file(&lib_rs_path, template_file.contents())?;
@@ -116,9 +115,9 @@ impl<'a> NewDriver<'a> {
         let template_cargo_toml_path =
             PathBuf::from(&self.driver_type.to_string()).join("Cargo.toml.tmp");
         let template_cargo_toml_file = TEMPLATES_DIR
-            .get_file(template_cargo_toml_path.to_str().unwrap())
+            .get_file(&template_cargo_toml_path)
             .ok_or_else(|| {
-                NewDriverError::TemplateNotFoundError(
+                NewDriverError::TemplateNotFound(
                     template_cargo_toml_path.to_string_lossy().into_owned(),
                 )
             })?;
@@ -134,13 +133,9 @@ impl<'a> NewDriver<'a> {
         );
         let inx_template_path =
             PathBuf::from(&self.driver_type.to_string()).join("driver_name.inx.tmp");
-        let inx_template_file = TEMPLATES_DIR
-            .get_file(inx_template_path.to_str().unwrap())
-            .ok_or_else(|| {
-                NewDriverError::TemplateNotFoundError(
-                    inx_template_path.to_string_lossy().into_owned(),
-                )
-            })?;
+        let inx_template_file = TEMPLATES_DIR.get_file(&inx_template_path).ok_or_else(|| {
+            NewDriverError::TemplateNotFound(inx_template_path.to_string_lossy().into_owned())
+        })?;
         let inx_content = String::from_utf8_lossy(inx_template_file.contents()).to_string();
         let substituted_inx_content =
             inx_content.replace("##driver_name_placeholder##", &self.driver_project_name);
@@ -156,9 +151,9 @@ impl<'a> NewDriver<'a> {
         let cargo_config_path = self.cwd.join(".cargo/config.toml");
         let cargo_config_template_path = PathBuf::from("config.toml.tmp");
         let cargo_config_template_file = TEMPLATES_DIR
-            .get_file(cargo_config_template_path.to_str().unwrap())
+            .get_file(&cargo_config_template_path)
             .ok_or_else(|| {
-                NewDriverError::TemplateNotFoundError(
+                NewDriverError::TemplateNotFound(
                     cargo_config_template_path.to_string_lossy().into_owned(),
                 )
             })?;

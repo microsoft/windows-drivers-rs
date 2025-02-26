@@ -8,21 +8,21 @@ use crate::providers::error::CommandError;
 #[derive(Error, Debug)]
 pub enum PackageProjectError {
     #[error("Wdk Build Config Error")]
-    WdkBuildConfigError(#[from] wdk_build::ConfigError),
+    WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Error Parsing Cargo.toml")]
-    CargoMetadataParseError(#[from] cargo_metadata::Error),
+    CargoMetadataParse(#[from] cargo_metadata::Error),
     #[error("Error Parsing WDK metadata from Cargo.toml")]
-    WdkMetadataParseError(#[from] wdk_build::metadata::TryFromCargoMetadataError),
+    WdkMetadataParse(#[from] wdk_build::metadata::TryFromCargoMetadataError),
     #[error("IO Error")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("Command Execution Error")]
-    CommandExecutionError(#[from] CommandError),
+    CommandExecution(#[from] CommandError),
     #[error("Not a workspace member, working directory: {0}")]
-    NotAWorkspaceMemberError(PathBuf),
+    NotAWorkspaceMember(PathBuf),
     #[error("Error initiating driver packaging, package_name: {0}, error: {1}")]
-    PackageDriverInitError(String, PackageDriverError),
+    PackageDriverInit(String, PackageDriverError),
     #[error("Error packaging driver, package_name: {0}, error: {1}")]
-    PackageDriverError(String, PackageDriverError),
+    PackageDriver(String, PackageDriverError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error(
@@ -39,34 +39,34 @@ pub enum PackageDriverError {
         "Missing .inx file in source path: {0}, Please ensure you are in a Rust driver project \
          directory."
     )]
-    MissingInxSrcFileError(PathBuf),
+    MissingInxSrcFile(PathBuf),
     #[error("Failed to copy file error, src: {0:?}, dest: {1:?}, error: {2:?}")]
-    CopyFileError(PathBuf, PathBuf, std::io::Error),
+    CopyFile(PathBuf, PathBuf, std::io::Error),
     #[error("Error running stampinf command, error: {0}")]
-    StampinfError(CommandError),
+    StampinfCommand(CommandError),
     #[error("Error running inf2cat command, error: {0}")]
-    Inf2CatError(CommandError),
+    Inf2CatCommand(CommandError),
     #[error("Creating cert file from store using certmgr, error: {0}")]
-    CreateCertFileFromStoreError(CommandError),
+    CreateCertFileFromStoreCommand(CommandError),
     #[error("Checking for existence of cert in store using certmgr, error: {0}")]
-    VerifyCertExistsInStoreError(CommandError),
+    VerifyCertExistsInStoreCommand(CommandError),
     #[error(
         "Error reading stdout while checking for existence of cert in store using certmgr, error: \
          {0}"
     )]
-    VerifyCertExistsInStoreInvalidCommandOutputError(FromUtf8Error),
+    VerifyCertExistsInStoreInvalidCommandOutput(FromUtf8Error),
     #[error("Error generating certificate to cert store using makecert, error: {0}")]
-    CertGenerationInStoreError(CommandError),
+    CertGenerationInStoreCommand(CommandError),
     #[error("Error signing driver binary using signtool, error: {0}")]
-    DriverBinarySignError(CommandError),
+    DriverBinarySignCommand(CommandError),
     #[error("Error verifying signed driver binary using signtool, error: {0}")]
-    DriverBinarySignVerificationError(CommandError),
+    DriverBinarySignVerificationCommand(CommandError),
     #[error("Error verifying inf file using infverif, error: {0}")]
-    InfVerificationError(CommandError),
+    InfVerificationCommand(CommandError),
 
     // TODO: We can make this specific error instead of generic one
     #[error("Error from wdk build, error: {0}")]
-    WdkBuildConfigError(#[from] wdk_build::ConfigError),
+    WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Io error, error: {0}")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
 }

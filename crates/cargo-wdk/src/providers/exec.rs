@@ -1,3 +1,4 @@
+#![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
 use std::{
     collections::HashMap,
     process::{Command, Output, Stdio},
@@ -45,7 +46,7 @@ impl RunCommand for CommandExec {
         let output = cmd
             .stdout(Stdio::piped())
             .spawn()
-            .and_then(|child| child.wait_with_output())
+            .and_then(std::process::Child::wait_with_output)
             .map_err(CommandError::IoError)?;
 
         if !output.status.success() {

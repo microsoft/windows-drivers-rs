@@ -8,15 +8,29 @@ use error::PackageProjectError;
 mod package_driver;
 
 // Non local imports
-use std::{fs::read_dir, io, path::PathBuf, result::Result::Ok};
+use std::{
+    fs::read_dir,
+    io,
+    path::{Path, PathBuf},
+    result::Result::Ok,
+};
 
 use anyhow::Result;
 use log::{debug, error as log_error, info, warn};
-use package_driver::PackageDriver;
+use package_driver::{PackageDriver, PackageDriverParams};
 use wdk_build::metadata::Wdk;
 
 use super::{build::BuildAction, Profile, TargetArch};
 use crate::providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider};
+
+pub struct PackageActionParams<'a> {
+    pub working_dir: &'a Path,
+    pub profile: Profile,
+    pub target_arch: TargetArch,
+    pub verify_signature: bool,
+    pub is_sample_class: bool,
+    pub verbosity_level: clap_verbosity_flag::Verbosity,
+}
 
 /// Action that orchestrates the packaging of a driver project
 /// This also includes the build step as pre-requisite for packaging
@@ -53,12 +67,7 @@ impl<'a> PackageAction<'a> {
     /// * `PackageProjectError::IoError` - If there is an IO error while
     ///   canonicalizing the working dir
     pub fn new(
-        working_dir: &PathBuf,
-        profile: Profile,
-        target_arch: TargetArch,
-        verify_signature: bool,
-        is_sample_class: bool,
-        verbosity_level: clap_verbosity_flag::Verbosity,
+        params: &PackageActionParams<'a>,
         wdk_build_provider: &'a dyn WdkBuildProvider,
         command_exec: &'a dyn RunCommand,
         fs_provider: &'a dyn FSProvider,
@@ -69,18 +78,18 @@ impl<'a> PackageAction<'a> {
 
         debug!(
             "Initializing packaging for project at: {}",
-            working_dir.display()
+            params.working_dir.display()
         );
         // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because
         // it is already canonicalized, * (wild chars) won't be resolved to actual paths
-        let working_dir = fs_provider.canonicalize_path(working_dir.as_path())?;
+        let working_dir = fs_provider.canonicalize_path(params.working_dir)?;
         Ok(Self {
             working_dir,
-            profile,
-            target_arch,
-            verify_signature,
-            is_sample_class,
-            verbosity_level,
+            profile: params.profile,
+            target_arch: params.target_arch,
+            verify_signature: params.verify_signature,
+            is_sample_class: params.is_sample_class,
+            verbosity_level: params.verbosity_level,
             wdk_build_provider,
             command_exec,
             fs_provider,
@@ -251,7 +260,7 @@ impl<'a> PackageAction<'a> {
                 .into();
             self.fs_provider
                 .canonicalize_path(package_root_path.as_path())
-                .map_or(false, |package_root_path| {
+                .is_ok_and(|package_root_path| {
                     debug!(
                         "Processing workspace driver package: {}",
                         package_root_path.display()
@@ -261,7 +270,7 @@ impl<'a> PackageAction<'a> {
         });
 
         if package.is_none() {
-            return Err(PackageProjectError::NotAWorkspaceMemberError(
+            return Err(PackageProjectError::NotAWorkspaceMember(
                 working_dir.clone(),
             ));
         }
@@ -272,7 +281,7 @@ impl<'a> PackageAction<'a> {
             &wdk_metadata,
             package,
             package.name.clone(),
-            &target_directory.into(),
+            target_directory.as_std_path(),
         )?;
 
         info!("Building and packaging completed successfully");
@@ -282,7 +291,7 @@ impl<'a> PackageAction<'a> {
 
     fn get_cargo_metadata(
         &self,
-        working_dir: &PathBuf,
+        working_dir: &Path,
     ) -> Result<cargo_metadata::Metadata, PackageProjectError> {
         let working_dir_path_trimmed: PathBuf = working_dir
             .to_string_lossy()
@@ -300,7 +309,7 @@ impl<'a> PackageAction<'a> {
         wdk_metadata: &Wdk,
         package: &Package,
         package_name: String,
-        target_dir: &PathBuf,
+        target_dir: &Path,
     ) -> Result<(), PackageProjectError> {
         info!("Processing package: {}", package_name);
         BuildAction::new(
@@ -332,26 +341,28 @@ impl<'a> PackageAction<'a> {
 
         debug!("Found wdk metadata in package: {}", package_name);
         let package_driver = PackageDriver::new(
-            &package_name,
-            working_dir,
-            target_dir,
-            &self.target_arch,
-            self.verify_signature,
-            self.is_sample_class,
-            wdk_metadata.driver_model.clone(),
+            PackageDriverParams {
+                package_name: &package_name,
+                working_dir,
+                target_dir,
+                target_arch: self.target_arch,
+                verify_signature: self.verify_signature,
+                sample_class: self.is_sample_class,
+                driver_model: wdk_metadata.driver_model.clone(),
+            },
             self.wdk_build_provider,
             self.command_exec,
             self.fs_provider,
         );
         if let Err(e) = package_driver {
-            return Err(PackageProjectError::PackageDriverInitError(package_name, e));
+            return Err(PackageProjectError::PackageDriverInit(package_name, e));
         }
 
         if let Err(e) = package_driver
             .expect("PackageDriver failed to initialize")
             .run()
         {
-            return Err(PackageProjectError::PackageDriverError(package_name, e));
+            return Err(PackageProjectError::PackageDriver(package_name, e));
         }
         info!("Processing completed for package: {}", package_name);
         Ok(())

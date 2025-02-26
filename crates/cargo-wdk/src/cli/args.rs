@@ -59,12 +59,12 @@ pub enum DriverTypeArg {
     Wdm,
 }
 
-impl Into<DriverType> for DriverTypeArg {
-    fn into(self) -> DriverType {
-        match self {
-            Self::Kmdf => DriverType::Kmdf,
-            Self::Umdf => DriverType::Umdf,
-            Self::Wdm => DriverType::Wdm,
+impl From<DriverTypeArg> for DriverType {
+    fn from(val: DriverTypeArg) -> Self {
+        match val {
+            DriverTypeArg::Kmdf => Self::Kmdf,
+            DriverTypeArg::Umdf => Self::Umdf,
+            DriverTypeArg::Wdm => Self::Wdm,
         }
     }
 }
@@ -102,11 +102,11 @@ pub enum ProfileArg {
     Release,
 }
 
-impl Into<Profile> for ProfileArg {
-    fn into(self) -> Profile {
-        match self {
-            Self::Debug => Profile::Debug,
-            Self::Release => Profile::Release,
+impl From<ProfileArg> for Profile {
+    fn from(val: ProfileArg) -> Self {
+        match val {
+            ProfileArg::Debug => Self::Debug,
+            ProfileArg::Release => Self::Release,
         }
     }
 }
@@ -130,11 +130,11 @@ pub enum TargetArchArg {
     Arm64,
 }
 
-impl Into<TargetArch> for TargetArchArg {
-    fn into(self) -> TargetArch {
-        match self {
-            Self::X64 => TargetArch::X64,
-            Self::Arm64 => TargetArch::Arm64,
+impl From<TargetArchArg> for TargetArch {
+    fn from(val: TargetArchArg) -> Self {
+        match val {
+            TargetArchArg::X64 => Self::X64,
+            TargetArchArg::Arm64 => Self::Arm64,
         }
     }
 }

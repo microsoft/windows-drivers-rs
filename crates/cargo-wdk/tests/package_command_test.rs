@@ -1,3 +1,4 @@
+//! Integration tests for package flow
 use std::{path::PathBuf, process::Command};
 
 use assert_cmd::prelude::*;
@@ -5,8 +6,8 @@ use assert_cmd::prelude::*;
 #[test]
 fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
 ) {
-    let mut cmd = Command::cargo_bin("cargo-wdk").unwrap();
-    cmd.args(&[
+    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+    cmd.args([
         "build",
         "--cwd",
         "tests/mixed-package-kmdf-workspace", // Root dir for tests is cargo-wdk

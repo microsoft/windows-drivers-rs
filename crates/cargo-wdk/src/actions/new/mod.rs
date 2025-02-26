@@ -27,29 +27,27 @@ impl<'a> NewAction<'a> {
         cwd: PathBuf,
         command_exec: &'a dyn RunCommand,
         fs_provider: &'a dyn FSProvider,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             driver_project_name,
             driver_type,
             cwd,
             command_exec,
             fs_provider,
-        })
+        }
     }
 
     pub fn run(&self) -> Result<(), NewProjectError> {
         let new_driver = NewDriver::new(
-            self.driver_project_name.to_string(),
+            self.driver_project_name,
             self.driver_type.clone(),
-            self.cwd.clone(),
+            &self.cwd,
             self.command_exec,
             self.fs_provider,
         );
-        if let Err(e) = new_driver {
-            return Err(NewProjectError::NewDriverInitError(e));
-        }
-        if let Err(e) = new_driver.unwrap().run() {
-            return Err(NewProjectError::NewDriverError(e));
+
+        if let Err(e) = new_driver.run() {
+            return Err(NewProjectError::NewDriver(e));
         }
         Ok(())
     }

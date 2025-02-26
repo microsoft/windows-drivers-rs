@@ -15,7 +15,7 @@ pub enum CommandError {
 
 impl CommandError {
     pub fn from_output(command: &str, args: &[&str], output: &Output) -> Self {
-        CommandError::CommandFailed {
+        Self::CommandFailed {
             command: command.to_string(),
             args: args.iter().map(|&s| s.to_string()).collect(),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),

@@ -6,7 +6,10 @@ use args::{NewProjectArgs, PackageProjectArgs};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    actions::{new::NewAction, package::PackageAction},
+    actions::{
+        new::NewAction,
+        package::{PackageAction, PackageActionParams},
+    },
     providers::{exec::CommandExec, fs::FS, wdk_build},
 };
 
@@ -53,18 +56,20 @@ impl Cli {
                     cli_args.cwd,
                     &command_exec,
                     &fs_provider,
-                )?;
+                );
                 new_action.run()?;
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
                 let package_action = PackageAction::new(
-                    &cli_args.cwd,
-                    cli_args.profile.into(),
-                    cli_args.target_arch.into(),
-                    cli_args.verify_signature,
-                    cli_args.sample_class,
-                    self.verbose,
+                    &PackageActionParams {
+                        working_dir: &cli_args.cwd,
+                        profile: cli_args.profile.into(),
+                        target_arch: cli_args.target_arch.into(),
+                        verify_signature: cli_args.verify_signature,
+                        is_sample_class: cli_args.sample_class,
+                        verbosity_level: self.verbose,
+                    },
                     &wdk_build,
                     &command_exec,
                     &fs_provider,

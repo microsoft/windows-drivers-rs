@@ -17,14 +17,14 @@ pub struct BuildAction<'a> {
 }
 
 impl<'a> BuildAction<'a> {
-    /// Creates a new instance of BuildAction
+    /// Creates a new instance of `BuildAction`
     /// # Arguments
     /// * `package_name` - The name of the package to build
     /// * `working_dir` - The working directory for the build
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
     /// # Returns
-    /// * `Self` - A new instance of BuildAction
+    /// * `Self` - A new instance of `BuildAction`
     pub fn new(
         package_name: &'a str,
         working_dir: &'a PathBuf,
@@ -53,23 +53,28 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .to_string();
-        let args = match logger::get_cargo_verbose_flags(self.verbosity_level) {
-            Some(flag) => vec![
-                "build",
-                flag,
-                "--manifest-path",
-                &manifest_path,
-                "-p",
-                self.package_name,
-            ],
-            None => vec![
-                "build",
-                "--manifest-path",
-                &manifest_path,
-                "-p",
-                self.package_name,
-            ],
-        };
+        let args = logger::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
+            || {
+                vec![
+                    "build",
+                    "--manifest-path",
+                    &manifest_path,
+                    "-p",
+                    self.package_name,
+                ]
+            },
+            |flag| {
+                vec![
+                    "build",
+                    flag,
+                    "--manifest-path",
+                    &manifest_path,
+                    "-p",
+                    self.package_name,
+                ]
+            },
+        );
+
         self.command_exec.run("cargo", &args, None)?;
         debug!("Done");
         Ok(())
