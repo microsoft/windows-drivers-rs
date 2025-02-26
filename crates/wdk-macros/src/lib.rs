@@ -416,12 +416,12 @@ fn get_wdf_function_info_map(
         // Before this thread acquires the lock, it's possible that a concurrent thread
         // already created the cache. If so, this thread skips cache generation.
         if !cached_function_fragments_map_path.exists() {
-            let generated_map = generate_wdf_function_info_file_cache(types_path, span)?;
-            let generated_map_string = serde_json::to_string(&generated_map)
-                .to_syn_result(span, "unable to parse cache to JSON string")?;
-            std::fs::write(&cached_function_fragments_map_path, generated_map_string)
-                .to_syn_result(span, "unable to write cache to file")?;
-            
+            let generated_map = create_wdf_function_info_file_cache(
+                types_path,
+                &cached_function_fragments_map_path,
+                span,
+            )?;
+
             FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
             return Ok(generated_map);
         }
@@ -433,6 +433,21 @@ fn get_wdf_function_info_map(
     let map: BTreeMap<String, CachedFunctionInfo> = serde_json::from_str(&generated_map_string)
         .to_syn_result(span, "unable to parse cache to BTreeMap")?;
     Ok(map)
+}
+
+/// This function generates the cache of function information, then
+/// serializes it into a JSON string and writes it to a designated location.
+fn create_wdf_function_info_file_cache(
+    types_path: &LitStr,
+    cached_function_fragments_map_path: &PathBuf,
+    span: Span,
+) -> Result<BTreeMap<String, CachedFunctionInfo>> {
+    let generated_map = generate_wdf_function_info_file_cache(types_path, span)?;
+    let generated_map_string = serde_json::to_string(&generated_map)
+        .to_syn_result(span, "unable to parse cache to JSON string")?;
+    std::fs::write(cached_function_fragments_map_path, generated_map_string)
+        .to_syn_result(span, "unable to write cache to file")?;
+    Ok(generated_map)
 }
 
 /// This function parses from `self.types_path` to generate a `BTreeMap` of
