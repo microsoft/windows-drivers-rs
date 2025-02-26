@@ -151,9 +151,7 @@ impl StringExt for String {
 
 impl<T, E: std::fmt::Display> ToSynResult<T, E> for std::result::Result<T, E> {
     fn to_syn_result(self, span: Span, error_description: &str) -> syn::Result<T> {
-        self.map_err(|err| {
-            Error::new(span, format!("{error_description}, {err}"))
-        })
+        self.map_err(|err| Error::new(span, format!("{error_description}, {err}")))
     }
 }
 
@@ -219,14 +217,18 @@ impl Inputs {
                     ),
                 )
             })?;
-        let parameters_tokens = TokenStream2::from_str(&function_info.parameters)
-            .to_syn_result(self.wdf_function_identifier.span(), "unable to parse parameter tokens")?;
-        let return_type_tokens = TokenStream2::from_str(&function_info.return_type)
-            .to_syn_result(self.wdf_function_identifier.span(), "unable to parse return type tokens")?;
+        let parameters_tokens = TokenStream2::from_str(&function_info.parameters).to_syn_result(
+            self.wdf_function_identifier.span(),
+            "unable to parse parameter tokens",
+        )?;
+        let return_type_tokens = TokenStream2::from_str(&function_info.return_type).to_syn_result(
+            self.wdf_function_identifier.span(),
+            "unable to parse return type tokens",
+        )?;
         let parameters =
             Punctuated::<BareFnArg, Token![,]>::parse_terminated.parse2(parameters_tokens)?;
         let return_type = ReturnType::parse.parse2(return_type_tokens)?;
-            
+
         let parameter_identifiers = parameters
             .iter()
             .cloned()
@@ -268,7 +270,7 @@ impl DerivedASTFragments {
             arguments,
             inline_wdf_fn_name,
         } = self;
-   
+
         let must_use_attribute = generate_must_use_attribute(&return_type);
 
         let inline_wdf_fn_signature = parse_quote! {
@@ -343,10 +345,10 @@ impl IntermediateOutputASTFragments {
             inline_wdf_fn_body_statments,
             inline_wdf_fn_invocation,
         } = self;
-        
+
         let conditional_must_use_attribute =
             must_use_attribute.map_or_else(TokenStream2::new, quote::ToTokens::into_token_stream);
-        
+
         quote! {
             {
                 // Use a private module to prevent leaking of glob import into inline_wdf_fn_invocation's parameters
@@ -381,7 +383,7 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         Ok(derived_ast_fragments) => derived_ast_fragments,
         Err(err) => return err.to_compile_error(),
     };
-    
+
     derived_ast_fragments
         .generate_intermediate_output_ast_fragments()
         .assemble_final_output()
@@ -403,7 +405,8 @@ fn get_wdf_function_info_map(
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
     let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
-    let flock = std::fs::File::create(scratch_dir.join(".lock")).to_syn_result(span, "unable to create file")?;
+    let flock = std::fs::File::create(scratch_dir.join(".lock"))
+        .to_syn_result(span, "unable to create file")?;
 
     let cached_function_fragments_map_path = scratch_dir.join("cached_function_fragments_map.json");
 
@@ -413,22 +416,21 @@ fn get_wdf_function_info_map(
         // Before this thread acquires the lock, it's possible that a concurrent thread
         // already created the cache. If so, this thread skips cache generation.
         if !cached_function_fragments_map_path.exists() {
-            
-
             let generated_map = generate_wdf_function_info_file_cache(types_path, span)?;
-            let generated_map_string = serde_json::to_string(&generated_map).to_syn_result(span, "unable to parse cache to JSON string")?;            
+            let generated_map_string = serde_json::to_string(&generated_map)
+                .to_syn_result(span, "unable to parse cache to JSON string")?;
             std::fs::write(&cached_function_fragments_map_path, generated_map_string)
                 .to_syn_result(span, "unable to write cache to file")?;
             FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
             return Ok(generated_map);
         }
         FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
-    } 
+    }
 
-    let generated_map_string =
-        std::fs::read_to_string(&cached_function_fragments_map_path).to_syn_result(span, "unable to read cache to string")?;
-    let map: BTreeMap<String, CachedFunctionInfo> =
-        serde_json::from_str(&generated_map_string).to_syn_result(span, "unable to parse cache to BTreeMap")?;
+    let generated_map_string = std::fs::read_to_string(&cached_function_fragments_map_path)
+        .to_syn_result(span, "unable to read cache to string")?;
+    let map: BTreeMap<String, CachedFunctionInfo> = serde_json::from_str(&generated_map_string)
+        .to_syn_result(span, "unable to parse cache to BTreeMap")?;
     Ok(map)
 }
 
@@ -535,7 +537,6 @@ fn parse_types_ast(path: &LitStr) -> Result<File> {
         )),
     }
 }
-
 
 /// Generate the function parameters and return type corresponding to the
 /// function signature of the `function_pointer_type` type alias found in
