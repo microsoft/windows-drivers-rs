@@ -4,7 +4,7 @@ use std::{
 };
 
 use include_dir::{include_dir, Dir};
-use log::{debug, info};
+use tracing::{debug, info};
 
 use crate::{
     actions::{new::error::NewDriverError, DriverType},

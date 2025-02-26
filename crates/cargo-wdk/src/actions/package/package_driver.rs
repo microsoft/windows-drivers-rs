@@ -4,7 +4,7 @@ use std::{
     result::Result,
 };
 
-use log::{debug, info};
+use tracing::{debug, info};
 use wdk_build::DriverConfig;
 
 use super::{error::PackageDriverError, FSProvider, WdkBuildProvider};

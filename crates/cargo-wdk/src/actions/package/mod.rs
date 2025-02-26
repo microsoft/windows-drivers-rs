@@ -16,8 +16,8 @@ use std::{
 };
 
 use anyhow::Result;
-use log::{debug, error as log_error, info, warn};
 use package_driver::{PackageDriver, PackageDriverParams};
+use tracing::{debug, error as log_error, info, warn};
 use wdk_build::metadata::Wdk;
 
 use super::{build::BuildAction, Profile, TargetArch};

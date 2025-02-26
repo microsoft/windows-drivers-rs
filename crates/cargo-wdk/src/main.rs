@@ -11,10 +11,10 @@ mod providers;
 
 use std::process::exit;
 
-use ::log::error;
 use anyhow::{Ok, Result};
 use clap::Parser;
 use cli::Cli;
+use tracing::error;
 
 /// Main function for the cargo-wdk CLI application.
 ///

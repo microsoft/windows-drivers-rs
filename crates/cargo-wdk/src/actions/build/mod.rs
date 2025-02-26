@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use log::{debug, info};
+use tracing::{debug, info};
 
 use crate::{
     log as logger,

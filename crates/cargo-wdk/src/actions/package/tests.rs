@@ -23,13 +23,10 @@ use crate::{
             error::{PackageDriverError, PackageProjectError},
             PackageActionParams,
         },
-        Profile,
-        TargetArch,
+        Profile, TargetArch,
     },
     providers::{
-        error::CommandError,
-        exec::MockRunCommand,
-        fs::MockFSProvider,
+        error::CommandError, exec::MockRunCommand, fs::MockFSProvider,
         wdk_build::MockWdkBuildProvider,
     },
 };

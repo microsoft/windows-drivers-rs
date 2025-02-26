@@ -5,8 +5,8 @@ use std::{
 };
 
 use anyhow::Result;
-use log::debug;
 use mockall::automock;
+use tracing::debug;
 
 use super::error::CommandError;
 

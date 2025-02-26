@@ -1,35 +1,27 @@
 use anyhow::Result;
-use log4rs::{
-    append::console::ConsoleAppender,
-    config::{Appender, Root},
-    encode::pattern::PatternEncoder,
-    Config,
-};
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
-/// Initializes the logger with a console appender and a pattern encoder
-pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) -> Result<()> {
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{h({l:>5})}: {m}{n}")))
-        .build();
-
+/// Initializes the logger with tracing subscriber
+pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) {
     // clamp to info verbosity level by default
     // no -v -> info log level
     // -v -> debug log level
     // -vv -> trace log level
     let level = match verbosity_level.filter() {
-        clap_verbosity_flag::VerbosityFilter::Off => log::LevelFilter::Off,
-        clap_verbosity_flag::VerbosityFilter::Error => log::LevelFilter::Info,
-        clap_verbosity_flag::VerbosityFilter::Warn => log::LevelFilter::Debug,
-        _ => log::LevelFilter::Trace,
+        clap_verbosity_flag::VerbosityFilter::Off => LevelFilter::OFF,
+        clap_verbosity_flag::VerbosityFilter::Error => LevelFilter::INFO,
+        clap_verbosity_flag::VerbosityFilter::Warn => LevelFilter::DEBUG,
+        _ => LevelFilter::TRACE,
     };
 
-    let config = Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(level))?;
+    let tracing_filter = EnvFilter::default().add_directive(level.into());
 
-    log4rs::init_config(config)?;
-
-    Ok(())
+    tracing_subscriber::fmt()
+        .compact()
+        .without_time()
+        .with_env_filter(tracing_filter)
+        .init();
 }
 
 /// Returns the cargo verbose flags based on the verbosity level

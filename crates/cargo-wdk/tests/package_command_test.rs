@@ -17,10 +17,10 @@ fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_p
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("INFO: Processing completed for package: driver"));
+    assert!(stdout.contains("Processing completed for package: driver"));
     assert!(stdout.contains(
-        "WARN: No package.metadata.wdk section found. Skipping driver package workflow for \
-         package: non_driver_crate"
+        "No package.metadata.wdk section found. Skipping driver package workflow for package: \
+         non_driver_crate"
     ));
 
     // assert driver package
