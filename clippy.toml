@@ -1,0 +1,5 @@
+# regex-automata v0.1.10: Pulled in by matchers v0.1.0, which is a dependency of tracing-subscriber v0.3.19.
+# regex-automata v0.4.7: Pulled in by bstr v1.11.3, which is a dependency of assert_cmd v2.0.16, directly used by cargo-wdk. Pulled in by regex v1.10.5.
+# regex-syntax v0.6.29: Pulled in by regex-automata v0.1.10.
+# regex-syntax v0.8.4: Pulled in by regex v1.10.5. Directly used by cargo-wdk. Pulled in by regex-automata v0.4.7.
+allowed-duplicate-crates = ["regex-automata", "regex-syntax"]

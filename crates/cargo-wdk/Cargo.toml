@@ -17,16 +17,6 @@ mockall.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
-[lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = ["cfg(wdk_build_unstable)", "cfg(skip_umdf_static_crt_check)"]
-
-# Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
-# [lints]
-# workspace = true
-# 
-# Differences from the workspace lints have comments explaining why they are different
-
 [lints.rust]
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "forbid"
@@ -44,7 +34,6 @@ multiple_unsafe_ops_per_block = "deny" # This is lowered to deny since clap gene
 undocumented_unsafe_blocks = "deny" # This is lowered to deny since clap generates allow(clippy::restriction) in its Parser and Args derive macros
 # unnecessary_safety_doc = "forbid"
 unnecessary_safety_doc = "deny" # This is lowered to deny since clap generates allow(clippy::restriction) in its Parser and Args derive macros
-unwrap_used = "deny"
 
 [lints.rustdoc]
 bare_urls = "warn"
