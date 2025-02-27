@@ -19,6 +19,8 @@ pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) {
     tracing_subscriber::fmt()
         .compact()
         .without_time()
+        .with_target(false)
+        .with_file(false)
         .with_env_filter(tracing_filter)
         .init();
 }
