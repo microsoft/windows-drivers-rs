@@ -579,8 +579,10 @@ fn generate_cached_function_info(
         Ok(type_alias_definition) => {
             let fn_pointer_definition =
                 extract_fn_pointer_definition(type_alias_definition, function_pointer_type.span())?;
-            parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())
-                .map(|fn_pointer_definition| Some(fn_pointer_definition.into()))
+            Ok(Some(
+                parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())?
+                    .into(),
+            ))
         }
         // `types.rs` includes only a subset of types listed in _WDFFUNCENUM. Therefore, not finding
         // a type alias definition is expected behavior.
