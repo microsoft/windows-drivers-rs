@@ -206,6 +206,6 @@ pub const fn NT_ERROR(nt_status: NTSTATUS) -> bool {
 #[allow(non_snake_case)]
 macro_rules! PAGED_CODE {
     () => {
-        debug_assert!(unsafe { KeGetCurrentIrql() <= APC_LEVEL as u8 });
+        debug_assert!(unsafe { $crate::ntddk::KeGetCurrentIrql() <= $crate::APC_LEVEL as u8 });
     };
 }
