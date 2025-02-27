@@ -25,7 +25,6 @@ quote.workspace = true
 scratch.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-serial_test.workspace = true
 syn = { workspace = true, features = ["full", "extra-traits"] }
 
 [dev-dependencies]
