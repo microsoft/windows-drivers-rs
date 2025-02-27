@@ -33,7 +33,7 @@ use tracing::error;
 /// CLI command execution fails.
 fn main() -> Result<()> {
     let cli: Cli = Cli::parse();
-    log::init_logging(cli.verbose)?;
+    log::init_logging(cli.verbose);
     if let Err(e) = cli.run() {
         error!("{}", e);
         exit(1);

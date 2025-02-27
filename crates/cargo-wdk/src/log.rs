@@ -1,4 +1,3 @@
-use anyhow::Result;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
