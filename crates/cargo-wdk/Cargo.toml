@@ -1,8 +1,12 @@
 [package]
+edition.workspace = true
 name = "cargo-wdk"
 version = "0.0.1"
-edition = "2021"
 publish = false
+repository.workspace = true
+license.workspace = true
+keywords = ["wdk", "windows", "cargo"]
+categories = ["build-tools"]
 
 [dependencies]
 anyhow.workspace = true
