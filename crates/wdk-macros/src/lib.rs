@@ -493,22 +493,22 @@ fn generate_wdf_function_info_file_cache(
                     .ident
                     .to_string()
                     .strip_suffix("TableIndex")
-                    .map(String::from);
+                    .and_then(|function_name| {
+                        let function_pointer_type = format_ident!(
+                            "PFN_{uppercase_c_function_name}",
+                            uppercase_c_function_name = function_name.to_uppercase(),
+                            span = span
+                        );
+                        generate_cached_function_info(&types_ast, &function_pointer_type)
+                            .transpose()
+                            .map(|generate_cached_function_info_result| {
+                                generate_cached_function_info_result.map(|cached_function_info| {
+                                    (function_name.to_string(), cached_function_info)
+                                })
+                            })
+                    });
             }
             None
-        })
-        .filter_map(|function_name| {
-            let function_pointer_type = format_ident!(
-                "PFN_{uppercase_c_function_name}",
-                uppercase_c_function_name = function_name.to_uppercase(),
-                span = span
-            );
-            generate_cached_function_info(&types_ast, &function_pointer_type)
-                .transpose()
-                .map(|cached_function_info_result| {
-                    cached_function_info_result
-                        .map(|cached_function_info| (function_name, cached_function_info))
-                })
         })
         .collect()
 }
