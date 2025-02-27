@@ -43,7 +43,8 @@ use syn::{
     TypePath,
 };
 
-// A const &str to represent the name of the _WDFFUNCENUM module.
+/// Name of the `bindgen`-generated Rust module that contains the `TableIndex`
+/// constants for the `WDF`'s function table
 const WDF_FUNC_ENUM_MOD_NAME: &str = "_WDFFUNCENUM";
 
 /// A procedural macro that allows WDF functions to be called by name.
@@ -63,8 +64,8 @@ trait StringExt {
     fn to_snake_case(&self) -> String;
 }
 
-/// A trait to provide mapping of `std::result::Result` to `syn::Result`
-trait ToSynResult<T, E> {
+/// A trait to provide additional functionality to `std::result::Result`
+trait ResultExt<T, E> {
     fn to_syn_result(self, span: Span, error: &str) -> syn::Result<T>;
 }
 
@@ -149,7 +150,7 @@ impl StringExt for String {
     }
 }
 
-impl<T, E: std::fmt::Display> ToSynResult<T, E> for std::result::Result<T, E> {
+impl<T, E: std::error::Error> ResultExt<T, E> for std::result::Result<T, E> {
     fn to_syn_result(self, span: Span, error_description: &str) -> syn::Result<T> {
         self.map_err(|err| Error::new(span, format!("{error_description}, {err}")))
     }
@@ -389,17 +390,18 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         .assemble_final_output()
 }
 
-/// This function fetches the function table information from the cache, if
-/// it exists. If not, this function creates the cache by reading the
-/// `types.rs` file. The information is returned as a `BTreeMap`, where
+/// Fetch the function table information from the cache, if
+/// it exists. If not, create the cache by reading the
+/// `types.rs` file. Returns a `BTreeMap`, where
 /// `key` is the function name and `value` is the cached function table
 /// information.
 ///
-/// This function reduces build time by caching function table
-/// information. Instead of parsing `types.rs` for relevant data on
-/// every macro invocation, this function stores all possible function
-/// table information during the first invocation using the `scratch`
-/// and `serde` crates. Subsequent invocations can read from this cache.
+/// Instead of parsing `types.rs` for relevant data on
+/// every macro invocation, all relevant function
+/// table information is extracted during the first `proc-macro` invocation and
+/// serialized to a location accessible by all proc-macro invocations.
+/// Subsequent invocations fetching from the cache significantly reduces
+/// compilation time.
 fn get_wdf_function_info_map(
     types_path: &LitStr,
     span: Span,
@@ -408,17 +410,17 @@ fn get_wdf_function_info_map(
     let flock = std::fs::File::create(scratch_dir.join(".lock"))
         .to_syn_result(span, "unable to create file")?;
 
-    let cached_function_fragments_map_path = scratch_dir.join("cached_function_fragments_map.json");
+    let cached_function_info_map_path = scratch_dir.join("cached_function_info_map.json");
 
-    if !cached_function_fragments_map_path.exists() {
+    if !cached_function_info_map_path.exists() {
         FileExt::lock_exclusive(&flock).to_syn_result(span, "unable to obtain file lock")?;
 
         // Before this thread acquires the lock, it's possible that a concurrent thread
         // already created the cache. If so, this thread skips cache generation.
-        if !cached_function_fragments_map_path.exists() {
+        if !cached_function_info_map_path.exists() {
             let generated_map = create_wdf_function_info_file_cache(
                 types_path,
-                &cached_function_fragments_map_path,
+                &cached_function_info_map_path,
                 span,
             )?;
 
@@ -428,7 +430,7 @@ fn get_wdf_function_info_map(
         FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
     }
 
-    let generated_map_string = std::fs::read_to_string(&cached_function_fragments_map_path)
+    let generated_map_string = std::fs::read_to_string(&cached_function_info_map_path)
         .to_syn_result(span, "unable to read cache to string")?;
     let map: BTreeMap<String, CachedFunctionInfo> = serde_json::from_str(&generated_map_string)
         .to_syn_result(span, "unable to parse cache to BTreeMap")?;
@@ -439,23 +441,20 @@ fn get_wdf_function_info_map(
 /// serializes it into a JSON string and writes it to a designated location.
 fn create_wdf_function_info_file_cache(
     types_path: &LitStr,
-    cached_function_fragments_map_path: &PathBuf,
+    cached_function_info_map_path: &PathBuf,
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
     let generated_map = generate_wdf_function_info_file_cache(types_path, span)?;
     let generated_map_string = serde_json::to_string(&generated_map)
         .to_syn_result(span, "unable to parse cache to JSON string")?;
-    std::fs::write(cached_function_fragments_map_path, generated_map_string)
+    std::fs::write(cached_function_info_map_path, generated_map_string)
         .to_syn_result(span, "unable to write cache to file")?;
     Ok(generated_map)
 }
 
-/// This function parses from `self.types_path` to generate a `BTreeMap` of
+/// Parse file from `types_path` to generate a `BTreeMap` of
 /// function information, where `key` is the function name and `value` is
-/// the cached function table information. The function parses the
-/// `types.rs` file for `mod _WDFFUNCENUM`, which stores each function with
-/// the suffix `TableIndex`. It uses this to parse the function pointer type
-/// alias, then parses for the function parameters and return type.
+/// the cached function table information.
 fn generate_wdf_function_info_file_cache(
     types_path: &LitStr,
     span: Span,
@@ -581,8 +580,10 @@ fn generate_cached_function_info(
             let fn_pointer_definition =
                 extract_fn_pointer_definition(type_alias_definition, function_pointer_type.span())?;
             parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())
-                .map(Some)
+                .map(|fn_pointer_definition| Some(fn_pointer_definition.into()))
         }
+        // `types.rs` includes only a subset of types listed in _WDFFUNCENUM. Therefore, not finding
+        // a type alias definition is expected behavior.
         Err(_err) => Ok(None),
     }
 }
@@ -710,12 +711,12 @@ fn extract_fn_pointer_definition(type_alias: &ItemType, error_span: Span) -> Res
 fn parse_fn_pointer_definition(
     fn_pointer_typepath: &TypePath,
     error_span: Span,
-) -> Result<CachedFunctionInfo> {
+) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
     let bare_fn_type = extract_bare_fn_type(fn_pointer_typepath, error_span)?;
     let fn_parameters = compute_fn_parameters(bare_fn_type, error_span)?;
     let return_type = compute_return_type(bare_fn_type);
 
-    Ok((fn_parameters, return_type).into())
+    Ok((fn_parameters, return_type))
 }
 
 /// Extract the [`TypeBareFn`] (i.e. function definition) from the [`TypePath`]
@@ -1175,14 +1176,14 @@ mod tests {
                 let flock = std::fs::File::create(scratch_dir.join(".lock")).unwrap();
 
                 // delete cache if it exists
-                let cached_function_fragments_map_path =
-                    scratch_dir.join("cached_function_fragments_map.json");
-                if cached_function_fragments_map_path.exists() {
+                let cached_function_info_map_path =
+                    scratch_dir.join("cached_function_info_map.json");
+                if cached_function_info_map_path.exists() {
                     FileExt::lock_exclusive(&flock).unwrap();
-                    std::fs::remove_file(&cached_function_fragments_map_path).unwrap();
+                    std::fs::remove_file(&cached_function_info_map_path).unwrap();
                     FileExt::unlock(&flock).unwrap();
                 }
-                pretty_assert_eq!(cached_function_fragments_map_path.exists(), false);
+                pretty_assert_eq!(cached_function_info_map_path.exists(), false);
 
                 let mut expected: BTreeMap<String, CachedFunctionInfo> = BTreeMap::new();
                 expected.insert(
@@ -1212,7 +1213,7 @@ mod tests {
                     .unwrap(),
                     expected
                 );
-                pretty_assert_eq!(cached_function_fragments_map_path.exists(), true);
+                pretty_assert_eq!(cached_function_info_map_path.exists(), true);
             }
 
             #[test]
@@ -1226,8 +1227,8 @@ mod tests {
 
                 let scratch_dir =
                     scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
-                let cached_function_fragments_map_path =
-                    scratch_dir.join("cached_function_fragments_map.json");
+                let cached_function_info_map_path =
+                    scratch_dir.join("cached_function_info_map.json");
 
                 // create cache with first call to get_wdf_function_info_map
 
@@ -1238,7 +1239,7 @@ mod tests {
                 .unwrap();
 
                 // make sure cache exists
-                pretty_assert_eq!(cached_function_fragments_map_path.exists(), true);
+                pretty_assert_eq!(cached_function_info_map_path.exists(), true);
 
                 let mut expected: BTreeMap<String, CachedFunctionInfo> = BTreeMap::new();
                 expected.insert(
@@ -1275,7 +1276,7 @@ mod tests {
             use super::*;
 
             #[test]
-            fn valid_input_basic() {
+            fn valid_input() {
                 let inputs = Inputs {
                     types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
@@ -1314,48 +1315,9 @@ mod tests {
             }
 
             #[test]
-            fn valid_input_robust() {
+            fn invalid_input_missing_wdf_func_enum() {
                 let inputs = Inputs {
-                    types_path: parse_quote! { "tests/unit-tests-input/generated-types-robust.rs" },
-                    wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
-                    wdf_function_arguments: Punctuated::new(),
-                };
-
-                let mut expected: BTreeMap<String, CachedFunctionInfo> = BTreeMap::new();
-                expected.insert(
-                    "WdfDriverCreate".into(),
-                    CachedFunctionInfo {
-                        parameters: "driver_object__ : PDRIVER_OBJECT , registry_path__ : \
-                                     PCUNICODE_STRING , driver_attributes__ : \
-                                     PWDF_OBJECT_ATTRIBUTES , driver_config__ : \
-                                     PWDF_DRIVER_CONFIG , driver__ : * mut WDFDRIVER"
-                            .into(),
-                        return_type: "-> NTSTATUS".into(),
-                    },
-                );
-
-                expected.insert(
-                    "WdfVerifierDbgBreakPoint".into(),
-                    CachedFunctionInfo {
-                        parameters: String::new(),
-                        return_type: String::new(),
-                    },
-                );
-
-                pretty_assert_eq!(
-                    generate_wdf_function_info_file_cache(
-                        &inputs.types_path,
-                        inputs.wdf_function_identifier.span()
-                    )
-                    .unwrap(),
-                    expected
-                );
-            }
-
-            #[test]
-            fn invalid_input_no_wdf_func_enum() {
-                let inputs = Inputs {
-                    types_path: parse_quote! { "tests/unit-tests-input/no-wdf-func-enum.rs" },
+                    types_path: parse_quote! { "tests/unit-tests-input/missing-wdf-func-enum.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
                     wdf_function_arguments: Punctuated::new(),
                 };
@@ -1377,9 +1339,9 @@ mod tests {
             }
 
             #[test]
-            fn invalid_input_no_wdf_func_enum_contents() {
+            fn invalid_input_missing_wdf_func_enum_contents() {
                 let inputs = Inputs {
-                    types_path: parse_quote! { "tests/unit-tests-input/no-wdf-func-enum-contents.rs" },
+                    types_path: parse_quote! { "tests/unit-tests-input/missing-wdf-func-enum-contents.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
                     wdf_function_arguments: Punctuated::new(),
                 };
@@ -1544,7 +1506,7 @@ mod tests {
                     Driver: *mut WDFDRIVER,
                 ) -> NTSTATUS>
             };
-            let expected: CachedFunctionInfo = (
+            let expected = (
                 parse_quote! {
                     driver_object__: PDRIVER_OBJECT,
                     registry_path__: PCUNICODE_STRING,
@@ -1556,8 +1518,7 @@ mod tests {
                     Token![->](Span::call_site()),
                     Box::new(Type::Path(parse_quote! { NTSTATUS })),
                 ),
-            )
-                .into();
+            );
 
             pretty_assert_eq!(
                 parse_fn_pointer_definition(&fn_pointer_typepath, Span::call_site()).unwrap(),
@@ -1571,7 +1532,7 @@ mod tests {
             let fn_pointer_typepath = parse_quote! {
                 ::core::option::Option<unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS)>
             };
-            let expected: CachedFunctionInfo = (Punctuated::new(), ReturnType::Default).into();
+            let expected = (Punctuated::new(), ReturnType::Default);
 
             pretty_assert_eq!(
                 parse_fn_pointer_definition(&fn_pointer_typepath, Span::call_site()).unwrap(),
