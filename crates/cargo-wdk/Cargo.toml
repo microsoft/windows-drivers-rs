@@ -2,24 +2,29 @@
 edition.workspace = true
 name = "cargo-wdk"
 version = "0.0.1"
-publish = false
+publish = false                                                                                    # set to false until the tool is stable and ready to be published
+description = "A Cargo subcommand for building Windows drivers using the Windows Driver Kit (WDK)"
 repository.workspace = true
 license.workspace = true
 keywords = ["wdk", "windows", "cargo"]
 categories = ["build-tools"]
 
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+
 [dependencies]
 anyhow.workspace = true
-thiserror.workspace = true
-clap = { workspace = true, features = ["derive"] }
 cargo_metadata.workspace = true
-wdk-build.workspace = true
-serde_json.workspace = true
-include_dir.workspace = true
+clap = { workspace = true, features = ["derive"] }
 clap-verbosity-flag.workspace = true
+include_dir.workspace = true
 mockall.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
 
 [lints.rust]
 missing_docs = "warn"
@@ -49,7 +54,3 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
-
-[dev-dependencies]
-assert_cmd.workspace = true
-predicates.workspace = true

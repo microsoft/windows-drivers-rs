@@ -1,3 +1,6 @@
+/// This module defines various actions for the cargo-wdk CLI tool.
+/// It includes modules for creating new projects, building projects, and
+/// packaging projects.
 use std::fmt;
 
 /// Business logic is divided into the following action modules

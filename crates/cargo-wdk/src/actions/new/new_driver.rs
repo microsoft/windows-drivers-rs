@@ -1,3 +1,9 @@
+//! Module for handling the creation of new driver projects.
+//!
+//! This module defines the `NewDriver` struct and its associated methods for
+//! creating new driver projects using predefined templates and the `cargo new`
+//! command.
+
 use std::{
     fs::create_dir_all,
     path::{Path, PathBuf},
@@ -11,8 +17,10 @@ use crate::{
     providers::{exec::RunCommand, fs::FSProvider},
 };
 
+/// Directory containing the templates for new driver projects.
 pub static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
+/// Represents a new driver project.
 pub struct NewDriver<'a> {
     driver_project_name: String,
     driver_type: DriverType,
@@ -22,6 +30,19 @@ pub struct NewDriver<'a> {
 }
 
 impl<'a> NewDriver<'a> {
+    /// Creates a new instance of `NewDriver`.
+    ///
+    /// # Arguments
+    ///
+    /// * `driver_project_name` - The name of the driver project.
+    /// * `driver_type` - The type of the driver.
+    /// * `cwd` - The current working directory.
+    /// * `command_exec` - The command execution provider.
+    /// * `fs_provider` - The file system provider.
+    ///
+    /// # Returns
+    ///
+    /// * `Self` - A new instance of `NewDriver`.
     pub fn new(
         driver_project_name: &'a str,
         driver_type: DriverType,
@@ -40,6 +61,21 @@ impl<'a> NewDriver<'a> {
         }
     }
 
+    /// Runs the action to create a new driver project.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the action.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::CargoNewCommand` - If there is an error running the
+    ///   `cargo new` command.
+    /// * `NewDriverError::TemplateNotFound` - If a required template file is
+    ///   not found.
+    /// * `NewDriverError::FileSystem` - If there is an error with file system
+    ///   operations.
     pub fn run(&self) -> Result<(), NewDriverError> {
         debug!("Creating new project");
         self.run_cargo_new()?;
@@ -58,6 +94,17 @@ impl<'a> NewDriver<'a> {
         Ok(())
     }
 
+    /// Runs the `cargo new` command to create a new Rust library project.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the command.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::CargoNewCommand` - If there is an error running the
+    ///   `cargo new` command.
     fn run_cargo_new(&self) -> Result<(), NewDriverError> {
         debug!(
             "Running cargo new for project: {}",
@@ -74,6 +121,19 @@ impl<'a> NewDriver<'a> {
         Ok(())
     }
 
+    /// Copies the `lib.rs` template for the specified driver type.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the operation.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::TemplateNotFound` - If the `lib.rs` template file is
+    ///   not found.
+    /// * `NewDriverError::FileSystem` - If there is an error with file system
+    ///   operations.
     pub fn copy_lib_rs_template(&self) -> Result<(), NewDriverError> {
         debug!(
             "Copying lib.rs template for driver type: {}",
@@ -89,6 +149,19 @@ impl<'a> NewDriver<'a> {
         Ok(())
     }
 
+    /// Copies the `build.rs` template for the specified driver type.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the operation.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::TemplateNotFound` - If the `build.rs` template file
+    ///   is not found.
+    /// * `NewDriverError::FileSystem` - If there is an error with file system
+    ///   operations.
     pub fn copy_build_rs_template(&self) -> Result<(), NewDriverError> {
         debug!(
             "Copying build.rs template for driver type: {}",
@@ -104,6 +177,19 @@ impl<'a> NewDriver<'a> {
         Ok(())
     }
 
+    /// Updates the `Cargo.toml` file for the specified driver type.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the operation.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::TemplateNotFound` - If the `Cargo.toml` template file
+    ///   is not found.
+    /// * `NewDriverError::FileSystem` - If there is an error with file system
+    ///   operations.
     pub fn update_cargo_toml(&self) -> Result<(), NewDriverError> {
         debug!("Updating Cargo.toml for driver type: {}", self.driver_type);
         let cargo_toml_path = self.cwd.join("Cargo.toml");
@@ -126,6 +212,19 @@ impl<'a> NewDriver<'a> {
         Ok(())
     }
 
+    /// Creates the `.inx` file for the driver project.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the operation.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::TemplateNotFound` - If the `.inx` template file is
+    ///   not found.
+    /// * `NewDriverError::FileSystem` - If there is an error with file system
+    ///   operations.
     pub fn create_inx_file(&self) -> Result<(), NewDriverError> {
         debug!(
             "Creating .inx file for driver: {}",
@@ -145,6 +244,19 @@ impl<'a> NewDriver<'a> {
         Ok(())
     }
 
+    /// Copies the `.cargo/config.toml` file for the driver project.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), NewDriverError>` - A result indicating success or failure
+    ///   of the operation.
+    ///
+    /// # Errors
+    ///
+    /// * `NewDriverError::TemplateNotFound` - If the `.cargo/config.toml`
+    ///   template file is not found.
+    /// * `NewDriverError::FileSystem` - If there is an error with file system
+    ///   operations.
     pub fn copy_cargo_config(&self) -> Result<(), NewDriverError> {
         debug!("Copying .cargo/config.toml file");
         create_dir_all(self.cwd.join(".cargo"))?;

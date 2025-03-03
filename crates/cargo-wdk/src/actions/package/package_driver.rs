@@ -1,3 +1,11 @@
+//! Module for handling low-level driver packaging operations.
+//!
+//! This module defines the `PackageDriver` struct and its associated methods
+//! for packaging driver projects.  It handles file system
+//! operations and interacting with WDK tools to generate the driver package. It
+//! includes functions that invoke various WDK Tools involved in signing,
+//! validating, verifying and generating artefacts for the driver package.
+
 use std::{
     ops::RangeFrom,
     path::{Path, PathBuf},

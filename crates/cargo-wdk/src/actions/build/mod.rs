@@ -1,3 +1,10 @@
+//! Module for building a package using cargo.
+//!
+//! This module defines the `BuildAction` struct and its associated methods for
+//! building a package using the `cargo build` command. It provides
+//! functionality to create a new build action and run the build process with
+//! specified parameters.
+
 use std::path::PathBuf;
 
 use anyhow::Result;

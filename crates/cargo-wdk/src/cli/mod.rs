@@ -18,7 +18,7 @@ use crate::{
 #[clap(
     name = "cargo wdk",
     version = "0.0.1",
-    author = "Rust for Drivers",
+    author = "Microsoft",
     about = "A tool for building Windows Driver Kit Rust projects",
     override_usage = "cargo wdk [SUBCOMMAND] [OPTIONS]"
 )]

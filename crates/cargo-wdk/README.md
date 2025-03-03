@@ -5,27 +5,37 @@ A Command-Line Interface (CLI) utility to create and build Windows driver projec
 - create new projects from scratch 
 - build new or existing projects
 
-**NOTE**: `cargo-wdk` utility is designed to work with projects that depend on the Windows Driver Kit (WDK) and the "windows-drivers-rs" platform
+**NOTE**: `cargo-wdk` utility is designed to work with projects that depend on the Windows Driver Kit (WDK) and the "windows-drivers-rs" family of crates.
+
+## Features
+
+- `new` command uses templates in `crates/cargo-wdk/templates` directory to scaffold the project appropriately.
+
+- `build` command can be used for individual projects and workspaces. Workspaces with both driver and non-driver members are also supported.
+
+    1. For individual projects, a signed driver package, including a `WDRLocalTestCert.cer` file, will be generated at `target/<Cargo profile>/_package`. If a specific target architecture was specified, the driver package will be generated at `target/<target architecture>/<Cargo profile>/_package`
+    2. For workspaces, 
+        - Non-driver members are compiled (using standard cargo build), 
+        - Driver members are built and packaged. The final driver packages will be generated in the workspace's `/target/` directory.
 
 ## Installation
 
-To install cargo-wdk, you need to have Rust and Cargo installed on your system. 
-You can install Rust and Cargo by following the instructions on the [Rust website](https://www.rust-lang.org/tools/install).
+To install `cargo-wdk`, you need to have Rust (and Cargo) installed on your system. You can install Rust by following the instructions on the [Rust website](https://www.rust-lang.org/tools/install).
 
-Once you have Rust and Cargo installed, you can install cargo-wdk using the cargo install command in one of the following ways:
+Once you have Rust installed, you can install `cargo-wdk` using the cargo install command in one of the following ways:
 
 ### Install by cloning the source
     - Clone the windows-drivers-rs repository.
     - Navigate to crates\cargo-wdk directory.
     - Run the following command:
         ```pwsh
-        cargo install --path .
+        cargo install --path . --locked
         ```
 
 ### Install by specifying Git repository
     - Run the following command:
         ```pwsh
-        cargo install --git https://github.com/microsoft/windows-drivers-rs.git --bin cargo-wdk
+        cargo install --git https://github.com/microsoft/windows-drivers-rs.git --bin cargo-wdk --locked
         ```
 
 The install command compiles the `cargo-wdk` binary and copies the compiled binary to Cargo's bin directory (%USERPROFILE%.cargo\bin).
@@ -77,18 +87,6 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
     ```
 
     Use `--help` for more information on arguments and options
-
-## Features
-
-- `new` command uses templates in `crates/cargo-wdk/templates` directory to scaffold the project appropriately.
-
-- `build` command can be used for individual projects and workspaces. Workspaces with both driver and non-driver members are also supported.
-
-    1. For individual projects, a signed driver package, including a `WDRLocalTestCert.cer` file, will be generated at `target/<Cargo profile>/_package`. If a specific target architecture was specified, the driver package will be generated at `target/<target architecture>/<Cargo profile>/_package`
-    2. For workspaces, 
-        - Non-driver members are compiled (using standard cargo build), 
-        - Driver members are built and packaged. The final driver packages will be generated in the workspace's `/target/` directory.
-
 
 ## Driver Package Signature Verification
 
