@@ -19,10 +19,10 @@ pub enum PackageProjectError {
     CommandExecution(#[from] CommandError),
     #[error("Not a workspace member, working directory: {0}")]
     NotAWorkspaceMember(PathBuf),
-    #[error("Error initiating driver packaging, package_name: {0}, error: {1}")]
-    PackageDriverInit(String, PackageDriverError),
-    #[error("Error packaging driver, package_name: {0}, error: {1}")]
-    PackageDriver(String, PackageDriverError),
+    #[error("Error initiating package tasks, package_name: {0}, error: {1}")]
+    PackageTaskInit(String, PackageTaskError),
+    #[error("Error performing packaging tasks, package_name: {0}, error: {1}")]
+    PackageTask(String, PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error(
@@ -32,9 +32,9 @@ pub enum PackageProjectError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
 }
 
-/// Errors for the low level package driver layer
+/// Errors for the low level package task layer
 #[derive(Error, Debug)]
-pub enum PackageDriverError {
+pub enum PackageTaskError {
     #[error(
         "Missing .inx file in source path: {0}, Please ensure you are in a Rust driver project \
          directory."

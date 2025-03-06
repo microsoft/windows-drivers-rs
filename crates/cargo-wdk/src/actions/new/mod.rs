@@ -40,8 +40,8 @@ impl<'a> NewAction<'a> {
         driver_project_name: &'a str,
         driver_type: DriverType,
         cwd: PathBuf,
-        command_exec: &'a dyn RunCommand,
-        fs_provider: &'a dyn FSProvider,
+        command_exec: &'a impl RunCommand,
+        fs_provider: &'a impl FSProvider,
     ) -> Self {
         Self {
             driver_project_name,

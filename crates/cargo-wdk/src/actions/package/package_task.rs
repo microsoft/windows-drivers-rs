@@ -1,6 +1,6 @@
-//! Module for handling low-level driver packaging operations.
+//! Module for handling low-level driver packaging tasks.
 //!
-//! This module defines the `PackageDriver` struct and its associated methods
+//! This module defines the `PackageTask` struct and its associated methods
 //! for packaging driver projects.  It handles file system
 //! operations and interacting with WDK tools to generate the driver package. It
 //! includes functions that invoke various WDK Tools involved in signing,
@@ -15,7 +15,7 @@ use std::{
 use tracing::{debug, info};
 use wdk_build::DriverConfig;
 
-use super::{error::PackageDriverError, FSProvider, WdkBuildProvider};
+use super::{error::PackageTaskError, FSProvider, WdkBuildProvider};
 use crate::{actions::TargetArch, providers::exec::RunCommand};
 
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
@@ -24,7 +24,7 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 
-pub struct PackageDriverParams<'a> {
+pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
     pub target_dir: &'a Path,
@@ -35,7 +35,7 @@ pub struct PackageDriverParams<'a> {
 }
 
 /// Suports low level driver packaging operations
-pub struct PackageDriver<'a> {
+pub struct PackageTask<'a> {
     package_name: String,
     verify_signature: bool,
     sample_class: bool,
@@ -67,30 +67,30 @@ pub struct PackageDriver<'a> {
     fs_provider: &'a dyn FSProvider,
 }
 
-impl<'a> PackageDriver<'a> {
-    /// Creates a new instance of `PackageDriver`.
+impl<'a> PackageTask<'a> {
+    /// Creates a new instance of `PackageTask`.
     /// # Arguments
-    /// * `package_name` - The name of the package.
-    /// * `working_dir` - The working directory.
-    /// * `target_dir` - The target directory.
+    /// * `package_name` - The name of the driver package.
+    /// * `working_dir` - The working directory of the driver project.
+    /// * `target_dir` - The target directory for the artifacts.
     /// * `target_arch` - The target architecture.
-    /// * `sample_class` - Whether the package is a sample class.
-    /// * `driver_model` - The driver model.
-    /// * `wdk_build_provider` - The WDK build provider.
-    /// * `command_exec` - The command execution provider.
-    /// * `fs_provider` - The file system provider.
+    /// * `sample_class` - Whether the driver class is a sample class.
+    /// * `driver_model` - The driver model configuration.
+    /// * `wdk_build_provider` - The provider for WDK build related methods.
+    /// * `command_exec` - The provider for command execution.
+    /// * `fs_provider` - The provider for file system operations.
     /// # Returns
-    /// * `Result<Self, PackageDriverError>` - A result containing the new
+    /// * `Result<Self, PackageTaskError>` - A result containing the new
     ///   instance or an error.
     /// # Errors
-    /// * `PackageDriverError::IoError` - If there is an IO error while creating
+    /// * `PackageTaskError::IoError` - If there is an IO error while creating
     ///   the final package directory.
     pub fn new(
-        params: PackageDriverParams<'a>,
+        params: PackageTaskParams<'a>,
         wdk_build_provider: &'a dyn WdkBuildProvider,
         command_exec: &'a dyn RunCommand,
         fs_provider: &'a dyn FSProvider,
-    ) -> Result<Self, PackageDriverError> {
+    ) -> Result<Self, PackageTaskError> {
         let package_name = params.package_name.replace('-', "_");
         // src paths
         let src_driver_binary_extension = "dll";
@@ -170,26 +170,26 @@ impl<'a> PackageDriver<'a> {
         })
     }
 
-    fn check_inx_exists(&self) -> Result<(), PackageDriverError> {
+    fn check_inx_exists(&self) -> Result<(), PackageTaskError> {
         debug!(
             "Checking for .inx file, path: {}",
             self.src_inx_file_path.to_string_lossy()
         );
         if !self.fs_provider.exists(&self.src_inx_file_path) {
-            return Err(PackageDriverError::MissingInxSrcFile(
+            return Err(PackageTaskError::MissingInxSrcFile(
                 self.src_inx_file_path.clone(),
             ));
         }
         Ok(())
     }
 
-    fn rename_driver_binary_extension(&self) -> Result<(), PackageDriverError> {
+    fn rename_driver_binary_extension(&self) -> Result<(), PackageTaskError> {
         debug!("Renaming driver binary extension from .dll to .sys");
         if let Err(e) = self.fs_provider.rename(
             &self.src_driver_binary_file_path,
             &self.src_renamed_driver_binary_file_path,
         ) {
-            return Err(PackageDriverError::CopyFile(
+            return Err(PackageTaskError::CopyFile(
                 self.src_driver_binary_file_path.clone(),
                 self.src_renamed_driver_binary_file_path.clone(),
                 e,
@@ -202,14 +202,14 @@ impl<'a> PackageDriver<'a> {
         &self,
         src_file_path: &'a Path,
         dest_file_path: &'a Path,
-    ) -> Result<(), PackageDriverError> {
+    ) -> Result<(), PackageTaskError> {
         debug!(
             "Copying src file {} to dest folder {}",
             src_file_path.to_string_lossy(),
             dest_file_path.to_string_lossy()
         );
         if let Err(e) = self.fs_provider.copy(src_file_path, dest_file_path) {
-            return Err(PackageDriverError::CopyFile(
+            return Err(PackageTaskError::CopyFile(
                 src_file_path.to_path_buf(),
                 dest_file_path.to_path_buf(),
                 e,
@@ -218,7 +218,7 @@ impl<'a> PackageDriver<'a> {
         Ok(())
     }
 
-    fn run_stampinf(&self) -> Result<(), PackageDriverError> {
+    fn run_stampinf(&self) -> Result<(), PackageTaskError> {
         info!("Running stampinf command");
         let wdf_flags = match self.driver_model {
             DriverConfig::Kmdf(kmdf_config) => format!(
@@ -255,13 +255,13 @@ impl<'a> PackageDriver<'a> {
         }
 
         if let Err(e) = self.command_exec.run("stampinf", &args, None) {
-            return Err(PackageDriverError::StampinfCommand(e));
+            return Err(PackageTaskError::StampinfCommand(e));
         }
 
         Ok(())
     }
 
-    fn run_inf2cat(&self) -> Result<(), PackageDriverError> {
+    fn run_inf2cat(&self) -> Result<(), PackageTaskError> {
         info!("Running inf2cat command");
         let args = [
             &format!(
@@ -275,13 +275,13 @@ impl<'a> PackageDriver<'a> {
         ];
 
         if let Err(e) = self.command_exec.run("inf2cat", &args, None) {
-            return Err(PackageDriverError::Inf2CatCommand(e));
+            return Err(PackageTaskError::Inf2CatCommand(e));
         }
 
         Ok(())
     }
 
-    fn generate_certificate(&self) -> Result<(), PackageDriverError> {
+    fn generate_certificate(&self) -> Result<(), PackageTaskError> {
         if self.fs_provider.exists(&self.src_cert_file_path) {
             return Ok(());
         }
@@ -295,7 +295,7 @@ impl<'a> PackageDriver<'a> {
         Ok(())
     }
 
-    fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageDriverError> {
+    fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
         let args = ["-s", WDR_TEST_CERT_STORE];
 
         match self.command_exec.run("certmgr.exe", &args, None) {
@@ -309,18 +309,18 @@ impl<'a> PackageDriver<'a> {
                         }
                         Err(e) => {
                             return Err(
-                                PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutput(e),
+                                PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e),
                             );
                         }
                     }
                 }
                 Ok(false)
             }
-            Err(e) => Err(PackageDriverError::VerifyCertExistsInStoreCommand(e)),
+            Err(e) => Err(PackageTaskError::VerifyCertExistsInStoreCommand(e)),
         }
     }
 
-    fn create_self_signed_cert_in_store(&self) -> Result<(), PackageDriverError> {
+    fn create_self_signed_cert_in_store(&self) -> Result<(), PackageTaskError> {
         info!("Creating self signed certificate in WDRTestCertStore store using makecert");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
@@ -338,13 +338,13 @@ impl<'a> PackageDriver<'a> {
         ];
 
         if let Err(e) = self.command_exec.run("makecert", &args, None) {
-            return Err(PackageDriverError::CertGenerationInStoreCommand(e));
+            return Err(PackageTaskError::CertGenerationInStoreCommand(e));
         }
 
         Ok(())
     }
 
-    fn create_cert_file_from_store(&self) -> Result<(), PackageDriverError> {
+    fn create_cert_file_from_store(&self) -> Result<(), PackageTaskError> {
         info!("Creating certificate file from WDRTestCertStore store using certmgr");
         let cert_path = self.src_cert_file_path.to_string_lossy();
 
@@ -359,7 +359,7 @@ impl<'a> PackageDriver<'a> {
         ];
 
         if let Err(e) = self.command_exec.run("certmgr.exe", &args, None) {
-            return Err(PackageDriverError::CreateCertFileFromStoreCommand(e));
+            return Err(PackageTaskError::CreateCertFileFromStoreCommand(e));
         }
 
         Ok(())
@@ -379,7 +379,7 @@ impl<'a> PackageDriver<'a> {
         file_path: &Path,
         cert_store: &str,
         cert_name: &str,
-    ) -> Result<(), PackageDriverError> {
+    ) -> Result<(), PackageTaskError> {
         info!(
             "Signing {} using signtool",
             file_path
@@ -403,13 +403,13 @@ impl<'a> PackageDriver<'a> {
         ];
 
         if let Err(e) = self.command_exec.run("signtool", &args, None) {
-            return Err(PackageDriverError::DriverBinarySignCommand(e));
+            return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
 
         std::result::Result::Ok(())
     }
 
-    fn run_signtool_verify(&self, file_path: &Path) -> std::result::Result<(), PackageDriverError> {
+    fn run_signtool_verify(&self, file_path: &Path) -> std::result::Result<(), PackageTaskError> {
         info!(
             "Verifying {} using signtool",
             file_path
@@ -423,13 +423,13 @@ impl<'a> PackageDriver<'a> {
         // TODO: Differentiate between command exec failure and signature verification
         // failure
         if let Err(e) = self.command_exec.run("signtool", &args, None) {
-            return Err(PackageDriverError::DriverBinarySignVerificationCommand(e));
+            return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
 
         std::result::Result::Ok(())
     }
 
-    fn run_infverif(&self) -> Result<(), PackageDriverError> {
+    fn run_infverif(&self) -> Result<(), PackageTaskError> {
         info!("Running InfVerif command");
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
@@ -463,7 +463,7 @@ impl<'a> PackageDriver<'a> {
         args.push(&inf_path);
 
         if let Err(e) = self.command_exec.run("infverif", &args, None) {
-            return Err(PackageDriverError::InfVerificationCommand(e));
+            return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
         Ok(())
@@ -471,36 +471,36 @@ impl<'a> PackageDriver<'a> {
 
     /// Entry point method to run the low level driver packaging operations.
     /// # Returns
-    /// * `Result<(), PackageDriverError>` - A result indicating success or
+    /// * `Result<(), PackageTaskError>` - A result indicating success or
     ///   failure.
     /// # Errors
-    /// * `PackageDriverError::CopyFileError` - If there is an error copying a
+    /// * `PackageTaskError::CopyFileError` - If there is an error copying a
     ///   file.
-    /// * `PackageDriverError::CertGenerationInStoreError` - If there is an
+    /// * `PackageTaskError::CertGenerationInStoreError` - If there is an
     ///   error generating a certificate in the store.
-    /// * `PackageDriverError::CreateCertFileFromStoreError` - If there is an
+    /// * `PackageTaskError::CreateCertFileFromStoreError` - If there is an
     ///   error creating a certificate file from the store.
-    /// * `PackageDriverError::DriverBinarySignError` - If there is an error
+    /// * `PackageTaskError::DriverBinarySignError` - If there is an error
     ///   signing the driver binary.
-    /// * `PackageDriverError::DriverBinarySignVerificationError` - If there is
+    /// * `PackageTaskError::DriverBinarySignVerificationError` - If there is
     ///   an error verifying the driver binary signature.
-    /// * `PackageDriverError::Inf2CatError` - If there is an error running the
+    /// * `PackageTaskError::Inf2CatError` - If there is an error running the
     ///   inf2cat command.
-    /// * `PackageDriverError::InfVerificationError` - If there is an error
+    /// * `PackageTaskError::InfVerificationError` - If there is an error
     ///   verifying the inf file.
-    /// * `PackageDriverError::MissingInxSrcFileError` - If the .inx source file
+    /// * `PackageTaskError::MissingInxSrcFileError` - If the .inx source file
     ///   is missing.
-    /// * `PackageDriverError::StampinfError` - If there is an error running the
+    /// * `PackageTaskError::StampinfError` - If there is an error running the
     ///   stampinf command.
-    /// * `PackageDriverError::VerifyCertExistsInStoreError` - If there is an
+    /// * `PackageTaskError::VerifyCertExistsInStoreError` - If there is an
     ///   error verifying if the certificate exists in the store.
-    /// * `PackageDriverError::VerifyCertExistsInStoreInvalidCommandOutputError`
+    /// * `PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutputError`
     ///   - If the command output is invalid when verifying if the certificate
     ///     exists in the store.
-    /// * `PackageDriverError::WdkBuildConfigError` - If there is an error with
+    /// * `PackageTaskError::WdkBuildConfigError` - If there is an error with
     ///   the WDK build config.
-    /// * `PackageDriverError::IoError` - If there is an IO error.
-    pub fn run(&self) -> Result<(), PackageDriverError> {
+    /// * `PackageTaskError::IoError` - If there is an IO error.
+    pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
         // TODO: rename is not necessary, but should confirm
         info!(

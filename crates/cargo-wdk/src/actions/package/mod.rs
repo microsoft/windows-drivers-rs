@@ -14,7 +14,7 @@ mod tests;
 mod error;
 use cargo_metadata::{Metadata, Package};
 use error::PackageProjectError;
-mod package_driver;
+mod package_task;
 
 // Non local imports
 use std::{
@@ -25,7 +25,7 @@ use std::{
 };
 
 use anyhow::Result;
-use package_driver::{PackageDriver, PackageDriverParams};
+use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as log_error, info, warn};
 use wdk_build::metadata::Wdk;
 
@@ -77,9 +77,9 @@ impl<'a> PackageAction<'a> {
     ///   canonicalizing the working dir
     pub fn new(
         params: &PackageActionParams<'a>,
-        wdk_build_provider: &'a dyn WdkBuildProvider,
-        command_exec: &'a dyn RunCommand,
-        fs_provider: &'a dyn FSProvider,
+        wdk_build_provider: &'a impl WdkBuildProvider,
+        command_exec: &'a impl RunCommand,
+        fs_provider: &'a impl FSProvider,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
         wdk_build::cargo_make::setup_path()?;
@@ -349,8 +349,8 @@ impl<'a> PackageAction<'a> {
         }
 
         debug!("Found wdk metadata in package: {}", package_name);
-        let package_driver = PackageDriver::new(
-            PackageDriverParams {
+        let package_driver = PackageTask::new(
+            PackageTaskParams {
                 package_name: &package_name,
                 working_dir,
                 target_dir,
@@ -364,14 +364,14 @@ impl<'a> PackageAction<'a> {
             self.fs_provider,
         );
         if let Err(e) = package_driver {
-            return Err(PackageProjectError::PackageDriverInit(package_name, e));
+            return Err(PackageProjectError::PackageTaskInit(package_name, e));
         }
 
         if let Err(e) = package_driver
             .expect("PackageDriver failed to initialize")
             .run()
         {
-            return Err(PackageProjectError::PackageDriver(package_name, e));
+            return Err(PackageProjectError::PackageTask(package_name, e));
         }
         info!("Processing completed for package: {}", package_name);
         Ok(())
