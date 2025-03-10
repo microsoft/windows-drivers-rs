@@ -10,13 +10,11 @@
 #[cfg(test)]
 mod tests;
 
-// Module imports
 mod error;
 use cargo_metadata::{Metadata, Package};
 use error::PackageProjectError;
 mod package_task;
 
-// Non local imports
 use std::{
     fs::read_dir,
     io,
@@ -314,7 +312,7 @@ impl<'a> PackageAction<'a> {
 
     fn build_and_package(
         &self,
-        working_dir: &PathBuf,
+        working_dir: &Path,
         wdk_metadata: &Wdk,
         package: &Package,
         package_name: String,

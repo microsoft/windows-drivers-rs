@@ -5,7 +5,7 @@
 //! functionality to create a new build action and run the build process with
 //! specified parameters.
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Result;
 use tracing::{debug, info};
@@ -18,7 +18,7 @@ use crate::{
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
-    working_dir: &'a PathBuf,
+    working_dir: &'a Path,
     verbosity_level: clap_verbosity_flag::Verbosity,
     command_exec: &'a dyn RunCommand,
 }
@@ -33,7 +33,7 @@ impl<'a> BuildAction<'a> {
     /// * `Self` - A new instance of `BuildAction`
     pub fn new(
         package_name: &'a str,
-        working_dir: &'a PathBuf,
+        working_dir: &'a Path,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a dyn RunCommand,
     ) -> Self {
