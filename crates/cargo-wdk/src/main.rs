@@ -1,13 +1,13 @@
 //! Main entry point for the cargo-wdk CLI application.
 //!
-//! This module initializes the CLI, sets up logging, and runs the specified
+//! This module initializes the CLI, sets up tracing, and runs the specified
 //! commands. It uses the `clap` crate for command-line argument parsing and the
-//! `log` crate for logging.
+//! `tracing` crate for tracing.
 
 mod actions;
 mod cli;
-mod log;
 mod providers;
+mod trace;
 
 use std::process::exit;
 
@@ -18,7 +18,7 @@ use tracing::error;
 
 /// Main function for the cargo-wdk CLI application.
 ///
-/// This function initializes the CLI, sets up logging, and runs the specified
+/// This function initializes the CLI, sets up tracing, and runs the specified
 /// commands. If an error occurs during execution, it logs the error and exits
 /// with a non-zero status code.
 ///
@@ -29,11 +29,11 @@ use tracing::error;
 ///
 /// # Errors
 ///
-/// This function will return an error if logging initialization fails or if the
+/// This function will return an error if tracing initialization fails or if the
 /// CLI command execution fails.
 fn main() -> Result<()> {
     let cli: Cli = Cli::parse();
-    log::init_logging(cli.verbose);
+    trace::init_tracing(cli.verbose);
     if let Err(e) = cli.run() {
         error!("{}", e);
         exit(1);

@@ -1,12 +1,15 @@
+// This module provides methods to initialize log level and to
+// get cargo verbose flags based on the verbosity level.
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
-/// Initializes the logger with tracing subscriber
-pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) {
-    // clamp to info verbosity level by default
-    // no -v -> info log level
-    // -v -> debug log level
-    // -vv -> trace log level
+/// Initializes the tracing subscriber with a filter based on the verbosity
+/// level.
+pub fn init_tracing(verbosity_level: clap_verbosity_flag::Verbosity) {
+    // Change default log level to
+    // * INFO if no verbosity level is set
+    // * Debug level when -v is set
+    // * Trace level when -vv is set
     let level = match verbosity_level.filter() {
         clap_verbosity_flag::VerbosityFilter::Off => LevelFilter::OFF,
         clap_verbosity_flag::VerbosityFilter::Error => LevelFilter::INFO,
@@ -25,7 +28,12 @@ pub fn init_logging(verbosity_level: clap_verbosity_flag::Verbosity) {
         .init();
 }
 
-/// Returns the cargo verbose flags based on the verbosity level
+/// Gets the cargo verbose flags based on the verbosity level
+/// Returns
+///     * `None` indicating no flags should be passed to cargo
+///     * `Some("-q")` indicating -q flag should be passed to cargo
+///     * `Some("-v")` indicating -v flag should be passed to cargo
+///     * `Some("-vv")` indicating -vv flag should be passed to cargo
 pub fn get_cargo_verbose_flags<'a>(
     verbosity_level: clap_verbosity_flag::Verbosity,
 ) -> Option<&'a str> {

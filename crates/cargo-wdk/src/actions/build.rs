@@ -11,8 +11,8 @@ use anyhow::Result;
 use tracing::{debug, info};
 
 use crate::{
-    log as logger,
     providers::{error::CommandError, exec::RunCommand},
+    trace,
 };
 
 /// Action that orchestrates building of driver project using cargo command.
@@ -59,7 +59,7 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .to_string();
-        let args = logger::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
+        let args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
             || {
                 vec![
                     "build",
