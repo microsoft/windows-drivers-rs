@@ -53,7 +53,7 @@ impl Cli {
                 let new_action = NewAction::new(
                     &cli_args.driver_project_name.0,
                     cli_args.driver_type.into(),
-                    cli_args.cwd,
+                    &cli_args.cwd,
                     &command_exec,
                     &fs_provider,
                 );

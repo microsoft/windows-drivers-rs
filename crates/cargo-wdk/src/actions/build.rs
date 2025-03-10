@@ -15,14 +15,13 @@ use crate::{
     providers::{error::CommandError, exec::RunCommand},
 };
 
-/// Action to build a package using cargo
+/// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
     working_dir: &'a PathBuf,
     verbosity_level: clap_verbosity_flag::Verbosity,
     command_exec: &'a dyn RunCommand,
 }
-
 impl<'a> BuildAction<'a> {
     /// Creates a new instance of `BuildAction`
     /// # Arguments

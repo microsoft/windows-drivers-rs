@@ -476,14 +476,14 @@ impl<'a> PackageTask<'a> {
     /// # Errors
     /// * `PackageTaskError::CopyFileError` - If there is an error copying a
     ///   file.
-    /// * `PackageTaskError::CertGenerationInStoreError` - If there is an
-    ///   error generating a certificate in the store.
+    /// * `PackageTaskError::CertGenerationInStoreError` - If there is an error
+    ///   generating a certificate in the store.
     /// * `PackageTaskError::CreateCertFileFromStoreError` - If there is an
     ///   error creating a certificate file from the store.
     /// * `PackageTaskError::DriverBinarySignError` - If there is an error
     ///   signing the driver binary.
-    /// * `PackageTaskError::DriverBinarySignVerificationError` - If there is
-    ///   an error verifying the driver binary signature.
+    /// * `PackageTaskError::DriverBinarySignVerificationError` - If there is an
+    ///   error verifying the driver binary signature.
     /// * `PackageTaskError::Inf2CatError` - If there is an error running the
     ///   inf2cat command.
     /// * `PackageTaskError::InfVerificationError` - If there is an error
