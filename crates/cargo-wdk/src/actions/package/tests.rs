@@ -11,12 +11,15 @@ use std::{
 
 use cargo_metadata::Metadata;
 use mockall::predicate::eq;
+use mockall_double::double;
 use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
     DriverConfig,
 };
 
 use super::PackageAction;
+#[double]
+use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{
     actions::{
         package::{
@@ -26,12 +29,7 @@ use crate::{
         Profile,
         TargetArch,
     },
-    providers::{
-        error::CommandError,
-        exec::MockRunCommand,
-        fs::MockFSProvider,
-        wdk_build::MockWdkBuildProvider,
-    },
+    providers::error::CommandError,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1861,9 +1859,9 @@ struct TestPackageAction {
     inf2cat_arg: String,
 
     // mocks
-    mock_run_command: MockRunCommand,
-    mock_wdk_build_provider: MockWdkBuildProvider,
-    mock_fs_provider: MockFSProvider,
+    mock_run_command: CommandExec,
+    mock_wdk_build_provider: WdkBuild,
+    mock_fs_provider: Fs,
 }
 
 // Presence of method ensures specific mock expectation is set
@@ -1979,16 +1977,16 @@ trait TestSetupPackageExpectations {
         override_output: Option<Output>,
     ) -> Self;
 
-    fn mock_wdk_build_provider(&self) -> &MockWdkBuildProvider;
-    fn mock_run_command(&self) -> &MockRunCommand;
-    fn mock_fs_provider(&self) -> &MockFSProvider;
+    fn mock_wdk_build_provider(&self) -> &WdkBuild;
+    fn mock_run_command(&self) -> &CommandExec;
+    fn mock_fs_provider(&self) -> &Fs;
 }
 
 impl TestPackageAction {
     fn new(cwd: PathBuf, profile: Profile, target_arch: TargetArch, sample_class: bool) -> Self {
-        let mock_run_command = MockRunCommand::new();
-        let mock_wdk_build_provider = MockWdkBuildProvider::new();
-        let mock_fs_provider = MockFSProvider::new();
+        let mock_run_command = CommandExec::default();
+        let mock_wdk_build_provider = WdkBuild::default();
+        let mock_fs_provider = Fs::default();
         let command_arg_arch = match target_arch {
             TargetArch::X64 => "amd64".to_string(),
             TargetArch::Arm64 => "arm64".to_string(),
@@ -3001,15 +2999,15 @@ impl TestSetupPackageExpectations for TestPackageAction {
         self
     }
 
-    fn mock_wdk_build_provider(&self) -> &MockWdkBuildProvider {
+    fn mock_wdk_build_provider(&self) -> &WdkBuild {
         &self.mock_wdk_build_provider
     }
 
-    fn mock_run_command(&self) -> &MockRunCommand {
+    fn mock_run_command(&self) -> &CommandExec {
         &self.mock_run_command
     }
 
-    fn mock_fs_provider(&self) -> &MockFSProvider {
+    fn mock_fs_provider(&self) -> &Fs {
         &self.mock_fs_provider
     }
 }

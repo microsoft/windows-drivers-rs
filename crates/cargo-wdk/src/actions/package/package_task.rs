@@ -12,11 +12,14 @@ use std::{
     result::Result,
 };
 
+use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::DriverConfig;
 
-use super::{error::PackageTaskError, FSProvider, WdkBuildProvider};
-use crate::{actions::TargetArch, providers::exec::RunCommand};
+use super::error::PackageTaskError;
+use crate::actions::TargetArch;
+#[double]
+use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
 // flag is added to InfVerif CLI
@@ -62,9 +65,9 @@ pub struct PackageTask<'a> {
     driver_model: DriverConfig,
 
     // Injected deps
-    wdk_build_provider: &'a dyn WdkBuildProvider,
-    command_exec: &'a dyn RunCommand,
-    fs_provider: &'a dyn FSProvider,
+    wdk_build_provider: &'a WdkBuild,
+    command_exec: &'a CommandExec,
+    fs_provider: &'a Fs,
 }
 
 impl<'a> PackageTask<'a> {
@@ -87,9 +90,9 @@ impl<'a> PackageTask<'a> {
     ///   the final package directory.
     pub fn new(
         params: PackageTaskParams<'a>,
-        wdk_build_provider: &'a dyn WdkBuildProvider,
-        command_exec: &'a dyn RunCommand,
-        fs_provider: &'a dyn FSProvider,
+        wdk_build_provider: &'a WdkBuild,
+        command_exec: &'a CommandExec,
+        fs_provider: &'a Fs,
     ) -> Result<Self, PackageTaskError> {
         let package_name = params.package_name.replace('-', "_");
         // src paths

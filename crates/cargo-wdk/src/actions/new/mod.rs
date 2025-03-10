@@ -12,12 +12,12 @@ use std::{
 
 use error::NewActionError;
 use include_dir::{include_dir, Dir};
+use mockall_double::double;
 use tracing::{debug, info};
 
-use crate::{
-    actions::DriverType,
-    providers::{exec::RunCommand, fs::FSProvider},
-};
+use crate::actions::DriverType;
+#[double]
+use crate::providers::{exec::CommandExec, fs::Fs};
 
 /// Directory containing the templates to be bundled with the utility
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -28,8 +28,8 @@ pub struct NewAction<'a> {
     driver_project_name: String,
     driver_type: DriverType,
     cwd: PathBuf,
-    command_exec: &'a dyn RunCommand,
-    fs_provider: &'a dyn FSProvider,
+    command_exec: &'a CommandExec,
+    fs_provider: &'a Fs,
 }
 
 impl<'a> NewAction<'a> {
@@ -51,8 +51,8 @@ impl<'a> NewAction<'a> {
         driver_project_name: &'a str,
         driver_type: DriverType,
         cwd: &'a Path,
-        command_exec: &'a impl RunCommand,
-        fs_provider: &'a impl FSProvider,
+        command_exec: &'a CommandExec,
+        fs_provider: &'a Fs,
     ) -> Self {
         let cwd = cwd.join(driver_project_name);
         let driver_project_name = driver_project_name.replace('-', "_");

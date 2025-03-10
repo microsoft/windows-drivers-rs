@@ -13,6 +13,7 @@ mod tests;
 mod error;
 use cargo_metadata::{Metadata, Package};
 use error::PackageProjectError;
+use mockall_double::double;
 mod package_task;
 
 use std::{
@@ -28,7 +29,8 @@ use tracing::{debug, error as log_error, info, warn};
 use wdk_build::metadata::Wdk;
 
 use super::{build::BuildAction, Profile, TargetArch};
-use crate::providers::{exec::RunCommand, fs::FSProvider, wdk_build::WdkBuildProvider};
+#[double]
+use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
@@ -50,9 +52,9 @@ pub struct PackageAction<'a> {
     verbosity_level: clap_verbosity_flag::Verbosity,
 
     // Injected deps
-    wdk_build_provider: &'a dyn WdkBuildProvider,
-    command_exec: &'a dyn RunCommand,
-    fs_provider: &'a dyn FSProvider,
+    wdk_build_provider: &'a WdkBuild,
+    command_exec: &'a CommandExec,
+    fs_provider: &'a Fs,
 }
 
 impl<'a> PackageAction<'a> {
@@ -75,9 +77,9 @@ impl<'a> PackageAction<'a> {
     ///   canonicalizing the working dir
     pub fn new(
         params: &PackageActionParams<'a>,
-        wdk_build_provider: &'a impl WdkBuildProvider,
-        command_exec: &'a impl RunCommand,
-        fs_provider: &'a impl FSProvider,
+        wdk_build_provider: &'a WdkBuild,
+        command_exec: &'a CommandExec,
+        fs_provider: &'a Fs,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
         wdk_build::cargo_make::setup_path()?;

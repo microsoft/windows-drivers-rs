@@ -1,3 +1,7 @@
+// Warns the run method is not used, however it is used.
+// The intellisense confusion seems to come from automock
+#![allow(dead_code)]
+#![allow(clippy::unused_self)]
 use std::{
     fs::{copy, create_dir, rename, File, OpenOptions},
     io::{Read, Write},
@@ -9,43 +13,32 @@ use mockall::automock;
 use super::error::FileError;
 
 /// Provides limited access to `std::fs` methods
-pub struct FS {}
+#[derive(Default)]
+pub struct Fs {}
 
-/// A Provider trait with methods for file system access
 #[automock]
-pub trait FSProvider {
-    fn rename(&self, src: &Path, dest: &Path) -> Result<(), std::io::Error>;
-    fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, std::io::Error>;
-    fn copy(&self, src: &Path, dest: &Path) -> Result<u64, std::io::Error>;
-    fn exists(&self, path: &Path) -> bool;
-    fn create_dir(&self, path: &Path) -> Result<(), std::io::Error>;
-    fn read_file_to_string(&self, path: &Path) -> Result<String, FileError>;
-    fn write_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError>;
-    fn append_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError>;
-}
-
-impl FSProvider for FS {
-    fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+impl Fs {
+    pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         path.canonicalize()
     }
 
-    fn copy(&self, src: &Path, dest: &Path) -> Result<u64, std::io::Error> {
+    pub fn copy(&self, src: &Path, dest: &Path) -> Result<u64, std::io::Error> {
         copy(src, dest)
     }
 
-    fn exists(&self, path: &Path) -> bool {
+    pub fn exists(&self, path: &Path) -> bool {
         path.exists()
     }
 
-    fn create_dir(&self, path: &Path) -> Result<(), std::io::Error> {
+    pub fn create_dir(&self, path: &Path) -> Result<(), std::io::Error> {
         create_dir(path)
     }
 
-    fn rename(&self, src: &Path, dest: &Path) -> Result<(), std::io::Error> {
+    pub fn rename(&self, src: &Path, dest: &Path) -> Result<(), std::io::Error> {
         rename(src, dest)
     }
 
-    fn read_file_to_string(&self, path: &Path) -> Result<String, FileError> {
+    pub fn read_file_to_string(&self, path: &Path) -> Result<String, FileError> {
         if !path.exists() {
             return Err(FileError::NotFound(path.to_owned()));
         }
@@ -56,14 +49,14 @@ impl FSProvider for FS {
         Ok(content)
     }
 
-    fn write_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
+    pub fn write_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
         let mut file = File::create(path).map_err(|e| FileError::WriteError(path.to_owned(), e))?;
         file.write_all(data)
             .map_err(|e| FileError::WriteError(path.to_owned(), e))?;
         Ok(())
     }
 
-    fn append_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
+    pub fn append_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
         let mut file = OpenOptions::new()
             .append(true)
             .open(path)

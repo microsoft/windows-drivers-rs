@@ -1,4 +1,10 @@
-#![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
+// This is suppressed for mockall as it generates mocks with env_vars: &Option
+#![allow(clippy::ref_option_ref)]
+// Warns the run method is not used, however it is used.
+// The intellisense confusion seems to come from automock
+#![allow(dead_code)]
+#![allow(clippy::unused_self)]
+
 use std::{
     collections::HashMap,
     process::{Command, Output, Stdio},
@@ -11,22 +17,12 @@ use tracing::debug;
 use super::error::CommandError;
 
 /// Provides limited access to `std::process::Command` methods
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CommandExec {}
 
-/// A Provider trait with methods for command execution
 #[automock]
-pub trait RunCommand {
-    fn run<'a>(
-        &self,
-        command: &'a str,
-        args: &'a [&'a str],
-        env_vars: Option<&'a HashMap<&'a str, &'a str>>,
-    ) -> Result<Output, CommandError>;
-}
-
-impl RunCommand for CommandExec {
-    fn run<'a>(
+impl CommandExec {
+    pub fn run<'a>(
         &self,
         command: &'a str,
         args: &'a [&'a str],

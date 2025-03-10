@@ -4,14 +4,14 @@ mod error;
 use anyhow::{Ok, Result};
 use args::{NewProjectArgs, PackageProjectArgs};
 use clap::{Parser, Subcommand};
+use mockall_double::double;
 
-use crate::{
-    actions::{
-        new::NewAction,
-        package::{PackageAction, PackageActionParams},
-    },
-    providers::{exec::CommandExec, fs::FS, wdk_build},
+use crate::actions::{
+    new::NewAction,
+    package::{PackageAction, PackageActionParams},
 };
+#[double]
+use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 
 /// Top level command line interface for cargo wdk
 #[derive(Debug, Parser)]
@@ -44,9 +44,9 @@ impl Cli {
     /// Entry point method to construct and call actions based on the subcommand
     /// and arguments provided by the user.
     pub fn run(self) -> Result<()> {
-        let wdk_build = wdk_build::WdkBuild {};
-        let command_exec = CommandExec {};
-        let fs_provider = FS {};
+        let wdk_build = WdkBuild::default();
+        let command_exec = CommandExec::default();
+        let fs_provider = Fs::default();
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {

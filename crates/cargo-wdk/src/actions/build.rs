@@ -8,19 +8,19 @@
 use std::path::Path;
 
 use anyhow::Result;
+use mockall_double::double;
 use tracing::{debug, info};
 
-use crate::{
-    providers::{error::CommandError, exec::RunCommand},
-    trace,
-};
+#[double]
+use crate::providers::exec::CommandExec;
+use crate::{providers::error::CommandError, trace};
 
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
     working_dir: &'a Path,
     verbosity_level: clap_verbosity_flag::Verbosity,
-    command_exec: &'a dyn RunCommand,
+    command_exec: &'a CommandExec,
 }
 impl<'a> BuildAction<'a> {
     /// Creates a new instance of `BuildAction`
@@ -31,11 +31,11 @@ impl<'a> BuildAction<'a> {
     /// * `command_exec` - The command execution provider
     /// # Returns
     /// * `Self` - A new instance of `BuildAction`
-    pub fn new(
+    pub const fn new(
         package_name: &'a str,
         working_dir: &'a Path,
         verbosity_level: clap_verbosity_flag::Verbosity,
-        command_exec: &'a dyn RunCommand,
+        command_exec: &'a CommandExec,
     ) -> Self {
         Self {
             package_name,
