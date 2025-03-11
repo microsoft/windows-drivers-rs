@@ -89,7 +89,7 @@ impl FromStr for DriverTypeArg {
 pub struct NewProjectArgs {
     #[clap(help = "Driver Project Name")]
     pub driver_project_name: ProjectNameArg,
-    #[clap(long, help = "Driver Type", index = 2, ignore_case = true)]
+    #[clap(help = "Driver Type", index = 2, ignore_case = true)]
     pub driver_type: DriverTypeArg,
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
@@ -169,6 +169,6 @@ pub struct PackageProjectArgs {
     pub target_arch: TargetArchArg,
     #[clap(long, help = "Verify Signatures", default_value = "false")]
     pub verify_signature: bool,
-    #[clap(long, help = "Sample Class", default_value = "true")]
+    #[clap(long, help = "Sample Class", default_value = "false")]
     pub sample_class: bool,
 }

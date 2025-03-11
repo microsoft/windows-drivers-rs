@@ -1,13 +1,13 @@
 ;
-; KMDF.inf
+; ##driver_name_placeholder##.inf
 ;
 
 [Version]
 Signature   = "$WINDOWS NT$"
-Class       = System ; TODO: specify appropriate Class
-ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Class       = ; TODO: specify appropriate Class
+ClassGuid   = ; TODO: specify appropriate ClassGuid
 Provider    = %ManufacturerName%
-CatalogFile = KMDF.cat
+CatalogFile = ##driver_name_placeholder##.cat
 DriverVer   = ; TODO: set DriverVer in stampinf property pages
 PnpLockdown = 1
 
@@ -17,9 +17,8 @@ DefaultDestDir = 13
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
-FIXME: replace KMDF.sys with <driver_name_placeholder>
 [SourceDisksFiles]
-KMDF.sys  = 1,,
+##driver_name_placeholder##.sys  = 1,,
 
 ;*****************************************
 ; Install Section
@@ -29,36 +28,35 @@ KMDF.sys  = 1,,
 %ManufacturerName% = Standard,NT$ARCH$.10.0...16299 ; %13% support introduced in build 16299
 
 [Standard.NT$ARCH$.10.0...16299]
-%KMDF.DeviceDesc% = KMDF_Device, Root\KMDF ; TODO: edit hw-id
+%##driver_name_placeholder##.DeviceDesc% = ##driver_name_placeholder##_Device, Root\##driver_name_placeholder## ; TODO: edit hw-id
 
-[KMDF_Device.NT]
+[##driver_name_placeholder##_Device.NT]
 CopyFiles = File_Copy
 
-FIXME: replace KMDF.sys with <driver_name_placeholder>
 [File_Copy]
-KMDF.sys
+##driver_name_placeholder##.sys
 
 ;-------------- Service installation
-[KMDF_Device.NT.Services]
-AddService = KMDF,%SPSVCINST_ASSOCSERVICE%, KMDF_Service_Inst
+[##driver_name_placeholder##_Device.NT.Services]
+AddService = ##driver_name_placeholder##,%SPSVCINST_ASSOCSERVICE%, ##driver_name_placeholder##_Service_Inst
 
 ; -------------- KMDF driver install sections
-[KMDF_Service_Inst]
-DisplayName    = %KMDF.SVCDESC%
+[##driver_name_placeholder##_Service_Inst]
+DisplayName    = %##driver_name_placeholder##.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\KMDF.sys
+ServiceBinary  = %13%\##driver_name_placeholder##.sys
 
-[KMDF_Device.NT.Wdf]
-KmdfService = KMDF, KMDF_wdfsect
+[##driver_name_placeholder##_Device.NT.Wdf]
+KmdfService = ##driver_name_placeholder##, ##driver_name_placeholder##_wdfsect
 
-[KMDF_wdfsect]
+[##driver_name_placeholder##_wdfsect]
 KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE = 0x00000002
-ManufacturerName = "<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+ManufacturerName = "" ;TODO: Replace with your manufacturer name
 DiskName = "KMDF Installation Disk"
-KMDF.DeviceDesc = "KMDF Device"
-KMDF.SVCDESC = "KMDF Service"
+##driver_name_placeholder##.DeviceDesc = ""
+##driver_name_placeholder##.SVCDESC = ""

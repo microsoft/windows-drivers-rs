@@ -1,14 +1,13 @@
 ;
-; UMDF2.inf
+; ##driver_name_placeholder##.inf
 ;
-FIXME: replace UMDF.dll with <driver_name_placeholder>.dll
 
 [Version]
 Signature   = "$Windows NT$"
-Class       = System ; TODO: specify appropriate Class
-ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Class       = ; TODO: specify appropriate Class
+ClassGuid   = ; TODO: specify appropriate ClassGuid
 Provider    = %ManufacturerName%
-CatalogFile = UMDF2.cat
+CatalogFile = ##driver_name_placeholder##.cat
 DriverVer   = ; TODO: set DriverVer in stampinf property pages
 PnpLockdown = 1
 
@@ -17,46 +16,46 @@ PnpLockdown = 1
 %ManufacturerName% = Standard,NT$ARCH$.10.0...22000 ; wudfrd.inf introduced in build 22000
 
 [Standard.NT$ARCH$.10.0...22000]
-%DeviceName% = MyDevice_Install, Root\UMDF2 ; TODO: edit hw-id
+%DeviceName% = ##driver_name_placeholder##, Root\##driver_name_placeholder## ; TODO: edit hw-id
 
 [SourceDisksFiles]
-UMDF2.dll = 1
+##driver_name_placeholder##.dll = 1
 
 [SourceDisksNames]
 1 = %DiskName%
 
 ; =================== UMDF Device ==================================
 
-[MyDevice_Install.NT]
+[##driver_name_placeholder##.NT]
 CopyFiles = UMDriverCopy
 Include = wudfrd.inf
 Needs = WUDFRD.NT
 
-[MyDevice_Install.NT.hw]
+[##driver_name_placeholder##.NT.hw]
 Include = wudfrd.inf
 Needs = WUDFRD.NT.HW
 
-[MyDevice_Install.NT.Services]
+[##driver_name_placeholder##.NT.Services]
 Include = wudfrd.inf
 Needs = WUDFRD.NT.Services
 
-[MyDevice_Install.NT.Wdf]
-UmdfService = UMDF2,UMDF2_Install
-UmdfServiceOrder = UMDF2
+[##driver_name_placeholder##.NT.Wdf]
+UmdfService = ##driver_name_placeholder##,##driver_name_placeholder##_Install
+UmdfServiceOrder = ##driver_name_placeholder##
 
-[UMDF2_Install]
+[##driver_name_placeholder##_Install]
 UmdfLibraryVersion = $UMDFVERSION$ 
-ServiceBinary = %13%\UMDF2.dll
+ServiceBinary = %13%\##driver_name_placeholder##.dll
 
 [DestinationDirs]
 UMDriverCopy = 13
 
 [UMDriverCopy]
-UMDF2.dll
+##driver_name_placeholder##.dll
 
 ; =================== Generic ==================================
 
 [Strings]
-ManufacturerName = "<Your manufacturer name>" ;TODO: Replace with your manufacturer name
-DiskName = "UMDF2 Installation Disk"
-DeviceName ="UMDF2 Device"
+ManufacturerName = "" ;TODO: Replace with your manufacturer name
+DiskName = "##driver_name_placeholder## Installation Disk"
+DeviceName ="##driver_name_placeholder## Device"

@@ -223,16 +223,24 @@ impl<'a> PackageTask<'a> {
 
     fn run_stampinf(&self) -> Result<(), PackageTaskError> {
         info!("Running stampinf command");
-        let wdf_flags = match self.driver_model {
-            DriverConfig::Kmdf(kmdf_config) => format!(
-                "-k {}.{}",
-                kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
-            ),
-            DriverConfig::Umdf(umdf_config) => format!(
-                "-u {}.{}",
-                umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
-            ),
-            DriverConfig::Wdm => String::new(),
+        let wdf_version_flags = match self.driver_model {
+            DriverConfig::Kmdf(kmdf_config) => {
+                vec![
+                    "-k".to_string(),
+                    format!(
+                        "{}.{}",
+                        kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
+                    ),
+                ]
+            }
+            DriverConfig::Umdf(umdf_config) => vec![
+                "-u".to_string(),
+                format!(
+                    "{}.{}.0",
+                    umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
+                ),
+            ],
+            DriverConfig::Wdm => vec![],
         };
 
         // TODO: Does it generate cat file relative to inf file path or we need to
@@ -253,8 +261,8 @@ impl<'a> PackageTask<'a> {
             "*",
         ];
 
-        if !wdf_flags.is_empty() {
-            args.push(&wdf_flags);
+        if !wdf_version_flags.is_empty() {
+            args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
 
         if let Err(e) = self.command_exec.run("stampinf", &args, None) {

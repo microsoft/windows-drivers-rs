@@ -114,7 +114,7 @@ impl<'a> NewAction<'a> {
             "Running cargo new for project: {}",
             self.driver_project_name
         );
-        let args = ["new", "--lib", &self.driver_project_name, "--vcs", "none"];
+        let args = ["new", "--lib", &self.cwd.to_string_lossy(), "--vcs", "none"];
         if let Err(e) = self.command_exec.run("cargo", &args, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }

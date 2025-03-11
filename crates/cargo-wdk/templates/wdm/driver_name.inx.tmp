@@ -1,14 +1,14 @@
 ;
-; WDMEmpty.inf
+; ##driver_name_placeholder##.inf
 ;
 
 [Version]
 Signature="$WINDOWS NT$"
-Class=System
-ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Class=; TODO: specify appropriate Class
+ClassGuid=; TODO: specify appropriate Class Guid
 Provider=%ManufacturerName%
 DriverVer=
-CatalogFile=WDMEmpty.cat
+CatalogFile=##driver_name_placeholder##.cat
 PnpLockdown=1
 
 [DestinationDirs]
@@ -25,5 +25,5 @@ DefaultDestDir = 13
 [Standard.NT$ARCH$.10.0...16299]
 
 [Strings]
-ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
-DiskName="WDMEmpty Source Disk"
+ManufacturerName="" ;TODO: Replace with your manufacturer name
+DiskName="##driver_name_placeholder## Source Disk"

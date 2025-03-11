@@ -2494,8 +2494,9 @@ impl TestSetupPackageExpectations for TestPackageAction {
                 expected_cat_file_name,
                 "-v".to_string(),
                 "*".to_string(),
+                "-k".to_string(),
                 format!(
-                    "-k {}.{}",
+                    "{}.{}",
                     kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ),
             ];
