@@ -2,7 +2,8 @@
 edition.workspace = true
 name = "cargo-wdk"
 version = "0.0.1"
-publish = false                                                                                    # set to false until the tool is stable and ready to be published
+# set to false until the tool is stable and ready to be published
+publish = false
 description = "A Cargo subcommand for building Windows drivers using the Windows Driver Kit (WDK)"
 repository.workspace = true
 license.workspace = true
