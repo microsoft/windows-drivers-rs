@@ -19,8 +19,5 @@ wdk-sys = "0.3.0"
 default = []
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
-[profile.dev]
-lto = true
-
 [profile.release]
 lto = true
