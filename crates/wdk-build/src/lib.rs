@@ -18,7 +18,7 @@ use metadata::TryFromCargoMetadataError;
 pub mod cargo_make;
 pub mod metadata;
 
-mod utils;
+pub mod utils;
 
 mod bindgen;
 

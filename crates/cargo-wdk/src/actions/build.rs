@@ -5,23 +5,36 @@
 //! functionality to create a new build action and run the build process with
 //! specified parameters.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use mockall_double::double;
+use thiserror::Error;
 use tracing::{debug, info};
+use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
-use crate::providers::exec::CommandExec;
+use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{providers::error::CommandError, trace};
+
+#[derive(Error, Debug)]
+pub enum BuildActionError {
+    #[error("Error getting canonicalized path for manifest file: {0}")]
+    CanonicalizeManifestPath(#[from] std::io::Error),
+    #[error("Empty manifest path found error")]
+    EmptyManifestPath,
+    #[error("Error running cargo build command: {0}")]
+    CargoBuild(#[from] CommandError),
+}
 
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
-    working_dir: &'a Path,
     verbosity_level: clap_verbosity_flag::Verbosity,
+    manifest_path: PathBuf,
     command_exec: &'a CommandExec,
 }
+
 impl<'a> BuildAction<'a> {
     /// Creates a new instance of `BuildAction`
     /// # Arguments
@@ -31,17 +44,30 @@ impl<'a> BuildAction<'a> {
     /// * `command_exec` - The command execution provider
     /// # Returns
     /// * `Self` - A new instance of `BuildAction`
-    pub const fn new(
+    pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
-    ) -> Self {
-        Self {
-            package_name,
-            working_dir,
-            verbosity_level,
-            command_exec,
+        fs_provider: &'a Fs,
+    ) -> Result<Self, BuildActionError> {
+        let manifest_path = fs_provider.canonicalize_path(&working_dir.join("Cargo.toml"))?;
+        match manifest_path.strip_extended_length_path_prefix() {
+            Ok(path) => Ok(Self {
+                package_name,
+                verbosity_level,
+                manifest_path: path,
+                command_exec,
+            }),
+            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => Ok(Self {
+                package_name,
+                verbosity_level,
+                manifest_path,
+                command_exec,
+            }),
+            Err(StripExtendedPathPrefixError::EmptyPath) => {
+                Err(BuildActionError::EmptyManifestPath)
+            }
         }
     }
 
@@ -51,14 +77,9 @@ impl<'a> BuildAction<'a> {
     ///   the build action
     /// # Errors
     /// * `CommandError` - If the command execution fails
-    pub fn run(&self) -> Result<(), CommandError> {
+    pub fn run(&self) -> Result<(), BuildActionError> {
         info!("Running cargo build for package: {}", self.package_name);
-        let manifest_path = self
-            .working_dir
-            .join("Cargo.toml")
-            .to_string_lossy()
-            .trim_start_matches("\\\\?\\")
-            .to_string();
+        let manifest_path = self.manifest_path.to_string_lossy().to_string();
         let args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
             || {
                 vec![

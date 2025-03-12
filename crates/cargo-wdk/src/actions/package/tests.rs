@@ -75,6 +75,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -154,6 +155,7 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -233,6 +235,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -330,6 +333,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -408,6 +412,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
@@ -488,6 +493,7 @@ pub fn given_a_driver_project_when_verify_signature_is_false_then_it_skips_signt
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -553,6 +559,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
@@ -607,6 +614,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -668,6 +676,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -733,6 +742,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -799,6 +809,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -867,6 +878,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -936,6 +948,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -1007,6 +1020,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -1211,6 +1225,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
@@ -1232,6 +1247,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_detect_wdk_build_number(25100u32)
         .expect_infverif(driver_name_1, &cwd, "KMDF", None)
         // Second driver project
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
@@ -1253,6 +1269,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_detect_wdk_build_number(25100u32)
         .expect_infverif(driver_name_2, &cwd, "KMDF", None)
         // Non-driver project
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(non_driver))
         .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
 
     let package_project = PackageAction::new(
@@ -1345,6 +1362,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_package_root(&cwd)
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name_1, &cwd, None)
         .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
         .expect_inx_file_exists(driver_name_1, &cwd, true)
@@ -1453,6 +1471,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
@@ -1472,6 +1491,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_detect_wdk_build_number(25100u32)
         .expect_infverif(driver_name_1, &cwd, "KMDF", None)
         // Second driver project
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
@@ -1491,6 +1511,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_detect_wdk_build_number(25100u32)
         .expect_infverif(driver_name_2, &cwd, "KMDF", None)
         // Non-driver project
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(non_driver))
         .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
 
     let package_project = PackageAction::new(
@@ -1569,6 +1590,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(non_driver, &cwd, None);
 
     let package_project = PackageAction::new(
@@ -1882,6 +1904,7 @@ trait TestSetupPackageExpectations {
         does_exist: bool,
     ) -> Self;
     fn expect_dir_created(self, driver_name: &str, driver_dir: &Path, created: bool) -> Self;
+    fn expect_path_canonicalization_package_manifest_path(self, driver_dir: &Path) -> Self;
     fn expect_cargo_build(
         self,
         driver_name: &str,
@@ -2197,6 +2220,17 @@ impl TestSetupPackageExpectations for TestPackageAction {
                     ))
                 }
             });
+        self
+    }
+
+    fn expect_path_canonicalization_package_manifest_path(mut self, driver_dir: &Path) -> Self {
+        let expected_package_manifest_path = driver_dir.join("Cargo.toml");
+        let package_manifest_path_to_be_returned = expected_package_manifest_path.clone();
+        self.mock_fs_provider
+            .expect_canonicalize_path()
+            .withf(move |d: &Path| d.eq(&expected_package_manifest_path))
+            .once()
+            .returning(move |_| Ok(package_manifest_path_to_be_returned.clone()));
         self
     }
 

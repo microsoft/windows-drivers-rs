@@ -2,7 +2,7 @@ use std::{path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
-use crate::providers::error::CommandError;
+use crate::{actions::build::BuildActionError, providers::error::CommandError};
 
 /// Errors for the package project action layer
 #[derive(Error, Debug)]
@@ -13,6 +13,8 @@ pub enum PackageProjectError {
     CargoMetadataParse(#[from] cargo_metadata::Error),
     #[error("Error Parsing WDK metadata from Cargo.toml")]
     WdkMetadataParse(#[from] wdk_build::metadata::TryFromCargoMetadataError),
+    #[error("Error running build action: {0}")]
+    BuildAction(#[from] BuildActionError),
     #[error("IO Error")]
     Io(#[from] std::io::Error),
     #[error("Command Execution Error")]

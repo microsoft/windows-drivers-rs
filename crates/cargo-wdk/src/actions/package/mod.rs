@@ -326,7 +326,8 @@ impl<'a> PackageAction<'a> {
             working_dir,
             self.verbosity_level,
             self.command_exec,
-        )
+            self.fs_provider,
+        )?
         .run()?;
         if package.metadata.get("wdk").is_none() {
             warn!(
