@@ -9,8 +9,6 @@ mod cli;
 mod providers;
 mod trace;
 
-use std::process::exit;
-
 use anyhow::{Ok, Result};
 use clap::Parser;
 use cli::Cli;
@@ -34,9 +32,6 @@ use tracing::error;
 fn main() -> Result<()> {
     let cli: Cli = Cli::parse();
     trace::init_tracing(cli.verbose);
-    if let Err(e) = cli.run() {
-        error!("{}", e);
-        exit(1);
-    }
+    cli.run().inspect_err(|e| error!("{}", e))?;
     Ok(())
 }
