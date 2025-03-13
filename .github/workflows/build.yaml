@@ -98,4 +98,4 @@ jobs:
 
       # Once cargo-wdk is stable, we can remove the above two steps that uses cargo-make
       - name: Build & Package Examples (via cargo-wdk utility)
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }}
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }} --sample-class
