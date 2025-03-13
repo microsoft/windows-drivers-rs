@@ -93,6 +93,9 @@ jobs:
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
 
+      - name: Install cargo-wdk
+        run: cargo install --path=crates/cargo-wdk --locked --force
+
       # Once cargo-wdk is stable, we can remove the above two steps that uses cargo-make
       - name: Build & Package Examples (via cargo-wdk utility)
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }}

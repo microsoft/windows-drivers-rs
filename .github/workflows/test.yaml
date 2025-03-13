@@ -79,6 +79,9 @@ jobs:
       - name: Run Cargo Test
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-features
 
+      - name: Install cargo-wdk
+        run: cargo install --path=crates/cargo-wdk --locked --force
+
       # Run cargo-wdk inside tests folder
       - name: Run Cargo Tests (via cargo-wdk)
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }}
