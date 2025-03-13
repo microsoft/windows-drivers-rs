@@ -32,6 +32,10 @@ jobs:
           - x86_64-pc-windows-msvc
           # - aarch64-pc-windows-msvc FIXME: Add support for executing ARM64 tests. Maybe use target specific test runner in emulator: https://doc.rust-lang.org/cargo/reference/config.html#target
 
+        target_arch:
+          - x64
+          - arm64
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -74,3 +78,8 @@ jobs:
 
       - name: Run Cargo Test
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-features
+
+      # Run cargo-wdk inside tests folder
+      - name: Run Cargo Tests (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }}
+        continue-on-error: true # This is set to true as the some of the tests are expected to fail.
