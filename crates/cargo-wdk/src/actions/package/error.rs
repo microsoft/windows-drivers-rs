@@ -7,17 +7,19 @@ use crate::{actions::build::BuildActionError, providers::error::CommandError};
 /// Errors for the package project action layer
 #[derive(Error, Debug)]
 pub enum PackageProjectError {
-    #[error("Wdk Build Config Error")]
+    #[error("Wdk Build Config Error: {0}")]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
-    #[error("Error Parsing Cargo.toml")]
+    #[error("Error Parsing Cargo.toml, not a valid rust project/workspace: {0}")]
     CargoMetadataParse(#[from] cargo_metadata::Error),
-    #[error("Error Parsing WDK metadata from Cargo.toml")]
+    #[error(
+        "Error Parsing WDK metadata from Cargo.toml, not a valid driver project/workspace: {0}"
+    )]
     WdkMetadataParse(#[from] wdk_build::metadata::TryFromCargoMetadataError),
     #[error("Error running build action: {0}")]
     BuildAction(#[from] BuildActionError),
-    #[error("IO Error")]
+    #[error("IO Error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Command Execution Error")]
+    #[error("Command Execution Error: {0}")]
     CommandExecution(#[from] CommandError),
     #[error("Not a workspace member, working directory: {0}")]
     NotAWorkspaceMember(PathBuf),
