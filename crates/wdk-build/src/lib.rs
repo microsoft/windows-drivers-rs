@@ -1300,13 +1300,10 @@ pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
         });
     }
 
-    let wdk_build_number = str::parse::<u32>(
-        &utils::get_wdk_version_number(&detected_sdk_version)
-            .expect("Failed to get WDK version number"),
-    )
-    .unwrap_or_else(|_| {
-        panic!("Couldn't parse WDK version number! Version number: {detected_sdk_version}")
-    });
+    let wdk_build_number =
+        str::parse::<u32>(&utils::get_wdk_version_number(&detected_sdk_version)?).unwrap_or_else(
+            |_| panic!("Couldn't parse WDK version number! Version number: {detected_sdk_version}"),
+        );
 
     Ok(wdk_build_number)
 }
