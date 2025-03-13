@@ -98,14 +98,14 @@ pub struct NewProjectArgs {
 /// Type for Profile Argument
 #[derive(Debug, Clone)]
 pub enum ProfileArg {
-    Debug,
+    Dev,
     Release,
 }
 
 impl From<ProfileArg> for Profile {
     fn from(val: ProfileArg) -> Self {
         match val {
-            ProfileArg::Debug => Self::Debug,
+            ProfileArg::Dev => Self::Debug,
             ProfileArg::Release => Self::Release,
         }
     }
@@ -116,7 +116,7 @@ impl FromStr for ProfileArg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "debug" => std::result::Result::Ok(Self::Debug),
+            "dev" => std::result::Result::Ok(Self::Dev),
             "release" => std::result::Result::Ok(Self::Release),
             _ => Err(format!("'{s}' is not a valid profile")),
         }
@@ -161,7 +161,7 @@ pub struct PackageProjectArgs {
     #[clap(
         long,
         help = "Build Profile/Configuration",
-        default_value = "debug",
+        default_value = "dev",
         ignore_case = true
     )]
     pub profile: ProfileArg,
