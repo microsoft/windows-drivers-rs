@@ -105,7 +105,7 @@ pub enum ProfileArg {
 impl From<ProfileArg> for Profile {
     fn from(val: ProfileArg) -> Self {
         match val {
-            ProfileArg::Dev => Self::Debug,
+            ProfileArg::Dev => Self::Dev,
             ProfileArg::Release => Self::Release,
         }
     }

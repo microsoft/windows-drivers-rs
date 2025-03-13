@@ -227,7 +227,7 @@ impl<'a> PackageAction<'a> {
     ) -> Result<(), PackageProjectError> {
         let target_directory = cargo_metadata
             .target_directory
-            .join(self.profile.to_string());
+            .join(self.profile.target_folder_name());
         let wdk_metadata = Wdk::try_from(cargo_metadata)?;
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
@@ -324,6 +324,7 @@ impl<'a> PackageAction<'a> {
         BuildAction::new(
             &package_name,
             working_dir,
+            &self.profile,
             self.verbosity_level,
             self.command_exec,
             self.fs_provider,

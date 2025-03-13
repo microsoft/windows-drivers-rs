@@ -33,17 +33,26 @@ impl fmt::Display for DriverType {
 /// `Profile` for the action layer
 #[derive(Debug, Clone, Copy)]
 pub enum Profile {
-    Debug,
+    Dev,
     Release,
 }
 
 impl fmt::Display for Profile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Self::Debug => "debug",
+            Self::Dev => "dev",
             Self::Release => "release",
         };
         write!(f, "{s}")
+    }
+}
+
+impl Profile {
+    pub fn target_folder_name(self) -> String {
+        match self {
+            Self::Dev => "debug".to_string(),
+            Self::Release => "release".to_string(),
+        }
     }
 }
 

@@ -27,6 +27,7 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 
+#[derive(Debug)]
 pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
@@ -94,6 +95,7 @@ impl<'a> PackageTask<'a> {
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
     ) -> Result<Self, PackageTaskError> {
+        debug!("Package task params: {params:?}");
         let package_name = params.package_name.replace('-', "_");
         // src paths
         let src_driver_binary_extension = "dll";

@@ -15,7 +15,7 @@ use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{providers::error::CommandError, trace};
+use crate::{actions::Profile, providers::error::CommandError, trace};
 
 #[derive(Error, Debug)]
 pub enum BuildActionError {
@@ -30,6 +30,7 @@ pub enum BuildActionError {
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
+    profile: &'a Profile,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -47,6 +48,7 @@ impl<'a> BuildAction<'a> {
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
+        profile: &'a Profile,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
@@ -55,12 +57,14 @@ impl<'a> BuildAction<'a> {
         match manifest_path.strip_extended_length_path_prefix() {
             Ok(path) => Ok(Self {
                 package_name,
+                profile,
                 verbosity_level,
                 manifest_path: path,
                 command_exec,
             }),
             Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => Ok(Self {
                 package_name,
+                profile,
                 verbosity_level,
                 manifest_path,
                 command_exec,
@@ -78,8 +82,12 @@ impl<'a> BuildAction<'a> {
     /// # Errors
     /// * `CommandError` - If the command execution fails
     pub fn run(&self) -> Result<(), BuildActionError> {
-        info!("Running cargo build for package: {}", self.package_name);
+        info!(
+            "Running cargo build for package: {}, profile: {}",
+            self.package_name, self.profile
+        );
         let manifest_path = self.manifest_path.to_string_lossy().to_string();
+        let profile = &self.profile.to_string();
         let args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
             || {
                 vec![
@@ -88,6 +96,8 @@ impl<'a> BuildAction<'a> {
                     &manifest_path,
                     "-p",
                     self.package_name,
+                    "--profile",
+                    profile,
                 ]
             },
             |flag| {
@@ -98,6 +108,8 @@ impl<'a> BuildAction<'a> {
                     &manifest_path,
                     "-p",
                     self.package_name,
+                    "--profile",
+                    profile,
                 ]
             },
         );
