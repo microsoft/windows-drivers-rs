@@ -1,4 +1,4 @@
-// Warns the run method is not used, however it is used.
+// Warns the methods are not used, however they are used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]
 #![allow(clippy::unused_self)]

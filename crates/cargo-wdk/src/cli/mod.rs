@@ -11,7 +11,7 @@ use crate::actions::{
     package::{PackageAction, PackageActionParams},
 };
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
+use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 /// Top level command line interface for cargo wdk
 #[derive(Debug, Parser)]
@@ -47,6 +47,7 @@ impl Cli {
         let wdk_build = WdkBuild::default();
         let command_exec = CommandExec::default();
         let fs_provider = Fs::default();
+        let metadata = Metadata::default();
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
@@ -73,6 +74,7 @@ impl Cli {
                     &wdk_build,
                     &command_exec,
                     &fs_provider,
+                    &metadata,
                 )?;
                 package_action.run()?;
                 Ok(())

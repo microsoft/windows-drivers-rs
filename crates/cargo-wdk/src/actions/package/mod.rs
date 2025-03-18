@@ -11,7 +11,7 @@
 mod tests;
 
 mod error;
-use cargo_metadata::{Metadata, Package};
+use cargo_metadata::{Metadata as CargoMetadata, Package};
 use error::PackageProjectError;
 use mockall_double::double;
 mod package_task;
@@ -30,7 +30,7 @@ use wdk_build::metadata::Wdk;
 
 use super::{build::BuildAction, Profile, TargetArch};
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
+use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
@@ -55,6 +55,7 @@ pub struct PackageAction<'a> {
     wdk_build_provider: &'a WdkBuild,
     command_exec: &'a CommandExec,
     fs_provider: &'a Fs,
+    metadata: &'a Metadata,
 }
 
 impl<'a> PackageAction<'a> {
@@ -80,6 +81,7 @@ impl<'a> PackageAction<'a> {
         wdk_build_provider: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
+        metadata: &'a Metadata,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
         wdk_build::cargo_make::setup_path()?;
@@ -102,6 +104,7 @@ impl<'a> PackageAction<'a> {
             wdk_build_provider,
             command_exec,
             fs_provider,
+            metadata,
         })
     }
 
@@ -223,7 +226,7 @@ impl<'a> PackageAction<'a> {
     fn run_from_workspace_root(
         &self,
         working_dir: &PathBuf,
-        cargo_metadata: &Metadata,
+        cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageProjectError> {
         let target_directory = cargo_metadata
             .target_directory
@@ -298,16 +301,13 @@ impl<'a> PackageAction<'a> {
         Ok(())
     }
 
-    fn get_cargo_metadata(
-        &self,
-        working_dir: &Path,
-    ) -> Result<cargo_metadata::Metadata, PackageProjectError> {
+    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, PackageProjectError> {
         let working_dir_path_trimmed: PathBuf = working_dir
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .into();
         let cargo_metadata = self
-            .wdk_build_provider
+            .metadata
             .get_cargo_metadata_at_path(&working_dir_path_trimmed)?;
         Ok(cargo_metadata)
     }

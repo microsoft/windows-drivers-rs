@@ -9,7 +9,7 @@ use std::{
     result::Result::Ok,
 };
 
-use cargo_metadata::Metadata;
+use cargo_metadata::Metadata as CargoMetadata;
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
@@ -19,7 +19,12 @@ use wdk_build::{
 
 use super::PackageAction;
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
+use crate::providers::{
+    exec::CommandExec,
+    fs::Fs,
+    metadata::Metadata as MetadataProvider,
+    wdk_build::WdkBuild,
+};
 use crate::{
     actions::{
         package::{
@@ -109,6 +114,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -188,6 +194,7 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -268,6 +275,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_aarch64
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -367,6 +375,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -447,6 +456,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -525,6 +535,7 @@ pub fn given_a_driver_project_when_verify_signature_is_false_then_it_skips_signt
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -577,6 +588,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -633,6 +645,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -699,6 +712,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -766,6 +780,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -835,6 +850,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -905,6 +921,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -977,6 +994,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1052,6 +1070,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1099,6 +1118,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1144,6 +1164,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1284,6 +1305,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1400,6 +1422,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1526,6 +1549,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1605,6 +1629,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1670,6 +1695,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1742,6 +1768,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1797,6 +1824,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1855,6 +1883,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         package_project_action.mock_wdk_build_provider(),
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1876,7 +1905,7 @@ struct TestPackageAction {
     profile: Profile,
     sample_class: bool,
 
-    cargo_metadata: Option<Metadata>,
+    cargo_metadata: Option<CargoMetadata>,
     stampinf_arg: String,
     inf2cat_arg: String,
 
@@ -1884,6 +1913,7 @@ struct TestPackageAction {
     mock_run_command: CommandExec,
     mock_wdk_build_provider: WdkBuild,
     mock_fs_provider: Fs,
+    mock_metadata_provider: MetadataProvider,
 }
 
 // Presence of method ensures specific mock expectation is set
@@ -2003,6 +2033,7 @@ trait TestSetupPackageExpectations {
     fn mock_wdk_build_provider(&self) -> &WdkBuild;
     fn mock_run_command(&self) -> &CommandExec;
     fn mock_fs_provider(&self) -> &Fs;
+    fn mock_metadata_provider(&self) -> &MetadataProvider;
 }
 
 impl TestPackageAction {
@@ -2010,6 +2041,7 @@ impl TestPackageAction {
         let mock_run_command = CommandExec::default();
         let mock_wdk_build_provider = WdkBuild::default();
         let mock_fs_provider = Fs::default();
+        let mock_metadata_provider = MetadataProvider::default();
         let command_arg_arch = match target_arch {
             TargetArch::X64 => "amd64".to_string(),
             TargetArch::Arm64 => "arm64".to_string(),
@@ -2026,6 +2058,7 @@ impl TestPackageAction {
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
+            mock_metadata_provider,
             cargo_metadata: None,
             stampinf_arg: command_arg_arch,
             inf2cat_arg: command_arg_os_mapping.to_string(),
@@ -2047,7 +2080,7 @@ impl TestPackageAction {
             serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
-        self.mock_wdk_build_provider
+        self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .once()
             .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
@@ -2076,7 +2109,7 @@ impl TestPackageAction {
         )
         .expect("Failed to parse cargo metadata in set_up_workspace_with_multiple_driver_projects");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
-        self.mock_wdk_build_provider
+        self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .once()
             .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
@@ -2092,7 +2125,7 @@ impl TestPackageAction {
             serde_json::from_str::<cargo_metadata::Metadata>(cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
-        self.mock_wdk_build_provider
+        self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .once()
             .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
@@ -3076,6 +3109,10 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn mock_fs_provider(&self) -> &Fs {
         &self.mock_fs_provider
+    }
+
+    fn mock_metadata_provider(&self) -> &MetadataProvider {
+        &self.mock_metadata_provider
     }
 }
 
