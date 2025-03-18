@@ -222,7 +222,9 @@ cargo make --env WDK_BUILD_ENABLE_SIGNTOOL_VERIFY=true
 
 ## Contact
 
-While we encourage using [GitHub Issues](https://github.com/microsoft/windows-drivers-rs/issues) for bug reports, feature requests, and other specific actionable items, please use [GitHub Discussions](https://github.com/microsoft/windows-drivers-rs/discussions) for broader questions, architectural discussions, and community engagement. For specific inquiries that may not be suitable for public forums, you can reach out to us at <RustWindowsDrivers@microsoft.com>.
+* For bug reports, feature requests, and other actionable items, please use [GitHub Issues](https://github.com/microsoft/windows-drivers-rs/issues)
+* For broader questions, architectural discussions, and community engagement, please use [GitHub Discussions](https://github.com/microsoft/windows-drivers-rs/discussions)
+* For inquiries not suitable for public forums, email us at <RustWindowsDrivers@microsoft.com>
 
 ## Crates.io Release Policy
 
