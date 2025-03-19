@@ -20,12 +20,14 @@ cargo_metadata.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true
+grep.workspace = true
 paste.workspace = true
 rustversion.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+walkdir.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_System_Registry",
