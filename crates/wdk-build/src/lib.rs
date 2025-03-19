@@ -130,7 +130,34 @@ pub enum ConfigError {
         directory: String,
     },
 
-    /// Error returned when an
+    /// Error returned when a package is not found in Cargo metadata 
+    #[error("cannot find package in Cargo metadata: {package_name}")]
+    CargoMetadataPackageNotFound {
+        /// Name of the Cargo metadata package that was not found
+        package_name: String,
+    },
+
+
+    /// Error returned Cargo manifest contains an unsupported edition
+    #[error("Cargo manifest contains unsupported Rust edition: {edition}")]
+    UnsupportedRustEdition {
+        /// Edition of the Cargo manifest that was not supported
+        edition: String,
+    },
+
+    /// Error returned when `bindgen` does not support `rust-version` in Cargo manifest
+    #[error("Rust version {msrv} not supported by Bindgen: {reason}")]
+    MsrvNotSupportedByBindgen {
+        /// MSRV that was not supported by Bindgen
+        msrv: String,
+        /// Reason why the MSRV was not supported
+        reason: String,
+    },
+
+    /// Error returned when `semver` parsing fails
+    #[error(transparent)]
+    SemverError(#[from] semver::Error),
+
     /// `utils::PathExt::strip_extended_length_path_prefix` operation fails
     #[error(transparent)]
     StripExtendedPathPrefixError(#[from] utils::StripExtendedPathPrefixError),

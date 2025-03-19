@@ -7,6 +7,7 @@ use bindgen::{
     callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
 };
+use cargo_metadata::MetadataCommand;
 
 use crate::{Config, ConfigError};
 
@@ -26,6 +27,23 @@ pub trait BuilderExt {
 #[derive(Debug)]
 struct WdkCallbacks {
     wdf_function_table_symbol_name: Option<String>,
+}
+
+struct BindgenRustEditionWrapper(bindgen::RustEdition);
+
+impl TryFrom<cargo_metadata::Edition> for BindgenRustEditionWrapper {
+    type Error = ConfigError;
+    fn try_from(edition: cargo_metadata::Edition) -> Result<Self, Self::Error> {
+        match edition {
+            cargo_metadata::Edition::E2015 => Err(ConfigError::UnsupportedRustEdition { edition: "2015".to_string() }),
+            cargo_metadata::Edition::E2018 => Ok(BindgenRustEditionWrapper(bindgen::RustEdition::Edition2018)),
+            cargo_metadata::Edition::E2021 => Ok(BindgenRustEditionWrapper(bindgen::RustEdition::Edition2021)),
+            cargo_metadata::Edition::E2024 => Ok(BindgenRustEditionWrapper(bindgen::RustEdition::Edition2024)),
+            cargo_metadata::Edition::_E2027 => Err(ConfigError::UnsupportedRustEdition { edition: "2027".to_string() }),
+            cargo_metadata::Edition::_E2030 => Err(ConfigError::UnsupportedRustEdition { edition: "2030".to_string()}),
+            _ => Err(ConfigError::UnsupportedRustEdition { edition: "unknown".to_string() }),
+        }
+    }
 }
 
 impl BuilderExt for Builder {
@@ -88,7 +106,9 @@ impl BuilderExt for Builder {
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
-            .formatter(bindgen::Formatter::Prettyplease);
+            .formatter(bindgen::Formatter::Prettyplease)
+            .rust_target(get_rust_target()?)
+            .rust_edition(get_rust_edition()?);
 
         Ok(builder)
     }
@@ -119,4 +139,56 @@ impl WdkCallbacks {
             wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
         }
     }
+}
+
+// Retrieves the Rust version as a `bindgen::RustTarget` for the current build configuration.
+//
+// If the `nightly` feature is enabled and the current toolchain is `nightly`, returns a value allowing `bindgen` to generate code with supported `nightly` features.
+// Otherwise, queries the MSRV from the `CARGO_PKG_RUST_VERSION` environment variable and uses it to create a `bindgen::RustTarget::stable` value.
+//
+// # Errors
+//
+// Returns `ConfigError::MsrvNotSupportedByBindgen` if the MSRV is not supported by bindgen, or `ConfigError::SemverError` if the MSRV cannot be parsed as a
+// semver version.
+fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
+    let nightly_feature = cfg!(feature = "nightly");
+    let nightly_toolchain = rustversion::cfg!(nightly);
+    if nightly_feature && nightly_toolchain {
+        return Ok(bindgen::RustTarget::nightly());
+    }
+
+    // Warn user if only one of these two conditions are enabled.
+    if (nightly_feature && !nightly_toolchain) || (!nightly_feature && nightly_toolchain) {
+        eprintln!("Nightly bindgen features are only enabled with nightly feature enablement and nightly toolchain use.")
+    }
+
+    let package_msrv = semver::Version::parse(env!("CARGO_PKG_RUST_VERSION"))?;
+
+    let bindgen_msrv = bindgen::RustTarget::stable(package_msrv.minor, package_msrv.patch)
+        .map_err(|e| { ConfigError::MsrvNotSupportedByBindgen{ msrv: package_msrv.to_string(), reason: e.to_string() }})?;
+    Ok(bindgen_msrv)
+}
+
+// Retrieves the Rust edition from `cargo metadata` and returns the appropriate
+// `bindgen::RustEdition` value.
+// 
+// # Errors
+// 
+// Returns `ConfigError::CargoMetadataPackageNotFound` if the `wdk-build` package is not found,
+// or `ConfigError::UnsupportedRustEdition` if the edition is not supported.
+fn get_rust_edition() -> Result<bindgen::RustEdition, ConfigError> {
+    let wdk_sys_cargo_metadata = MetadataCommand::new().exec()?;
+
+    let package_name = "wdk-build";
+
+    let wdk_sys_package_metadata = wdk_sys_cargo_metadata
+        .packages
+        .iter()
+        .find(|package| package.name == package_name)
+        .ok_or_else(|| {
+            ConfigError::CargoMetadataPackageNotFound { package_name: package_name.to_string() }
+        })?;
+
+    let rust_edition: BindgenRustEditionWrapper = wdk_sys_package_metadata.edition.try_into()?;
+    Ok(rust_edition.0)
 }

@@ -22,6 +22,7 @@ lto = true
 
 [workspace.package]
 edition = "2021"
+rust-version = "1.82.0"
 repository = "https://github.com/microsoft/windows-drivers-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
@@ -37,9 +38,9 @@ wdk-sys = { path = "crates/wdk-sys", version = "0.3.0" }
 
 # External Crates
 anyhow = "1.0.95"
-bindgen = "0.69.5"
+bindgen = "0.71.0"
 camino = "1.1.9"
-cargo_metadata = "0.18.1"
+cargo_metadata = "0.19.2"
 cc = "1.2.10"
 cfg-if = "1.0.0"
 clap = "4.5.9"
@@ -52,6 +53,7 @@ quote = "1.0.38"
 rustversion = "1.0.19"
 serde = "1.0"
 serde_json = "1.0"
+semver = "1.0.26"
 syn = "2.0.87"
 thiserror = "1.0.69"
 tracing = "0.1.40"

@@ -977,7 +977,7 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
         if !current_package
             .targets
             .iter()
-            .any(|target| target.kind.iter().any(|kind| kind == "cdylib"))
+            .any(|target| target.kind.iter().any(|kind| *kind == cargo_metadata::TargetKind::CDyLib))
         {
             return Err::<(), anyhow::Error>(
                 metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected.into(),
