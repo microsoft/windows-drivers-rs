@@ -87,6 +87,11 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         .join("src")
         .join("lib.rs")
         .exists());
+    assert!(tmp_dir
+        .join(&driver_name)
+        .join(".cargo")
+        .join("config.toml")
+        .exists());
 
     // assert if cargo wdk build works on the created driver project
     set_crt_static_flag();

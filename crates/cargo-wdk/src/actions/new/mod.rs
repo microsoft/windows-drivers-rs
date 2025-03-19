@@ -87,9 +87,7 @@ impl<'a> NewAction<'a> {
         self.update_cargo_toml()?;
         self.create_inx_file()?;
         self.copy_build_rs_template()?;
-        if matches!(self.driver_type, DriverType::Kmdf | DriverType::Wdm) {
-            self.copy_cargo_config()?;
-        }
+        self.copy_cargo_config()?;
         info!(
             "New Driver Project {} created at {}",
             self.driver_project_name,
