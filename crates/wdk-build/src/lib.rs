@@ -130,13 +130,12 @@ pub enum ConfigError {
         directory: String,
     },
 
-    /// Error returned when a package is not found in Cargo metadata 
+    /// Error returned when a package is not found in Cargo metadata
     #[error("cannot find package in Cargo metadata: {package_name}")]
     CargoMetadataPackageNotFound {
         /// Name of the Cargo metadata package that was not found
         package_name: String,
     },
-
 
     /// Error returned Cargo manifest contains an unsupported edition
     #[error("Cargo manifest contains unsupported Rust edition: {edition}")]
@@ -145,7 +144,8 @@ pub enum ConfigError {
         edition: String,
     },
 
-    /// Error returned when `bindgen` does not support `rust-version` in Cargo manifest
+    /// Error returned when `bindgen` does not support `rust-version` in Cargo
+    /// manifest
     #[error("Rust version {msrv} not supported by Bindgen: {reason}")]
     MsrvNotSupportedByBindgen {
         /// MSRV that was not supported by Bindgen
