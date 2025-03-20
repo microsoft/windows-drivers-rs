@@ -974,11 +974,11 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
                  have a package.metadata.wdk section"
             });
         }
-        if !current_package.targets.iter().any(|target| {
-            target
-                .kind
-                .contains(&cargo_metadata::TargetKind::CDyLib)
-        }) {
+        if !current_package
+            .targets
+            .iter()
+            .any(|target| target.kind.contains(&cargo_metadata::TargetKind::CDyLib))
+        {
             return Err::<(), anyhow::Error>(
                 metadata::TryFromCargoMetadataError::NoWdkConfigurationsDetected.into(),
             )
