@@ -197,14 +197,21 @@ pub enum ApiSubset {
     Base,
     /// API subset required for WDF (Windows Driver Framework) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_wdf/>
     Wdf,
+    /// API subset for GPIO (General Purpose Input/Output) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_gpio/>
+    Gpio,
     /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
     Hid,
+    /// API subset for Parallel Ports drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_parports/>
+    ParallelPorts,
     /// API subset for SPB (Serial Peripheral Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_spb/>
     Spb,
+    /// API subset for Storage drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_storage/>
+    Storage,
+    /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
+    Usb,
 }
 
 impl Default for Config {
-    #[must_use]
     fn default() -> Self {
         Self {
             wdk_content_root: utils::detect_wdk_content_root().expect(
@@ -398,6 +405,21 @@ impl Config {
                 }
                 include_paths.push(
                     kmdf_include_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
+
+                // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
+                // normally does not automatically include this search path, but it is required
+                // here so that the headers can be processed successfully.
+                let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
+                if !ufx_include_path.is_dir() {
+                    return Err(ConfigError::DirectoryNotFound {
+                        directory: ufx_include_path.to_string_lossy().into(),
+                    });
+                }
+                include_paths.push(
+                    ufx_include_path
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
@@ -621,8 +643,8 @@ impl Config {
             "--warn-=no-ignored-attributes",
             "--warn-=no-ignored-pragma-intrinsic",
             "--warn-=no-visibility",
-            "--warn-=no-microsoft-anon-tag",
-            "--warn-=no-microsoft-enum-forward-reference",
+            "--warn-=no-switch",
+            "--warn-=no-comment",
             // Don't warn for deprecated declarations. Deprecated items should be explicitly
             // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
             // definitions will trigger a -WDeprecated warning
@@ -631,6 +653,8 @@ impl Config {
             // `_variable` are separate tokens already, and don't need `##` to concatenate
             // them)
             "--warn-=no-invalid-token-paste",
+            // Windows SDK & DDK headers rely on Microsoft extensions to C/C++
+            "--warn-=no-microsoft",
         ]
         .into_iter()
         .map(std::string::ToString::to_string)
@@ -643,50 +667,200 @@ impl Config {
     /// determine which headers to yield
     pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
         match api_subset {
-            ApiSubset::Base => match &self.driver_config {
-                DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                    vec!["ntifs.h", "ntddk.h", "ntstrsafe.h"]
-                }
-                DriverConfig::Umdf(_) => {
-                    vec!["windows.h"]
-                }
-            },
-            ApiSubset::Wdf => {
-                if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = self.driver_config {
-                    vec!["wdf.h"]
-                } else {
-                    vec![]
-                }
-            }
-            ApiSubset::Hid => {
-                let mut hid_headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
-
-                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
-                    hid_headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
-                }
-
-                if let DriverConfig::Kmdf(_) = self.driver_config {
-                    hid_headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
-                }
-
-                hid_headers
-            }
-            ApiSubset::Spb => {
-                let mut spb_headers = vec!["spb.h", "reshub.h"];
-
-                if let DriverConfig::Wdm | DriverConfig::Kmdf(_) = self.driver_config {
-                    spb_headers.extend(["pwmutil.h"]);
-                }
-
-                if let DriverConfig::Kmdf(_) = self.driver_config {
-                    spb_headers.extend(["spb/1.1/spbcx.h"]);
-                }
-
-                spb_headers
-            }
+            ApiSubset::Base => self.base_headers(),
+            ApiSubset::Wdf => self.wdf_headers(),
+            ApiSubset::Gpio => self.gpio_headers(),
+            ApiSubset::Hid => self.hid_headers(),
+            ApiSubset::ParallelPorts => self.parallel_ports_headers(),
+            ApiSubset::Spb => self.spb_headers(),
+            ApiSubset::Storage => self.storage_headers(),
+            ApiSubset::Usb => self.usb_headers(),
         }
         .into_iter()
-        .map(std::string::ToString::to_string)
+        .map(str::to_string)
+    }
+
+    fn base_headers(&self) -> Vec<&'static str> {
+        match &self.driver_config {
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                vec!["ntifs.h", "ntddk.h", "ntstrsafe.h"]
+            }
+            DriverConfig::Umdf(_) => {
+                vec!["windows.h"]
+            }
+        }
+    }
+
+    fn wdf_headers(&self) -> Vec<&'static str> {
+        if matches!(
+            self.driver_config,
+            DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
+        ) {
+            vec!["wdf.h"]
+        } else {
+            vec![]
+        }
+    }
+
+    fn gpio_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["gpio.h"];
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["gpioclx.h"]);
+        }
+        headers
+    }
+
+    fn hid_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+        }
+
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
+        }
+        headers
+    }
+
+    fn parallel_ports_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["ntddpar.h", "ntddser.h"];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["parallel.h"]);
+        }
+        headers
+    }
+
+    fn spb_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["spb.h", "reshub.h"];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["pwmutil.h"]);
+        }
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["spb/1.1/spbcx.h"]);
+        }
+        headers
+    }
+
+    fn storage_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec![
+            "ehstorioctl.h",
+            "ntddcdrm.h",
+            "ntddcdvd.h",
+            "ntdddisk.h",
+            "ntddmmc.h",
+            "ntddscsi.h",
+            "ntddstor.h",
+            "ntddtape.h",
+            "ntddvol.h",
+            "ufs.h",
+        ];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend([
+                "mountdev.h",
+                "mountmgr.h",
+                "ntddchgr.h",
+                "ntdddump.h",
+                "storduid.h",
+                "storport.h",
+            ]);
+        }
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["ehstorbandmgmt.h"]);
+        }
+        headers
+    }
+
+    fn usb_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec![
+            "usb.h",
+            "usbfnbase.h",
+            "usbioctl.h",
+            "usbspec.h",
+            "Usbpmapi.h",
+        ];
+
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]);
+        }
+
+        if matches!(
+            self.driver_config,
+            DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
+        ) {
+            headers.extend(["wdfusb.h"]);
+        }
+
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend([
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ucx/1.6/ucxclass.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+            ]);
+
+            if Self::should_include_ufxclient() {
+                headers.extend(["ufx/1.1/ufxclient.h"]);
+            }
+        }
+        headers
+    }
+
+    /// Determines whether to include the ufxclient.h header based on the Clang
+    /// version used by bindgen.
+    ///
+    /// The ufxclient.h header contains FORCEINLINE annotations that are invalid
+    /// according to the C standard. While MSVC silently ignores these in C
+    /// mode, older versions of Clang (pre-20.0) will error, even with MSVC
+    /// compatibility enabled.
+    ///
+    /// This function checks if the current Clang version is 20.0 or newer,
+    /// where the issue was fixed. See
+    /// <https://github.com/llvm/llvm-project/issues/124869> for details.
+    fn should_include_ufxclient() -> bool {
+        const MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX: u32 = 20;
+
+        let clang_version = ::bindgen::clang_version();
+        match clang_version.parsed {
+            Some((major, _minor))
+                if major >= MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX =>
+            {
+                true
+            }
+            Some(_) => {
+                tracing::info!(
+                    "Skipping ufxclient.h due to FORCEINLINE bug in {}",
+                    clang_version.full
+                );
+                false
+            }
+            None => {
+                tracing::warn!(
+                    "Failed to parse semver Major and Minor components from full Clang version \
+                     string: {}",
+                    clang_version.full
+                );
+                false
+            }
+        }
     }
 
     /// Returns a [`String`] containing the contents of a header file designed
@@ -896,7 +1070,6 @@ impl From<DeserializableDriverConfig> for DriverConfig {
 }
 
 impl Default for KmdfConfig {
-    #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
@@ -916,7 +1089,6 @@ impl KmdfConfig {
 }
 
 impl Default for UmdfConfig {
-    #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
