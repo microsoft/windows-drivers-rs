@@ -274,6 +274,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c29c30684418547d476f0b48e84f4821639119c483b1eccd566c8cd0cd05f521"
+dependencies = [
+ "rustix",
+ "windows-sys",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -577,6 +587,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
+name = "scratch"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3cf7c11c38cb994f3d40e8a8cde3bbd1f72a435e4c49e85d6553d8312306152"
+
+[[package]]
 name = "semver"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -853,9 +869,13 @@ dependencies = [
 name = "wdk-macros"
 version = "0.3.0"
 dependencies = [
+ "fs4 0.12.0",
  "itertools 0.13.0",
  "proc-macro2",
  "quote",
+ "scratch",
+ "serde",
+ "serde_json",
  "syn",
 ]
 
@@ -863,7 +883,7 @@ dependencies = [
 name = "wdk-macros-tests"
 version = "0.1.0"
 dependencies = [
- "fs4",
+ "fs4 0.8.4",
  "macrotest",
  "owo-colors",
  "paste",
