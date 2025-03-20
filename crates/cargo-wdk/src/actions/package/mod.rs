@@ -87,6 +87,9 @@ impl<'a> PackageAction<'a> {
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
 
+        let build_number = wdk_build_provider.detect_wdk_build_number()?;
+        info!("Detected WDK build number: {}", build_number);
+
         debug!(
             "Initializing packaging for project at: {}",
             params.working_dir.display()
