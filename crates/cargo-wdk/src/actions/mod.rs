@@ -3,6 +3,7 @@
 /// packaging projects.
 use std::{fmt, str::FromStr};
 
+
 /// Business logic is divided into the following action modules
 /// * `new` - New action module
 /// * `build` - Build action module
@@ -64,6 +65,7 @@ impl Profile {
 pub enum CpuArchitecture {
     Amd64,
     Arm64,
+    Host,
 }
 
 impl FromStr for CpuArchitecture {

@@ -324,7 +324,7 @@ impl<'a> PackageAction<'a> {
         wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
         package: &Package,
         package_name: String,
-        target_dir: &Path,
+        target_dir: PathBuf,
     ) -> Result<(), PackageProjectError> {
         info!("Processing package: {}", package_name);
         BuildAction::new(

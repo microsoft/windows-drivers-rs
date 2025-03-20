@@ -21,6 +21,8 @@ use crate::{
     trace,
 };
 
+use super::TargetArch;
+
 #[derive(Error, Debug)]
 pub enum BuildActionError {
     #[error("Error getting canonicalized path for manifest file: {0}")]
