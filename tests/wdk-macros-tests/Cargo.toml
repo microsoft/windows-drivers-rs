@@ -13,6 +13,6 @@ fs4 = { version = "0.8.4", features = ["sync"] }
 macrotest = "1.0.13"
 owo-colors = "4.0.0"
 paste = "1.0.15"
-pathdiff = "0.2.1"
+pathdiff = "0.2.3"
 rustversion = "1.0.19"
-trybuild = "1.0.97"
+trybuild = "1.0.104"

@@ -131,9 +131,12 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("types.rs", generate_types),
     ("base.rs", generate_base),
     ("wdf.rs", generate_wdf),
+    ("gpio.rs", generate_gpio),
     ("hid.rs", generate_hid),
+    ("parallel_ports.rs", generate_parallel_ports),
     ("spb.rs", generate_spb),
     ("storage.rs", generate_storage),
+    ("usb.rs", generate_usb),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -196,12 +199,18 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
     let header_contents = config.bindgen_header_contents([
         ApiSubset::Base,
         ApiSubset::Wdf,
+        #[cfg(feature = "gpio")]
+        ApiSubset::Gpio,
         #[cfg(feature = "hid")]
         ApiSubset::Hid,
+        #[cfg(feature = "parallel-ports")]
+        ApiSubset::ParallelPorts,
         #[cfg(feature = "spb")]
         ApiSubset::Spb,
         #[cfg(feature = "storage")]
         ApiSubset::Storage,
+        #[cfg(feature = "usb")]
+        ApiSubset::Usb,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -222,12 +231,18 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let header_contents = config.bindgen_header_contents([
         ApiSubset::Base,
         ApiSubset::Wdf,
+        #[cfg(feature = "gpio")]
+        ApiSubset::Gpio,
         #[cfg(feature = "hid")]
         ApiSubset::Hid,
+        #[cfg(feature = "parallel-ports")]
+        ApiSubset::ParallelPorts,
         #[cfg(feature = "spb")]
         ApiSubset::Spb,
         #[cfg(feature = "storage")]
         ApiSubset::Storage,
+        #[cfg(feature = "usb")]
+        ApiSubset::Usb,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -291,22 +306,59 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     }
 }
 
+fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "gpio")] {
+            info!("Generating bindings to WDK: gpio.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Gpio]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("gpio-input.h", &header_contents);
+
+                // Only allowlist files in the gpio-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Gpio) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("gpio.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when gpio feature is not enabled
+
+            info!("Skipping gpio.rs generation since gpio feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
 fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "hid")] {
             info!("Generating bindings to WDK: hid.rs");
 
-            let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid]);
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid]);
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
-                 let mut builder = bindgen::Builder::wdk_default(config)?
-                .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                .header_contents("hid-input.h", &header_contents);
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("hid-input.h", &header_contents);
 
-                // Only allowlist files in the hid-specific files to avoid duplicate definitions
-                for header_file in config.headers(ApiSubset::Hid)
-                {
+                // Only allowlist files in the hid-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Hid) {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -320,8 +372,48 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when hid feature is not enabled
 
+            info!("Skipping hid.rs generation since hid feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "parallel-ports")] {
+            info!("Generating bindings to WDK: parallel_ports.rs");
+
+            let header_contents = config.bindgen_header_contents([
+                ApiSubset::Base,
+                ApiSubset::Wdf,
+                ApiSubset::ParallelPorts,
+            ]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("parallel-ports-input.h", &header_contents);
+
+                // Only allowlist files in the parallel-ports-specific files to
+                // avoid duplicate definitions
+                for header_file in config.headers(ApiSubset::ParallelPorts) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("parallel_ports.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when parallel-ports feature is not enabled
+
             info!(
-            "Skipping hid.rs generation since hid feature is not enabled");
+                "Skipping parallel_ports.rs generation since parallel-ports feature is not enabled"
+            );
             Ok(())
         }
     }
@@ -332,17 +424,18 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         if #[cfg(feature = "spb")] {
             info!("Generating bindings to WDK: spb.rs");
 
-            let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb]);
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb]);
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
-                 let mut builder = bindgen::Builder::wdk_default(config)?
-                .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                .header_contents("spb-input.h", &header_contents);
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("spb-input.h", &header_contents);
 
-                // Only allowlist files in the spb-specific files to avoid duplicate definitions
-                for header_file in config.headers(ApiSubset::Spb)
-                {
+                // Only allowlist files in the spb-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Spb) {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -356,8 +449,7 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when spb feature is not enabled
 
-            info!(
-            "Skipping spb.rs generation since spb feature is not enabled");
+            info!("Skipping spb.rs generation since spb feature is not enabled");
             Ok(())
         }
     }
@@ -397,6 +489,42 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
             let _ = (out_path, config); // Silence unused variable warnings when storage feature is not enabled
 
             info!("Skipping storage.rs generation since storage feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "usb")] {
+            info!("Generating bindings to WDK: usb.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("usb-input.h", &header_contents);
+
+                // Only allowlist files in the usb-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Usb) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("usb.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
+
+            info!("Skipping usb.rs generation since usb feature is not enabled");
             Ok(())
         }
     }
