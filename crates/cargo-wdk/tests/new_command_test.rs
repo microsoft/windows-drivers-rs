@@ -1,9 +1,12 @@
 //! System level tests for cargo wdk new flow
 #![allow(clippy::literal_string_with_formatting_args)]
 mod common;
+use std::path::PathBuf;
+
 use assert_cmd::Command;
-use assert_fs::TempDir;
+use assert_fs::{assert::PathAssert, prelude::PathChild, TempDir};
 use common::set_crt_static_flag;
+use mockall::PredicateBooleanExt;
 use serial_test::serial;
 
 #[test]
@@ -75,23 +78,55 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         tmp_dir.join(&driver_name).display()
     )));
 
-    assert!(tmp_dir.join(&driver_name).exists());
-    assert!(tmp_dir.join(&driver_name).join("build.rs").exists());
-    assert!(tmp_dir.join(&driver_name).join("Cargo.toml").exists());
+    // asert paths
+    assert!(tmp_dir.join(&driver_name).is_dir());
+    assert!(tmp_dir.join(&driver_name).join("build.rs").is_file());
+    assert!(tmp_dir.join(&driver_name).join("Cargo.toml").is_file());
     assert!(tmp_dir
         .join(&driver_name)
         .join(format!("{driver_name_underscored}.inx"))
-        .exists());
+        .is_file());
     assert!(tmp_dir
         .join(&driver_name)
         .join("src")
         .join("lib.rs")
-        .exists());
+        .is_file());
     assert!(tmp_dir
         .join(&driver_name)
         .join(".cargo")
         .join("config.toml")
-        .exists());
+        .is_file());
+
+    // assert content
+    let driver_name_path = PathBuf::from(&driver_name);
+    tmp_dir
+        .child(driver_name_path.join("build.rs"))
+        .assert(predicates::str::contains(
+            "wdk_build::configure_wdk_binary_build()",
+        ));
+    tmp_dir.child(driver_name_path.join("Cargo.toml")).assert(
+        predicates::str::contains("[package.metadata.wdk.driver-model]").and(
+            predicates::str::contains(format!("driver-type = \"{}\"", driver_type.to_uppercase()))
+                .and(predicates::str::contains("crate-type = [\"cdylib\"]")),
+        ),
+    );
+    tmp_dir
+        .child(driver_name_path.join(format!("{driver_name_underscored}.inx")))
+        .assert(
+            predicates::str::contains("[Version]").and(
+                predicates::str::contains(format!("CatalogFile = {driver_name_underscored}.cat"))
+                    .and(
+                        predicates::str::contains("[Manufacturer]")
+                            .and(predicates::str::contains("[Strings]")),
+                    ),
+            ),
+        );
+    tmp_dir
+        .child(driver_name_path.join("src").join("lib.rs"))
+        .assert(predicates::str::is_empty().not());
+    tmp_dir
+        .child(driver_name_path.join(".cargo").join("config.toml"))
+        .assert(predicates::str::contains("target-feature=+crt-static"));
 
     // assert if cargo wdk build works on the created driver project
     set_crt_static_flag();

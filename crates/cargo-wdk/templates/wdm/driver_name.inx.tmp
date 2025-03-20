@@ -8,7 +8,7 @@ Class=; TODO: specify appropriate Class
 ClassGuid=; TODO: specify appropriate Class Guid
 Provider=%ManufacturerName%
 DriverVer=
-CatalogFile=##driver_name_placeholder##.cat
+CatalogFile = ##driver_name_placeholder##.cat
 PnpLockdown=1
 
 [DestinationDirs]
