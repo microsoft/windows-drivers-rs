@@ -17,6 +17,8 @@ use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{actions::Profile, providers::error::CommandError, trace};
 
+use super::TargetArch;
+
 #[derive(Error, Debug)]
 pub enum BuildActionError {
     #[error("Error getting canonicalized path for manifest file: {0}")]
@@ -31,6 +33,7 @@ pub enum BuildActionError {
 pub struct BuildAction<'a> {
     package_name: &'a str,
     profile: &'a Profile,
+    target_arch: &'a TargetArch,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -49,30 +52,27 @@ impl<'a> BuildAction<'a> {
         package_name: &'a str,
         working_dir: &'a Path,
         profile: &'a Profile,
+        target_arch: &'a TargetArch,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
     ) -> Result<Self, BuildActionError> {
-        let manifest_path = fs_provider.canonicalize_path(&working_dir.join("Cargo.toml"))?;
-        match manifest_path.strip_extended_length_path_prefix() {
-            Ok(path) => Ok(Self {
-                package_name,
-                profile,
-                verbosity_level,
-                manifest_path: path,
-                command_exec,
-            }),
-            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => Ok(Self {
-                package_name,
-                profile,
-                verbosity_level,
-                manifest_path,
-                command_exec,
-            }),
+        let mut manifest_path = fs_provider.canonicalize_path(&working_dir.join("Cargo.toml"))?;
+        manifest_path = match manifest_path.strip_extended_length_path_prefix() {
+            Ok(path) => path,
+            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => manifest_path,
             Err(StripExtendedPathPrefixError::EmptyPath) => {
-                Err(BuildActionError::EmptyManifestPath)
+                return Err(BuildActionError::EmptyManifestPath);
             }
-        }
+        };
+        Ok (Self {
+            package_name,
+            profile,
+            target_arch,
+            verbosity_level,
+            manifest_path,
+            command_exec,
+        })
     }
 
     /// Entry point method to run the build action
@@ -88,7 +88,12 @@ impl<'a> BuildAction<'a> {
         );
         let manifest_path = self.manifest_path.to_string_lossy().to_string();
         let profile = &self.profile.to_string();
-        let args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
+        let target_triple = match self.target_arch {
+            TargetArch::X64 => "x86_64-pc-windows-msvc",
+            TargetArch::Arm64 => "aarch64-pc-windows-msvc",
+            _ => "",
+        };
+        let mut args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
             || {
                 vec![
                     "build",
@@ -113,6 +118,11 @@ impl<'a> BuildAction<'a> {
                 ]
             },
         );
+
+        if !target_triple.is_empty() {
+            args.push("--target");
+            args.push(target_triple);
+        }
 
         self.command_exec.run("cargo", &args, None)?;
         debug!("Done");

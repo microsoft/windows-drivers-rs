@@ -43,6 +43,7 @@ pub struct PackageActionParams<'a> {
 
 /// Action that orchestrates the packaging of a driver project
 /// This also includes the build step as pre-requisite for packaging
+#[derive(Clone)]
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Profile,
@@ -86,16 +87,10 @@ impl<'a> PackageAction<'a> {
         // TODO: validate and init attrs here
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
-
-        let build_number = wdk_build_provider.detect_wdk_build_number()?;
-        info!("Detected WDK build number: {}", build_number);
-
         debug!(
             "Initializing packaging for project at: {}",
             params.working_dir.display()
         );
-        // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because
-        // it is already canonicalized, * (wild chars) won't be resolved to actual paths
         let working_dir = fs_provider.canonicalize_path(params.working_dir)?;
         Ok(Self {
             working_dir,
@@ -231,9 +226,7 @@ impl<'a> PackageAction<'a> {
         working_dir: &PathBuf,
         cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageProjectError> {
-        let target_directory = cargo_metadata
-            .target_directory
-            .join(self.profile.target_folder_name());
+        let target_directory = cargo_metadata.target_directory.clone().as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata)?;
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
@@ -241,7 +234,6 @@ impl<'a> PackageAction<'a> {
             .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
         if workspace_root.eq(working_dir) {
             debug!("Running from workspace root");
-            let target_directory: PathBuf = target_directory.into();
             for package in workspace_packages {
                 let package_root_path: PathBuf = package
                     .manifest_path
@@ -261,7 +253,7 @@ impl<'a> PackageAction<'a> {
                     &wdk_metadata,
                     package,
                     package.name.clone(),
-                    &target_directory,
+                    target_directory.clone(),
                 )?;
             }
             return Ok(());
@@ -296,7 +288,7 @@ impl<'a> PackageAction<'a> {
             &wdk_metadata,
             package,
             package.name.clone(),
-            target_directory.as_std_path(),
+            target_directory,
         )?;
 
         info!("Building and packaging completed successfully");
@@ -321,18 +313,20 @@ impl<'a> PackageAction<'a> {
         wdk_metadata: &Wdk,
         package: &Package,
         package_name: String,
-        target_dir: &Path,
+        target_dir: PathBuf,
     ) -> Result<(), PackageProjectError> {
         info!("Processing package: {}", package_name);
         BuildAction::new(
             &package_name,
             working_dir,
             &self.profile,
+            &self.target_arch,
             self.verbosity_level,
             self.command_exec,
             self.fs_provider,
         )?
         .run()?;
+
         if package.metadata.get("wdk").is_none() {
             warn!(
                 "No package.metadata.wdk section found. Skipping driver package workflow for \
@@ -354,14 +348,46 @@ impl<'a> PackageAction<'a> {
         }
 
         debug!("Found wdk metadata in package: {}", package_name);
+
+        // Clone the package action and set target_arch and target_dir based on TargetArch
+        let mut package_action = self.clone();
+        let mut target_dir = target_dir;
+        match package_action.target_arch {
+            TargetArch::X64 => {
+                target_dir = target_dir.join("x86_64-pc-windows-msvc");
+            },
+            TargetArch::Arm64 => {
+                target_dir = target_dir.join("aarch64-pc-windows-msvc");
+            },
+            TargetArch::Host => {
+                debug!("Detecting host architecture from ARCH environment variable");
+                let host_arch = std::env::consts::ARCH;
+                match host_arch {
+                    "x86_64" => {
+                        debug!("Host architecture is x86_64");
+                        package_action.target_arch = TargetArch::X64;
+                    }
+                    "aarch64" => {
+                        package_action.target_arch = TargetArch::Arm64;
+                    }
+                    _ => {
+                        return Err(PackageProjectError::UnsupportedHostArch(
+                            host_arch.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+        target_dir = target_dir.join(package_action.profile.target_folder_name());
+        debug!("Target directory for package: {} is: {}",package_name,target_dir.display());
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
                 working_dir,
-                target_dir,
-                target_arch: self.target_arch,
-                verify_signature: self.verify_signature,
-                sample_class: self.is_sample_class,
+                target_dir: &target_dir,
+                target_arch: package_action.target_arch,
+                verify_signature: package_action.verify_signature,
+                sample_class: package_action.is_sample_class,
                 driver_model: wdk_metadata.driver_model.clone(),
             },
             self.wdk_build_provider,

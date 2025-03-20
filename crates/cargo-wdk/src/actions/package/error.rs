@@ -34,6 +34,8 @@ pub enum PackageProjectError {
          {0}"
     )]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
+    #[error("Error setting arch for package task, error: {0}")]
+    UnsupportedHostArch(String),
 }
 
 /// Errors for the low level package task layer

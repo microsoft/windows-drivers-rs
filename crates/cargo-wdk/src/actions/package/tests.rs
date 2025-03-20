@@ -2067,12 +2067,12 @@ impl TestPackageAction {
         let mock_fs_provider = Fs::default();
         let mock_metadata_provider = MetadataProvider::default();
         let command_arg_arch = match target_arch {
-            TargetArch::X64 => "amd64".to_string(),
             TargetArch::Arm64 => "arm64".to_string(),
+            _ => "amd64".to_string(),
         };
         let command_arg_os_mapping = match target_arch {
-            TargetArch::X64 => "/os:10_x64",
             TargetArch::Arm64 => "/os:Server10_arm64",
+            _ => "/os:10_x64",
         };
 
         Self {
