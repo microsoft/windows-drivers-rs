@@ -15,6 +15,7 @@ assert_cmd.workspace = true
 assert_fs.workspace = true
 predicates.workspace = true
 serial_test.workspace = true
+sha256.workspace = true
 
 [dependencies]
 anyhow.workspace = true

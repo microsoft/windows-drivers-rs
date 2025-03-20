@@ -1,10 +1,14 @@
 //! System level tests for cargo wdk build flow
 mod common;
-use std::{path::PathBuf, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use assert_cmd::prelude::*;
 use common::set_crt_static_flag;
 use serial_test::serial;
+use sha256::try_digest;
 
 #[test]
 #[serial]
@@ -57,6 +61,40 @@ fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_p
         "tests/mixed-package-kmdf-workspace/target/debug/driver_package/WDRLocalTestCert.cer"
     )
     .exists());
+
+    // assert if the files are copied properly
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.map"
+        ))
+        .expect("Unable to read packaged driver.map"),
+        try_digest(Path::new(
+            "tests/mixed-package-kmdf-workspace/target/debug/deps/driver.map"
+        ))
+        .expect("Unable to read source driver.map")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.pdb"
+        ))
+        .expect("Unable to read packaged driver.pdb"),
+        try_digest(Path::new(
+            "tests/mixed-package-kmdf-workspace/target/debug/driver.pdb"
+        ))
+        .expect("Unable to read source driver.pdb")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read packaged WDRLocalTestCert.cer"),
+        try_digest(Path::new(
+            "tests/mixed-package-kmdf-workspace/target/debug/WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read source WDRLocalTestCert.cer")
+    );
 }
 
 #[test]
@@ -104,6 +142,38 @@ fn given_a_umdf_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_
         "tests/umdf-driver/target/debug/umdf_driver_package/WDRLocalTestCert.cer"
     )
     .exists());
+
+    // assert if the files are copied properly
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.map"
+        ))
+        .expect("Unable to read packaged umdf_driver.map"),
+        try_digest(Path::new(
+            "tests/umdf-driver/target/debug/deps/umdf_driver.map"
+        ))
+        .expect("Unable to read source umdf_driver.map")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.pdb"
+        ))
+        .expect("Unable to read packaged umdf_driver.pdb"),
+        try_digest(Path::new("tests/umdf-driver/target/debug/umdf_driver.pdb"))
+            .expect("Unable to read source umdf_driver.pdb")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/umdf-driver/target/debug/umdf_driver_package/WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read packaged WDRLocalTestCert.cer"),
+        try_digest(Path::new(
+            "tests/umdf-driver/target/debug/WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read source WDRLocalTestCert.cer")
+    );
 }
 
 #[test]
@@ -194,4 +264,77 @@ fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_projec
          WDRLocalTestCert.cer"
     )
     .exists());
+
+    // assert if the files are copied properly
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
+             driver_1.map"
+        ))
+        .expect("Unable to read packaged driver_1.map"),
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/deps/driver_1.map"
+        ))
+        .expect("Unable to read source driver_1.map")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
+             driver_1.pdb"
+        ))
+        .expect("Unable to read packaged driver_1.pdb"),
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1.pdb"
+        ))
+        .expect("Unable to read source driver_1.pdb")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
+             WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read packaged WDRLocalTestCert.cer"),
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read source WDRLocalTestCert.cer")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
+             driver_2.map"
+        ))
+        .expect("Unable to read packaged driver_2.map"),
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/deps/driver_2.map"
+        ))
+        .expect("Unable to read source driver_2.map")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
+             driver_2.pdb"
+        ))
+        .expect("Unable to read packaged driver_2.pdb"),
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2.pdb"
+        ))
+        .expect("Unable to read source driver_2.pdb")
+    );
+
+    assert_eq!(
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
+             WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read packaged WDRLocalTestCert.cer"),
+        try_digest(Path::new(
+            "tests/emulated-workspace/umdf-driver-workspace/target/debug/WDRLocalTestCert.cer"
+        ))
+        .expect("Unable to read source WDRLocalTestCert.cer")
+    );
 }
