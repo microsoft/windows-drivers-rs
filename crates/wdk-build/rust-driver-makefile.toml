@@ -406,17 +406,23 @@ args = [
 
 [tasks.generate-certificate]
 private = true
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
 condition_script = '''
-#!@duckscript
+#!@rust
 
-out = exec certmgr.exe -put -s WDRTestCertStore -c -n WDRLocalTestCert ${WDK_BUILD_OUTPUT_DIRECTORY}/WDRLocalTestCert.cer
-if eq ${out.code} 0
-    echo WDRLocalTestCert found in WDRTestCertStore. Skipping certificate generation.
-    exit 1
-else
-    echo WDRLocalTestCert not found in WDRTestCertStore. Generating new certificate.
-    exit 0
-end
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = ".", version = "0.3.0" }
+//! anyhow = "1"
+//! ```
+#![allow(unused_doc_comments)]
+
+fn main() -> anyhow::Result<()> {
+    wdk_build::cargo_make::generate_certificate_condition_script()
+}
 '''
 command = "makecert"
 args = [

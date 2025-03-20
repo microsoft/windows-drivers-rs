@@ -3,8 +3,8 @@
 
 //! Build script for the `wdk-build` crate
 //!
-//! This provides a `nightly_feature` to the `wdk-build` crate, so that it can
-//! conditionally enable nightly features.
+//! This provides a `nightly_toolchain` feature to the `wdk-build` crate, so
+//! that it can conditionally enable unstable features.
 
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(nightly_toolchain)");

@@ -24,6 +24,7 @@ use wdk_sys::{
     DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
+    PDRIVER_OBJECT,
     ULONG,
     UNICODE_STRING,
     WCHAR,
@@ -132,9 +133,10 @@ pub unsafe extern "system" fn driver_entry(
         //            of the slice must be no larger than `isize::MAX`. This is proven by the below
         //            `debug_assert!`.
         unsafe {
-            debug_assert!(
-                isize::try_from(number_of_slice_elements * core::mem::size_of::<WCHAR>()).is_ok()
-            );
+            debug_assert!(isize::try_from(
+                number_of_slice_elements * core::mem::size_of::<WCHAR>()
+            )
+            .is_ok());
             slice::from_raw_parts(registry_path.Buffer, number_of_slice_elements)
         },
     );
