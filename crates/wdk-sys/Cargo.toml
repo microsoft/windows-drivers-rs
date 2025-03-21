@@ -42,7 +42,7 @@ spb = []
 storage = []
 usb = []
 
-nightly = ["wdk-macros/nightly"]
+nightly = ["wdk-macros/nightly", "wdk-build/nightly"]
 test-stubs = []
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
