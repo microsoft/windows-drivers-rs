@@ -3,7 +3,6 @@
 /// packaging projects.
 use std::fmt;
 
-
 /// Business logic is divided into the following action modules
 /// * `new` - New action module
 /// * `build` - Build action module

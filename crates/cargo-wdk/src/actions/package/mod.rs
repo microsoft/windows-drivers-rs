@@ -226,7 +226,11 @@ impl<'a> PackageAction<'a> {
         working_dir: &PathBuf,
         cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageProjectError> {
-        let target_directory = cargo_metadata.target_directory.clone().as_std_path().to_path_buf();
+        let target_directory = cargo_metadata
+            .target_directory
+            .clone()
+            .as_std_path()
+            .to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata)?;
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
@@ -349,16 +353,17 @@ impl<'a> PackageAction<'a> {
 
         debug!("Found wdk metadata in package: {}", package_name);
 
-        // Clone the package action and set target_arch and target_dir based on TargetArch
+        // Clone the package action and set target_arch and target_dir based on
+        // TargetArch
         let mut package_action = self.clone();
         let mut target_dir = target_dir;
         match package_action.target_arch {
             TargetArch::X64 => {
                 target_dir = target_dir.join("x86_64-pc-windows-msvc");
-            },
+            }
             TargetArch::Arm64 => {
                 target_dir = target_dir.join("aarch64-pc-windows-msvc");
-            },
+            }
             TargetArch::Host => {
                 debug!("Detecting host architecture from ARCH environment variable");
                 let host_arch = std::env::consts::ARCH;
@@ -379,7 +384,11 @@ impl<'a> PackageAction<'a> {
             }
         }
         target_dir = target_dir.join(package_action.profile.target_folder_name());
-        debug!("Target directory for package: {} is: {}",package_name,target_dir.display());
+        debug!(
+            "Target directory for package: {} is: {}",
+            package_name,
+            target_dir.display()
+        );
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,

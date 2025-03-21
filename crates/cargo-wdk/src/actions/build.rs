@@ -13,11 +13,10 @@ use thiserror::Error;
 use tracing::{debug, info};
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
+use super::TargetArch;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{actions::{Profile, ARM64_TARGET_TRIPLE_NAME, X86_TARGET_TRIPLE_NAME}, providers::error::CommandError, trace};
-
-use super::TargetArch;
 
 #[derive(Error, Debug)]
 pub enum BuildActionError {
@@ -65,7 +64,7 @@ impl<'a> BuildAction<'a> {
                 return Err(BuildActionError::EmptyManifestPath);
             }
         };
-        Ok (Self {
+        Ok(Self {
             package_name,
             profile,
             target_arch,
