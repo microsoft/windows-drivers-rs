@@ -18,7 +18,7 @@ use metadata::TryFromCargoMetadataError;
 pub mod cargo_make;
 pub mod metadata;
 
-mod utils;
+pub mod utils;
 
 mod bindgen;
 
@@ -1264,6 +1264,49 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
 /// values
 static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
     LazyLock::new(|| vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])]);
+
+/// Detect the WDK build number.
+///
+/// This function detects the Windows Driver Kit (WDK) build number by locating
+/// the WDK content root, retrieving the latest Windows SDK version, validating
+/// the version format, and extracting the build number.
+///
+/// # Returns
+///
+/// This function returns a `Result<u32, ConfigError>`, which contains the WDK
+/// build number on success or a `ConfigError` on failure.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * The WDK content root cannot be detected.
+/// * The latest Windows SDK version cannot be retrieved.
+/// * The WDK version string format is invalid.
+/// * The WDK version number cannot be parsed.
+///
+/// # Panics
+///
+/// This function will panic if the WDK version number cannot be extracted from
+/// the version string.
+pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
+    let wdk_content_root =
+        utils::detect_wdk_content_root().ok_or(ConfigError::WdkContentRootDetectionError)?;
+    let detected_sdk_version =
+        utils::get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+
+    if !utils::validate_wdk_version_format(&detected_sdk_version) {
+        return Err(ConfigError::WdkVersionStringFormatError {
+            version: detected_sdk_version,
+        });
+    }
+
+    let wdk_build_number =
+        str::parse::<u32>(&utils::get_wdk_version_number(&detected_sdk_version)?).unwrap_or_else(
+            |_| panic!("Couldn't parse WDK version number! Version number: {detected_sdk_version}"),
+        );
+
+    Ok(wdk_build_number)
+}
 
 #[cfg(test)]
 mod tests {
