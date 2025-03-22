@@ -526,6 +526,13 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
     let host_windows_sdk_ver_bin_path = match host_arch {
+        CpuArchitecture::X86 => wdk_bin_root
+            .join(host_arch.as_windows_str())
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?
+            .to_str()
+            .expect("x86 host_windows_sdk_ver_bin_path should only contain valid UTF8")
+            .to_string(),
         CpuArchitecture::Amd64 => wdk_bin_root
             .join(host_arch.as_windows_str())
             .canonicalize()?
