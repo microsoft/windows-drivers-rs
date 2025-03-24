@@ -123,6 +123,11 @@ impl BuilderExt for Builder {
             .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
             .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
+            // FIXME: bindgen unable to generate for anonymous structs
+            .blocklist_item("ADDRESS0_OWNERSHIP_ACQUIRE")
+            .blocklist_item("USBDEVICE_ABORTIO")
+            .blocklist_item("USBDEVICE_STARTIO")
+            .blocklist_item("USBDEVICE_TREE_PURGEIO")
             // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
             .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
