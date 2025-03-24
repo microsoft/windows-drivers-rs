@@ -124,6 +124,7 @@ impl BuilderExt for Builder {
             .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
             .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
             // FIXME: bindgen unable to generate for anonymous structs
+            // https://github.com/rust-lang/rust-bindgen/issues/3177
             .blocklist_item("ADDRESS0_OWNERSHIP_ACQUIRE")
             .blocklist_item("USBDEVICE_ABORTIO")
             .blocklist_item("USBDEVICE_STARTIO")
