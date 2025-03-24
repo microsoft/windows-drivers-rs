@@ -164,7 +164,6 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_amd64_and_tar
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1098,7 +1097,6 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1199,7 +1197,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1283,7 +1280,6 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1357,7 +1353,6 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1417,7 +1412,6 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1484,7 +1478,6 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1555,7 +1548,6 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1627,7 +1619,6 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1701,7 +1692,6 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1776,7 +1766,6 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1853,7 +1842,6 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1926,7 +1914,6 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -1981,7 +1968,6 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_with_custom_toml(&cargo_toml_metadata)
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2082,7 +2068,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
                 (workspace_member_3, package_3),
             ],
         )
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2224,7 +2209,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
                 (workspace_member_3, package_3),
             ],
         )
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2338,7 +2322,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
                 (workspace_member_3, package_3),
             ],
         )
-        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
