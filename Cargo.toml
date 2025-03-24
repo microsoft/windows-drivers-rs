@@ -12,7 +12,7 @@ exclude = [
   "tests/wdk-macros-tests",
   "tests/wdk-sys-tests",
 ]
-resolver = "2"
+resolver = "3"
 
 [profile.dev]
 lto = true
@@ -22,7 +22,7 @@ lto = true
 
 [workspace.package]
 edition = "2021"
-rust-version = "1.82.0"
+rust-version = "1.84.0"
 repository = "https://github.com/microsoft/windows-drivers-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
