@@ -15,7 +15,7 @@ use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{actions::Profile, providers::error::CommandError, trace};
+use crate::{actions::{Profile, ARM64_TARGET_TRIPLE_NAME, X86_TARGET_TRIPLE_NAME}, providers::error::CommandError, trace};
 
 use super::TargetArch;
 
@@ -89,8 +89,8 @@ impl<'a> BuildAction<'a> {
         let manifest_path = self.manifest_path.to_string_lossy().to_string();
         let profile = &self.profile.to_string();
         let target_triple = match self.target_arch {
-            TargetArch::X64 => "x86_64-pc-windows-msvc",
-            TargetArch::Arm64 => "aarch64-pc-windows-msvc",
+            TargetArch::X64 => X86_TARGET_TRIPLE_NAME,
+            TargetArch::Arm64 => ARM64_TARGET_TRIPLE_NAME,
             _ => "",
         };
         let mut args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
