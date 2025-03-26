@@ -190,10 +190,31 @@ impl WdkCallbacks {
 fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
     let nightly_feature = cfg!(feature = "nightly");
     let nightly_toolchain = rustversion::cfg!(nightly);
-    if nightly_feature && nightly_toolchain {
-        return Ok(bindgen::RustTarget::nightly());
-    }
 
+    match (nightly_feature, nightly_toolchain) {
+        (true, true) => Ok(bindgen::RustTarget::nightly()),
+        (false, false) => get_stable_rust_target(),
+        (true, false) => {
+            tracing::warn!(
+                "A non-nightly toolchain has been detected. Nightly bindgen features are only \
+                 enabled with both nightly feature enablement and nightly toolchain use. "
+            );
+            get_stable_rust_target()
+        }
+        (false, true) => {
+            tracing::warn!(
+                "The nightly feature for wdk-build is disabled. Nightly bindgen features are only \
+                 enabled with both nightly feature enablement and nightly toolchain use. "
+            );
+            get_stable_rust_target()
+        }
+    }
+}
+
+// Retrieves the stable Rust target for the current build configuration.
+// Queries the MSRV from the `CARGO_PKG_RUST_VERSION` environment variable and
+// uses it to create a `bindgen::RustTarget::stable` value.
+fn get_stable_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
     let package_msrv = semver::Version::parse(env!("CARGO_PKG_RUST_VERSION"))
         .map_err(|e| ConfigError::RustVersionParseError { error_source: e })?;
 
