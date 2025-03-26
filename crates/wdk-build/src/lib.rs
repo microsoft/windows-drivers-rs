@@ -131,11 +131,8 @@ pub enum ConfigError {
     },
 
     /// Error returned when a package is not found in Cargo metadata
-    #[error("cannot find package in Cargo metadata: {package_name}")]
-    CargoMetadataPackageNotFound {
-        /// Name of the Cargo metadata package that was not found
-        package_name: String,
-    },
+    #[error("cannot find wdk-build package in Cargo metadata")]
+    WdkBuildPackageNotFoundInCargoMetadata,
 
     /// Error returned Cargo manifest contains an unsupported edition
     #[error("Cargo manifest contains unsupported Rust edition: {edition}")]
@@ -154,9 +151,13 @@ pub enum ConfigError {
         reason: String,
     },
 
-    /// Error returned when `semver` parsing fails
-    #[error(transparent)]
-    SemverError(#[from] semver::Error),
+    /// Error returned when `semver` parsing of the Rust version fails
+    #[error("failed to parse rust-version in manifest")]
+    RustVersionParseError {
+        /// [`semver::Error`] that caused parsing the Rust version to fail
+        #[source]
+        error_source: semver::Error,
+    },
 
     /// `utils::PathExt::strip_extended_length_path_prefix` operation fails
     #[error(transparent)]

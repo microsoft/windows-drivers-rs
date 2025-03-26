@@ -194,15 +194,8 @@ fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
         return Ok(bindgen::RustTarget::nightly());
     }
 
-    // Warn user if only one of these two conditions are enabled.
-    if (nightly_feature && !nightly_toolchain) || (!nightly_feature && nightly_toolchain) {
-        eprintln!(
-            "Nightly bindgen features are only enabled with nightly feature enablement and \
-             nightly toolchain use."
-        );
-    }
-
-    let package_msrv = semver::Version::parse(env!("CARGO_PKG_RUST_VERSION"))?;
+    let package_msrv = semver::Version::parse(env!("CARGO_PKG_RUST_VERSION"))
+        .map_err(|e| ConfigError::RustVersionParseError { error_source: e })?;
 
     let bindgen_msrv = bindgen::RustTarget::stable(package_msrv.minor, package_msrv.patch)
         .map_err(|e| ConfigError::MsrvNotSupportedByBindgen {
@@ -221,17 +214,15 @@ fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
 // package is not found, or `ConfigError::UnsupportedRustEdition` if the edition
 // is not supported.
 fn get_rust_edition() -> Result<bindgen::RustEdition, ConfigError> {
-    let wdk_sys_cargo_metadata = MetadataCommand::new().exec()?;
+    const WDK_BUILD_PACKAGE_NAME: &str = "wdk-build";
 
-    let package_name = "wdk-build";
+    let wdk_sys_cargo_metadata = MetadataCommand::new().exec()?;
 
     let wdk_sys_package_metadata = wdk_sys_cargo_metadata
         .packages
         .iter()
-        .find(|package| package.name == package_name)
-        .ok_or_else(|| ConfigError::CargoMetadataPackageNotFound {
-            package_name: package_name.to_string(),
-        })?;
+        .find(|package| package.name == WDK_BUILD_PACKAGE_NAME)
+        .ok_or_else(|| ConfigError::WdkBuildPackageNotFoundInCargoMetadata)?;
 
     let rust_edition: BindgenRustEditionWrapper = wdk_sys_package_metadata.edition.try_into()?;
     Ok(rust_edition.0)
