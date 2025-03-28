@@ -9,7 +9,7 @@ use bindgen::{
 };
 use cargo_metadata::MetadataCommand;
 
-use crate::{Config, ConfigError};
+use crate::{Config, ConfigError, DriverConfig};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -66,7 +66,7 @@ impl BuilderExt for Builder {
     fn wdk_default(config: impl Borrow<Config>) -> Result<Self, ConfigError> {
         let config = config.borrow();
 
-        let builder = Self::default()
+        let mut builder = Self::default()
             .use_core() // Can't use std for kernel code
             .derive_default(true) // allows for default initializing structs
             // CStr types are safer and easier to work with when interacting with string constants
@@ -141,6 +141,17 @@ impl BuilderExt for Builder {
             .formatter(bindgen::Formatter::Prettyplease)
             .rust_target(get_rust_target()?)
             .rust_edition(get_rust_edition()?);
+
+        // The `_USBPM_CLIENT_CONFIG_EXTRA_INFO` struct only has members when
+        // _KERNEL_MODE flag is defined. We need to mark this type as opaque to avoid
+        // generating an empty struct, since  they are not currently supported by
+        // bindgen: https://github.com/rust-lang/rust-bindgen/issues/1683
+        if let DriverConfig::Umdf(_) = config.driver_config {
+            builder = builder
+                .blocklist_item("_USBPM_CLIENT_CONFIG_EXTRA_INFO")
+                .blocklist_item("USBPM_CLIENT_CONFIG_EXTRA_INFO")
+                .opaque_type("PUSBPM_CLIENT_CONFIG_EXTRA_INFO");
+        }
 
         Ok(builder)
     }
