@@ -99,80 +99,115 @@ fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_p
 
 #[test]
 #[serial]
+fn given_a_kmdf_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
+) {
+    build_driver_project("kmdf");
+}
+
+#[test]
+#[serial]
 fn given_a_umdf_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
 ) {
+    build_driver_project("umdf");
+}
+
+#[test]
+#[serial]
+fn given_a_wdm_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
+) {
+    build_driver_project("wdm");
+}
+
+fn build_driver_project(driver_type: &str) {
     set_crt_static_flag();
+
+    let driver_folder = format!("{driver_type}-driver");
+    let driver_folder_underscored = format!("{driver_type}_driver");
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
     cmd.args([
         "build",
         "--cwd",
-        "tests/umdf-driver", // Root dir for tests is cargo-wdk
+        &format!("tests/{driver_folder}"), // Root dir for tests is cargo-wdk
     ]);
 
     // assert command output
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Processing completed for package: umdf-driver"));
+    assert!(stdout.contains(&format!(
+        "Processing completed for package: {driver_folder}"
+    )));
 
     // assert driver package
-    assert!(PathBuf::from("tests/umdf-driver/target/debug/umdf_driver_package").exists());
-    assert!(
-        PathBuf::from("tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.cat")
-            .exists()
-    );
-    assert!(
-        PathBuf::from("tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.inf")
-            .exists()
-    );
-    assert!(
-        PathBuf::from("tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.map")
-            .exists()
-    );
-    assert!(
-        PathBuf::from("tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.pdb")
-            .exists()
-    );
-    assert!(
-        PathBuf::from("tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.dll")
-            .exists()
-    );
-    assert!(PathBuf::from(
-        "tests/umdf-driver/target/debug/umdf_driver_package/WDRLocalTestCert.cer"
-    )
+    assert!(PathBuf::from(format!(
+        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package"
+    ))
+    .exists());
+    assert!(PathBuf::from(format!(
+        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.cat"
+    ))
+    .exists());
+    assert!(PathBuf::from(format!(
+        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.inf"
+    ))
+    .exists());
+    assert!(PathBuf::from(format!(
+        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.map"
+    ))
+    .exists());
+    assert!(PathBuf::from(format!(
+        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.pdb"
+    ))
+    .exists());
+
+    if matches!(driver_type, "kmdf" | "wdm") {
+        assert!(PathBuf::from(format!(
+            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.sys"
+        ))
+        .exists());
+    } else {
+        assert!(PathBuf::from(format!(
+            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.dll"
+        ))
+        .exists());
+    }
+
+    assert!(PathBuf::from(format!(
+        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/WDRLocalTestCert.cer"
+    ))
     .exists());
 
     // assert if the files are copied properly
     assert_eq!(
-        try_digest(Path::new(
-            "tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.map"
+        try_digest(PathBuf::from(
+            format!("tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.map")
         ))
-        .expect("Unable to read packaged umdf_driver.map"),
-        try_digest(Path::new(
-            "tests/umdf-driver/target/debug/deps/umdf_driver.map"
+        .unwrap_or_else(|_| format!("Unable to read packaged {driver_folder_underscored}.map")),
+        try_digest(PathBuf::from(
+            format!("tests/{driver_folder}/target/debug/deps/{driver_folder_underscored}.map")
         ))
-        .expect("Unable to read source umdf_driver.map")
+        .unwrap_or_else(|_| format!("Unable to read source {driver_folder_underscored}.map")),
     );
 
     assert_eq!(
-        try_digest(Path::new(
-            "tests/umdf-driver/target/debug/umdf_driver_package/umdf_driver.pdb"
+        try_digest(PathBuf::from(
+            format!("tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/{driver_folder_underscored}.pdb")
         ))
-        .expect("Unable to read packaged umdf_driver.pdb"),
-        try_digest(Path::new("tests/umdf-driver/target/debug/umdf_driver.pdb"))
-            .expect("Unable to read source umdf_driver.pdb")
+        .unwrap_or_else(|_| format!("Unable to read packaged {driver_folder_underscored}.pdb")),
+        try_digest(PathBuf::from(format!("tests/{driver_folder}/target/debug/{driver_folder_underscored}.pdb")))
+            .unwrap_or_else(|_| format!("Unable to read source {driver_folder_underscored}.pdb"))
     );
 
     assert_eq!(
-        try_digest(Path::new(
-            "tests/umdf-driver/target/debug/umdf_driver_package/WDRLocalTestCert.cer"
+        try_digest(PathBuf::from(
+            format!("tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/WDRLocalTestCert.cer")
         ))
-        .expect("Unable to read packaged WDRLocalTestCert.cer"),
-        try_digest(Path::new(
-            "tests/umdf-driver/target/debug/WDRLocalTestCert.cer"
+        .unwrap_or_else(|_| "Unable to read packaged WDRLocalTestCert.cer".to_string()),
+        try_digest(PathBuf::from(
+            format!("tests/{driver_folder}/target/debug/WDRLocalTestCert.cer")
         ))
-        .expect("Unable to read source WDRLocalTestCert.cer")
+        .unwrap_or_else(|_| "Unable to read source WDRLocalTestCert.cer".to_string())
     );
 }
 
