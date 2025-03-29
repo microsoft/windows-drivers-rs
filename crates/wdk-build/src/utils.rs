@@ -344,7 +344,7 @@ fn read_registry_key_string_value(
                 return Some(
                     CStr::from_bytes_with_nul(&buffer[..len as usize])
                         .expect(
-                            "RegGetValueA should always return a null terminated string. The read \
+                            "RegGetValueA should always return a null-terminated string. The read \
                              string (REG_SZ) from the registry should not contain any interior \
                              nulls.",
                         )

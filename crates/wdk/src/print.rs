@@ -97,12 +97,26 @@ pub fn _print(args: fmt::Arguments) {
             }
 
         } else if #[cfg(driver_model__driver_type = "UMDF")] {
-            let formatted_string = CString::new(format!("{args}"))
-                .expect("CString should be able to be created from a String."); // TODO: remove panic
+            match CString::new(format!("{args}")) {
+                Ok(c_string) => {
+                    // SAFETY: `CString` guarantees a valid null-terminated string
+                    unsafe {
+                        wdk_sys::windows::OutputDebugStringA(c_string.as_ptr());
+                    }
+                },
+                Err(nul_error) => {
+                    let nul_position = nul_error.nul_position();
+                    let string_vec = nul_error.into_vec();
+                    let c_string = CString::new(&string_vec[..nul_position]).expect("string_vec[..nul_position] should have no internal null bytes");
+                    let remaining_string = str::from_utf8(&string_vec[nul_position+1 ..]).expect("string_vec should always be valid UTF-8 because `format!` returns a String");
 
-            // SAFETY: `CString` guarantees that `formatted_string` is a valid null terminated string
-            unsafe {
-                wdk_sys::windows::OutputDebugStringA(formatted_string.as_ptr());
+                    // SAFETY: `CString` guarantees a valid null-terminated string
+                    unsafe {
+                        wdk_sys::windows::OutputDebugStringA(c_string.as_ptr());
+                    }
+
+                    print!("{remaining_string}");
+                }
             }
         }
     }
