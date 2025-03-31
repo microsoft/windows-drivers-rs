@@ -90,6 +90,8 @@ pub fn _print(args: fmt::Arguments) {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
             let mut buffered_writer = dbg_print_buf_writer::DbgPrintBufWriter::new();
 
+            // TODO: handle internal bytes?
+
             if let Ok(_) = fmt::write(&mut buffered_writer, args) {
                 buffered_writer.flush();
             } else {
@@ -214,12 +216,89 @@ mod dbg_print_buf_writer {
         }
     }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
-    mod dbg_print_buf_writer {
+    #[cfg(test)]
+    mod tests {
         use super::*;
+        use crate::print::dbg_print_buf_writer::DbgPrintBufWriter;
+
+        #[test]
+        fn write_that_fits_buffer() {
+            const TEST_STRING: &str = "Hello, world!";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+
+            let mut writer = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, TEST_STRING_LEN);
+            assert_eq!(&writer.buffer[..writer.used], TEST_STRING.as_bytes());
+
+            writer.flush();
+            // FIXME: When this test is compiled, rustc automatically links the
+            // usermode-version of DbgPrint. We should either figure out a way to prevent
+            // this in order to stub in a mock implementation via something like `mockall`,
+            // or have `DbgPrintBufWriter` be able to be instantiated with a different
+            // implementation somehow. Ex. `DbgPrintBufWriter::new` can take in a closure
+            // that gets called for flushing (real impl uses Dbgprint and test impl uses a
+            // mock with a counter and some way to validate contents being sent to the flush
+            // closure)
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_that_exceeds_buffer() {
+            const TEST_STRING: &str =
+                "This is a test string that exceeds the buffer size limit set for \
+                 DbgPrintBufWriter. It should trigger multiple flushes to handle the overflow \
+                 correctly. The buffer has a limited capacity of 511 bytes (512 minus 1 for null \
+                 terminator), and this string is intentionally much longer. When writing this \
+                 string to the DbgPrintBufWriter, the implementation should automatically chunk \
+                 the content and flush each chunk separately. This ensures large debug messages \
+                 can be properly displayed without being truncated. The current implementation \
+                 handles this by filling the buffer as much as possible, flushing it using \
+                 DbgPrint, then continuing with the remaining content until everything is \
+                 processed. This approach allows debugging messages of arbitrary length without \
+                 requiring heap allocations, which is particularly important in kernel mode where \
+                 memory allocation constraints might be stricter. This test verifies that strings \
+                 larger than the max buffer size are handled correctly, confirming that our \
+                 buffer management logic works as expected. This string is now well over 1000 \
+                 characters long to ensure that the DbgPrintBufWriter's buffer overflow handling \
+                 is thoroughly tested.";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize =
+                TEST_STRING_LEN - (TEST_STRING_LEN % DbgPrintBufWriter::USABLE_BUFFER_SIZE);
+
+            const {
+                assert!(
+                    TEST_STRING_LEN > DbgPrintBufWriter::USABLE_BUFFER_SIZE,
+                    "TEST_STRING_LEN should be greater than buffer size for this test"
+                );
+            }
+
+            let expected_unflushed_string_contents =
+                &TEST_STRING[UNFLUSHED_STRING_CONTENTS_STARTING_INDEX..];
+
+            let mut writer = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, expected_unflushed_string_contents.len());
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                expected_unflushed_string_contents.as_bytes()
+            );
+            // FIXME: When this test is compiled, rustc automatically links the
+            // usermode-version of DbgPrint. We should either figure out a way to prevent
+            // this in order to stub in a mock implementation via something like `mockall`,
+            // or have `DbgPrintBufWriter` be able to be instantiated with a different
+            // implementation somehow. Ex. `DbgPrintBufWriter::new` can take in a closure
+            // that gets called for flushing (real impl uses Dbgprint and test impl uses a
+            // mock with a counter and some way to validate contents being sent to the flush
+            // closure)
+
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
     }
+
+    // FIXME: add tests for no internal null bytes, string w/ exactly USABLE
+    // Buffer len, string w/ exactly Buffer len
 }
