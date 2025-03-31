@@ -11,7 +11,7 @@ use std::ffi::CString;
 /// end of the message.
 #[cfg_attr(
     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
-    doc = r#"
+    doc = r"
 The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrint`], so the `IRQL` 
 requirements of that function apply. In particular, this should only be called at 
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
@@ -19,7 +19,7 @@ the debugger's use of IPIs (Inter-Process Interrupts).
 
 [`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
 automatically buffer and chunk the output if it exceeds that limit.
-"#
+"
 )]
 #[cfg_attr(
     driver_model__driver_type = "UMDF",
@@ -45,7 +45,7 @@ macro_rules! print {
 /// debugger instead. See [`core::fmt`] for more information.
 #[cfg_attr(
     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
-    doc = r#"
+    doc = r"
 The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrint`], so the `IRQL` 
 requirements of that function apply. In particular, this should only be called at 
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
@@ -53,16 +53,16 @@ the debugger's use of IPIs (Inter-Process Interrupts).
 
 [`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
 automatically buffer and chunk the output if it exceeds that limit.
-"#
+"
 )]
 #[cfg_attr(
     driver_model__driver_type = "UMDF",
-    doc = r#"
+    doc = r"
 The output is routed to the debugger via [`wdk_sys::windows::OutputDebugStringA`].
 
 If there is no debugger attached to WUDFHost of the driver (i.e., user-mode debugging),
 the output will be routed to the system debugger (i.e., kernel-mode debugging).
-"#
+"
 )]
 /// See the formatting documentation in [`core::fmt`] for details of the macro
 /// argument syntax.
@@ -124,26 +124,23 @@ pub fn _print(args: fmt::Arguments) {
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 mod dbg_print_buf_writer {
-
-    // Note: DbgPrint can work in <= DIRQL, so there is no reason using alloc
-    // crate which may limit the debug printer to work in <= DISPATCH_IRQL.
-    // TODO: move this comment
-
     use core::fmt;
 
-    /// Max size that can be transmitted by DbgPrint in single call:
-    /// https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/reading-and-filtering-debugging-messages#dbgprint-buffer-and-the-debugger
+    /// Max size that can be transmitted by `DbgPrint` in single call:
+    /// <https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/reading-and-filtering-debugging-messages#dbgprint-buffer-and-the-debugger>
     const DBG_PRINT_MAX_TXN_SIZE: usize = 512;
 
     // We will allocate the format buffer on stack instead of heap
     // so that debug printer won't be subject to DISPATCH_IRQL restriction.
 
-    /// Stack-based format buffer for DbgPrint
+    /// Stack-based format buffer for `DbgPrint`
     ///
     /// This buffer is used to format strings via `fmt::write` without needing
     /// heap allocations. Whenever a new string would cause the buffer to exceed
     /// its max capacity, it will first empty its buffer via `DbgPrint`.
-    pub(crate) struct DbgPrintBufWriter {
+    /// The use of a stack-based buffer instead of `alloc::format!` allows for
+    /// printing at IRQL <= DIRQL.
+    pub struct DbgPrintBufWriter {
         buffer: [u8; DBG_PRINT_MAX_TXN_SIZE],
         used: usize,
     }
@@ -196,12 +193,16 @@ mod dbg_print_buf_writer {
         }
 
         pub fn flush(&mut self) {
-            // TODO: some comment here about null term and guarantee the format specifier is
-            // valid
+            // SAFETY: This is safe because:
+            // 1. `self.buffer` contains a valid C-style string with the data placed in
+            //    [0..self.used] by the `write_str` implementation
+            // 2. The `write_str` method ensures `self.used` never exceeds
+            //    `USABLE_BUFFER_SIZE`, leaving the last byte available for null termination
+            // 3. The "%s" format specifier is used as a literal string to prevent DbgPrint
+            //    from interpreting format specifiers in the message, which could lead to
+            //    memory corruption or undefined behavior if the buffer contains
+            //    printf-style formatting characters
             unsafe {
-                // Pass the formatted string to DbgPrint with "%s" format specifier.
-                // This prevents DbgPrint from interpreting format specifiers within our
-                // message, which could cause buffer overflows or crashes.
                 wdk_sys::ntddk::DbgPrint(
                     c"%s".as_ptr().cast(),
                     self.buffer.as_ptr().cast::<wdk_sys::PCSTR>(),
@@ -211,7 +212,6 @@ mod dbg_print_buf_writer {
             self.used = 0;
         }
     }
-}
 
 #[cfg(test)]
 mod tests {
