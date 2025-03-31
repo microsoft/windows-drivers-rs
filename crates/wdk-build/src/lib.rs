@@ -22,7 +22,7 @@ mod utils;
 
 mod bindgen;
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, sync::LazyLock};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
@@ -190,8 +190,28 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     SerdeError(#[from] metadata::Error),
 }
 
+/// Subset of APIs in the Windows Driver Kit
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ApiSubset {
+    /// API subset typically required for all Windows drivers
+    Base,
+    /// API subset required for WDF (Windows Driver Framework) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_wdf/>
+    Wdf,
+    /// API subset for GPIO (General Purpose Input/Output) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_gpio/>
+    Gpio,
+    /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
+    Hid,
+    /// API subset for Parallel Ports drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_parports/>
+    ParallelPorts,
+    /// API subset for SPB (Serial Peripheral Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_spb/>
+    Spb,
+    /// API subset for Storage drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_storage/>
+    Storage,
+    /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
+    Usb,
+}
+
 impl Default for Config {
-    #[must_use]
     fn default() -> Self {
         Self {
             wdk_content_root: utils::detect_wdk_content_root().expect(
@@ -320,8 +340,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    pub fn get_include_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
-        // FIXME: consider deprecating in favor of iter
+    pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut include_paths = vec![];
 
         let include_directory = self.wdk_content_root.join("Include");
@@ -389,6 +408,21 @@ impl Config {
                         .canonicalize()?
                         .strip_extended_length_path_prefix()?,
                 );
+
+                // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
+                // normally does not automatically include this search path, but it is required
+                // here so that the headers can be processed successfully.
+                let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
+                if !ufx_include_path.is_dir() {
+                    return Err(ConfigError::DirectoryNotFound {
+                        directory: ufx_include_path.to_string_lossy().into(),
+                    });
+                }
+                include_paths.push(
+                    ufx_include_path
+                        .canonicalize()?
+                        .strip_extended_length_path_prefix()?,
+                );
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_include_path = include_directory.join(format!(
@@ -408,7 +442,7 @@ impl Config {
             }
         }
 
-        Ok(include_paths)
+        Ok(include_paths.into_iter())
     }
 
     /// Return library include paths required to build and link based off of
@@ -420,7 +454,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
-    pub fn get_library_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
+    pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
 
         let library_directory = self.wdk_content_root.join("Lib");
@@ -495,14 +529,12 @@ impl Config {
         // Reverse order of library paths so that paths pushed later into the vec take
         // precedence
         library_paths.reverse();
-        Ok(library_paths)
+        Ok(library_paths.into_iter())
     }
 
     /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
-    pub fn get_preprocessor_definitions_iter(
-        &self,
-    ) -> impl Iterator<Item = (String, Option<String>)> {
+    pub fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)> {
         // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
         // WINVER=$(WINVER_VERSION);
         // WINNT=1;
@@ -541,10 +573,13 @@ impl Config {
         .chain(
             match self.driver_config {
                 DriverConfig::Wdm => {
-                    vec![]
+                    vec![
+                        ("_KERNEL_MODE", None), // Normally defined by msvc via /kernel flag
+                    ]
                 }
                 DriverConfig::Kmdf(kmdf_config) => {
                     let mut kmdf_definitions = vec![
+                        ("_KERNEL_MODE", None), // Normally defined by msvc via /kernel flag
                         ("KMDF_VERSION_MAJOR", Some(kmdf_config.kmdf_version_major)),
                         (
                             "KMDF_VERSION_MINOR",
@@ -608,8 +643,8 @@ impl Config {
             "--warn-=no-ignored-attributes",
             "--warn-=no-ignored-pragma-intrinsic",
             "--warn-=no-visibility",
-            "--warn-=no-microsoft-anon-tag",
-            "--warn-=no-microsoft-enum-forward-reference",
+            "--warn-=no-switch",
+            "--warn-=no-comment",
             // Don't warn for deprecated declarations. Deprecated items should be explicitly
             // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
             // definitions will trigger a -WDeprecated warning
@@ -618,9 +653,233 @@ impl Config {
             // `_variable` are separate tokens already, and don't need `##` to concatenate
             // them)
             "--warn-=no-invalid-token-paste",
+            // Windows SDK & DDK headers rely on Microsoft extensions to C/C++
+            "--warn-=no-microsoft",
         ]
         .into_iter()
         .map(std::string::ToString::to_string)
+    }
+
+    /// Returns a [`String`] iterator over all the headers for a given
+    /// [`ApiSubset`]
+    ///
+    /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
+    /// determine which headers to yield
+    pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
+        match api_subset {
+            ApiSubset::Base => self.base_headers(),
+            ApiSubset::Wdf => self.wdf_headers(),
+            ApiSubset::Gpio => self.gpio_headers(),
+            ApiSubset::Hid => self.hid_headers(),
+            ApiSubset::ParallelPorts => self.parallel_ports_headers(),
+            ApiSubset::Spb => self.spb_headers(),
+            ApiSubset::Storage => self.storage_headers(),
+            ApiSubset::Usb => self.usb_headers(),
+        }
+        .into_iter()
+        .map(str::to_string)
+    }
+
+    fn base_headers(&self) -> Vec<&'static str> {
+        match &self.driver_config {
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                vec!["ntifs.h", "ntddk.h", "ntstrsafe.h"]
+            }
+            DriverConfig::Umdf(_) => {
+                vec!["windows.h"]
+            }
+        }
+    }
+
+    fn wdf_headers(&self) -> Vec<&'static str> {
+        if matches!(
+            self.driver_config,
+            DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
+        ) {
+            vec!["wdf.h"]
+        } else {
+            vec![]
+        }
+    }
+
+    fn gpio_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["gpio.h"];
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["gpioclx.h"]);
+        }
+        headers
+    }
+
+    fn hid_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+        }
+
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
+        }
+        headers
+    }
+
+    fn parallel_ports_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["ntddpar.h", "ntddser.h"];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["parallel.h"]);
+        }
+        headers
+    }
+
+    fn spb_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec!["spb.h", "reshub.h"];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["pwmutil.h"]);
+        }
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["spb/1.1/spbcx.h"]);
+        }
+        headers
+    }
+
+    fn storage_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec![
+            "ehstorioctl.h",
+            "ntddcdrm.h",
+            "ntddcdvd.h",
+            "ntdddisk.h",
+            "ntddmmc.h",
+            "ntddscsi.h",
+            "ntddstor.h",
+            "ntddtape.h",
+            "ntddvol.h",
+            "ufs.h",
+        ];
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend([
+                "mountdev.h",
+                "mountmgr.h",
+                "ntddchgr.h",
+                "ntdddump.h",
+                "storduid.h",
+                "storport.h",
+            ]);
+        }
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend(["ehstorbandmgmt.h"]);
+        }
+        headers
+    }
+
+    fn usb_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec![
+            "usb.h",
+            "usbfnbase.h",
+            "usbioctl.h",
+            "usbspec.h",
+            "Usbpmapi.h",
+        ];
+
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            headers.extend(["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]);
+        }
+
+        if matches!(
+            self.driver_config,
+            DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
+        ) {
+            headers.extend(["wdfusb.h"]);
+        }
+
+        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            headers.extend([
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ucx/1.6/ucxclass.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+            ]);
+
+            if Self::should_include_ufxclient() {
+                headers.extend(["ufx/1.1/ufxclient.h"]);
+            }
+        }
+        headers
+    }
+
+    /// Determines whether to include the ufxclient.h header based on the Clang
+    /// version used by bindgen.
+    ///
+    /// The ufxclient.h header contains FORCEINLINE annotations that are invalid
+    /// according to the C standard. While MSVC silently ignores these in C
+    /// mode, older versions of Clang (pre-20.0) will error, even with MSVC
+    /// compatibility enabled.
+    ///
+    /// This function checks if the current Clang version is 20.0 or newer,
+    /// where the issue was fixed. See
+    /// <https://github.com/llvm/llvm-project/issues/124869> for details.
+    fn should_include_ufxclient() -> bool {
+        const MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX: u32 = 20;
+
+        let clang_version = ::bindgen::clang_version();
+        match clang_version.parsed {
+            Some((major, _minor))
+                if major >= MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX =>
+            {
+                true
+            }
+            Some(_) => {
+                tracing::info!(
+                    "Skipping ufxclient.h due to FORCEINLINE bug in {}",
+                    clang_version.full
+                );
+                false
+            }
+            None => {
+                tracing::warn!(
+                    "Failed to parse semver Major and Minor components from full Clang version \
+                     string: {}",
+                    clang_version.full
+                );
+                false
+            }
+        }
+    }
+
+    /// Returns a [`String`] containing the contents of a header file designed
+    /// for [`bindgen`](https://docs.rs/bindgen) to process
+    ///
+    /// The contents contain `#include`'ed headers based off the [`ApiSubset`]
+    /// and [`Config`], as well as any additional definitions required for the
+    /// headers to be processed successfully
+    pub fn bindgen_header_contents(
+        &self,
+        api_subsets: impl IntoIterator<Item = ApiSubset>,
+    ) -> String {
+        api_subsets
+            .into_iter()
+            .flat_map(|api_subset| {
+                self.headers(api_subset)
+                    .map(|header| format!("#include \"{header}\"\n"))
+            })
+            .collect::<String>()
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
@@ -683,10 +942,8 @@ impl Config {
             };
         }
 
-        let library_paths: Vec<PathBuf> = self.get_library_paths()?;
-
         // Emit linker search paths
-        for path in library_paths {
+        for path in self.library_paths()? {
             println!("cargo::rustc-link-search={}", path.display());
         }
 
@@ -698,6 +955,12 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=hal");
                 println!("cargo::rustc-link-lib=static=wmilib");
 
+                // Emit ARM64-specific libraries to link to derived from
+                // WindowsDriver.arm64.props
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    println!("cargo::rustc-link-lib=static=arm64rt");
+                }
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -707,6 +970,15 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.KernelMode.WDM.props in Ni(22H2)
                 // WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:DriverEntry");
+
+                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
+                // might not run` since `rustc` has no support for `/KERNEL`
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // Ignore `LNK4216: Exported entry point DriverEntry` since Rust currently
+                // provides no way to set a symbol's name without also exporting the symbol:
+                // https://github.com/rust-lang/rust/issues/67399
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -717,6 +989,12 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
 
+                // Emit ARM64-specific libraries to link to derived from
+                // WindowsDriver.arm64.props
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    println!("cargo::rustc-link-lib=static=arm64rt");
+                }
+
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -726,6 +1004,10 @@ impl Config {
                 // Linker arguments derived from WindowsDriver.KernelMode.KMDF.props in
                 // Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
+
+                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
+                // might not run` since `rustc` has no support for `/KERNEL`
+                println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
@@ -788,7 +1070,6 @@ impl From<DeserializableDriverConfig> for DriverConfig {
 }
 
 impl Default for KmdfConfig {
-    #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
@@ -808,7 +1089,6 @@ impl KmdfConfig {
 }
 
 impl Default for UmdfConfig {
-    #[must_use]
     fn default() -> Self {
         // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
         Self {
@@ -839,8 +1119,6 @@ impl CpuArchitecture {
     }
 
     /// Converts from a cargo-provided [`std::str`] to a [`CpuArchitecture`].
-    ///
-    /// #
     #[must_use]
     pub fn try_from_cargo_str<S: AsRef<str>>(cargo_str: S) -> Option<Self> {
         // Specifically not using the [`std::convert::TryFrom`] trait to be more
@@ -892,7 +1170,7 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 ///
 /// Cargo build graphs that have no valid WDK configurations will emit a
 /// warning, but will still return [`Ok`]. This allows libraries
-/// designed for multiple configurations to sucessfully compile when built in
+/// designed for multiple configurations to successfully compile when built in
 /// isolation.
 ///
 /// # Errors
@@ -931,7 +1209,7 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
 ///
 /// Cargo build graphs that have no valid WDK configurations will emit a
 /// warning, but will still return [`Ok`]. This allows libraries
-/// designed for multiple configurations to sucessfully compile when built in
+/// designed for multiple configurations to successfully compile when built in
 /// isolation.
 ///
 /// # Errors
@@ -981,14 +1259,11 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
 
-// This currently only exports the driver type, but may export more metadata in
-// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
-// values
-lazy_static::lazy_static! {
-    // FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-    static ref EXPORTED_CFG_SETTINGS: Vec<(&'static str, Vec<&'static str>)> =
-        vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])];
-}
+/// This currently only exports the driver type, but may export more metadata in
+/// the future. `EXPORTED_CFG_SETTINGS` is a mapping of cfg key to allowed cfg
+/// values
+static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
+    LazyLock::new(|| vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])]);
 
 #[cfg(test)]
 mod tests {
@@ -1170,6 +1445,66 @@ mod tests {
         assert_eq!(CpuArchitecture::try_from_cargo_str("arm"), None);
     }
 
+    mod bindgen_header_contents {
+        use super::*;
+        use crate::{KmdfConfig, UmdfConfig};
+
+        #[test]
+        fn wdm() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Wdm,
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base]),
+                r#"#include "ntifs.h"
+#include "ntddk.h"
+#include "ntstrsafe.h"
+"#,
+            );
+        }
+
+        #[test]
+        fn kmdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Kmdf(KmdfConfig {
+                    kmdf_version_major: 1,
+                    target_kmdf_version_minor: 33,
+                    minimum_kmdf_version_minor: None,
+                }),
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
+                r#"#include "ntifs.h"
+#include "ntddk.h"
+#include "ntstrsafe.h"
+#include "wdf.h"
+"#,
+            );
+        }
+
+        #[test]
+        fn umdf() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+                driver_config: DriverConfig::Umdf(UmdfConfig {
+                    umdf_version_major: 2,
+                    target_umdf_version_minor: 15,
+                    minimum_umdf_version_minor: None,
+                }),
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
+                r#"#include "windows.h"
+#include "wdf.h"
+"#,
+            );
+        }
+    }
     mod compute_wdffunctions_symbol_name {
         use super::*;
         use crate::{KmdfConfig, UmdfConfig};

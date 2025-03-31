@@ -1,15 +1,17 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! Direct FFI bindings to WIN32 APIs from the Windows Driver Kit (WDK)
+//! Direct FFI bindings to USB APIs from the Windows Driver Kit (WDK)
 //!
 //! This module contains all bindings to functions, constants, methods,
-//! constructors and destructors in `windows.h`. Types are not included in this
+//! constructors and destructors for USB headers. Types are not included in this
 //! module, but are available in the top-level `wdk_sys` module.
 
-pub use bindings::*;
-
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "most items in the WDK headers have no inline documentation, so bindgen is unable to \
+              generate documentation for their bindings"
+)]
 mod bindings {
     #[allow(
         clippy::wildcard_imports,
@@ -19,5 +21,6 @@ mod bindings {
     )]
     use crate::types::*;
 
-    include!(concat!(env!("OUT_DIR"), "/windows.rs"));
+    include!(concat!(env!("OUT_DIR"), "/usb.rs"));
 }
+pub use bindings::*;

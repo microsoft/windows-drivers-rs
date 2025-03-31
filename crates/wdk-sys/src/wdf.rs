@@ -12,12 +12,24 @@ pub use bindings::*;
 #[allow(missing_docs)]
 #[allow(clippy::unreadable_literal)]
 mod bindings {
-    // allow wildcards for types module since underlying c code relies on all
-    // type definitions being in scope
-    #[allow(clippy::wildcard_imports)]
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "the underlying c code relies on all type definitions being in scope, which \
+                  results in the bindgen generated code relying on the generated types being in \
+                  scope as well"
+    )]
     use crate::types::*;
 
     include!(concat!(env!("OUT_DIR"), "/wdf.rs"));
 }
 
-include!(concat!(env!("OUT_DIR"), "/wdf_function_table.rs"));
+// This is a workaround to expose the generated function count to the
+// `call_unsafe_wdf_function_binding` proc-macro, so that the macro-generated
+// code can determine the slice size at runtime. When we are able to
+// conditionally compile based off a cfg range for WDF version, this module
+// can be removed and the runtime check can be replaced with a conditional
+// compilation: https://github.com/microsoft/windows-drivers-rs/issues/276
+#[doc(hidden)]
+pub mod __private {
+    include!(concat!(env!("OUT_DIR"), "/wdf_function_count.rs"));
+}
