@@ -1,12 +1,11 @@
-//! Module that initializes packaging a driver project.
-//!
-//! This module defines the `PackageAction` struct and its associated methods
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+//! This module contains the `PackageAction` struct and its associated methods
 //! for orchestrating the packaging of a driver project. It includes the build
 //! step as a prerequisite for packaging. It consists the logic to build and
 //! package standalone projects, workspaces, individual members in a workspace
-//! and emulated workspaces. It handles various tasks such as creation of the
-//! `PackageDriver` struct and interacting with `wdk-build`.
-
+//! and emulated workspaces.
+//! 
 #[cfg(test)]
 mod tests;
 

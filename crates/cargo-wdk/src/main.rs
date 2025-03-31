@@ -1,9 +1,6 @@
-//! Main entry point for the cargo-wdk CLI application.
-//!
-//! This module initializes the CLI, sets up tracing, and runs the specified
-//! commands. It uses the `clap` crate for command-line argument parsing and the
-//! `tracing` crate for tracing.
-
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+//! [`cargo-wdk`] is a Cargo extension that can be used to create build and package Windows driver projects.
 mod actions;
 mod cli;
 mod providers;
@@ -16,14 +13,13 @@ use tracing::error;
 
 /// Main function for the cargo-wdk CLI application.
 ///
-/// This function initializes the CLI, sets up tracing, and runs the specified
-/// commands. If an error occurs during execution, it logs the error and exits
+/// The main function parses the CLI input, sets up tracing and executes the command.
+/// If an error occurs during execution, it logs the error and exits
 /// with a non-zero status code.
 ///
 /// # Returns
 ///
-/// This function returns a `Result<()>`, which is `Ok` on success or an
-/// `anyhow::Error` on failure.
+/// `Result<()>`, which is `Ok` on success or an `anyhow::Error` on failure.
 ///
 /// # Errors
 ///

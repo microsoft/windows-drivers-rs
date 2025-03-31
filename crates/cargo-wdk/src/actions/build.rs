@@ -17,7 +17,7 @@ use super::TargetArch;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{
-    actions::{Profile, ARM64_TARGET_TRIPLE_NAME, X86_TARGET_TRIPLE_NAME},
+    actions::{Profile, AARCH64_TARGET_TRIPLE_NAME, X86_64_TARGET_TRIPLE_NAME},
     providers::error::CommandError,
     trace,
 };
@@ -92,8 +92,8 @@ impl<'a> BuildAction<'a> {
         let manifest_path = self.manifest_path.to_string_lossy().to_string();
         let profile = &self.profile.to_string();
         let target_triple = match self.target_arch {
-            TargetArch::X64 => X86_TARGET_TRIPLE_NAME,
-            TargetArch::Arm64 => ARM64_TARGET_TRIPLE_NAME,
+            TargetArch::X64 => X86_64_TARGET_TRIPLE_NAME,
+            TargetArch::Arm64 => AARCH64_TARGET_TRIPLE_NAME,
             _ => "",
         };
         let mut args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
@@ -121,12 +121,10 @@ impl<'a> BuildAction<'a> {
                 ]
             },
         );
-
         if !target_triple.is_empty() {
             args.push("--target");
             args.push(target_triple);
         }
-
         self.command_exec.run("cargo", &args, None)?;
         debug!("Done");
         Ok(())
