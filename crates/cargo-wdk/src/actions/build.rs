@@ -94,7 +94,7 @@ impl<'a> BuildAction<'a> {
         let target_triple = match self.target_arch {
             TargetArch::X64 => X86_64_TARGET_TRIPLE_NAME,
             TargetArch::Arm64 => AARCH64_TARGET_TRIPLE_NAME,
-            _ => "",
+            TargetArch::Host => "",
         };
         let mut args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
             || {

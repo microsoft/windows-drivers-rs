@@ -142,13 +142,13 @@ impl<'a> PackageTask<'a> {
         let arch = match params.target_arch {
             TargetArch::X64 => "amd64",
             TargetArch::Arm64 => "arm64",
-            _ => unreachable!(),
+            TargetArch::Host => unreachable!(),
         };
 
         let os_mapping = match params.target_arch {
             TargetArch::X64 => "10_x64",
             TargetArch::Arm64 => "Server10_arm64",
-            _ => unreachable!(),
+            TargetArch::Host => unreachable!(),
         };
 
         Ok(Self {

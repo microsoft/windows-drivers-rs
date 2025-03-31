@@ -5,7 +5,6 @@
 //! step as a prerequisite for packaging. It consists the logic to build and
 //! package standalone projects, workspaces, individual members in a workspace
 //! and emulated workspaces.
-//! 
 #[cfg(test)]
 mod tests;
 
@@ -352,10 +351,10 @@ impl<'a> PackageAction<'a> {
 
         debug!("Found wdk metadata in package: {}", package_name);
 
-        // Clone the package action, set package action object's target_arch and target_dir based on
-        // TargetArch argument
+        // Clone the package action, set package action object's target_arch and
+        // target_dir based on TargetArch argument
         let mut package_action = self.clone();
-        let mut target_dir = target_dir;        
+        let mut target_dir = target_dir;
         match package_action.target_arch {
             TargetArch::X64 => {
                 target_dir = target_dir.join("x86_64-pc-windows-msvc");

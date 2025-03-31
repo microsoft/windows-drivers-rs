@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! [`cargo-wdk`] is a Cargo extension that can be used to create build and package Windows driver projects.
+//! [`cargo-wdk`] is a Cargo extension that can be used to create build and
+//! package Windows driver projects.
 mod actions;
 mod cli;
 mod providers;
@@ -13,8 +14,8 @@ use tracing::error;
 
 /// Main function for the cargo-wdk CLI application.
 ///
-/// The main function parses the CLI input, sets up tracing and executes the command.
-/// If an error occurs during execution, it logs the error and exits
+/// The main function parses the CLI input, sets up tracing and executes the
+/// command. If an error occurs during execution, it logs the error and exits
 /// with a non-zero status code.
 ///
 /// # Returns

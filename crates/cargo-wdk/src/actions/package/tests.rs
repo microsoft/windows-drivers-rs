@@ -204,7 +204,8 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
 }
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_arm64_then_it_builds_successfully() {
+pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_arm64_then_it_builds_successfully(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Dev;
@@ -284,7 +285,8 @@ pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_arm64_then_
 }
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_x64_then_it_builds_successfully() {
+pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_x64_then_it_builds_successfully(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Dev;
@@ -364,7 +366,8 @@ pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_x64_then_it
 }
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_then_it_builds_successfully() {
+pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_then_it_builds_successfully(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Release;
@@ -444,7 +447,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
 }
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_x64_then_it_builds_successfully() {
+pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_x64_then_it_builds_successfully(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Release;
@@ -1483,7 +1487,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 }
 
 #[test]
-pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_metadata_parse_should_fail() {
+pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Dev;
@@ -1531,7 +1536,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
 }
 
 #[test]
-pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail() {
+pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp\\sample-driver");
     let profile = Profile::Dev;

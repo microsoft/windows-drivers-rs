@@ -11,8 +11,8 @@ pub mod build;
 pub mod new;
 pub mod package;
 
-pub(crate) const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
-pub(crate) const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
+pub const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
+pub const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 /// `DriverType` for the action layer
 #[derive(Debug, Clone)]
