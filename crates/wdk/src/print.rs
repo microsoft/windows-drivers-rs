@@ -148,6 +148,7 @@ mod dbg_print_buf_writer {
     impl Default for DbgPrintBufWriter {
         fn default() -> Self {
             Self {
+                // buffer is initialized to all null
                 buffer: [0; DBG_PRINT_MAX_TXN_SIZE],
                 used: 0,
             }
@@ -171,7 +172,7 @@ mod dbg_print_buf_writer {
 
                 // Update remaining string slice to handle and reset remaining buffer
                 str_byte_slice = &str_byte_slice[remaining_buffer_size..];
-                remaining_buffer = &mut self.buffer[self.used..];
+                remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
                 remaining_buffer_size = remaining_buffer.len();
             }
             remaining_buffer[..str_byte_slice.len()].copy_from_slice(str_byte_slice);
@@ -198,14 +199,14 @@ mod dbg_print_buf_writer {
             //    [0..self.used] by the `write_str` implementation
             // 2. The `write_str` method ensures `self.used` never exceeds
             //    `USABLE_BUFFER_SIZE`, leaving the last byte available for null termination
-            // 3. The "%s" format specifier is used as a literal string to prevent DbgPrint
-            //    from interpreting format specifiers in the message, which could lead to
-            //    memory corruption or undefined behavior if the buffer contains
+            // 3. The "%s" format specifier is used as a literal string to prevent
+            //    `DbgPrint` from interpreting format specifiers in the message, which could
+            //    lead to memory corruption or undefined behavior if the buffer contains
             //    printf-style formatting characters
             unsafe {
                 wdk_sys::ntddk::DbgPrint(
                     c"%s".as_ptr().cast(),
-                    self.buffer.as_ptr().cast::<wdk_sys::PCSTR>(),
+                    self.buffer.as_ptr().cast::<wdk_sys::CHAR>(),
                 );
             }
 
