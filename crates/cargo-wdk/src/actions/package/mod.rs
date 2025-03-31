@@ -353,10 +353,10 @@ impl<'a> PackageAction<'a> {
 
         debug!("Found wdk metadata in package: {}", package_name);
 
-        // Clone the package action and set target_arch and target_dir based on
-        // TargetArch
+        // Clone the package action, set package action object's target_arch and target_dir based on
+        // TargetArch argument
         let mut package_action = self.clone();
-        let mut target_dir = target_dir;
+        let mut target_dir = target_dir;        
         match package_action.target_arch {
             TargetArch::X64 => {
                 target_dir = target_dir.join("x86_64-pc-windows-msvc");
@@ -373,6 +373,7 @@ impl<'a> PackageAction<'a> {
                         package_action.target_arch = TargetArch::X64;
                     }
                     "aarch64" => {
+                        debug!("Host architecture is aarch64");
                         package_action.target_arch = TargetArch::Arm64;
                     }
                     _ => {

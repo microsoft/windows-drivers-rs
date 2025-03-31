@@ -16,7 +16,11 @@ use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 use super::TargetArch;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{actions::{Profile, ARM64_TARGET_TRIPLE_NAME, X86_TARGET_TRIPLE_NAME}, providers::error::CommandError, trace};
+use crate::{
+    actions::{Profile, ARM64_TARGET_TRIPLE_NAME, X86_TARGET_TRIPLE_NAME},
+    providers::error::CommandError,
+    trace,
+};
 
 #[derive(Error, Debug)]
 pub enum BuildActionError {
