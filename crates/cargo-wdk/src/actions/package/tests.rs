@@ -1894,7 +1894,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 }
 
 #[test]
-pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_metadata_parse_should_fail() {
+pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Profile::Dev;
@@ -1949,7 +1950,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
 }
 
 #[test]
-pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail() {
+pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp\\sample-driver");
     let profile = Profile::Dev;
