@@ -14,7 +14,6 @@ categories = ["build-tools"]
 assert_cmd.workspace = true
 assert_fs.workspace = true
 predicates.workspace = true
-serial_test.workspace = true
 sha256.workspace = true
 
 [dependencies]
@@ -22,6 +21,7 @@ anyhow.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-verbosity-flag.workspace = true
+fs4.workspace = true
 include_dir.workspace = true
 mockall.workspace = true
 mockall_double.workspace = true

@@ -5,47 +5,52 @@ use std::path::PathBuf;
 
 use assert_cmd::Command;
 use assert_fs::{assert::PathAssert, prelude::PathChild, TempDir};
-use common::set_crt_static_flag;
+use common::{set_crt_static_flag, with_file_lock};
 use mockall::PredicateBooleanExt;
-use serial_test::serial;
 
 #[test]
-#[serial]
 fn given_a_cargo_wdk_new_command_when_driver_type_is_kmdf_then_it_creates_valid_driver_project() {
-    let (stdout, _stderr) = create_and_build_new_driver_project("kmdf");
-    assert!(stdout
-        .contains("Required directive Provider missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-    assert!(stdout.contains("INF is NOT VALID"));
+    with_file_lock(|| {
+        let (stdout, _stderr) = create_and_build_new_driver_project("kmdf");
+        assert!(stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        ));
+        assert!(stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
+        assert!(stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
+        assert!(stdout.contains("INF is NOT VALID"));
+    });
 }
 
 #[test]
-#[serial]
 fn given_a_cargo_wdk_new_command_when_driver_type_is_umdf_then_it_creates_valid_driver_project() {
-    let (stdout, _stderr) = create_and_build_new_driver_project("umdf");
-    assert!(stdout
-        .contains("Required directive Provider missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-    assert!(stdout.contains("INF is NOT VALID"));
+    with_file_lock(|| {
+        let (stdout, _stderr) = create_and_build_new_driver_project("umdf");
+        assert!(stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        ));
+        assert!(stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
+        assert!(stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
+        assert!(stdout.contains("INF is NOT VALID"));
+    });
 }
 
 #[test]
-#[serial]
 fn given_a_cargo_wdk_new_command_when_driver_type_is_wdm_then_it_creates_valid_driver_project() {
-    let (stdout, _stderr) = create_and_build_new_driver_project("wdm");
-    assert!(stdout
-        .contains("Required directive Provider missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-    assert!(stdout.contains("INF is NOT VALID"));
+    with_file_lock(|| {
+        let (stdout, _stderr) = create_and_build_new_driver_project("wdm");
+        assert!(stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        ));
+        assert!(stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
+        assert!(stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
+        assert!(stdout.contains("INF is NOT VALID"));
+    });
 }
 
 fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
