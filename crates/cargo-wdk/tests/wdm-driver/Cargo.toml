@@ -15,14 +15,12 @@ test = false
 wdk-build = "0.3.0"
 
 [dependencies]
-wdk = "0.3.0"
 wdk-alloc = "0.3.0"
 wdk-panic = "0.3.0"
 wdk-sys = "0.3.0"
 
 [features]
 default = []
-nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
 [profile.dev]
 panic = "abort"

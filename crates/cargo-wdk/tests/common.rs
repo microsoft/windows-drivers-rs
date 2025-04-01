@@ -1,5 +1,7 @@
 //! Common methods for tests.
 
+use fs4::fs_std::FileExt;
+
 /// Sets the `RUSTFLAGS` environment variable to include `+crt-static`.
 ///
 /// # Panics
@@ -19,4 +21,23 @@ pub fn set_crt_static_flag() {
             std::env::var("RUSTFLAGS").expect("RUSTFLAGS not set")
         );
     }
+}
+
+/// Acquires an exclusive lock on a file and executes the provided closure.
+/// This is useful for ensuring that only one instance of a test can run at a
+/// time.
+///
+/// # Panics
+/// * Panics if the lock file cannot be created.
+/// * Panics if the lock cannot be acquired.
+/// * Panics if the lock cannot be released.
+pub fn with_file_lock<F>(f: F)
+where
+    F: FnOnce(),
+{
+    let lock_file = std::fs::File::create("cargo-wdk-test.lock")
+        .expect("Unable to create lock file for cargo-wdk tests");
+    FileExt::lock_exclusive(&lock_file).expect("Unable to cargo-wdk-test.lock file");
+    f();
+    FileExt::unlock(&lock_file).expect("Unable to unlock cargo-wdk-test.lock file");
 }
