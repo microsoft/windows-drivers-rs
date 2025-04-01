@@ -26,6 +26,9 @@ jobs:
           - x86_64-pc-windows-msvc
           # - aarch64-pc-windows-msvc FIXME: find a way to validate the local makefile on aarch64
 
+        target_arch:
+          - x86_64
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -80,3 +83,10 @@ jobs:
 
       - name: Test wdk-pre-commit-flow cargo-make task
         run: cargo make wdk-pre-commit-flow
+
+      # Run cargo-wdk on examples
+      - name: Install cargo-wdk
+        run: cargo install --path=crates/cargo-wdk --locked --force
+
+      - name: Build & Package Examples (via cargo-wdk utility)
+        run: cargo wdk build --cwd ./examples --target-arch ${{ matrix.target_arch }} --sample-class

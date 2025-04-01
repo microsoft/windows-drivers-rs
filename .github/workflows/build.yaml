@@ -38,8 +38,8 @@ jobs:
           - aarch64-pc-windows-msvc
 
         target_arch:
-          - x64
-          - arm64
+          - x86_64
+          - aarch64
 
     steps:
       - name: Checkout Repository
