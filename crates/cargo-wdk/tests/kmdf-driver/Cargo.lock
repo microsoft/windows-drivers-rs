@@ -290,7 +290,6 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 name = "kmdf-driver"
 version = "0.1.0"
 dependencies = [
- "wdk",
  "wdk-alloc",
  "wdk-build",
  "wdk-panic",
@@ -701,18 +700,6 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
-
-[[package]]
-name = "wdk"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c80cc00b5c587d3a43f489350a797a258eefca5ab0bb5d0d5b56d4ce09ab42f2"
-dependencies = [
- "tracing",
- "tracing-subscriber",
- "wdk-build",
- "wdk-sys",
-]
 
 [[package]]
 name = "wdk-alloc"
