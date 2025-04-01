@@ -148,8 +148,7 @@ impl BuilderExt for Builder {
         // bindgen: https://github.com/rust-lang/rust-bindgen/issues/1683
         if let DriverConfig::Umdf(_) = config.driver_config {
             builder = builder
-                .blocklist_item("_USBPM_CLIENT_CONFIG_EXTRA_INFO")
-                .opaque_type("USBPM_CLIENT_CONFIG_EXTRA_INFO");
+                .opaque_type("_USBPM_CLIENT_CONFIG_EXTRA_INFO");
         }
 
         Ok(builder)
