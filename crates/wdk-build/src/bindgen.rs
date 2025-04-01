@@ -149,7 +149,7 @@ impl BuilderExt for Builder {
         if let DriverConfig::Umdf(_) = config.driver_config {
             builder = builder
                 .blocklist_item("_USBPM_CLIENT_CONFIG_EXTRA_INFO")
-                .opaque_type("USBPM_CLIENT_CONFIG_EXTRA_INFO")
+                .opaque_type("USBPM_CLIENT_CONFIG_EXTRA_INFO");
         }
 
         Ok(builder)
