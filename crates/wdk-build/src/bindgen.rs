@@ -147,8 +147,7 @@ impl BuilderExt for Builder {
         // generating an empty struct, since  they are not currently supported by
         // bindgen: https://github.com/rust-lang/rust-bindgen/issues/1683
         if let DriverConfig::Umdf(_) = config.driver_config {
-            builder = builder
-                .opaque_type("_USBPM_CLIENT_CONFIG_EXTRA_INFO");
+            builder = builder.opaque_type("_USBPM_CLIENT_CONFIG_EXTRA_INFO");
         }
 
         Ok(builder)
