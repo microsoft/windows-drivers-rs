@@ -9,7 +9,7 @@
 mod tests;
 
 mod error;
-use cargo_metadata::{Metadata as CargoMetadata, Package};
+use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
 use error::PackageProjectError;
 use mockall_double::double;
 mod package_task;
@@ -342,7 +342,7 @@ impl<'a> PackageAction<'a> {
         if !package
             .targets
             .iter()
-            .any(|t| t.kind.contains(&String::from("cdylib")))
+            .any(|t| t.kind.contains(&TargetKind::CDyLib))
         {
             warn!(
                 "No cdylib target found. Skipping driver package workflow for package: {}",
