@@ -101,8 +101,36 @@ fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_p
 }
 
 #[test]
-fn given_a_kmdf_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
+fn given_a_kmdf_driver_with_cert_available_in_store_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
 ) {
+    // Setup for executables
+    wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
+    // Create a self signed certificate in store if not already present
+    let output = Command::new("certmgr.exe")
+        .args(["-s", "WDRTestCertStore"])
+        .output()
+        .expect("failed to check for certificates in store");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    if !stdout.contains("WDRLocalTestCert") {
+        let args = [
+            "-r",
+            "-pe",
+            "-a",
+            "SHA256",
+            "-eku",
+            "1.3.6.1.5.5.7.3.3",
+            "-ss",
+            "WDRTestCertStore",
+            "-n",
+            "CN=WDRLocalTestCert",
+        ];
+        let output = Command::new("makecert").args(args).output().unwrap();
+        assert!(output.status.success());
+    }
+
     with_file_lock(|| build_driver_project("kmdf"));
 }
 
