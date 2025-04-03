@@ -464,6 +464,7 @@ impl<'a> PackageTask<'a> {
             "/v",
             match self.driver_model {
                 DriverConfig::Kmdf(_) | DriverConfig::Wdm => "/w",
+                // TODO: This should be /u if WDK <= GE && DRIVER_MODEL == UMDF, otherwise it should be /w
                 DriverConfig::Umdf(_) => "/u",
             },
         ];
