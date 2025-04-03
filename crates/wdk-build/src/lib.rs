@@ -711,7 +711,7 @@ impl Config {
     fn base_headers(&self) -> Vec<&'static str> {
         match &self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                vec!["ntifs.h", "ntddk.h", "ntstrsafe.h"]
+                vec!["ntifs.h", "ntddk.h", "ntstrsafe.h", "fltkernel.h"]
             }
             DriverConfig::Umdf(_) => {
                 vec!["windows.h"]
@@ -982,6 +982,7 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=ntoskrnl");
                 println!("cargo::rustc-link-lib=static=hal");
                 println!("cargo::rustc-link-lib=static=wmilib");
+                println!("cargo::rustc-link-lib=static=fltmgr");
 
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props
@@ -1016,6 +1017,7 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=wmilib");
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
+                println!("cargo::rustc-link-lib=static=fltmgr");
 
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props
@@ -1489,6 +1491,7 @@ mod tests {
                 r#"#include "ntifs.h"
 #include "ntddk.h"
 #include "ntstrsafe.h"
+#include "fltkernel.h"
 "#,
             );
         }
@@ -1509,6 +1512,7 @@ mod tests {
                 r#"#include "ntifs.h"
 #include "ntddk.h"
 #include "ntstrsafe.h"
+#include "fltkernel.h"
 #include "wdf.h"
 "#,
             );
