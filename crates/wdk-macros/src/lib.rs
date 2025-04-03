@@ -407,29 +407,94 @@ fn get_wdf_function_info_map(
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
     let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
-    let flock = std::fs::File::create(scratch_dir.join(".lock"))
-        .to_syn_result(span, "unable to create file")?;
-
     let cached_function_info_map_path = scratch_dir.join("cached_function_info_map.json");
 
-    if !cached_function_info_map_path.exists() {
-        FileExt::lock_exclusive(&flock).to_syn_result(span, "unable to obtain file lock")?;
-
-        // Before this thread acquires the lock, it's possible that a concurrent thread
-        // already created the cache. If so, this thread skips cache generation.
-        if !cached_function_info_map_path.exists() {
-            let generated_map = create_wdf_function_info_file_cache(
+    let get_function_info_map_in_exclusively_locked_dir = || {
+        if cached_function_info_map_path.exists() {
+            let function_info_map = read_wdf_function_info_file_cache(
+                &cached_function_info_map_path,
+                span,
+            )?;
+            Ok::<_, syn::Error>(function_info_map)
+        }
+        else {
+            let function_info_map = create_wdf_function_info_file_cache(
                 types_path,
                 &cached_function_info_map_path,
                 span,
             )?;
-
-            FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
-            return Ok(generated_map);
+            Ok(function_info_map)
         }
-        FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
-    }
+    };
 
+    // Tests need to obtain an exclusive lock on the scratch directory to create different environments. We conditionally compile here in order to avoid obtaining the lock again. 
+    #[cfg(test)]
+    return {
+        let function_info_map = get_function_info_map_in_exclusively_locked_dir();
+        function_info_map
+    };
+
+    // In non-test environments, if the cache exists we want to obtain a shared lock on the scratch directory to allow multiple threads to read the cache at once.
+    // Otherwise, we want to obtain an exclusive lock on the scratch directory to create the cache.
+    #[cfg(not(test))]
+    if cached_function_info_map_path.exists() {
+        let function_info_map = with_shared_file_lock( 
+            &scratch_dir,
+            span,
+            || {
+                let read_map = read_wdf_function_info_file_cache(
+                    &cached_function_info_map_path,
+                    span
+                )?;
+                Ok(read_map)
+            }
+        )?;
+        Ok(function_info_map)
+    }
+    else {
+        let function_info_map = with_exclusive_file_lock(
+            &scratch_dir,
+            span,
+            get_function_info_map_in_exclusively_locked_dir,
+        )?;
+        Ok(function_info_map)
+    }
+}
+
+
+// Executes a closure when a shared lock is obtained on the directory specified. Releases the lock when closure is finished.
+#[cfg(not(test))]
+fn with_exclusive_file_lock<F, R>(dir: &PathBuf, span: Span, f: F) -> Result<R>
+where
+    F: FnOnce() -> Result<R>,
+{
+    let flock = std::fs::File::create(dir.join(".lock")).to_syn_result(span, "unable to create file")?;
+    FileExt::lock_exclusive(&flock).to_syn_result(span, "unable to obtain file lock")?;
+    let result = f();
+    FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
+    result
+}
+
+// Executes a closure when an exclusive lock is obtained on the directory specified. Releases the lock when closure is finished.
+#[cfg(not(test))]
+fn with_shared_file_lock<F, R>(dir: &PathBuf, span: Span, f: F) -> Result<R>
+where
+    F: FnOnce() -> Result<R>,
+{
+    let flock = std::fs::File::create(dir.join(".lock")).to_syn_result(span, "unable to create file")?;
+    FileExt::lock_shared(&flock).to_syn_result(span, "unable to obtain file lock")?;
+    let result = f();
+    FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
+    result
+}
+
+/// Reads the cache of function information, then deserializes it into a `BTreeMap`.
+/// Must obtain a shared file lock prior to calling this function to prevent concurrent threads from reading to the same file.
+
+fn read_wdf_function_info_file_cache(
+    cached_function_info_map_path: &PathBuf,
+    span: Span,
+) -> Result<BTreeMap<String, CachedFunctionInfo>>{
     let generated_map_string = std::fs::read_to_string(&cached_function_info_map_path)
         .to_syn_result(span, "unable to read cache to string")?;
     let map: BTreeMap<String, CachedFunctionInfo> = serde_json::from_str(&generated_map_string)
@@ -437,8 +502,9 @@ fn get_wdf_function_info_map(
     Ok(map)
 }
 
-/// This function generates the cache of function information, then
+/// Generates the cache of function information, then
 /// serializes it into a JSON string and writes it to a designated location.
+/// Must obtain an exclusive file lock prior to calling this function to prevent concurrent threads from reading and writing to the same file.
 fn create_wdf_function_info_file_cache(
     types_path: &LitStr,
     cached_function_info_map_path: &PathBuf,
@@ -452,7 +518,7 @@ fn create_wdf_function_info_file_cache(
     Ok(generated_map)
 }
 
-/// Parse file from `types_path` to generate a `BTreeMap` of
+/// Parses file from `types_path` to generate a `BTreeMap` of
 /// function information, where `key` is the function name and `value` is
 /// the cached function table information.
 fn generate_wdf_function_info_file_cache(
@@ -933,26 +999,27 @@ mod tests {
         LazyLock::new(|| scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments")));
     const CACHE_FILE_NAME: &str = "cached_function_info_map.json";
 
-    fn with_file_lock<F>(f: F)
+
+    fn clean_cache_test_env(file_path: &PathBuf) {
+        if file_path.exists() {
+            std::fs::remove_file(file_path).unwrap();
+        }
+
+        pretty_assert_eq!(file_path.exists(), false, "could not remove file {}", file_path.display());
+    }
+
+    fn with_file_lock_test<F>(f: F)
     where
         F: FnOnce(),
-    {
-        // test flock has to be different than the cache flock since `f` can call
-        // functions that obtain the cache flock
-        let test_flock = std::fs::File::create(SCRATCH_DIR.join("test.lock")).unwrap();
+    {        
+        let test_flock: std::fs::File = std::fs::File::create(SCRATCH_DIR.join(".lock")).unwrap();
+        FileExt::lock_exclusive(&test_flock).unwrap();
+        
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
 
-        FileExt::lock_exclusive(&test_flock).unwrap();
-
-        // make sure environment is clean
-        pretty_assert_eq!(cached_function_info_map_path.exists(), false);
-
+        clean_cache_test_env(&cached_function_info_map_path);
         f();
-
-        if cached_function_info_map_path.exists() {
-            std::fs::remove_file(&cached_function_info_map_path).unwrap();
-        }
-        pretty_assert_eq!(cached_function_info_map_path.exists(), false);
+        clean_cache_test_env(&cached_function_info_map_path);
 
         FileExt::unlock(&test_flock).unwrap();
     }
@@ -1126,7 +1193,7 @@ mod tests {
 
             #[test]
             fn valid_input() {
-                with_file_lock(|| {
+                with_file_lock_test(|| {
                     let inputs = Inputs {
                         types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                         wdf_function_identifier: format_ident!("WdfDriverCreate"),
@@ -1172,7 +1239,7 @@ mod tests {
 
             #[test]
             fn valid_input_with_no_arguments() {
-                with_file_lock(|| {
+                with_file_lock_test(|| {
                     let inputs = Inputs {
                         types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                         wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
@@ -1199,7 +1266,7 @@ mod tests {
 
         #[test]
         fn valid_input_no_cache() {
-            with_file_lock(|| {
+            with_file_lock_test(|| {
                 let inputs = Inputs {
                     types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
@@ -1241,7 +1308,7 @@ mod tests {
 
         #[test]
         fn valid_input_cache_exists() {
-            with_file_lock(|| {
+            with_file_lock_test(|| {
                 let inputs = Inputs {
                     types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
