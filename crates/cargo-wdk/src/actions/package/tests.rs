@@ -2538,6 +2538,12 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
+        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
+        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
 
     let package_project = PackageAction::new(
         &PackageActionParams {
