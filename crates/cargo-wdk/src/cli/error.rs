@@ -22,3 +22,9 @@ pub enum InvalidDriverProjectNameError {
     #[error("'{0}' is a reserved keyword or invalid name and cannot be used as a project name")]
     ReservedName(String),
 }
+
+#[derive(Debug, Error)]
+#[error("Unsupported host architecture: {arch}")]
+pub struct UnsupportedHostArchError {
+    pub arch: String,
+}

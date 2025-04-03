@@ -17,7 +17,7 @@ use tracing::{debug, info};
 use wdk_build::DriverConfig;
 
 use super::error::PackageTaskError;
-use crate::actions::TargetArch;
+use crate::actions::CpuArchitecture;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 
@@ -32,7 +32,7 @@ pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
     pub target_dir: &'a Path,
-    pub target_arch: TargetArch,
+    pub target_arch: CpuArchitecture,
     pub verify_signature: bool,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
@@ -61,7 +61,7 @@ pub struct PackageTask<'a> {
     dest_cert_file_path: PathBuf,
     dest_cat_file_path: PathBuf,
 
-    arch: &'a str,
+    arch: String,
     os_mapping: &'a str,
     driver_model: DriverConfig,
 
@@ -139,16 +139,10 @@ impl<'a> PackageTask<'a> {
             fs_provider.create_dir(&dest_root_package_folder)?;
         }
 
-        let arch = match params.target_arch {
-            TargetArch::X64 => "amd64",
-            TargetArch::Arm64 => "arm64",
-            TargetArch::Host => unreachable!(),
-        };
-
+        let arch = params.target_arch.to_string();
         let os_mapping = match params.target_arch {
-            TargetArch::X64 => "10_x64",
-            TargetArch::Arm64 => "Server10_arm64",
-            TargetArch::Host => unreachable!(),
+            CpuArchitecture::Amd64 => "10_x64",
+            CpuArchitecture::Arm64 => "Server10_arm64",
         };
 
         Ok(Self {

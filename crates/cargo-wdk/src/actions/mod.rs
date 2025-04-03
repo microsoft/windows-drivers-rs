@@ -1,7 +1,7 @@
 /// This module defines various actions for the cargo-wdk CLI tool.
 /// It includes modules for creating new projects, building projects, and
 /// packaging projects.
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 /// Business logic is divided into the following action modules
 /// * `new` - New action module
@@ -61,8 +61,29 @@ impl Profile {
 
 /// `TargetArch` for the action layer
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetArch {
-    X64,
+pub enum CpuArchitecture {
+    Amd64,
     Arm64,
-    Host,
+}
+
+impl FromStr for CpuArchitecture {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "amd64" => std::result::Result::Ok(Self::Amd64),
+            "arm64" => std::result::Result::Ok(Self::Arm64),
+            _ => Err(format!("'{s}' is not a valid target architecture")),
+        }
+    }
+}
+
+impl fmt::Display for CpuArchitecture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Amd64 => "amd64",
+            Self::Arm64 => "arm64",
+        };
+        write!(f, "{s}")
+    }
 }

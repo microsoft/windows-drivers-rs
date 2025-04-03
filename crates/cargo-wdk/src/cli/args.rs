@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Args;
 
 use super::error::{InvalidDriverProjectNameError, NewProjectArgsError};
-use crate::actions::{DriverType, Profile, TargetArch};
+use crate::actions::{CpuArchitecture, DriverType, Profile};
 
 /// Type for Driver Project Name Argument
 #[derive(Debug, Clone)]
@@ -123,35 +123,6 @@ impl FromStr for ProfileArg {
     }
 }
 
-/// Type for Target Architecture Argument
-#[derive(Debug, Clone)]
-pub enum TargetArchArg {
-    X86_64,
-    AArch64,
-}
-
-impl From<Option<TargetArchArg>> for TargetArch {
-    fn from(val: Option<TargetArchArg>) -> Self {
-        match val {
-            Some(TargetArchArg::X86_64) => Self::X64,
-            Some(TargetArchArg::AArch64) => Self::Arm64,
-            None => Self::Host,
-        }
-    }
-}
-
-impl FromStr for TargetArchArg {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "x86_64" => std::result::Result::Ok(Self::X86_64),
-            "aarch64" => std::result::Result::Ok(Self::AArch64),
-            _ => Err(format!("'{s}' is not a valid target architecture")),
-        }
-    }
-}
-
 /// Arguments for the package project subcommand
 /// This struct is used to parse the command line arguments for packaging a
 /// driver project.
@@ -166,8 +137,8 @@ pub struct PackageProjectArgs {
         ignore_case = true
     )]
     pub profile: ProfileArg,
-    #[clap(long, help = "Build Target", ignore_case = true)]
-    pub target_arch: Option<TargetArchArg>,
+    #[clap(long, help = "Build Target", required = false, ignore_case = true)]
+    pub target_arch: Option<CpuArchitecture>,
     #[clap(long, help = "Verify Signatures", default_value = "false")]
     pub verify_signature: bool,
     #[clap(long, help = "Sample Class", default_value = "false")]

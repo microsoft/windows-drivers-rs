@@ -1,2 +1,0 @@
-# This will be resolved by https://github.com/tokio-rs/tracing/pull/3219
-allowed-duplicate-crates = ["regex-automata", "regex-syntax"]

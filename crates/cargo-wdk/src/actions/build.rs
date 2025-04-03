@@ -13,11 +13,10 @@ use thiserror::Error;
 use tracing::{debug, info};
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
-use super::TargetArch;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{
-    actions::{Profile, AARCH64_TARGET_TRIPLE_NAME, X86_64_TARGET_TRIPLE_NAME},
+    actions::{CpuArchitecture, Profile, AARCH64_TARGET_TRIPLE_NAME, X86_64_TARGET_TRIPLE_NAME},
     providers::error::CommandError,
     trace,
 };
@@ -36,7 +35,7 @@ pub enum BuildActionError {
 pub struct BuildAction<'a> {
     package_name: &'a str,
     profile: &'a Profile,
-    target_arch: &'a TargetArch,
+    target_arch: Option<CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -55,7 +54,7 @@ impl<'a> BuildAction<'a> {
         package_name: &'a str,
         working_dir: &'a Path,
         profile: &'a Profile,
-        target_arch: &'a TargetArch,
+        target_arch: Option<CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
@@ -92,9 +91,9 @@ impl<'a> BuildAction<'a> {
         let manifest_path = self.manifest_path.to_string_lossy().to_string();
         let profile = &self.profile.to_string();
         let target_triple = match self.target_arch {
-            TargetArch::X64 => X86_64_TARGET_TRIPLE_NAME,
-            TargetArch::Arm64 => AARCH64_TARGET_TRIPLE_NAME,
-            TargetArch::Host => "",
+            Some(CpuArchitecture::Amd64) => X86_64_TARGET_TRIPLE_NAME,
+            Some(CpuArchitecture::Arm64) => AARCH64_TARGET_TRIPLE_NAME,
+            None => "",
         };
         let mut args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
             || {

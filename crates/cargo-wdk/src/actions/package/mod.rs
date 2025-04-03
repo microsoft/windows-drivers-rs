@@ -26,14 +26,16 @@ use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as log_error, info, warn};
 use wdk_build::metadata::Wdk;
 
-use super::{build::BuildAction, Profile, TargetArch};
+use super::{build::BuildAction, CpuArchitecture, Profile};
+use crate::actions::{AARCH64_TARGET_TRIPLE_NAME, X86_64_TARGET_TRIPLE_NAME};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Profile,
-    pub target_arch: TargetArch,
+    pub host_arch: CpuArchitecture,
+    pub target_arch: Option<CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -45,7 +47,8 @@ pub struct PackageActionParams<'a> {
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Profile,
-    target_arch: TargetArch,
+    host_arch: CpuArchitecture,
+    target_arch: Option<CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -83,16 +86,11 @@ impl<'a> PackageAction<'a> {
         metadata: &'a Metadata,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
-        wdk_build::cargo_make::setup_path()?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
-        debug!(
-            "Initializing packaging for project at: {}",
-            params.working_dir.display()
-        );
         let working_dir = fs_provider.canonicalize_path(params.working_dir)?;
         Ok(Self {
             working_dir,
             profile: params.profile,
+            host_arch: params.host_arch,
             target_arch: params.target_arch,
             verify_signature: params.verify_signature,
             is_sample_class: params.is_sample_class,
@@ -129,6 +127,14 @@ impl<'a> PackageAction<'a> {
     /// * `PackageProjectError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build
     pub fn run(&self) -> Result<(), PackageProjectError> {
+        wdk_build::cargo_make::setup_path()?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
+        debug!(
+            "Initializing packaging for project at: {}",
+            self.working_dir.display()
+        );
+        let build_number = self.wdk_build_provider.detect_wdk_build_number()?;
+        debug!("WDK build number: {}", build_number);
         // Standalone driver/driver workspace support
         if self
             .fs_provider
@@ -224,11 +230,7 @@ impl<'a> PackageAction<'a> {
         working_dir: &PathBuf,
         cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageProjectError> {
-        let target_directory = cargo_metadata
-            .target_directory
-            .clone()
-            .as_std_path()
-            .to_path_buf();
+        let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata)?;
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
@@ -255,7 +257,7 @@ impl<'a> PackageAction<'a> {
                     &wdk_metadata,
                     package,
                     package.name.clone(),
-                    target_directory.clone(),
+                    &target_directory.clone(),
                 )?;
             }
             return Ok(());
@@ -290,7 +292,7 @@ impl<'a> PackageAction<'a> {
             &wdk_metadata,
             package,
             package.name.clone(),
-            target_directory,
+            &target_directory,
         )?;
 
         info!("Building and packaging completed successfully");
@@ -315,14 +317,14 @@ impl<'a> PackageAction<'a> {
         wdk_metadata: &Wdk,
         package: &Package,
         package_name: String,
-        target_dir: PathBuf,
+        target_dir: &Path,
     ) -> Result<(), PackageProjectError> {
         info!("Processing package: {}", package_name);
         BuildAction::new(
             &package_name,
             working_dir,
             &self.profile,
-            &self.target_arch,
+            self.target_arch,
             self.verbosity_level,
             self.command_exec,
             self.fs_provider,
@@ -351,51 +353,36 @@ impl<'a> PackageAction<'a> {
 
         debug!("Found wdk metadata in package: {}", package_name);
 
-        // Clone the package action, set package action object's target_arch and
-        // target_dir based on TargetArch argument
-        let mut package_action = self.clone();
-        let mut target_dir = target_dir;
-        match package_action.target_arch {
-            TargetArch::X64 => {
-                target_dir = target_dir.join("x86_64-pc-windows-msvc");
-            }
-            TargetArch::Arm64 => {
-                target_dir = target_dir.join("aarch64-pc-windows-msvc");
-            }
-            TargetArch::Host => {
-                debug!("Detecting host architecture from ARCH environment variable");
-                let host_arch = std::env::consts::ARCH;
-                match host_arch {
-                    "x86_64" => {
-                        debug!("Host architecture is x86_64");
-                        package_action.target_arch = TargetArch::X64;
-                    }
-                    "aarch64" => {
-                        debug!("Host architecture is aarch64");
-                        package_action.target_arch = TargetArch::Arm64;
-                    }
-                    _ => {
-                        return Err(PackageProjectError::UnsupportedHostArch(
-                            host_arch.to_string(),
-                        ));
-                    }
-                }
-            }
-        }
-        target_dir = target_dir.join(package_action.profile.target_folder_name());
+        let mut target_dir = match self.target_arch {
+            Some(CpuArchitecture::Amd64) => target_dir.join(X86_64_TARGET_TRIPLE_NAME),
+            Some(CpuArchitecture::Arm64) => target_dir.join(AARCH64_TARGET_TRIPLE_NAME),
+            None => target_dir.to_path_buf(),
+        };
+        target_dir = target_dir.join(self.profile.target_folder_name());
         debug!(
             "Target directory for package: {} is: {}",
             package_name,
             target_dir.display()
         );
+
+        let target_arch = if self.target_arch.is_some() {
+            self.target_arch.expect("Target architecture should be set")
+        } else {
+            self.host_arch
+        };
+        debug!(
+            "Target architecture for package: {} is: {}",
+            package_name, target_arch
+        );
+        debug!("Creating package driver for package: {}", package_name);
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
                 working_dir,
                 target_dir: &target_dir,
-                target_arch: package_action.target_arch,
-                verify_signature: package_action.verify_signature,
-                sample_class: package_action.is_sample_class,
+                target_arch,
+                verify_signature: self.verify_signature,
+                sample_class: self.is_sample_class,
                 driver_model: wdk_metadata.driver_model.clone(),
             },
             self.wdk_build_provider,

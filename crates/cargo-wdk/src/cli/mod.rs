@@ -4,11 +4,14 @@ mod error;
 use anyhow::{Ok, Result};
 use args::{NewProjectArgs, PackageProjectArgs};
 use clap::{Parser, Subcommand};
+use error::UnsupportedHostArchError;
 use mockall_double::double;
+use tracing::debug;
 
 use crate::actions::{
     new::NewAction,
     package::{PackageAction, PackageActionParams},
+    CpuArchitecture,
 };
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
@@ -62,11 +65,13 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
+                let host_arch = detect_host_architecture()?;
                 let package_action = PackageAction::new(
                     &PackageActionParams {
                         working_dir: &cli_args.cwd,
                         profile: cli_args.profile.into(),
-                        target_arch: cli_args.target_arch.into(),
+                        host_arch,
+                        target_arch: cli_args.target_arch,
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample_class,
                         verbosity_level: self.verbose,
@@ -81,4 +86,26 @@ impl Cli {
             }
         }
     }
+}
+
+fn detect_host_architecture() -> Result<CpuArchitecture> {
+    debug!("Detecting host architecture from ARCH environment variable");
+    let host_arch_str = std::env::consts::ARCH;
+    let host_arch = match host_arch_str {
+        "x86_64" => {
+            debug!("Host architecture is x86_64");
+            CpuArchitecture::Amd64
+        }
+        "aarch64" => {
+            debug!("Host architecture is aarch64");
+            CpuArchitecture::Arm64
+        }
+        _ => {
+            return Err(UnsupportedHostArchError {
+                arch: host_arch_str.to_string(),
+            }
+            .into());
+        }
+    };
+    Ok(host_arch)
 }

@@ -2,6 +2,10 @@
 // License: MIT OR Apache-2.0
 //! [`cargo-wdk`] is a Cargo extension that can be used to create build and
 //! package Windows driver projects.
+
+#![allow(clippy::multiple_crate_versions)]
+/// The `regex-syntax` and `regex-automata` crates have multiple version
+/// dependencies because of the `matchers` crate. This will be resolved by <https://github.com/tokio-rs/tracing/pull/3219>
 mod actions;
 mod cli;
 mod providers;
