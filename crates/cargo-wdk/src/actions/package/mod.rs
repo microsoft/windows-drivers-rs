@@ -26,7 +26,7 @@ use std::{
 use anyhow::Result;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as log_error, info, warn};
-use wdk_build::metadata::Wdk;
+use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
 use super::{build::BuildAction, Profile, TargetArch};
 #[double]
@@ -176,7 +176,7 @@ impl<'a> PackageAction<'a> {
         }
 
         debug!("Iterating over each dir entry and process valid Rust(possibly driver) projects");
-        let mut did_fail_atleast_one_project = false;
+        let mut failed_atleast_one_project = false;
         for dir in dirs {
             debug!(
                 "Verifying the dir entry if it is a valid Rust project: {}",
@@ -194,7 +194,7 @@ impl<'a> PackageAction<'a> {
                 match self.get_cargo_metadata(&dir.path()) {
                     Ok(cargo_metadata) => {
                         if let Err(e) = self.run_from_workspace_root(&dir.path(), &cargo_metadata) {
-                            did_fail_atleast_one_project = true;
+                            failed_atleast_one_project = true;
                             log_error!(
                                 "Error packaging the child project: {}, error: {}",
                                 dir.path()
@@ -206,7 +206,7 @@ impl<'a> PackageAction<'a> {
                         }
                     }
                     Err(e) => {
-                        did_fail_atleast_one_project = true;
+                        failed_atleast_one_project = true;
                         log_error!("Error reading cargo metadata: {}", e);
                     }
                 }
@@ -216,7 +216,7 @@ impl<'a> PackageAction<'a> {
         }
 
         debug!("Done checking for valid Rust(possibly driver) projects in the working director");
-        if did_fail_atleast_one_project {
+        if failed_atleast_one_project {
             return Err(PackageProjectError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
@@ -234,7 +234,7 @@ impl<'a> PackageAction<'a> {
         let target_directory = cargo_metadata
             .target_directory
             .join(self.profile.target_folder_name());
-        let wdk_metadata = Wdk::try_from(cargo_metadata)?;
+        let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
             .fs_provider
@@ -263,6 +263,9 @@ impl<'a> PackageAction<'a> {
                     package.name.clone(),
                     &target_directory,
                 )?;
+            }
+            if let Err(e) = wdk_metadata {
+                return Err(PackageProjectError::WdkMetadataParse(e));
             }
             return Ok(());
         }
@@ -299,6 +302,10 @@ impl<'a> PackageAction<'a> {
             target_directory.as_std_path(),
         )?;
 
+        if let Err(e) = wdk_metadata {
+            return Err(PackageProjectError::WdkMetadataParse(e));
+        }
+
         info!("Building and packaging completed successfully");
 
         Ok(())
@@ -318,7 +325,7 @@ impl<'a> PackageAction<'a> {
     fn build_and_package(
         &self,
         working_dir: &Path,
-        wdk_metadata: &Wdk,
+        wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
         package: &Package,
         package_name: String,
         target_dir: &Path,
@@ -353,7 +360,12 @@ impl<'a> PackageAction<'a> {
             return Ok(());
         }
 
-        debug!("Found wdk metadata in package: {}", package_name);
+        if wdk_metadata.is_err() {
+            return Ok(());
+        }
+
+        let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
+
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
