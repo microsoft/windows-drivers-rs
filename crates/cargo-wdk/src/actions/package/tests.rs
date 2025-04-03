@@ -1928,7 +1928,11 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
+        .expect_cargo_build(driver_name, &cwd, None);
 
     let package_project = PackageAction::new(
         &PackageActionParams {
@@ -1970,6 +1974,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     let sample_class = true;
 
     // driver project data
+    let driver_name = "sample-driver";
     let cargo_toml_metadata = invalid_driver_cargo_toml();
 
     let package_project =
@@ -1978,7 +1983,11 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         .set_up_with_custom_toml(&cargo_toml_metadata)
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
+        .expect_cargo_build(driver_name, &cwd, None);
 
     let package_project = PackageAction::new(
         &PackageActionParams {
@@ -2605,8 +2614,13 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
             ],
         )
         .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
+        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
+        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
 
     let package_project = PackageAction::new(
         &PackageActionParams {
@@ -2652,7 +2666,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     let non_driver = "non-driver";
     let non_driver_version = "0.0.3";
     let (workspace_member_3, package_3) =
-        get_cargo_metadata_package(&cwd, non_driver, non_driver_version, None);
+        get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
 
     let package_project =
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
@@ -2665,8 +2679,11 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
             vec![(workspace_member_3, package_3)],
         )
         .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd.join(non_driver))
+        .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
 
     let package_project = PackageAction::new(
         &PackageActionParams {
@@ -2728,8 +2745,11 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
             vec![(workspace_member_3, package_3)],
         )
         .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
+        .expect_cargo_build(non_driver, &cwd, None);
 
     let package_project = PackageAction::new(
         &PackageActionParams {
@@ -4142,7 +4162,7 @@ fn invalid_driver_cargo_toml() -> String {
         {
             "packages": [
                 {
-                    "name": "sample_driver",
+                    "name": "sample-driver",
                     "version": "0.0.1",
                     "id": "path+file:///C:/tmp/sample-driver#0.0.1",
                     "license": "MIT OR Apache-2.0",
