@@ -356,7 +356,6 @@ impl<'a> PackageAction<'a> {
             );
             return Ok(());
         }
-
         debug!("Found wdk metadata in package: {}", package_name);
 
         let mut target_dir = match self.target_arch {
@@ -381,31 +380,6 @@ impl<'a> PackageAction<'a> {
         }
 
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
-
-        debug!("Found wdk metadata in package: {}", package_name);
-
-        let mut target_dir = match self.target_arch {
-            Some(CpuArchitecture::Amd64) => target_dir.join(X86_64_TARGET_TRIPLE_NAME),
-            Some(CpuArchitecture::Arm64) => target_dir.join(AARCH64_TARGET_TRIPLE_NAME),
-            None => target_dir.to_path_buf(),
-        };
-        target_dir = target_dir.join(self.profile.target_folder_name());
-        debug!(
-            "Target directory for package: {} is: {}",
-            package_name,
-            target_dir.display()
-        );
-
-        let target_arch = if self.target_arch.is_some() {
-            self.target_arch.expect("Target architecture should be set")
-        } else {
-            self.host_arch
-        };
-        debug!(
-            "Target architecture for package: {} is: {}",
-            package_name, target_arch
-        );
-        debug!("Creating package driver for package: {}", package_name);
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
