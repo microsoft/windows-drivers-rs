@@ -33,7 +33,7 @@ jobs:
           # - aarch64-pc-windows-msvc FIXME: Add support for executing ARM64 tests. Maybe use target specific test runner in emulator: https://doc.rust-lang.org/cargo/reference/config.html#target
 
         target_arch:
-          - x86_64
+          - amd64
 
     steps:
       - name: Checkout Repository

@@ -27,7 +27,7 @@ jobs:
           # - aarch64-pc-windows-msvc FIXME: find a way to validate the local makefile on aarch64
 
         target_arch:
-          - x86_64
+          - amd64
 
     steps:
       - name: Checkout Repository
