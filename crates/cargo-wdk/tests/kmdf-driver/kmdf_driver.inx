@@ -1,0 +1,62 @@
+;
+; kmdf_driver.inf
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Custom Sample Device Class
+ClassGuid   = {C5D55F57-9A34-4E34-B1A0-8A10BDE938D6}
+Provider    = %ManufacturerName%
+CatalogFile = kmdf_driver.cat
+DriverVer   = ; TODO: set DriverVer in stampinf property pages
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+kmdf_driver.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName% = Standard,NT$ARCH$.10.0...16299 ; %13% support introduced in build 16299
+
+[Standard.NT$ARCH$.10.0...16299]
+%kmdf_driver.DeviceDesc% = kmdf_driver_Device, Root\kmdf_driver ; TODO: edit hw-id
+
+[kmdf_driver_Device.NT]
+CopyFiles = File_Copy
+
+[File_Copy]
+kmdf_driver.sys
+
+;-------------- Service installation
+[kmdf_driver_Device.NT.Services]
+AddService = kmdf_driver,%SPSVCINST_ASSOCSERVICE%, kmdf_driver_Service_Inst
+
+; -------------- KMDF driver install sections
+[kmdf_driver_Service_Inst]
+DisplayName    = %kmdf_driver.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\kmdf_driver.sys
+
+[kmdf_driver_Device.NT.Wdf]
+KmdfService = kmdf_driver, kmdf_driver_wdfsect
+
+[kmdf_driver_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName = "Sample Manufacturer Name Here" ;TODO: Replace with your manufacturer name
+DiskName = "KMDF Installation Disk"
+kmdf_driver.DeviceDesc = ""
+kmdf_driver.SVCDESC = ""
