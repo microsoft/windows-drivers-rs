@@ -49,7 +49,11 @@ impl<'a> BuildAction<'a> {
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
     /// # Returns
-    /// * `Self` - A new instance of `BuildAction`
+    /// * `Result<Self>` - A result containing the new instance of `BuildAction`
+    ///   or an error
+    /// # Errors
+    /// * `BuildActionError::IoError` - If there is an IO error while
+    ///   canonicalizing the working dir
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,

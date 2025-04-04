@@ -10,7 +10,7 @@ mod tests;
 
 mod error;
 use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
-use error::PackageProjectError;
+use error::PackageActionError;
 use mockall_double::double;
 mod package_task;
 
@@ -75,7 +75,7 @@ impl<'a> PackageAction<'a> {
     /// * `Result<Self>` - A result containing the new instance of
     ///   `PackageAction` or an error
     /// # Errors
-    /// * `PackageProjectError::IoError` - If there is an IO error while
+    /// * `PackageActionError::IoError` - If there is an IO error while
     ///   canonicalizing the working dir
     pub fn new(
         params: &PackageActionParams<'a>,
@@ -104,26 +104,26 @@ impl<'a> PackageAction<'a> {
     /// Entry point method to execute the packaging action flow
     /// # Returns
     /// * `Result<Self>` - A result containing an empty tuple or an error of
-    ///   type `PackageProjectError`
+    ///   type `PackageActionError`
     /// # Errors
-    /// * `PackageProjectError::NotAWorkspaceMemberError` - If the working
+    /// * `PackageActionError::NotAWorkspaceMemberError` - If the working
     ///   directory is not a workspace member
-    /// * `PackageProjectError::PackageDriverInitError` - If there is an error
+    /// * `PackageActionError::PackageDriverInitError` - If there is an error
     ///   initializing the package driver
-    /// * `PackageProjectError::PackageDriverError` - If there is an error
-    ///   during the package driver process
-    /// * `PackageProjectError::CargoMetadataParseError` - If there is an error
+    /// * `PackageActionError::PackageDriverError` - If there is an error during
+    ///   the package driver process
+    /// * `PackageActionError::CargoMetadataParseError` - If there is an error
     ///   parsing the Cargo metadata
-    /// * `PackageProjectError::WdkMetadataParseError` - If there is an error
+    /// * `PackageActionError::WdkMetadataParseError` - If there is an error
     ///   parsing the WDK metadata
-    /// * `PackageProjectError::WdkBuildConfigError` - If there is an error with
+    /// * `PackageActionError::WdkBuildConfigError` - If there is an error with
     ///   the WDK build config
-    /// * `PackageProjectError::IoError` - Wraps all possible IO errors
-    /// * `PackageProjectError::CommandExecutionError` - If there is an error
+    /// * `PackageActionError::IoError` - Wraps all possible IO errors
+    /// * `PackageActionError::CommandExecutionError` - If there is an error
     ///   executing a command
-    /// * `PackageProjectError::NoValidRustProjectsInTheDirectory` - If no valid
+    /// * `PackageActionError::NoValidRustProjectsInTheDirectory` - If no valid
     ///   Rust projects are found in the directory
-    /// * `PackageProjectError::OneOrMoreRustProjectsFailedToBuild` - If one or
+    /// * `PackageActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build
     pub fn run(&self) -> Result<(), PackageProjectError> {
         wdk_build::cargo_make::setup_path()?;
@@ -168,7 +168,7 @@ impl<'a> PackageAction<'a> {
         }
 
         if !is_valid_dir_with_rust_projects {
-            return Err(PackageProjectError::NoValidRustProjectsInTheDirectory(
+            return Err(PackageActionError::NoValidRustProjectsInTheDirectory(
                 self.working_dir.clone(),
             ));
         }
@@ -215,7 +215,7 @@ impl<'a> PackageAction<'a> {
 
         debug!("Done checking for valid Rust(possibly driver) projects in the working director");
         if failed_atleast_one_project {
-            return Err(PackageProjectError::OneOrMoreRustProjectsFailedToBuild(
+            return Err(PackageActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
         }
@@ -260,7 +260,7 @@ impl<'a> PackageAction<'a> {
                 )?;
             }
             if let Err(e) = wdk_metadata {
-                return Err(PackageProjectError::WdkMetadataParse(e));
+                return Err(PackageActionError::WdkMetadataParse(e));
             }
             return Ok(());
         }
@@ -283,9 +283,7 @@ impl<'a> PackageAction<'a> {
         });
 
         if package.is_none() {
-            return Err(PackageProjectError::NotAWorkspaceMember(
-                working_dir.clone(),
-            ));
+            return Err(PackageActionError::NotAWorkspaceMember(working_dir.clone()));
         }
 
         let package = package.expect("Package cannot be empty");
@@ -298,7 +296,7 @@ impl<'a> PackageAction<'a> {
         )?;
 
         if let Err(e) = wdk_metadata {
-            return Err(PackageProjectError::WdkMetadataParse(e));
+            return Err(PackageActionError::WdkMetadataParse(e));
         }
 
         info!("Building and packaging completed successfully");
@@ -306,7 +304,7 @@ impl<'a> PackageAction<'a> {
         Ok(())
     }
 
-    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, PackageProjectError> {
+    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, PackageActionError> {
         let working_dir_path_trimmed: PathBuf = working_dir
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
@@ -324,7 +322,7 @@ impl<'a> PackageAction<'a> {
         package: &Package,
         package_name: String,
         target_dir: &Path,
-    ) -> Result<(), PackageProjectError> {
+    ) -> Result<(), PackageActionError> {
         info!("Processing package: {}", package_name);
         BuildAction::new(
             &package_name,
@@ -395,14 +393,14 @@ impl<'a> PackageAction<'a> {
             self.fs_provider,
         );
         if let Err(e) = package_driver {
-            return Err(PackageProjectError::PackageTaskInit(package_name, e));
+            return Err(PackageActionError::PackageTaskInit(package_name, e));
         }
 
         if let Err(e) = package_driver
             .expect("PackageDriver failed to initialize")
             .run()
         {
-            return Err(PackageProjectError::PackageTask(package_name, e));
+            return Err(PackageActionError::PackageTask(package_name, e));
         }
         info!("Processing completed for package: {}", package_name);
         Ok(())

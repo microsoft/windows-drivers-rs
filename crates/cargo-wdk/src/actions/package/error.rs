@@ -4,9 +4,9 @@ use thiserror::Error;
 
 use crate::{actions::build::BuildActionError, providers::error::CommandError};
 
-/// Errors for the package project action layer
+/// Errors for the package action layer
 #[derive(Error, Debug)]
-pub enum PackageProjectError {
+pub enum PackageActionError {
     #[error("Wdk Build Config Error: {0}")]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Error Parsing Cargo.toml, not a valid rust project/workspace: {0}")]
