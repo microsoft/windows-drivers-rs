@@ -164,6 +164,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_amd64_and_tar
         TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
+        .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2537,7 +2538,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd();
+        .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
@@ -2618,6 +2619,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
                 (workspace_member_2, package_2),
             ],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_detect_wdk_build_number(25100u32)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2683,6 +2685,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
             None,
             vec![(workspace_member_3, package_3)],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_detect_wdk_build_number(25100u32)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2749,6 +2752,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
             None,
             vec![(workspace_member_3, package_3)],
         )
+        .expect_root_manifest_exists(&cwd, true)
         .expect_detect_wdk_build_number(25100u32)
         .expect_path_canonicalization_cwd()
         .expect_path_canonicalization_workspace_root()
@@ -2773,7 +2777,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     );
     assert!(package_project.is_ok());
 
-    let run_result = package_project.expect("Package project init error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail").run();
+    let run_result = package_project.expect("Package project init error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail"),
