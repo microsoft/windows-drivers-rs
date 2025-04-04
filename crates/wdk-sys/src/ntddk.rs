@@ -10,6 +10,7 @@
 pub use bindings::*;
 
 #[allow(missing_docs)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 mod bindings {
     #[allow(
         clippy::wildcard_imports,

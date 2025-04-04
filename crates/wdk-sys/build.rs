@@ -51,7 +51,8 @@ const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
 
 static WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
     format!(
-        r"/// Returns the number of functions available in the WDF function table.
+        r"#[allow(clippy::must_use_candidate)]
+/// Returns the number of functions available in the WDF function table.
 /// Should not be used in public API.
 pub fn get_wdf_function_count() -> usize {{
     {WDF_FUNCTION_COUNT_PLACEHOLDER}
