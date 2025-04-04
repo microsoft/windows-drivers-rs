@@ -28,7 +28,7 @@ use crate::providers::{
 use crate::{
     actions::{
         package::{
-            error::{PackageProjectError, PackageTaskError},
+            error::{PackageActionError, PackageTaskError},
             PackageActionParams,
         },
         Profile,
@@ -605,7 +605,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::MissingInxSrcFile(_))
+        PackageActionError::PackageTask(_, PackageTaskError::MissingInxSrcFile(_))
     ));
 }
 
@@ -663,7 +663,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::CopyFile(_, _, _))
+        PackageActionError::PackageTask(_, PackageTaskError::CopyFile(_, _, _))
     ));
 }
 
@@ -731,7 +731,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::StampinfCommand(_))
+        PackageActionError::PackageTask(_, PackageTaskError::StampinfCommand(_))
     ));
 }
 
@@ -800,7 +800,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::Inf2CatCommand(_))
+        PackageActionError::PackageTask(_, PackageTaskError::Inf2CatCommand(_))
     ));
 }
 
@@ -871,7 +871,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::VerifyCertExistsInStoreCommand(_))
+        PackageActionError::PackageTask(_, PackageTaskError::VerifyCertExistsInStoreCommand(_))
     ));
 }
 
@@ -943,7 +943,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::CertGenerationInStoreCommand(_))
+        PackageActionError::PackageTask(_, PackageTaskError::CertGenerationInStoreCommand(_))
     ));
 }
 
@@ -1017,7 +1017,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::DriverBinarySignCommand(_))
+        PackageActionError::PackageTask(_, PackageTaskError::DriverBinarySignCommand(_))
     ));
 }
 
@@ -1094,7 +1094,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::PackageTask(_, PackageTaskError::InfVerificationCommand(_))
+        PackageActionError::PackageTask(_, PackageTaskError::InfVerificationCommand(_))
     ));
 }
 
@@ -1146,7 +1146,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         .run();
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::WdkMetadataParse(
+        PackageActionError::WdkMetadataParse(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected
         )
     ));
@@ -1198,7 +1198,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         .run();
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageProjectError::WdkMetadataParse(
+        PackageActionError::WdkMetadataParse(
             TryFromCargoMetadataError::WdkMetadataDeserialization {
                 metadata_source: _,
                 error_source: _
@@ -1739,7 +1739,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        PackageProjectError::WdkMetadataParse(
+        PackageActionError::WdkMetadataParse(
             TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
                 wdk_metadata_configurations: _
             }
@@ -1819,7 +1819,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        PackageProjectError::WdkMetadataParse(
+        PackageActionError::WdkMetadataParse(
             TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
                 wdk_metadata_configurations: _
             }
@@ -1880,7 +1880,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail"),
-        PackageProjectError::WdkMetadataParse(
+        PackageActionError::WdkMetadataParse(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected
         )
     ));
@@ -1944,7 +1944,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail"),
-        PackageProjectError::WdkMetadataParse(
+        PackageActionError::WdkMetadataParse(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected
         )
     ));
