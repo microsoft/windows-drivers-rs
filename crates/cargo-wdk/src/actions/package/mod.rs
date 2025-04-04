@@ -125,7 +125,7 @@ impl<'a> PackageAction<'a> {
     ///   Rust projects are found in the directory
     /// * `PackageActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build
-    pub fn run(&self) -> Result<(), PackageProjectError> {
+    pub fn run(&self) -> Result<(), PackageActionError> {
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
         debug!(
@@ -228,7 +228,7 @@ impl<'a> PackageAction<'a> {
         &self,
         working_dir: &PathBuf,
         cargo_metadata: &CargoMetadata,
-    ) -> Result<(), PackageProjectError> {
+    ) -> Result<(), PackageActionError> {
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
