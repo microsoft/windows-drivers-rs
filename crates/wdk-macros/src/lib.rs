@@ -1008,7 +1008,7 @@ mod tests {
         );
     }
 
-    fn with_file_lock_test<F>(f: F)
+    fn with_file_lock_clean_env<F>(f: F)
     where
         F: FnOnce(),
     {
@@ -1193,7 +1193,7 @@ mod tests {
 
             #[test]
             fn valid_input() {
-                with_file_lock_test(|| {
+                with_file_lock_clean_env(|| {
                     let inputs = Inputs {
                         types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                         wdf_function_identifier: format_ident!("WdfDriverCreate"),
@@ -1239,7 +1239,7 @@ mod tests {
 
             #[test]
             fn valid_input_with_no_arguments() {
-                with_file_lock_test(|| {
+                with_file_lock_clean_env(|| {
                     let inputs = Inputs {
                         types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                         wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
@@ -1266,7 +1266,7 @@ mod tests {
 
         #[test]
         fn valid_input_no_cache() {
-            with_file_lock_test(|| {
+            with_file_lock_clean_env(|| {
                 let inputs = Inputs {
                     types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
@@ -1308,7 +1308,7 @@ mod tests {
 
         #[test]
         fn valid_input_cache_exists() {
-            with_file_lock_test(|| {
+            with_file_lock_clean_env(|| {
                 let inputs = Inputs {
                     types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
