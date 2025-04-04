@@ -61,7 +61,7 @@ pub struct PackageTask<'a> {
     dest_cert_file_path: PathBuf,
     dest_cat_file_path: PathBuf,
 
-    arch: String,
+    arch: &'a str,
     os_mapping: &'a str,
     driver_model: DriverConfig,
 
@@ -139,7 +139,10 @@ impl<'a> PackageTask<'a> {
             fs_provider.create_dir(&dest_root_package_folder)?;
         }
 
-        let arch = params.target_arch.to_string();
+        let arch = match params.target_arch {
+            CpuArchitecture::Amd64 => "amd64",
+            CpuArchitecture::Arm64 => "arm64",
+        };
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
             CpuArchitecture::Arm64 => "Server10_arm64",

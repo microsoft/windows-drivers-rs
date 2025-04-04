@@ -87,25 +87,3 @@ impl fmt::Display for CpuArchitecture {
         write!(f, "{s}")
     }
 }
-
-impl FromStr for CpuArchitecture {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "amd64" => std::result::Result::Ok(Self::Amd64),
-            "arm64" => std::result::Result::Ok(Self::Arm64),
-            _ => Err(format!("'{s}' is not a valid target architecture")),
-        }
-    }
-}
-
-impl fmt::Display for CpuArchitecture {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Amd64 => "amd64",
-            Self::Arm64 => "arm64",
-        };
-        write!(f, "{s}")
-    }
-}

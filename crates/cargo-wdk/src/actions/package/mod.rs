@@ -43,7 +43,6 @@ pub struct PackageActionParams<'a> {
 
 /// Action that orchestrates the packaging of a driver project
 /// This also includes the build step as pre-requisite for packaging
-#[derive(Clone)]
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Profile,
@@ -231,7 +230,7 @@ impl<'a> PackageAction<'a> {
         cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageProjectError> {
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
-        let wdk_metadata = Wdk::try_from(cargo_metadata)?;
+        let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
             .fs_provider
@@ -257,7 +256,7 @@ impl<'a> PackageAction<'a> {
                     &wdk_metadata,
                     package,
                     package.name.clone(),
-                    &target_directory.clone(),
+                    &target_directory,
                 )?;
             }
             if let Err(e) = wdk_metadata {
@@ -371,12 +370,7 @@ impl<'a> PackageAction<'a> {
             package_name,
             target_dir.display()
         );
-
-        let target_arch = if self.target_arch.is_some() {
-            self.target_arch.expect("Target architecture should be set")
-        } else {
-            self.host_arch
-        };
+        let target_arch = self.target_arch.unwrap_or(self.host_arch);
         debug!(
             "Target architecture for package: {} is: {}",
             package_name, target_arch
