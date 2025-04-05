@@ -132,9 +132,6 @@ mod dbg_print_buf_writer {
     /// <https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/reading-and-filtering-debugging-messages#dbgprint-buffer-and-the-debugger>
     const DBG_PRINT_MAX_TXN_SIZE: usize = 512;
 
-    // We will allocate the format buffer on stack instead of heap
-    // so that debug printer won't be subject to DISPATCH_IRQL restriction.
-
     /// Stack-based format buffer for `DbgPrint`
     ///
     /// This buffer is used to format strings via `fmt::write` without needing
