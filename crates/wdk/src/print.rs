@@ -161,25 +161,42 @@ mod dbg_print_buf_writer {
         fn write_str(&mut self, s: &str) -> fmt::Result {
             let mut str_byte_slice = s.as_bytes();
             let mut remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
-            let mut remaining_buffer_size = remaining_buffer.len();
-
-            // If the string is too large for the buffer, keep chunking the string and
-            // flushing the buffer until the entire string is handled
-            while str_byte_slice.len() > remaining_buffer_size {
-                // Fill buffer
-                remaining_buffer[..].copy_from_slice(&str_byte_slice[..remaining_buffer_size]);
-
-                // Flush buffer
-                self.flush();
-
-                // Update remaining string slice to handle and reset remaining buffer
-                str_byte_slice = &str_byte_slice[remaining_buffer_size..];
-                remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
-                remaining_buffer_size = remaining_buffer.len();
+            let mut remaining_buffer_len = remaining_buffer.len();
+            
+            if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != 0u8) {
+                str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
+            } else {
+                return Ok(());
             }
-            remaining_buffer[..str_byte_slice.len()].copy_from_slice(str_byte_slice);
-            self.used += str_byte_slice.len();
 
+            while !str_byte_slice.is_empty() {
+                // Get size of next chunk of string to write and copy to buffer.
+                // Chunk is bounded by either the first null byte or the remaining buffer size.
+                let chunk_size = str_byte_slice
+                    .iter()
+                    .take(remaining_buffer_len)
+                    .take_while(|c| **c != 0u8)
+                    .count();
+                remaining_buffer[..chunk_size].copy_from_slice(&str_byte_slice[..chunk_size]);
+                str_byte_slice = &str_byte_slice[chunk_size..];
+
+                if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != 0u8)
+                {
+                    str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
+                } else {
+                    str_byte_slice = &str_byte_slice[str_byte_slice.len()..];
+                }
+
+                // Flush buffer if full , otherwise update amount used
+                if chunk_size == remaining_buffer_len && !str_byte_slice.is_empty() {
+                    self.flush();
+                } else {
+                    self.used += chunk_size;
+                }
+
+                remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
+                remaining_buffer_len = remaining_buffer.len();
+            }
             Ok(())
         }
     }
@@ -196,6 +213,9 @@ mod dbg_print_buf_writer {
         }
 
         pub fn flush(&mut self) {
+            // Null-terminate the string
+            self.buffer[self.used] = 0;
+
             // SAFETY: This is safe because:
             // 1. `self.buffer` contains a valid C-style string with the data placed in
             //    [0..self.used] by the `write_str` implementation
@@ -277,7 +297,7 @@ mod dbg_print_buf_writer {
             let expected_unflushed_string_contents =
                 &TEST_STRING[UNFLUSHED_STRING_CONTENTS_STARTING_INDEX..];
 
-            let mut writer = DbgPrintBufWriter::new();
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, expected_unflushed_string_contents.len());
@@ -285,6 +305,7 @@ mod dbg_print_buf_writer {
                 &writer.buffer[..writer.used],
                 expected_unflushed_string_contents.as_bytes()
             );
+            let old_writer_used = writer.used;
             // FIXME: When this test is compiled, rustc automatically links the
             // usermode-version of DbgPrint. We should either figure out a way to prevent
             // this in order to stub in a mock implementation via something like `mockall`,
@@ -294,6 +315,168 @@ mod dbg_print_buf_writer {
             // mock with a counter and some way to validate contents being sent to the flush
             // closure)
 
+            writer.flush();
+            assert_eq!(writer.used, 0);
+            assert_eq!(writer.buffer[old_writer_used], 0);
+        }
+
+        #[test]
+        fn write_string_with_null_char_beginning() {
+            const TEST_STRING: &str = "\0Hello, world!This is a test string with a null byte.";
+            const TEST_STRING_NULL_REMOVED: &str =
+                "Hello, world!This is a test string with a null byte.";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 1;
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                TEST_STRING_NULL_REMOVED.as_bytes()
+            );
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_string_with_null_char_middle() {
+            const TEST_STRING: &str = "Hello, world!\0This is a test string with a null byte.";
+            const TEST_STRING_NULL_REMOVED: &str =
+                "Hello, world!This is a test string with a null byte.";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 1;
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                TEST_STRING_NULL_REMOVED.as_bytes()
+            );
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_string_with_null_char_end() {
+            const TEST_STRING: &str = "Hello, world!This is a test string with a null byte.\0";
+            const TEST_STRING_NULL_REMOVED: &str =
+                "Hello, world!This is a test string with a null byte.";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 1;
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                TEST_STRING_NULL_REMOVED.as_bytes()
+            );
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_string_with_null_char_beginning_middle_end() {
+            const TEST_STRING: &str =
+                "\0\0Hello, world!This is a\0\0 test string with a null byte.\0\0";
+            const TEST_STRING_NULL_REMOVED: &str =
+                "Hello, world!This is a test string with a null byte.";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 6;
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                TEST_STRING_NULL_REMOVED.as_bytes()
+            );
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_null_string() {
+            const TEST_STRING: &str = "\0";
+            const TEST_STRING_NULL_REMOVED: &str = "";
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = 0;
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                TEST_STRING_NULL_REMOVED.as_bytes()
+            );
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_max_buffer_string() {
+            const TEST_STRING: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslon";
+            assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE);
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, DbgPrintBufWriter::USABLE_BUFFER_SIZE);
+            assert_eq!(&writer.buffer[..writer.used], TEST_STRING.as_bytes());
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_null_terminated_max_buffer_string() {
+            const TEST_STRING: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslon\0";
+            const TEST_STRING_WITHOUT_NULL_TERMINATION: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslon";
+            assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE + 1);
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, DbgPrintBufWriter::USABLE_BUFFER_SIZE);
+            assert_eq!(
+                &writer.buffer[..writer.used],
+                TEST_STRING_WITHOUT_NULL_TERMINATION.as_bytes()
+            );
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_max_plus_one_buffer_string() {
+            const TEST_STRING: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslong";
+            const TEST_STRING_ENDING: &str = "g";
+            assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE + 1);
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, 1);
+            assert_eq!(&writer.buffer[..writer.used], TEST_STRING_ENDING.as_bytes());
+            writer.flush();
+            assert_eq!(writer.used, 0);
+        }
+
+        #[test]
+        fn write_max_plus_one_with_null_char_buffer_string() {
+            const TEST_STRING: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslon\0g";
+            const TEST_STRING_ENDING: &str = "g";
+            assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE + 2);
+
+            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            assert_eq!(writer.used, 1);
+            assert_eq!(&writer.buffer[..writer.used], TEST_STRING_ENDING.as_bytes());
             writer.flush();
             assert_eq!(writer.used, 0);
         }
