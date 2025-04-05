@@ -478,7 +478,4 @@ mod dbg_print_buf_writer {
             assert_eq!(writer.used, 0);
         }
     }
-
-    // FIXME: add tests for no internal null bytes, string w/ exactly USABLE
-    // Buffer len, string w/ exactly Buffer len
 }
