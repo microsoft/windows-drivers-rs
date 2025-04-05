@@ -37,8 +37,11 @@ pub unsafe extern "system" fn driver_entry(
 ) -> NTSTATUS {
     // This is an example of directly using DbgPrint binding to print
     let string = CString::new("Hello World!\n").unwrap();
+
+    // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
+    // string (`CString` guarantees null-termination)
     unsafe {
-        DbgPrint(string.as_ptr());
+        DbgPrint(c"%s".as_ptr().cast(), string.as_ptr());
     }
 
     driver.DriverUnload = Some(driver_exit);
