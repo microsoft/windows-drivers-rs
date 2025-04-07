@@ -7,9 +7,8 @@ use bindgen::{
     callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
 };
-use cargo_metadata::MetadataCommand;
 
-use crate::{Config, ConfigError, DriverConfig};
+use crate::{Config, ConfigError};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -29,32 +28,6 @@ struct WdkCallbacks {
     wdf_function_table_symbol_name: Option<String>,
 }
 
-struct BindgenRustEditionWrapper(bindgen::RustEdition);
-
-impl TryFrom<cargo_metadata::Edition> for BindgenRustEditionWrapper {
-    type Error = ConfigError;
-
-    fn try_from(edition: cargo_metadata::Edition) -> Result<Self, Self::Error> {
-        match edition {
-            cargo_metadata::Edition::E2015 => Err(ConfigError::UnsupportedRustEdition {
-                edition: "2015".to_string(),
-            }),
-            cargo_metadata::Edition::E2018 => Ok(Self(bindgen::RustEdition::Edition2018)),
-            cargo_metadata::Edition::E2021 => Ok(Self(bindgen::RustEdition::Edition2021)),
-            cargo_metadata::Edition::E2024 => Ok(Self(bindgen::RustEdition::Edition2024)),
-            cargo_metadata::Edition::_E2027 => Err(ConfigError::UnsupportedRustEdition {
-                edition: "2027".to_string(),
-            }),
-            cargo_metadata::Edition::_E2030 => Err(ConfigError::UnsupportedRustEdition {
-                edition: "2030".to_string(),
-            }),
-            _ => Err(ConfigError::UnsupportedRustEdition {
-                edition: "unknown".to_string(),
-            }),
-        }
-    }
-}
-
 impl BuilderExt for Builder {
     /// Returns a `bindgen::Builder` with the default configuration for
     /// generation of bindings to the WDK
@@ -66,7 +39,7 @@ impl BuilderExt for Builder {
     fn wdk_default(config: impl Borrow<Config>) -> Result<Self, ConfigError> {
         let config = config.borrow();
 
-        let mut builder = Self::default()
+        let builder = Self::default()
             .use_core() // Can't use std for kernel code
             .derive_default(true) // allows for default initializing structs
             // CStr types are safer and easier to work with when interacting with string constants
@@ -123,12 +96,6 @@ impl BuilderExt for Builder {
             .blocklist_item(".*WHEA_ARM_BUS_ERROR(?:__bindgen.*)?")
             .blocklist_item(".*WHEA_ARM_PROCESSOR_ERROR")
             .blocklist_item(".*WHEA_ARM_CACHE_ERROR")
-            // FIXME: bindgen unable to generate for anonymous structs
-            // https://github.com/rust-lang/rust-bindgen/issues/3177
-            .blocklist_item(".*ADDRESS0_OWNERSHIP_ACQUIRE")
-            .blocklist_item(".*USBDEVICE_ABORTIO")
-            .blocklist_item(".*USBDEVICE_STARTIO")
-            .blocklist_item(".*USBDEVICE_TREE_PURGEIO")
             // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
             .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
@@ -138,17 +105,7 @@ impl BuilderExt for Builder {
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
-            .formatter(bindgen::Formatter::Prettyplease)
-            .rust_target(get_rust_target()?)
-            .rust_edition(get_rust_edition()?);
-
-        // The `_USBPM_CLIENT_CONFIG_EXTRA_INFO` struct only has members when
-        // _KERNEL_MODE flag is defined. We need to mark this type as opaque to avoid
-        // generating an empty struct, since  they are not currently supported by
-        // bindgen: https://github.com/rust-lang/rust-bindgen/issues/1683
-        if let DriverConfig::Umdf(_) = config.driver_config {
-            builder = builder.opaque_type("_USBPM_CLIENT_CONFIG_EXTRA_INFO");
-        }
+            .formatter(bindgen::Formatter::Prettyplease);
 
         Ok(builder)
     }
@@ -179,80 +136,4 @@ impl WdkCallbacks {
             wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
         }
     }
-}
-
-// Retrieves the Rust version as a `bindgen::RustTarget` for the current build
-// configuration.
-//
-// If the `nightly` feature is enabled and the current toolchain is `nightly`,
-// returns a value allowing `bindgen` to generate code with supported `nightly`
-// features. Otherwise, queries the MSRV from the `CARGO_PKG_RUST_VERSION`
-// environment variable and uses it to create a `bindgen::RustTarget::stable`
-// value.
-//
-// # Errors
-//
-// Returns `ConfigError::MsrvNotSupportedByBindgen` if the MSRV is not supported
-// by bindgen, or `ConfigError::SemverError` if the MSRV cannot be parsed as a
-// semver version.
-fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
-    let nightly_feature = cfg!(feature = "nightly");
-    let nightly_toolchain = rustversion::cfg!(nightly);
-
-    match (nightly_feature, nightly_toolchain) {
-        (true, true) => Ok(bindgen::RustTarget::nightly()),
-        (false, false) => get_stable_rust_target(),
-        (true, false) => {
-            tracing::warn!(
-                "A non-nightly toolchain has been detected. Nightly bindgen features are only \
-                 enabled with both nightly feature enablement and nightly toolchain use. "
-            );
-            get_stable_rust_target()
-        }
-        (false, true) => {
-            tracing::warn!(
-                "The nightly feature for wdk-build is disabled. Nightly bindgen features are only \
-                 enabled with both nightly feature enablement and nightly toolchain use. "
-            );
-            get_stable_rust_target()
-        }
-    }
-}
-
-// Retrieves the stable Rust target for the current build configuration.
-// Queries the MSRV from the `CARGO_PKG_RUST_VERSION` environment variable and
-// uses it to create a `bindgen::RustTarget::stable` value.
-fn get_stable_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
-    let package_msrv = semver::Version::parse(env!("CARGO_PKG_RUST_VERSION"))
-        .map_err(|e| ConfigError::RustVersionParseError { error_source: e })?;
-
-    let bindgen_msrv = bindgen::RustTarget::stable(package_msrv.minor, package_msrv.patch)
-        .map_err(|e| ConfigError::MsrvNotSupportedByBindgen {
-            msrv: package_msrv.to_string(),
-            reason: e.to_string(),
-        })?;
-    Ok(bindgen_msrv)
-}
-
-// Retrieves the Rust edition from `cargo metadata` and returns the appropriate
-// `bindgen::RustEdition` value.
-//
-// # Errors
-//
-// Returns `ConfigError::CargoMetadataPackageNotFound` if the `wdk-build`
-// package is not found, or `ConfigError::UnsupportedRustEdition` if the edition
-// is not supported.
-fn get_rust_edition() -> Result<bindgen::RustEdition, ConfigError> {
-    const WDK_BUILD_PACKAGE_NAME: &str = "wdk-build";
-
-    let wdk_sys_cargo_metadata = MetadataCommand::new().exec()?;
-
-    let wdk_sys_package_metadata = wdk_sys_cargo_metadata
-        .packages
-        .iter()
-        .find(|package| package.name == WDK_BUILD_PACKAGE_NAME)
-        .ok_or_else(|| ConfigError::WdkBuildPackageNotFoundInCargoMetadata)?;
-
-    let rust_edition: BindgenRustEditionWrapper = wdk_sys_package_metadata.edition.try_into()?;
-    Ok(rust_edition.0)
 }

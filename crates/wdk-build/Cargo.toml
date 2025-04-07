@@ -1,6 +1,5 @@
 [package]
 edition.workspace = true
-rust-version.workspace = true
 name = "wdk-build"
 version = "0.3.0"
 description = "A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Driver Kit)"
@@ -23,7 +22,6 @@ clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true
 paste.workspace = true
 rustversion.workspace = true
-semver.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
@@ -74,6 +72,3 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
-
-[features]
-nightly = []

@@ -130,35 +130,7 @@ pub enum ConfigError {
         directory: String,
     },
 
-    /// Error returned when a package is not found in Cargo metadata
-    #[error("cannot find wdk-build package in Cargo metadata")]
-    WdkBuildPackageNotFoundInCargoMetadata,
-
-    /// Error returned Cargo manifest contains an unsupported edition
-    #[error("Cargo manifest contains unsupported Rust edition: {edition}")]
-    UnsupportedRustEdition {
-        /// Edition of the Cargo manifest that was not supported
-        edition: String,
-    },
-
-    /// Error returned when `bindgen` does not support `rust-version` in Cargo
-    /// manifest
-    #[error("Rust version {msrv} not supported by Bindgen: {reason}")]
-    MsrvNotSupportedByBindgen {
-        /// MSRV that was not supported by Bindgen
-        msrv: String,
-        /// Reason why the MSRV was not supported
-        reason: String,
-    },
-
-    /// Error returned when `semver` parsing of the Rust version fails
-    #[error("failed to parse rust-version in manifest")]
-    RustVersionParseError {
-        /// [`semver::Error`] that caused parsing the Rust version to fail
-        #[source]
-        error_source: semver::Error,
-    },
-
+    /// Error returned when an
     /// `utils::PathExt::strip_extended_length_path_prefix` operation fails
     #[error(transparent)]
     StripExtendedPathPrefixError(#[from] utils::StripExtendedPathPrefixError),
