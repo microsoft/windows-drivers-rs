@@ -158,7 +158,7 @@ mod dbg_print_buf_writer {
             let mut remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
             let mut remaining_buffer_len = remaining_buffer.len();
             
-            if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b"\0") {
+            if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b'\0') {
                 str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
             } else {
                 return Ok(());
@@ -170,12 +170,12 @@ mod dbg_print_buf_writer {
                 let chunk_size = str_byte_slice
                     .iter()
                     .take(remaining_buffer_len)
-                    .take_while(|c| **c != b"\0")
+                    .take_while(|c| **c != b'\0')
                     .count();
                 remaining_buffer[..chunk_size].copy_from_slice(&str_byte_slice[..chunk_size]);
                 str_byte_slice = &str_byte_slice[chunk_size..];
 
-                if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b"\0")
+                if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b'\0')
                 {
                     str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
                 } else {
