@@ -65,7 +65,7 @@ impl<'a> NewAction<'a> {
         }
     }
 
-    /// Runs the action to create a new driver project.
+    /// Entry point method to create a new driver project.
     ///
     /// # Returns
     ///
@@ -152,7 +152,7 @@ impl<'a> NewAction<'a> {
         Ok(())
     }
 
-    /// Copies the `build.rs` template for the specified driver typeto the
+    /// Copies the `build.rs` template for the specified driver type to the
     /// newly created driver project.
     ///
     /// # Returns

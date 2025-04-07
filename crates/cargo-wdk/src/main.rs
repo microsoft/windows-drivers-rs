@@ -1,8 +1,7 @@
-//! Main entry point for the cargo-wdk CLI application.
+//! Main entry point for the cargo-wdk application.
 //!
 //! This module initializes the CLI, sets up tracing, and runs the specified
-//! commands. It uses the `clap` crate for command-line argument parsing and the
-//! `tracing` crate for tracing.
+//! commands.
 
 mod actions;
 mod cli;
@@ -14,11 +13,7 @@ use clap::Parser;
 use cli::Cli;
 use tracing::error;
 
-/// Main function for the cargo-wdk CLI application.
-///
-/// This function initializes the CLI, sets up tracing, and runs the specified
-/// commands. If an error occurs during execution, it logs the error and exits
-/// with a non-zero status code.
+/// Main function for the cargo-wdk application.
 ///
 /// # Returns
 ///

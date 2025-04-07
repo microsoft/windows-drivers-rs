@@ -1,3 +1,5 @@
+//! Module defines argument types used by the CLI layer
+
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Result;

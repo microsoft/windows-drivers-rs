@@ -1,3 +1,5 @@
+//! This module defines error types for package action module.
+
 use std::{path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;

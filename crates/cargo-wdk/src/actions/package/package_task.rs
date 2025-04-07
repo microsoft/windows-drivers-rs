@@ -74,12 +74,7 @@ pub struct PackageTask<'a> {
 impl<'a> PackageTask<'a> {
     /// Creates a new instance of `PackageTask`.
     /// # Arguments
-    /// * `package_name` - The name of the driver package.
-    /// * `working_dir` - The working directory of the driver project.
-    /// * `target_dir` - The target directory for the artifacts.
-    /// * `target_arch` - The target architecture.
-    /// * `sample_class` - Whether the driver class is a sample class.
-    /// * `driver_model` - The driver model configuration.
+    /// * `params` - Struct containing the parameters for the package task.
     /// * `wdk_build_provider` - The provider for WDK build related methods.
     /// * `command_exec` - The provider for command execution.
     /// * `fs_provider` - The provider for file system operations.
@@ -378,8 +373,8 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    /// Runs the signtool sign command with the specified file path, certificate
-    /// store, and certificate name.
+    /// Signs the specified file using signtool command using cerificate from
+    /// certificate store.
     ///
     /// # Arguments
     ///

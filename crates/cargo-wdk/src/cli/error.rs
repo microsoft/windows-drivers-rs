@@ -1,3 +1,5 @@
+//! This module contains the error types used in the CLI.
+
 use thiserror::Error;
 
 /// Validation errors for the arguments passed to new project sub command

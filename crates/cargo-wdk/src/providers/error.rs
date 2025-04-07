@@ -1,3 +1,5 @@
+//! This module defines error types for the providers.
+
 use std::{io::Error, path::PathBuf, process::Output};
 
 /// Error type for `std::process::command` execution failures

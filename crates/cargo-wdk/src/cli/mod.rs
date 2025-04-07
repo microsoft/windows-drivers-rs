@@ -1,3 +1,10 @@
+//! Module for the CLI interface of the cargo wdk tool
+//!
+//! It defines the top level interface and sub commands. It also implements a
+//! run method which acts as an entry point for command line argument parsing
+//! and triggers the appropriate actions based on the subcommands and arguments
+//! provided by the user.
+
 mod args;
 mod error;
 

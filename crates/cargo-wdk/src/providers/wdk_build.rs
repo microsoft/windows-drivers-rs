@@ -1,3 +1,6 @@
+//! This module provides a wrapper around the `wdk-build` crate methods that are
+//! of interest.
+
 // Warns the detect_wdk_build_number method is not used, however it is used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]

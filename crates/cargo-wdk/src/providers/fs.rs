@@ -1,3 +1,6 @@
+// This module provides a wrapper around the `std::fs` methods that are of
+// interest.
+
 // Warns the methods are not used, however they are used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]

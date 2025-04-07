@@ -1,3 +1,7 @@
+//! This module provides a standardized method for command execution
+//! and error handling. It serves as a wrapper around the
+//! `std::process::Command`.
+
 // This is suppressed for mockall as it generates mocks with env_vars: &Option
 #![allow(clippy::ref_option_ref)]
 // Warns the run method is not used, however it is used.
