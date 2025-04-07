@@ -406,81 +406,34 @@ fn get_wdf_function_info_map(
     types_path: &LitStr,
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
+    #[cfg(test)]
+    let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test"));
+    #[cfg(not(test))]
     let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
+
     let cached_function_info_map_path = scratch_dir.join("cached_function_info_map.json");
 
-    let get_function_info_map_in_exclusively_locked_dir = || {
-        if cached_function_info_map_path.exists() {
-            let function_info_map =
-                read_wdf_function_info_file_cache(&cached_function_info_map_path, span)?;
-            Ok::<_, syn::Error>(function_info_map)
-        } else {
+    if !cached_function_info_map_path.exists() {
+        let flock = std::fs::File::create(scratch_dir.join(".lock"))
+            .to_syn_result(span, "unable to create file lock")?;
+        FileExt::lock_exclusive(&flock).to_syn_result(span, "unable to obtain file lock")?;
+
+        // Before this thread acquires the lock, it's possible that a concurrent thread
+        // already created the cache. If so, this thread skips cache generation.
+        if !cached_function_info_map_path.exists() {
             let function_info_map = create_wdf_function_info_file_cache(
                 types_path,
                 &cached_function_info_map_path,
                 span,
             )?;
-            Ok(function_info_map)
+            FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
+            return Ok(function_info_map);
         }
-    };
-
-    // Tests need to obtain an exclusive lock on the scratch directory to create
-    // different environments. We conditionally compile here in order to avoid
-    // obtaining the lock again.
-    #[cfg(test)]
-    {
-        get_function_info_map_in_exclusively_locked_dir()
+        FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
     }
-
-    // In non-test environments, if the cache exists we want to obtain a shared lock
-    // on the scratch directory to allow multiple threads to read the cache at once.
-    // Otherwise, we want to obtain an exclusive lock on the scratch directory to
-    // create the cache.
-    #[cfg(not(test))]
-    if cached_function_info_map_path.exists() {
-        let function_info_map = with_shared_file_lock(&scratch_dir, span, || {
-            let read_map = read_wdf_function_info_file_cache(&cached_function_info_map_path, span)?;
-            Ok(read_map)
-        })?;
-        Ok(function_info_map)
-    } else {
-        let function_info_map = with_exclusive_file_lock(
-            &scratch_dir,
-            span,
-            get_function_info_map_in_exclusively_locked_dir,
-        )?;
-        Ok(function_info_map)
-    }
-}
-
-// Executes a closure when a shared lock is obtained on the directory specified.
-// Releases the lock when closure is finished.
-#[cfg(not(test))]
-fn with_exclusive_file_lock<F, R>(dir: &std::path::Path, span: Span, f: F) -> Result<R>
-where
-    F: FnOnce() -> Result<R>,
-{
-    let flock =
-        std::fs::File::create(dir.join(".lock")).to_syn_result(span, "unable to create file")?;
-    FileExt::lock_exclusive(&flock).to_syn_result(span, "unable to obtain file lock")?;
-    let result = f();
-    FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
-    result
-}
-
-// Executes a closure when an exclusive lock is obtained on the directory
-// specified. Releases the lock when closure is finished.
-#[cfg(not(test))]
-fn with_shared_file_lock<F, R>(dir: &std::path::Path, span: Span, f: F) -> Result<R>
-where
-    F: FnOnce() -> Result<R>,
-{
-    let flock =
-        std::fs::File::create(dir.join(".lock")).to_syn_result(span, "unable to create file")?;
-    FileExt::lock_shared(&flock).to_syn_result(span, "unable to obtain file lock")?;
-    let result = f();
-    FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
-    result
+    let function_info_map =
+        read_wdf_function_info_file_cache(&cached_function_info_map_path, span)?;
+    Ok(function_info_map)
 }
 
 /// Reads the cache of function information, then deserializes it into a
@@ -992,7 +945,7 @@ mod tests {
     use super::*;
 
     static SCRATCH_DIR: LazyLock<PathBuf> =
-        LazyLock::new(|| scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments")));
+        LazyLock::new(|| scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test")));
     const CACHE_FILE_NAME: &str = "cached_function_info_map.json";
 
     fn clean_cache_test_env(file_path: &PathBuf) {
@@ -1012,7 +965,8 @@ mod tests {
     where
         F: FnOnce(),
     {
-        let test_flock: std::fs::File = std::fs::File::create(SCRATCH_DIR.join(".lock")).unwrap();
+        let test_flock: std::fs::File =
+            std::fs::File::create(SCRATCH_DIR.join("test.lock")).unwrap();
         FileExt::lock_exclusive(&test_flock).unwrap();
 
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
