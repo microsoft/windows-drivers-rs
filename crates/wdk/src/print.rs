@@ -90,8 +90,6 @@ pub fn _print(args: fmt::Arguments) {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
             let mut buffered_writer = dbg_print_buf_writer::DbgPrintBufWriter::new();
 
-            // TODO: handle internal bytes?
-
             if let Ok(_) = fmt::write(&mut buffered_writer, args) {
                 buffered_writer.flush();
             } else {
@@ -160,7 +158,7 @@ mod dbg_print_buf_writer {
             let mut remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
             let mut remaining_buffer_len = remaining_buffer.len();
             
-            if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != 0u8) {
+            if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b"\0") {
                 str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
             } else {
                 return Ok(());
@@ -172,12 +170,12 @@ mod dbg_print_buf_writer {
                 let chunk_size = str_byte_slice
                     .iter()
                     .take(remaining_buffer_len)
-                    .take_while(|c| **c != 0u8)
+                    .take_while(|c| **c != b"\0")
                     .count();
                 remaining_buffer[..chunk_size].copy_from_slice(&str_byte_slice[..chunk_size]);
                 str_byte_slice = &str_byte_slice[chunk_size..];
 
-                if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != 0u8)
+                if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b"\0")
                 {
                     str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
                 } else {
@@ -294,7 +292,7 @@ mod dbg_print_buf_writer {
             let expected_unflushed_string_contents =
                 &TEST_STRING[UNFLUSHED_STRING_CONTENTS_STARTING_INDEX..];
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, expected_unflushed_string_contents.len());
@@ -302,7 +300,7 @@ mod dbg_print_buf_writer {
                 &writer.buffer[..writer.used],
                 expected_unflushed_string_contents.as_bytes()
             );
-            let old_writer_used = writer.used;
+            let expected_null_byte_position = writer.used;
             // FIXME: When this test is compiled, rustc automatically links the
             // usermode-version of DbgPrint. We should either figure out a way to prevent
             // this in order to stub in a mock implementation via something like `mockall`,
@@ -314,7 +312,7 @@ mod dbg_print_buf_writer {
 
             writer.flush();
             assert_eq!(writer.used, 0);
-            assert_eq!(writer.buffer[old_writer_used], 0);
+            assert_eq!(writer.buffer[expected_null_byte_position], 0);
         }
 
         #[test]
@@ -325,7 +323,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_LEN: usize = TEST_STRING.len();
             const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 1;
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
@@ -345,7 +343,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_LEN: usize = TEST_STRING.len();
             const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 1;
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
@@ -365,7 +363,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_LEN: usize = TEST_STRING.len();
             const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 1;
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
@@ -386,7 +384,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_LEN: usize = TEST_STRING.len();
             const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = TEST_STRING_LEN - 6;
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
@@ -404,7 +402,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_NULL_REMOVED: &str = "";
             const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize = 0;
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, UNFLUSHED_STRING_CONTENTS_STARTING_INDEX);
@@ -421,7 +419,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslon";
             assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE);
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, DbgPrintBufWriter::USABLE_BUFFER_SIZE);
@@ -436,7 +434,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_WITHOUT_NULL_TERMINATION: &str = "sixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslongsixteencharslon";
             assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE + 1);
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, DbgPrintBufWriter::USABLE_BUFFER_SIZE);
@@ -454,7 +452,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_ENDING: &str = "g";
             assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE + 1);
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, 1);
@@ -469,7 +467,7 @@ mod dbg_print_buf_writer {
             const TEST_STRING_ENDING: &str = "g";
             assert_eq!(TEST_STRING.len(), DbgPrintBufWriter::USABLE_BUFFER_SIZE + 2);
 
-            let mut writer: DbgPrintBufWriter = DbgPrintBufWriter::new();
+            let mut writer = DbgPrintBufWriter::new();
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, 1);
