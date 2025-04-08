@@ -22,6 +22,19 @@ pub enum DriverType {
     Wdm,
 }
 
+impl FromStr for DriverType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "kmdf" => std::result::Result::Ok(Self::Kmdf),
+            "umdf" => std::result::Result::Ok(Self::Umdf),
+            "wdm" => std::result::Result::Ok(Self::Wdm),
+            _ => Err(format!("'{s}' is not a valid driver type")),
+        }
+    }
+}
+
 impl fmt::Display for DriverType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
@@ -40,6 +53,18 @@ pub enum Profile {
     Release,
 }
 
+impl FromStr for Profile {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "dev" => std::result::Result::Ok(Self::Dev),
+            "release" => std::result::Result::Ok(Self::Release),
+            _ => Err(format!("'{s}' is not a valid profile")),
+        }
+    }
+}
+
 impl fmt::Display for Profile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
@@ -47,15 +72,6 @@ impl fmt::Display for Profile {
             Self::Release => "release",
         };
         write!(f, "{s}")
-    }
-}
-
-impl Profile {
-    pub fn target_folder_name(self) -> String {
-        match self {
-            Self::Dev => "debug".to_string(),
-            Self::Release => "release".to_string(),
-        }
     }
 }
 
@@ -85,5 +101,14 @@ impl fmt::Display for CpuArchitecture {
             Self::Arm64 => "arm64",
         };
         write!(f, "{s}")
+    }
+}
+
+impl CpuArchitecture {
+    pub fn target_triple_name(self) -> String {
+        match self {
+            Self::Amd64 => X86_64_TARGET_TRIPLE_NAME.to_string(),
+            Self::Arm64 => AARCH64_TARGET_TRIPLE_NAME.to_string(),
+        }
     }
 }

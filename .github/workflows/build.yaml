@@ -74,7 +74,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
-          targets: ${{ matrix.target_triple }}
+          targets: |
+            x86_64-pc-windows-msvc
+            aarch64-pc-windows-msvc
 
       - name: Run Cargo Build
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --all-features

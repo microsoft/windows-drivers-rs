@@ -27,9 +27,13 @@ use tracing::{instrument, trace};
 use crate::{
     metadata,
     utils::{
-        detect_wdk_content_root, get_latest_windows_sdk_version, get_wdk_version_number, PathExt,
+        detect_wdk_content_root,
+        get_latest_windows_sdk_version,
+        get_wdk_version_number,
+        PathExt,
     },
-    ConfigError, CpuArchitecture,
+    ConfigError,
+    CpuArchitecture,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.

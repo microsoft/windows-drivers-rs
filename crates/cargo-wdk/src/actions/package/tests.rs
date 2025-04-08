@@ -33,8 +33,6 @@ use crate::{
         },
         CpuArchitecture,
         Profile,
-        AARCH64_TARGET_TRIPLE_NAME,
-        X86_64_TARGET_TRIPLE_NAME,
     },
     providers::error::CommandError,
 };
@@ -50,8 +48,8 @@ use crate::{
 pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
     let host_arch = CpuArchitecture::Amd64;
+    let profile = None;
     let target_arch = None;
     let verify_signature = false;
     let sample_class = true;
@@ -77,7 +75,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -134,7 +132,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_amd64_and_tar
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
@@ -161,7 +159,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_amd64_and_tar
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -219,7 +217,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_amd64_and_tar
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
@@ -246,7 +244,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_amd64_and_tar
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -304,7 +302,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_arm64_and_tar
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Arm64;
     let target_arch = None;
     let verify_signature = true;
@@ -331,7 +329,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_arm64_and_tar
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -389,7 +387,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_arm64_and_tar
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Arm64;
     let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
@@ -416,7 +414,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_arm64_and_tar
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -474,7 +472,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_arm64_and_tar
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Arm64;
     let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
@@ -501,7 +499,7 @@ pub fn given_a_driver_project_when_profile_is_dev_and_host_arch_is_arm64_and_tar
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -559,7 +557,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_amd64_and
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Release;
+    let profile = Some(Profile::Release);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -586,7 +584,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_amd64_and
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -644,7 +642,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_amd64_and
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Release;
+    let profile = Some(Profile::Release);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
@@ -671,7 +669,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_amd64_and
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -729,7 +727,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_amd64_and
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Release;
+    let profile = Some(Profile::Release);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
@@ -756,7 +754,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_amd64_and
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -814,7 +812,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Release;
+    let profile = Some(Profile::Release);
     let host_arch = CpuArchitecture::Arm64;
     let target_arch = None;
     let verify_signature = true;
@@ -841,7 +839,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -899,7 +897,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Release;
+    let profile = Some(Profile::Release);
     let host_arch = CpuArchitecture::Arm64;
     let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
@@ -926,7 +924,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -984,7 +982,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Release;
+    let profile = Some(Profile::Release);
     let host_arch = CpuArchitecture::Arm64;
     let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
@@ -1011,7 +1009,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1068,7 +1066,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_host_arch_is_arm64_and
 pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = false;
@@ -1095,7 +1093,7 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1150,7 +1148,7 @@ pub fn given_a_driver_project_when_sample_class_is_false_then_it_builds_successf
 pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1196,7 +1194,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1254,7 +1252,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
 pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_creating_it() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1280,7 +1278,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1339,7 +1337,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
 pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1354,7 +1352,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1399,7 +1397,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1414,7 +1412,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1460,7 +1458,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1481,7 +1479,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1531,7 +1529,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1552,7 +1550,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1603,7 +1601,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1624,7 +1622,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1677,7 +1675,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1698,7 +1696,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1752,7 +1750,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1773,7 +1771,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1829,7 +1827,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1850,7 +1848,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1910,7 +1908,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1923,7 +1921,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         get_cargo_metadata_package(&cwd, driver_name, driver_version, None);
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1967,7 +1965,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp\\sample-driver");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -1978,7 +1976,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     let cargo_toml_metadata = invalid_driver_cargo_toml();
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_with_custom_toml(&cargo_toml_metadata)
         .expect_detect_wdk_build_number(25100u32)
@@ -2028,7 +2026,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2071,7 +2069,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2164,7 +2162,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("sample-kmdf-1");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2211,7 +2209,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2284,7 +2282,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = false;
@@ -2327,7 +2325,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     };
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2414,7 +2412,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2449,7 +2447,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     );
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2497,7 +2495,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2526,7 +2524,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
     );
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2580,7 +2578,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2609,7 +2607,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
     );
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2663,7 +2661,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2676,7 +2674,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2726,7 +2724,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
-    let profile = Profile::Dev;
+    let profile = Some(Profile::Dev);
     let host_arch = CpuArchitecture::Amd64;
     let target_arch = None;
     let verify_signature = true;
@@ -2743,7 +2741,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     );
 
     let package_project =
-        TestPackageAction::new(cwd.clone(), profile, host_arch, target_arch, sample_class);
+        TestPackageAction::new(cwd.clone(), host_arch, profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2792,7 +2790,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
 ////////////////////////////////////////////////////////////////////////////////
 struct TestPackageAction {
     cwd: PathBuf,
-    profile: Profile,
+    profile: Option<Profile>,
     target_arch: Option<CpuArchitecture>,
     sample_class: bool,
 
@@ -2930,8 +2928,8 @@ trait TestSetupPackageExpectations {
 impl TestPackageAction {
     fn new(
         cwd: PathBuf,
-        profile: Profile,
         host_arch: CpuArchitecture,
+        profile: Option<Profile>,
         target_arch: Option<CpuArchitecture>,
         sample_class: bool,
     ) -> Self {
@@ -3108,16 +3106,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn expect_self_signed_cert_file_exists(mut self, driver_dir: &Path, does_exist: bool) -> Self {
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
         self.mock_fs_provider
             .expect_exists()
@@ -3135,16 +3130,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = cwd.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         self.mock_fs_provider
@@ -3157,7 +3149,14 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn expect_dir_created(mut self, driver_name: &str, cwd: &Path, created: bool) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = cwd.join("target").join(self.profile.target_folder_name());
+        let mut expected_target_dir = cwd.join("target");
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+        }
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         self.mock_fs_provider
@@ -3203,28 +3202,23 @@ impl TestSetupPackageExpectations for TestPackageAction {
             .to_string();
         let mut expected_cargo_build_args: Vec<String> = vec![
             "build",
-            "-v",
-            "--manifest-path",
-            &manifest_path,
             "-p",
             &driver_name,
-            "--profile",
-            &self.profile.to_string(),
+            "--manifest-path",
+            &manifest_path,
         ]
         .into_iter()
         .map(std::string::ToString::to_string)
         .collect();
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_cargo_build_args.push("--target".to_string());
-                expected_cargo_build_args.push(X86_64_TARGET_TRIPLE_NAME.to_string());
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_cargo_build_args.push("--target".to_string());
-                expected_cargo_build_args.push(AARCH64_TARGET_TRIPLE_NAME.to_string());
-            }
-            None => {}
+        if let Some(profile) = self.profile {
+            expected_cargo_build_args.push("--profile".to_string());
+            expected_cargo_build_args.push(profile.to_string());
         }
+        if let Some(target_arch) = self.target_arch {
+            expected_cargo_build_args.push("--target".to_string());
+            expected_cargo_build_args.push(target_arch.target_triple_name());
+        }
+        expected_cargo_build_args.push("-v".to_string());
         let expected_output = override_output.map_or_else(
             || Output {
                 status: ExitStatus::default(),
@@ -3272,16 +3266,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_src_driver_dll_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}.dll"));
         let expected_src_driver_sys_path =
@@ -3305,16 +3296,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -3349,16 +3337,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -3394,16 +3379,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = workspace_root_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -3438,16 +3420,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -3483,16 +3462,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -3527,16 +3503,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
         // Run stampinf command
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_dest_driver_inf_path =
@@ -3609,16 +3582,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
         // Run inf2cat command
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
 
@@ -3702,16 +3672,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // create cert from store using certmgr
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_self_signed_cert_file_path = expected_target_dir.join("WDRLocalTestCert.cer");
 
         let expected_certmgr_command: &'static str = "certmgr.exe";
@@ -3758,16 +3725,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     fn expect_makecert(mut self, driver_dir: &Path, override_output: Option<Output>) -> Self {
         // create self signed certificate using makecert
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_makecert_command: &'static str = "makecert";
         let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
         let expected_makecert_args: Vec<String> = vec![
@@ -3821,16 +3785,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -3891,16 +3852,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -3960,16 +3918,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -4022,16 +3977,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -4104,16 +4056,13 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_infverif_command: &'static str = "infverif";
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
-        match self.target_arch {
-            Some(CpuArchitecture::Amd64) => {
-                expected_target_dir = expected_target_dir.join(X86_64_TARGET_TRIPLE_NAME);
-            }
-            Some(CpuArchitecture::Arm64) => {
-                expected_target_dir = expected_target_dir.join(AARCH64_TARGET_TRIPLE_NAME);
-            }
-            None => {}
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
         }
-        expected_target_dir = expected_target_dir.join(self.profile.target_folder_name());
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_dest_inf_file_path =

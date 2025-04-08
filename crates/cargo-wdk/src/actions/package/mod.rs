@@ -27,13 +27,12 @@ use tracing::{debug, error as log_error, info, warn};
 use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
 use super::{build::BuildAction, CpuArchitecture, Profile};
-use crate::actions::{AARCH64_TARGET_TRIPLE_NAME, X86_64_TARGET_TRIPLE_NAME};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
-    pub profile: Profile,
+    pub profile: Option<Profile>,
     pub host_arch: CpuArchitecture,
     pub target_arch: Option<CpuArchitecture>,
     pub verify_signature: bool,
@@ -45,7 +44,7 @@ pub struct PackageActionParams<'a> {
 /// This also includes the build step as pre-requisite for packaging
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
-    profile: Profile,
+    profile: Option<Profile>,
     host_arch: CpuArchitecture,
     target_arch: Option<CpuArchitecture>,
     verify_signature: bool,
@@ -327,14 +326,13 @@ impl<'a> PackageAction<'a> {
         BuildAction::new(
             &package_name,
             working_dir,
-            &self.profile,
+            self.profile,
             self.target_arch,
             self.verbosity_level,
             self.command_exec,
             self.fs_provider,
         )?
         .run()?;
-
         if package.metadata.get("wdk").is_none() {
             warn!(
                 "No package.metadata.wdk section found. Skipping driver package workflow for \
@@ -355,29 +353,35 @@ impl<'a> PackageAction<'a> {
             return Ok(());
         }
         debug!("Found wdk metadata in package: {}", package_name);
-
-        let mut target_dir = match self.target_arch {
-            Some(CpuArchitecture::Amd64) => target_dir.join(X86_64_TARGET_TRIPLE_NAME),
-            Some(CpuArchitecture::Arm64) => target_dir.join(AARCH64_TARGET_TRIPLE_NAME),
-            None => target_dir.to_path_buf(),
+        if wdk_metadata.is_err() {
+            warn!(
+                "WDK metadata is not available. Skipping driver package workflow for package: {}",
+                package_name
+            );
+            return Ok(());
+        }
+        debug!("Creating the drive package");
+        let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
+        let driver_model = wdk_metadata.driver_model.clone();
+        let mut target_dir = target_dir.to_path_buf();
+        if let Some(arch) = self.target_arch {
+            target_dir = target_dir.join(arch.target_triple_name());
+        }
+        target_dir = match self.profile {
+            Some(Profile::Release) => target_dir.join("release"),
+            _ => target_dir.join("debug"),
         };
-        target_dir = target_dir.join(self.profile.target_folder_name());
         debug!(
             "Target directory for package: {} is: {}",
             package_name,
             target_dir.display()
         );
-        let target_arch = self.target_arch.unwrap_or(self.host_arch);
+        let target_arch = self.target_arch.unwrap_or(self.host_arch); // Using host arch if target arch is not specified, like cargo build
         debug!(
             "Target architecture for package: {} is: {}",
             package_name, target_arch
         );
-        debug!("Creating package driver for package: {}", package_name);
-        if wdk_metadata.is_err() {
-            return Ok(());
-        }
 
-        let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
@@ -386,7 +390,7 @@ impl<'a> PackageAction<'a> {
                 target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
-                driver_model: wdk_metadata.driver_model.clone(),
+                driver_model,
             },
             self.wdk_build_provider,
             self.command_exec,
@@ -395,7 +399,6 @@ impl<'a> PackageAction<'a> {
         if let Err(e) = package_driver {
             return Err(PackageActionError::PackageTaskInit(package_name, e));
         }
-
         if let Err(e) = package_driver
             .expect("PackageDriver failed to initialize")
             .run()
