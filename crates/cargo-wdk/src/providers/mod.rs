@@ -1,3 +1,6 @@
+//! This is providers module that exports all the provider implementations used
+//! in the application.
+
 pub mod exec;
 pub mod fs;
 pub mod metadata;

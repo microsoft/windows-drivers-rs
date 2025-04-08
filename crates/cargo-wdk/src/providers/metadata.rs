@@ -1,3 +1,6 @@
+//! This module provides a wrapper around the `cargo-metadata` crate methods
+//! that are of interest.
+
 // Warns the get_cargo_metadata_at_path method is not used, however it is used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]

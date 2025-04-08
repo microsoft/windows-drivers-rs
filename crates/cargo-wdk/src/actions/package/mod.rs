@@ -4,7 +4,9 @@
 //! for orchestrating the packaging of a driver project. It includes the build
 //! step as a prerequisite for packaging. It consists the logic to build and
 //! package standalone projects, workspaces, individual members in a workspace
-//! and emulated workspaces.
+//! and emulated workspaces. It handles various tasks such as creation of the
+//! `PackageTask` struct and interacting with `wdk-build`.
+
 #[cfg(test)]
 mod tests;
 
@@ -226,6 +228,8 @@ impl<'a> PackageAction<'a> {
         Ok(())
     }
 
+    // Method to initiate the packaging process for the given working directory
+    // and the cargo metadata
     fn run_from_workspace_root(
         &self,
         working_dir: &PathBuf,
