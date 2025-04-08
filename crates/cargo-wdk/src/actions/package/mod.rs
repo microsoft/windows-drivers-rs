@@ -24,9 +24,12 @@ use std::{
 use anyhow::Result;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as log_error, info, warn};
-use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
+use wdk_build::{
+    metadata::{TryFromCargoMetadataError, Wdk},
+    CpuArchitecture,
+};
 
-use super::{build::BuildAction, CpuArchitecture, Profile};
+use crate::actions::{build::BuildAction, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -365,7 +368,7 @@ impl<'a> PackageAction<'a> {
         let driver_model = wdk_metadata.driver_model.clone();
         let mut target_dir = target_dir.to_path_buf();
         if let Some(arch) = self.target_arch {
-            target_dir = target_dir.join(arch.target_triple_name());
+            target_dir = target_dir.join(arch.to_target_triple());
         }
         target_dir = match self.profile {
             Some(Profile::Release) => target_dir.join("release"),

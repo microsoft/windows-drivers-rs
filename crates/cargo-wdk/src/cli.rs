@@ -4,12 +4,11 @@ use anyhow::{Ok, Result};
 use clap::{Args, Parser, Subcommand};
 use mockall_double::double;
 use tracing::debug;
+use wdk_build::{CpuArchitecture, DriverConfig};
 
 use crate::actions::{
     new::NewAction,
     package::{PackageAction, PackageActionParams},
-    CpuArchitecture,
-    DriverType,
     Profile,
 };
 #[double]
@@ -68,7 +67,7 @@ pub struct NewProjectArgs {
     #[clap(help = "Driver Project Name")]
     pub driver_project_name: ProjectNameArg,
     #[clap(help = "Driver Type", index = 2, ignore_case = true)]
-    pub driver_type: DriverType,
+    pub driver_type: DriverConfig,
     #[clap(long, help = "Path to the project", default_value = ".")]
     pub cwd: PathBuf,
 }

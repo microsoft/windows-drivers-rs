@@ -1,8 +1,8 @@
+use std::{fmt, str::FromStr};
+
 /// This module defines various actions for the cargo-wdk CLI tool.
 /// It includes modules for creating new projects, building projects, and
 /// packaging projects.
-use std::{fmt, str::FromStr};
-
 /// Business logic is divided into the following action modules
 /// * `new` - New action module
 /// * `build` - Build action module
@@ -11,42 +11,6 @@ pub mod build;
 pub mod new;
 pub mod package;
 
-pub const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
-pub const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
-
-/// `DriverType` for the action layer
-#[derive(Debug, Clone)]
-pub enum DriverType {
-    Kmdf,
-    Umdf,
-    Wdm,
-}
-
-impl FromStr for DriverType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "kmdf" => std::result::Result::Ok(Self::Kmdf),
-            "umdf" => std::result::Result::Ok(Self::Umdf),
-            "wdm" => std::result::Result::Ok(Self::Wdm),
-            _ => Err(format!("'{s}' is not a valid driver type")),
-        }
-    }
-}
-
-impl fmt::Display for DriverType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Kmdf => "kmdf",
-            Self::Umdf => "umdf",
-            Self::Wdm => "wdm",
-        };
-        write!(f, "{s}")
-    }
-}
-
-/// `Profile` for the action layer
 #[derive(Debug, Clone, Copy)]
 pub enum Profile {
     Dev,
@@ -72,43 +36,5 @@ impl fmt::Display for Profile {
             Self::Release => "release",
         };
         write!(f, "{s}")
-    }
-}
-
-/// `TargetArch` for the action layer
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CpuArchitecture {
-    Amd64,
-    Arm64,
-}
-
-impl FromStr for CpuArchitecture {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "amd64" => std::result::Result::Ok(Self::Amd64),
-            "arm64" => std::result::Result::Ok(Self::Arm64),
-            _ => Err(format!("'{s}' is not a valid target architecture")),
-        }
-    }
-}
-
-impl fmt::Display for CpuArchitecture {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Amd64 => "amd64",
-            Self::Arm64 => "arm64",
-        };
-        write!(f, "{s}")
-    }
-}
-
-impl CpuArchitecture {
-    pub fn target_triple_name(self) -> String {
-        match self {
-            Self::Amd64 => X86_64_TARGET_TRIPLE_NAME.to_string(),
-            Self::Arm64 => AARCH64_TARGET_TRIPLE_NAME.to_string(),
-        }
     }
 }

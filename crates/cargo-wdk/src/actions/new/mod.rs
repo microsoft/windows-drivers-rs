@@ -14,8 +14,8 @@ use error::NewActionError;
 use include_dir::{include_dir, Dir};
 use mockall_double::double;
 use tracing::{debug, info};
+use wdk_build::DriverConfig;
 
-use crate::actions::DriverType;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 
@@ -26,7 +26,7 @@ static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 /// specified driver type.
 pub struct NewAction<'a> {
     driver_project_name: String,
-    driver_type: DriverType,
+    driver_type: DriverConfig,
     cwd: PathBuf,
     command_exec: &'a CommandExec,
     fs_provider: &'a Fs,
@@ -49,7 +49,7 @@ impl<'a> NewAction<'a> {
     /// * `Self` - A new instance of `NewAction`.
     pub fn new(
         driver_project_name: &'a str,
-        driver_type: DriverType,
+        driver_type: DriverConfig,
         cwd: &'a Path,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,

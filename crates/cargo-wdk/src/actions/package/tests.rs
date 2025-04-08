@@ -14,6 +14,7 @@ use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
+    CpuArchitecture,
     DriverConfig,
 };
 
@@ -31,7 +32,6 @@ use crate::{
             error::{PackageActionError, PackageTaskError},
             PackageActionParams,
         },
-        CpuArchitecture,
         Profile,
     },
     providers::error::CommandError,
@@ -3107,7 +3107,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     fn expect_self_signed_cert_file_exists(mut self, driver_dir: &Path, does_exist: bool) -> Self {
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3131,7 +3131,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = cwd.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3151,7 +3151,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = cwd.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3216,7 +3216,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         }
         if let Some(target_arch) = self.target_arch {
             expected_cargo_build_args.push("--target".to_string());
-            expected_cargo_build_args.push(target_arch.target_triple_name());
+            expected_cargo_build_args.push(target_arch.to_target_triple());
         }
         expected_cargo_build_args.push("-v".to_string());
         let expected_output = override_output.map_or_else(
@@ -3267,7 +3267,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3297,7 +3297,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3338,7 +3338,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3380,7 +3380,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = workspace_root_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3421,7 +3421,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3463,7 +3463,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3504,7 +3504,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3583,7 +3583,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3673,7 +3673,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         // create cert from store using certmgr
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3726,7 +3726,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         // create self signed certificate using makecert
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3786,7 +3786,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3853,7 +3853,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3919,7 +3919,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -3978,7 +3978,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
@@ -4057,7 +4057,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let mut expected_target_dir = driver_dir.join("target");
         if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.target_triple_name());
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
         }
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),

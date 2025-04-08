@@ -11,15 +11,14 @@ use anyhow::Result;
 use mockall_double::double;
 use thiserror::Error;
 use tracing::{debug, info};
-use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
+use wdk_build::{
+    utils::{PathExt, StripExtendedPathPrefixError},
+    CpuArchitecture,
+};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{
-    actions::{CpuArchitecture, Profile},
-    providers::error::CommandError,
-    trace,
-};
+use crate::{actions::Profile, providers::error::CommandError, trace};
 
 #[derive(Error, Debug)]
 pub enum BuildActionError {
@@ -102,7 +101,7 @@ impl<'a> BuildAction<'a> {
         }
         if let Some(target_arch) = self.target_arch {
             args.push("--target".to_string());
-            args.push(target_arch.target_triple_name());
+            args.push(target_arch.to_target_triple());
         }
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
