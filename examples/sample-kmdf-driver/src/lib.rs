@@ -16,7 +16,7 @@ extern crate wdk_panic;
 use alloc::{
     ffi::CString,
     slice,
-    string::{String, ToString},
+    string::{String},
 };
 
 use wdk::println;
