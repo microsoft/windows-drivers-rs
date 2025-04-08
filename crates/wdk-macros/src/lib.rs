@@ -437,8 +437,7 @@ fn get_wdf_function_info_map(
 }
 
 /// Reads the cache of function information, then deserializes it into a
-/// `BTreeMap`. Must obtain a shared file lock prior to calling this function to
-/// prevent concurrent threads from reading to the same file.
+/// `BTreeMap`.
 fn read_wdf_function_info_file_cache(
     cached_function_info_map_path: &PathBuf,
     span: Span,
