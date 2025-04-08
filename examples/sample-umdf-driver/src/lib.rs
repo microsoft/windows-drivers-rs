@@ -42,7 +42,7 @@ pub unsafe extern "system" fn driver_entry(
     let string = CString::new("Hello World!\n").unwrap();
 
     // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
-    // string
+    // string (`CString` guarantees null-termination)
     unsafe {
         OutputDebugStringA(string.as_ptr());
     }

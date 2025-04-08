@@ -118,7 +118,7 @@ static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
         r"
 use crate::WDFFUNC;
 
-/// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
+/// Stubbed version of the symbol that `WdfFunctions` links to so that test targets will compile
 #[no_mangle]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
 ",
