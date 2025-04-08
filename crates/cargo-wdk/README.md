@@ -90,10 +90,10 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
 
 ## Driver Package Signature Verification
 
-Verification using the `signtool verify` command requires the certificate to be installed in the development system's `Trusted Root Certification Authorities` to succeed. Therefore, the verification tasks are not enabled by default. However, verification can be enabled as follows: 
+Verification using the `signtool verify` command requires the certificate to be installed in the development system's `Trusted Root Certification Authorities`. Therefore, the verification tasks are not enabled by default. However, they can be enabled as follows: 
 
 ```pwsh
 cargo wdk build --verify-signature=true
 ```
 
-**NOTE**: The above command creates a **test certificate** in the `Trusted Root Certification Authorities` and uses the same certificate for the verification. The `build` command does not allow passing own certificates at the moment.
+**NOTE**: The above command creates a **test certificate** in the `Trusted Root Certification Authorities` and uses the same certificate for the verification. The `build` command does not allow passing your own certificates at the moment.
