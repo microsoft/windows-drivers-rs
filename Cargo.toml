@@ -65,10 +65,10 @@ windows = "0.58.0"
 # The following workspace.metadata.wdk sections can be uncommented to configure the workspace for a specific WDK configuration (ex. for rust-analyzer to resolve things for a specific configuration)
 
 # Uncomment the section below for KMDF
-[workspace.metadata.wdk.driver-model]
-driver-type = "KMDF"
-kmdf-version-major = 1
-target-kmdf-version-minor = 33
+# [workspace.metadata.wdk.driver-model]
+# driver-type = "KMDF"
+# kmdf-version-major = 1
+# target-kmdf-version-minor = 33
 
 # Uncomment the section below for UMDF
 # [workspace.metadata.wdk.driver-model]
