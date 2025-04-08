@@ -108,7 +108,7 @@ pub fn _print(args: fmt::Arguments) {
                     let nul_position = nul_error.nul_position();
                     let string_vec = nul_error.into_vec();
                     let c_string = CString::new(&string_vec[..nul_position]).expect("string_vec[..nul_position] should have no internal null bytes");
-                    let remaining_string = str::from_utf8(&string_vec[nul_position+1 ..]).expect("string_vec should always be valid UTF-8 because `format!` returns a String");
+                    let remaining_string = String::from_utf8(string_vec[nul_position+1 ..].to_vec()).expect("string_vec should always be valid UTF-8 because `format!` returns a String");
 
                     // SAFETY: `CString` guarantees a valid null-terminated string
                     unsafe {
