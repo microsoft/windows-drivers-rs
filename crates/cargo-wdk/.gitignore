@@ -1,0 +1,2 @@
+# ignore lock files created during test runs
+*-test.lock

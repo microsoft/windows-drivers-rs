@@ -1,0 +1,1 @@
+allowed-duplicate-crates = ["regex-automata", "regex-syntax"]
