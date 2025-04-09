@@ -37,7 +37,7 @@ jobs:
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
-          if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
+          if ((Get-WinGetPackage -Id LLVM.LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
             Write-Host "LLVM ${{ matrix.llvm }} is already installed."
           } else {
             Write-Host "Installing LLVM ${{ matrix.llvm }}..."
