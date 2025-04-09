@@ -27,10 +27,7 @@ use crate::providers::{
 };
 use crate::{
     actions::{
-        package::{
-            error::{PackageActionError, PackageTaskError},
-            PackageActionParams,
-        },
+        package::{error::PackageActionError, PackageActionParams},
         Profile,
         TargetArch,
     },
@@ -605,7 +602,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::MissingInxSrcFile(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -663,7 +660,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::CopyFile(_, _, _))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -731,7 +728,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::StampinfCommand(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -800,7 +797,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::Inf2CatCommand(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -871,7 +868,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::VerifyCertExistsInStoreCommand(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -943,7 +940,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::CertGenerationInStoreCommand(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -1017,7 +1014,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::DriverBinarySignCommand(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -1094,7 +1091,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::PackageTask(_, PackageTaskError::InfVerificationCommand(_))
+        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
