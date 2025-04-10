@@ -956,14 +956,14 @@ mod tests {
         FileExt::lock_exclusive(&test_flock).unwrap();
 
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
-        
+
         pretty_assert_eq!(
             cached_function_info_map_path.exists(),
             false,
             "could not remove file {}",
             cached_function_info_map_path.display()
         );
-        
+
         f();
 
         if cached_function_info_map_path.exists() {
