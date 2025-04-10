@@ -36,6 +36,8 @@ pub enum PackageActionError {
          {0}"
     )]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
+    #[error("One or more workspace members failed to package in the working directory: {0}")]
+    OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
 }
 
 /// Errors for the low level package task layer

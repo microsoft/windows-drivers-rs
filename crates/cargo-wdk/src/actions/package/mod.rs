@@ -25,7 +25,7 @@ use std::{
 
 use anyhow::Result;
 use package_task::{PackageTask, PackageTaskParams};
-use tracing::{debug, error as log_error, info, warn};
+use tracing::{debug, error as err, info, warn};
 use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
     CpuArchitecture,
@@ -197,7 +197,7 @@ impl<'a> PackageAction<'a> {
                     Ok(cargo_metadata) => {
                         if let Err(e) = self.run_from_workspace_root(&dir.path(), &cargo_metadata) {
                             failed_atleast_one_project = true;
-                            log_error!(
+                            err!(
                                 "Error packaging the child project: {}, error: {}",
                                 dir.path()
                                     .file_name()
@@ -209,7 +209,7 @@ impl<'a> PackageAction<'a> {
                     }
                     Err(e) => {
                         failed_atleast_one_project = true;
-                        log_error!("Error reading cargo metadata: {}", e);
+                        err!("Error reading cargo metadata: {}", e);
                     }
                 }
             } else {
@@ -243,6 +243,8 @@ impl<'a> PackageAction<'a> {
             .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
         if workspace_root.eq(working_dir) {
             debug!("Running from workspace root");
+            let target_directory: PathBuf = target_directory.into();
+            let mut failed_atleast_one_workspace_member = false;
             for package in workspace_packages {
                 let package_root_path: PathBuf = package
                     .manifest_path
@@ -257,16 +259,29 @@ impl<'a> PackageAction<'a> {
                     "Processing workspace driver package: {}",
                     package_root_path.display()
                 );
-                self.build_and_package(
+                if let Err(e) = self.build_and_package(
                     &package_root_path,
                     &wdk_metadata,
                     package,
                     package.name.clone(),
                     &target_directory,
-                )?;
+                ) {
+                    failed_atleast_one_workspace_member = true;
+                    err!(
+                        "Error packaging the workspace member project: {}, error: {}",
+                        package_root_path.display(),
+                        e
+                    );
+                }
             }
             if let Err(e) = wdk_metadata {
                 return Err(PackageActionError::WdkMetadataParse(e));
+            }
+
+            if failed_atleast_one_workspace_member {
+                return Err(PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(
+                    working_dir.clone(),
+                ));
             }
             return Ok(());
         }
