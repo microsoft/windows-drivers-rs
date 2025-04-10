@@ -947,19 +947,6 @@ mod tests {
         LazyLock::new(|| scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test")));
     const CACHE_FILE_NAME: &str = "cached_function_info_map.json";
 
-    fn clean_cache_test_env(file_path: &PathBuf) {
-        if file_path.exists() {
-            std::fs::remove_file(file_path).unwrap();
-        }
-
-        pretty_assert_eq!(
-            file_path.exists(),
-            false,
-            "could not remove file {}",
-            file_path.display()
-        );
-    }
-
     fn with_file_lock_clean_env<F>(f: F)
     where
         F: FnOnce(),
@@ -969,10 +956,19 @@ mod tests {
         FileExt::lock_exclusive(&test_flock).unwrap();
 
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
-
-        clean_cache_test_env(&cached_function_info_map_path);
+        
+        pretty_assert_eq!(
+            cached_function_info_map_path.exists(),
+            false,
+            "could not remove file {}",
+            cached_function_info_map_path.display()
+        );
+        
         f();
-        clean_cache_test_env(&cached_function_info_map_path);
+
+        if cached_function_info_map_path.exists() {
+            std::fs::remove_file(cached_function_info_map_path).unwrap();
+        }
 
         FileExt::unlock(&test_flock).unwrap();
     }
