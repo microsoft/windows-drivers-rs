@@ -60,7 +60,7 @@ pub struct PackageTask<'a> {
     dest_cert_file_path: PathBuf,
     dest_cat_file_path: PathBuf,
 
-    arch: &'a str,
+    arch: CpuArchitecture,
     os_mapping: &'a str,
     driver_model: DriverConfig,
 
@@ -132,11 +132,6 @@ impl<'a> PackageTask<'a> {
         if !fs_provider.exists(&dest_root_package_folder) {
             fs_provider.create_dir(&dest_root_package_folder)?;
         }
-
-        let arch = match params.target_arch {
-            CpuArchitecture::Amd64 => "amd64",
-            CpuArchitecture::Arm64 => "arm64",
-        };
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
             CpuArchitecture::Arm64 => "Server10_arm64",
@@ -159,7 +154,7 @@ impl<'a> PackageTask<'a> {
             dest_map_file_path,
             dest_cert_file_path,
             dest_cat_file_path,
-            arch,
+            arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
             wdk_build_provider,
@@ -217,7 +212,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_stampinf(&self) -> Result<(), PackageTaskError> {
-        info!("Running stampinf command");
+        info!("Running stampinf.");
         let wdf_version_flags = match self.driver_model {
             DriverConfig::Kmdf(kmdf_config) => {
                 vec![
@@ -237,38 +232,34 @@ impl<'a> PackageTask<'a> {
             ],
             DriverConfig::Wdm => vec![],
         };
-
         // TODO: Does it generate cat file relative to inf file path or we need to
         // provide the absolute path?
         let cat_file_path = format!("{}.cat", self.package_name);
         let dest_inf_file_path = self.dest_inf_file_path.to_string_lossy();
-
+        let arch = self.arch.to_string();
         let mut args: Vec<&str> = vec![
             "-f",
             &dest_inf_file_path,
             "-d",
             "*",
             "-a",
-            &self.arch,
+            &arch,
             "-c",
             &cat_file_path,
             "-v",
             "*",
         ];
-
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
-
         if let Err(e) = self.command_exec.run("stampinf", &args, None) {
             return Err(PackageTaskError::StampinfCommand(e));
         }
-
         Ok(())
     }
 
     fn run_inf2cat(&self) -> Result<(), PackageTaskError> {
-        info!("Running inf2cat command");
+        info!("Running inf2cat.");
         let args = [
             &format!(
                 "/driver:{}",
@@ -288,22 +279,21 @@ impl<'a> PackageTask<'a> {
     }
 
     fn generate_certificate(&self) -> Result<(), PackageTaskError> {
+        debug!("Generating certificate.");
         if self.fs_provider.exists(&self.src_cert_file_path) {
             return Ok(());
         }
-
         if self.is_self_signed_certificate_in_store()? {
             self.create_cert_file_from_store()?;
         } else {
             self.create_self_signed_cert_in_store()?;
         }
-
         Ok(())
     }
 
     fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
+        debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
         let args = ["-s", WDR_TEST_CERT_STORE];
-
         match self.command_exec.run("certmgr.exe", &args, None) {
             Ok(output) => {
                 if output.status.success() {
@@ -327,7 +317,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn create_self_signed_cert_in_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating self signed certificate in WDRTestCertStore store using makecert");
+        info!("Creating self signed certificate in WDRTestCertStore store using makecert.");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-r",
@@ -342,18 +332,15 @@ impl<'a> PackageTask<'a> {
             &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
             &cert_path,
         ];
-
         if let Err(e) = self.command_exec.run("makecert", &args, None) {
             return Err(PackageTaskError::CertGenerationInStoreCommand(e));
         }
-
         Ok(())
     }
 
     fn create_cert_file_from_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating certificate file from WDRTestCertStore store using certmgr");
+        info!("Creating certificate file from WDRTestCertStore store using certmgr.");
         let cert_path = self.src_cert_file_path.to_string_lossy();
-
         let args = [
             "-put",
             "-s",
@@ -363,11 +350,9 @@ impl<'a> PackageTask<'a> {
             WDR_LOCAL_TEST_CERT,
             &cert_path,
         ];
-
         if let Err(e) = self.command_exec.run("certmgr.exe", &args, None) {
             return Err(PackageTaskError::CreateCertFileFromStoreCommand(e));
         }
-
         Ok(())
     }
 
@@ -387,7 +372,7 @@ impl<'a> PackageTask<'a> {
         cert_name: &str,
     ) -> Result<(), PackageTaskError> {
         info!(
-            "Signing {} using signtool",
+            "Signing {} using signtool.",
             file_path
                 .file_name()
                 .expect("Unable to read file name from the path")
@@ -407,17 +392,15 @@ impl<'a> PackageTask<'a> {
             "SHA256",
             &driver_binary_file_path,
         ];
-
         if let Err(e) = self.command_exec.run("signtool", &args, None) {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
-
         std::result::Result::Ok(())
     }
 
     fn run_signtool_verify(&self, file_path: &Path) -> std::result::Result<(), PackageTaskError> {
         info!(
-            "Verifying {} using signtool",
+            "Verifying {} using signtool.",
             file_path
                 .file_name()
                 .expect("Unable to read file name from the path")
@@ -425,34 +408,16 @@ impl<'a> PackageTask<'a> {
         );
         let driver_binary_file_path = file_path.to_string_lossy();
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
-
         // TODO: Differentiate between command exec failure and signature verification
         // failure
         if let Err(e) = self.command_exec.run("signtool", &args, None) {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
-
         std::result::Result::Ok(())
     }
 
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
-        info!("Running InfVerif command");
-        let additional_args = if self.sample_class {
-            let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
-            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
-                debug!(
-                    "Skipping InfVerif. InfVerif in WDK Build {} is bugged and does not contain \
-                     the /samples flag.",
-                    wdk_build_number
-                );
-                return Ok(());
-            }
-            // FIXME: Update the range end and the logic after /sample flag is added to
-            // InfVerif CLI
-            "/msft"
-        } else {
-            ""
-        };
+        info!("Running InfVerif.");
         let mut args = vec![
             "/v",
             match self.driver_model {
@@ -462,7 +427,20 @@ impl<'a> PackageTask<'a> {
                 DriverConfig::Umdf(_) => "/u",
             },
         ];
-
+        let additional_args = if self.sample_class {
+            let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
+            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
+                debug!(
+                    "Skipping InfVerif for samples class. InfVerif in WDK Build \
+                     {wdk_build_number} is bugged and does not contain the /samples flag."
+                );
+                info!("Skipping InfVerif for samples class. WDK Build: {wdk_build_number}");
+                return Ok(());
+            }
+            "/msft"
+        } else {
+            ""
+        };
         let inf_path = self.dest_inf_file_path.to_string_lossy();
 
         if self.sample_class {
@@ -510,11 +488,11 @@ impl<'a> PackageTask<'a> {
     /// * `PackageTaskError::IoError` - If there is an IO error.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
-        // TODO: rename is not necessary, but should confirm
         info!(
             "Copying files to target package folder: {}",
             self.dest_root_package_folder.to_string_lossy()
         );
+        // TODO: rename is not necessary, but should confirm
         self.rename_driver_binary_extension()?;
         self.copy(
             &self.src_renamed_driver_binary_file_path,

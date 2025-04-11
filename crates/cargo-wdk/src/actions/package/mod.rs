@@ -38,7 +38,6 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<Profile>,
-    pub host_arch: CpuArchitecture,
     pub target_arch: Option<CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
@@ -50,7 +49,6 @@ pub struct PackageActionParams<'a> {
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Option<Profile>,
-    host_arch: CpuArchitecture,
     target_arch: Option<CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
@@ -93,7 +91,6 @@ impl<'a> PackageAction<'a> {
         Ok(Self {
             working_dir,
             profile: params.profile,
-            host_arch: params.host_arch,
             target_arch: params.target_arch,
             verify_signature: params.verify_signature,
             is_sample_class: params.is_sample_class,
@@ -243,7 +240,6 @@ impl<'a> PackageAction<'a> {
             .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
         if workspace_root.eq(working_dir) {
             debug!("Running from workspace root");
-            let target_directory: PathBuf = target_directory.into();
             let mut failed_atleast_one_workspace_member = false;
             for package in workspace_packages {
                 let package_root_path: PathBuf = package
@@ -385,6 +381,17 @@ impl<'a> PackageAction<'a> {
         debug!("Creating the drive package");
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
         let driver_model = wdk_metadata.driver_model.clone();
+        let target_arch = self.target_arch.map_or_else(
+            || {
+                detect_arch_from_rustup_toolchain()
+                    .expect("Unable to detect the target architecture from rustup toolchain")
+            },
+            |arch| arch,
+        );
+        debug!(
+            "Target architecture for package: {} is: {}",
+            package_name, target_arch
+        );
         let mut target_dir = target_dir.to_path_buf();
         if let Some(arch) = self.target_arch {
             target_dir = target_dir.join(arch.to_target_triple());
@@ -397,11 +404,6 @@ impl<'a> PackageAction<'a> {
             "Target directory for package: {} is: {}",
             package_name,
             target_dir.display()
-        );
-        let target_arch = self.target_arch.unwrap_or(self.host_arch); // Using host arch if target arch is not specified, like cargo build
-        debug!(
-            "Target architecture for package: {} is: {}",
-            package_name, target_arch
         );
 
         let package_driver = PackageTask::new(
@@ -429,5 +431,21 @@ impl<'a> PackageAction<'a> {
         }
         info!("Processing completed for package: {}", package_name);
         Ok(())
+    }
+}
+
+/// # Panics
+/// Panics when `RUSTUP_TOOLCHAIN` environment variable is not set
+fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture> {
+    let rustup_toolchain = std::env::var("RUSTUP_TOOLCHAIN")
+        .expect("RUSTUP_TOOLCHAIN not set: cargo must set this variable when cargo-wdk is invoked");
+    let arch = rustup_toolchain
+        .split('-')
+        .nth(1)
+        .expect("Unable to find arch in RUSTUP_TOOLCHAIN");
+    match arch {
+        "x86_64" => Ok(CpuArchitecture::Amd64),
+        "aarch64" => Ok(CpuArchitecture::Arm64),
+        _ => Err(PackageActionError::UnsupportedHostArch(arch.to_string()).into()),
     }
 }

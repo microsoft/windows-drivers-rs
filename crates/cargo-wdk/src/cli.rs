@@ -3,7 +3,6 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::{Ok, Result};
 use clap::{Args, Parser, Subcommand};
 use mockall_double::double;
-use tracing::debug;
 use wdk_build::{CpuArchitecture, DriverConfig};
 
 use crate::actions::{
@@ -136,12 +135,10 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
-                let host_arch = detect_host_architecture()?;
                 let package_action = PackageAction::new(
                     &PackageActionParams {
                         working_dir: &cli_args.cwd,
                         profile: cli_args.profile,
-                        host_arch,
                         target_arch: cli_args.target_arch,
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample_class,
@@ -157,27 +154,4 @@ impl Cli {
             }
         }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Unsupported host architecture: {0}")]
-pub struct UnsupportedHostArchError(pub String);
-
-fn detect_host_architecture() -> Result<CpuArchitecture> {
-    debug!("Detecting host architecture from ARCH environment variable");
-    let host_arch_str = std::env::consts::ARCH;
-    let host_arch = match host_arch_str {
-        "x86_64" => {
-            debug!("Host architecture is x86_64");
-            CpuArchitecture::Amd64
-        }
-        "aarch64" => {
-            debug!("Host architecture is aarch64");
-            CpuArchitecture::Arm64
-        }
-        _ => {
-            return Err(UnsupportedHostArchError(host_arch_str.to_string()).into());
-        }
-    };
-    Ok(host_arch)
 }

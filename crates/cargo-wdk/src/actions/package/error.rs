@@ -38,6 +38,11 @@ pub enum PackageActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to package in the working directory: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+    #[error(
+        "CPU Architecture of the host is not supported: {0} \n Try running the command with \
+         --target-arch option"
+    )]
+    UnsupportedHostArch(String),
 }
 
 /// Errors for the low level package task layer
