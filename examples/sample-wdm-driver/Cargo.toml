@@ -36,6 +36,7 @@ parallel-ports = ["wdk-sys/parallel-ports"]
 spb = ["wdk-sys/spb"]
 storage = ["wdk-sys/storage"]
 usb = ["wdk-sys/usb"]
+filesystem = ["wdk-sys/filesystem"]
 
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
