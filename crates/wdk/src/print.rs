@@ -93,7 +93,7 @@ pub fn _print(args: fmt::Arguments) {
             if let Ok(_) = fmt::write(&mut buffered_writer, args) {
                 buffered_writer.flush();
             } else {
-                unreachable!("DbgPrintBufWriter should never fail write");
+                unreachable!("DbgPrintBufWriter should never fail to write");
             }
 
         } else if #[cfg(driver_model__driver_type = "UMDF")] {
@@ -153,16 +153,16 @@ mod dbg_print_buf_writer {
     }
 
     impl fmt::Write for DbgPrintBufWriter {
+        // Traverses the string and writes all non-null bytes to the buffer.
+        // If the buffer is full, flushes the buffer and continues writing.
+        // Finishes with a non-flushed buffer containing the last
+        // non-null bytes of the string.
         fn write_str(&mut self, s: &str) -> fmt::Result {
             let mut str_byte_slice = s.as_bytes();
             let mut remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
             let mut remaining_buffer_len = remaining_buffer.len();
 
-            if let Some(first_non_null_byte_pos) = str_byte_slice.iter().position(|&b| b != b'\0') {
-                str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
-            } else {
-                return Ok(());
-            }
+            str_byte_slice = advance_slice_to_next_non_null_byte(str_byte_slice);
 
             while !str_byte_slice.is_empty() {
                 // Get size of next chunk of string to write and copy to buffer.
@@ -175,15 +175,9 @@ mod dbg_print_buf_writer {
                 remaining_buffer[..chunk_size].copy_from_slice(&str_byte_slice[..chunk_size]);
                 str_byte_slice = &str_byte_slice[chunk_size..];
 
-                if let Some(first_non_null_byte_pos) =
-                    str_byte_slice.iter().position(|&b| b != b'\0')
-                {
-                    str_byte_slice = &str_byte_slice[first_non_null_byte_pos..];
-                } else {
-                    str_byte_slice = &str_byte_slice[str_byte_slice.len()..];
-                }
+                str_byte_slice = advance_slice_to_next_non_null_byte(str_byte_slice);
 
-                // Flush buffer if full , otherwise update amount used
+                // Flush buffer if full, otherwise update amount used
                 if chunk_size == remaining_buffer_len && !str_byte_slice.is_empty() {
                     self.flush();
                 } else {
@@ -208,7 +202,14 @@ mod dbg_print_buf_writer {
             Self::default()
         }
 
+        // Null-terminates the buffer and calls `DbgPrint` with the buffer contents.
+        // Resets `self.used` to 0 after flushing.
         pub fn flush(&mut self) {
+            // Escape if the buffer is empty
+            if self.used == 0 {
+                return;
+            }
+
             // Null-terminate the string
             self.buffer[self.used] = 0;
 
@@ -229,6 +230,16 @@ mod dbg_print_buf_writer {
             }
 
             self.used = 0;
+        }
+    }
+
+    // Helper function to advance the start of a `u8` slice to the next non-null
+    // byte. Returns an empty slice if all bytes are null.
+    fn advance_slice_to_next_non_null_byte(slice: &[u8]) -> &[u8] {
+        if let Some(pos) = slice.iter().position(|&b| b != b'\0') {
+            &slice[pos..]
+        } else {
+            &slice[slice.len()..]
         }
     }
 
