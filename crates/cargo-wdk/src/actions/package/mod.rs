@@ -370,7 +370,6 @@ impl<'a> PackageAction<'a> {
             );
             return Ok(());
         }
-        debug!("Found wdk metadata in package: {}", package_name);
         if wdk_metadata.is_err() {
             warn!(
                 "WDK metadata is not available. Skipping driver package workflow for package: {}",
@@ -378,6 +377,7 @@ impl<'a> PackageAction<'a> {
             );
             return Ok(());
         }
+        debug!("Found wdk metadata in package: {}", package_name);
         debug!("Creating the drive package");
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
         let driver_model = wdk_metadata.driver_model.clone();
