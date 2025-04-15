@@ -1,6 +1,7 @@
-/// This module defines various actions for the cargo-wdk CLI tool.
-/// It includes modules for creating new projects, building projects, and
-/// packaging projects.
+//! This module provides the core functionality for the cargo-wdk CLI tool.
+//! It includes submodules for handling actions such as creating new driver
+//! projects, building them, and packaging them.
+//! This module also defines common types to be shared across the action layer.
 use std::fmt;
 
 /// Business logic is divided into the following action modules

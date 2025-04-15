@@ -1,5 +1,11 @@
-//! This module provides methods to initialize log level and to
-//! get cargo verbose flags based on the clap's verbosity level.
+//! This module provides utilities for configuring logging and determining
+//! cargo verbosity flags based on the verbosity level specified via clap.
+//!
+//! It includes:
+//! - A function to initialize the tracing subscriber with appropriate log
+//!   levels.
+//! - A function to map clap verbosity levels to corresponding cargo verbose
+//!   flags.
 
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;

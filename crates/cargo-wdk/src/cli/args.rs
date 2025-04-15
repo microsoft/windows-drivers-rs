@@ -1,4 +1,5 @@
-//! Module defines argument types used by the CLI layer
+//! This module defines the argument types and structures used by the CLI layer
+//! for parsing and validating command-line arguments for various subcommands.
 
 use std::{path::PathBuf, str::FromStr};
 
