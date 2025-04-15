@@ -381,13 +381,14 @@ impl<'a> PackageAction<'a> {
         debug!("Creating the drive package");
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
         let driver_model = wdk_metadata.driver_model.clone();
-        let target_arch = self.target_arch.map_or_else(
-            || {
-                detect_arch_from_rustup_toolchain()
-                    .expect("Unable to detect the target architecture from rustup toolchain")
-            },
-            |arch| arch,
-        );
+        let target_arch = self.target_arch.unwrap_or({
+            match detect_arch_from_rustup_toolchain() {
+                Ok(arch) => arch,
+                Err(e) => {
+                    return Err(PackageActionError::TargetArchNotSet(e.to_string()));
+                }
+            }
+        });
         debug!(
             "Target architecture for package: {} is: {}",
             package_name, target_arch
@@ -434,18 +435,24 @@ impl<'a> PackageAction<'a> {
     }
 }
 
-/// # Panics
-/// Panics when `RUSTUP_TOOLCHAIN` environment variable is not set
+/// # Errors
+/// Returns
+/// * `CpuArchitecture`
+/// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
+///   variable is not available
 fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture> {
-    let rustup_toolchain = std::env::var("RUSTUP_TOOLCHAIN")
-        .expect("RUSTUP_TOOLCHAIN not set: cargo must set this variable when cargo-wdk is invoked");
-    let arch = rustup_toolchain
-        .split('-')
-        .nth(1)
-        .expect("Unable to find arch in RUSTUP_TOOLCHAIN");
-    match arch {
-        "x86_64" => Ok(CpuArchitecture::Amd64),
-        "aarch64" => Ok(CpuArchitecture::Arm64),
-        _ => Err(PackageActionError::UnsupportedHostArch(arch.to_string()).into()),
-    }
+    std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
+        |e| Err(PackageActionError::RustupToolChainNotFound(e.to_string()).into()),
+        |rustup_toolchain| {
+            if let Some(arch) = rustup_toolchain.split('-').nth(1) {
+                match arch {
+                    "x86_64" => Ok(CpuArchitecture::Amd64),
+                    "aarch64" => Ok(CpuArchitecture::Arm64),
+                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain).into()),
+                }
+            } else {
+                Err(PackageActionError::ArchInRustupToolChainNotFound(rustup_toolchain).into())
+            }
+        },
+    )
 }
