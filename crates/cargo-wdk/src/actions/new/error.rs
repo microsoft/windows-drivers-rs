@@ -1,3 +1,4 @@
+//! This module defines error types for new action module.
 use thiserror::Error;
 
 use crate::providers::error::{CommandError, FileError};

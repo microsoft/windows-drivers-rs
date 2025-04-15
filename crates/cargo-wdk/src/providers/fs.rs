@@ -1,10 +1,13 @@
-// This module provides a wrapper around the `std::fs` methods that are of
-// interest.
+// This module provides a wrapper around a subset of `std::fs` methods,
+// offering a simplified and testable interface for common file system
+// operations such as reading, writing, copying, and checking file existence.
+// It also integrates with `mockall` to enable mocking for unit tests.
 
 // Warns the methods are not used, however they are used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]
 #![allow(clippy::unused_self)]
+
 use std::{
     fs::{copy, create_dir, rename, File, OpenOptions},
     io::{Read, Write},

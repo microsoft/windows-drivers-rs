@@ -1,5 +1,7 @@
-//! This module provides a wrapper around the `cargo-metadata` crate methods
-//! that are of interest.
+//! This module provides a wrapper around the `cargo-metadata` crate, offering
+//! methods to retrieve metadata about Cargo projects. The module leverages the
+//! `mockall` crate to enable mocking of its methods, facilitating easier unit
+//! testing.
 
 // Warns the get_cargo_metadata_at_path method is not used, however it is used.
 // The intellisense confusion seems to come from automock
