@@ -280,10 +280,10 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
 }
 
 #[test]
-pub fn given_a_driver_project_when_dev_is_then_it_builds_successfully() {
+pub fn given_a_driver_project_when_profile_is_dev_is_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
+    let profile = Some(Profile::Dev);
     let target_arch = None;
     let verify_signature = false;
     let sample_class = false;
