@@ -1,5 +1,6 @@
-//! This module defines the top-level CLI layer, its argument types and structures used
-//! for parsing and validating arguments for various subcommands.
+//! This module defines the top-level CLI layer, its argument types and
+//! structures used for parsing and validating arguments for various
+//! subcommands.
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{Ok, Result};
