@@ -52,7 +52,7 @@ jobs:
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
-          if ((Get-WinGetPackage -Id LLVM.LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
+          if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
             Write-Host "LLVM ${{ matrix.llvm }} is already installed."
           } else {
             Write-Host "Installing LLVM ${{ matrix.llvm }}..."
@@ -97,7 +97,11 @@ jobs:
 
       # Run cargo-wdk on examples
       - name: Install cargo-wdk
-        run: cargo install --path=crates/cargo-wdk --locked --force
+        run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --locked --force
 
-      - name: Build & Package Examples (via cargo-wdk utility)
+      - name: Build & Package Examples (via cargo-wdk)
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }} --sample-class
+
+      - name: Build Tests (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }}
+        continue-on-error: true # This is set to true as the some of the tests are expected to fail.
