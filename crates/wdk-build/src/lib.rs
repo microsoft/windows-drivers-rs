@@ -187,8 +187,8 @@ pub enum ConfigError {
     #[error(transparent)]
     CargoMetadataError(#[from] cargo_metadata::Error),
 
-    /// Error returned when no wdk-build crate is detected
-    #[error("no wdk-build crate was detected in this workspace")]
+    /// Error returned when no wdk-build package is detected
+    #[error("no wdk-build package is detected")]
     NoWdkBuildCrateDetected,
 
     /// Error returned when multiple versions of the wdk-build package are
