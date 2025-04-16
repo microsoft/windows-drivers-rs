@@ -212,7 +212,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_stampinf(&self) -> Result<(), PackageTaskError> {
-        info!("Running stampinf.");
+        info!("Running stampinf command.");
         let wdf_version_flags = match self.driver_model {
             DriverConfig::Kmdf(kmdf_config) => {
                 vec![
@@ -259,7 +259,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_inf2cat(&self) -> Result<(), PackageTaskError> {
-        info!("Running inf2cat.");
+        info!("Running inf2cat command.");
         let args = [
             &format!(
                 "/driver:{}",
@@ -417,7 +417,21 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
-        info!("Running InfVerif.");
+        info!("Running infverif command.");
+        let additional_args = if self.sample_class {
+            let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
+            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
+                debug!(
+                    "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
+                     /samples flag."
+                );
+                info!("Skipping InfVerif for samples class. WDK Build: {wdk_build_number}");
+                return Ok(());
+            }
+            "/msft"
+        } else {
+            ""
+        };
         let mut args = vec![
             "/v",
             match self.driver_model {
@@ -427,20 +441,6 @@ impl<'a> PackageTask<'a> {
                 DriverConfig::Umdf(_) => "/u",
             },
         ];
-        let additional_args = if self.sample_class {
-            let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
-            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
-                debug!(
-                    "Skipping InfVerif for samples class. InfVerif in WDK Build \
-                     {wdk_build_number} is bugged and does not contain the /samples flag."
-                );
-                info!("Skipping InfVerif for samples class. WDK Build: {wdk_build_number}");
-                return Ok(());
-            }
-            "/msft"
-        } else {
-            ""
-        };
         let inf_path = self.dest_inf_file_path.to_string_lossy();
 
         if self.sample_class {
@@ -492,7 +492,6 @@ impl<'a> PackageTask<'a> {
             "Copying files to target package folder: {}",
             self.dest_root_package_folder.to_string_lossy()
         );
-        // TODO: rename is not necessary, but should confirm
         self.rename_driver_binary_extension()?;
         self.copy(
             &self.src_renamed_driver_binary_file_path,

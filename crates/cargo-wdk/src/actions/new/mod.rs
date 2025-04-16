@@ -18,6 +18,7 @@ use wdk_build::DriverConfig;
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
+use crate::trace;
 
 /// Directory containing the templates to be bundled with the utility
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -28,6 +29,7 @@ pub struct NewAction<'a> {
     driver_project_name: String,
     driver_type: DriverConfig,
     cwd: PathBuf,
+    verbosity_level: clap_verbosity_flag::Verbosity,
     command_exec: &'a CommandExec,
     fs_provider: &'a Fs,
 }
@@ -51,6 +53,7 @@ impl<'a> NewAction<'a> {
         driver_project_name: &'a str,
         driver_type: DriverConfig,
         cwd: &'a Path,
+        verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
     ) -> Self {
@@ -60,6 +63,7 @@ impl<'a> NewAction<'a> {
             driver_project_name,
             driver_type,
             cwd,
+            verbosity_level,
             command_exec,
             fs_provider,
         }
@@ -112,7 +116,11 @@ impl<'a> NewAction<'a> {
             "Running cargo new for project: {}",
             self.driver_project_name
         );
-        let args = ["new", "--lib", &self.cwd.to_string_lossy(), "--vcs", "none"];
+        let new_project_path = self.cwd.to_string_lossy().to_string();
+        let mut args = vec!["new", "--lib", &new_project_path, "--vcs", "none"];
+        if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
+            args.push(&flag);
+        }
         if let Err(e) = self.command_exec.run("cargo", &args, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }

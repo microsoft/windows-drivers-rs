@@ -33,8 +33,8 @@ pub enum BuildActionError {
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
-    profile: Option<Profile>,
-    target_arch: Option<CpuArchitecture>,
+    profile: &'a Option<Profile>,
+    target_arch: &'a Option<CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -45,8 +45,11 @@ impl<'a> BuildAction<'a> {
     /// # Arguments
     /// * `package_name` - The name of the package to build
     /// * `working_dir` - The working directory for the build
+    /// * `profile` - An optional profile for the build
+    /// * `target_arch` - An optional target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
+    /// * `fs_provider` - The file system provider
     /// # Returns
     /// * `Result<Self>` - A result containing the new instance of `BuildAction`
     ///   or an error
@@ -56,8 +59,8 @@ impl<'a> BuildAction<'a> {
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
-        profile: Option<Profile>,
-        target_arch: Option<CpuArchitecture>,
+        profile: &'a Option<Profile>,
+        target_arch: &'a Option<CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
@@ -94,6 +97,8 @@ impl<'a> BuildAction<'a> {
         if let Some(path) = self.manifest_path.to_str() {
             args.push("--manifest-path".to_string());
             args.push(path.to_string());
+        } else {
+            return Err(BuildActionError::EmptyManifestPath);
         }
         if let Some(profile) = self.profile {
             args.push("--profile".to_string());

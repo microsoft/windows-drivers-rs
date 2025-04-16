@@ -131,6 +131,7 @@ impl Cli {
                     &cli_args.driver_project_name.0,
                     cli_args.driver_type,
                     &cli_args.cwd,
+                    self.verbose,
                     &command_exec,
                     &fs_provider,
                 );
@@ -141,8 +142,8 @@ impl Cli {
                 let package_action = PackageAction::new(
                     &PackageActionParams {
                         working_dir: &cli_args.cwd,
-                        profile: cli_args.profile,
-                        target_arch: cli_args.target_arch,
+                        profile: &cli_args.profile,
+                        target_arch: &cli_args.target_arch,
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample_class,
                         verbosity_level: self.verbose,

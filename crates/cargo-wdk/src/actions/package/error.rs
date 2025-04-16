@@ -39,17 +39,20 @@ pub enum PackageActionError {
     #[error("One or more workspace members failed to package in the working directory: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
     #[error(
-        "CPU Architecture of the host is not supported: {0} \n Please try with --target-arch \
+        "CPU Architecture of the host is not supported: {0} \n Please try with the --target-arch \
          option"
     )]
     UnsupportedHostArch(String),
-    #[error("Rustup toolchain not found. Error: {0}")]
-    RustupToolChainNotFound(String),
-    #[error("Architecture could not be determined from RUSTUP_TOOLCHAIN: {0}")]
-    ArchInRustupToolChainNotFound(String),
+    #[error("RUSTUP_TOOLCHAIN env variable not found. Error: {0}")]
+    UnableToReadRustupToolchainEnv(String),
     #[error(
-        "Unable to determine target architecture. Error: {0}. \n Please try with --target-arch \
-         option"
+        "Architecture could not be determined from RUSTUP_TOOLCHAIN env variable, current value: \
+         {0}"
+    )]
+    UnableToReadArchInRustupToolChainEnv(String),
+    #[error(
+        "Unable to determine target architecture. Error: {0}. \n Please try with the \
+         --target-arch option"
     )]
     TargetArchNotSet(String),
 }

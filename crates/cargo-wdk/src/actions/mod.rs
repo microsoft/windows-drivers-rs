@@ -12,7 +12,7 @@ pub mod build;
 pub mod new;
 pub mod package;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Profile {
     Dev,
     Release,

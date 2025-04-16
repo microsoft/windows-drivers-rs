@@ -37,8 +37,8 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
-    pub profile: Option<Profile>,
-    pub target_arch: Option<CpuArchitecture>,
+    pub profile: &'a Option<Profile>,
+    pub target_arch: &'a Option<CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -48,8 +48,8 @@ pub struct PackageActionParams<'a> {
 /// This also includes the build step as pre-requisite for packaging
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
-    profile: Option<Profile>,
-    target_arch: Option<CpuArchitecture>,
+    profile: &'a Option<Profile>,
+    target_arch: &'a Option<CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -442,7 +442,7 @@ impl<'a> PackageAction<'a> {
 ///   variable is not available
 fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture> {
     std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
-        |e| Err(PackageActionError::RustupToolChainNotFound(e.to_string()).into()),
+        |e| Err(PackageActionError::UnableToReadRustupToolchainEnv(e.to_string()).into()),
         |rustup_toolchain| {
             if let Some(arch) = rustup_toolchain.split('-').nth(1) {
                 match arch {
@@ -451,7 +451,10 @@ fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture> {
                     _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain).into()),
                 }
             } else {
-                Err(PackageActionError::ArchInRustupToolChainNotFound(rustup_toolchain).into())
+                Err(
+                    PackageActionError::UnableToReadArchInRustupToolChainEnv(rustup_toolchain)
+                        .into(),
+                )
             }
         },
     )
