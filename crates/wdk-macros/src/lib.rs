@@ -114,6 +114,26 @@ struct IntermediateOutputASTFragments {
     inline_wdf_fn_invocation: ExprCall,
 }
 
+/// Struct to represent a file lock guard. This struct enforces RAII, ensuring that
+/// the file lock is released when the guard goes out of scope.
+struct FileLockGuard {
+    file: std::fs::File
+}
+
+impl FileLockGuard {
+    fn new(file: std::fs::File, span: Span) -> Result<Self> {
+        FileExt::lock_exclusive(&file)
+            .to_syn_result(span, "unable to obtain file lock")?;
+        Ok(Self { file })
+    }
+}
+
+impl Drop for FileLockGuard {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.file);
+    }
+}
+
 impl StringExt for String {
     fn to_snake_case(&self) -> String {
         // There will be, at max, 2 characters unhandled by the 3-char windows. It is
@@ -406,40 +426,45 @@ fn get_wdf_function_info_map(
     types_path: &LitStr,
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
-    #[cfg(test)]
-    let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test"));
-    #[cfg(not(test))]
-    let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
+    cfg_if::cfg_if! {
+        if #[cfg(test)] {
+            let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test"));
+        } else {
+            let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
+        }
+    }
 
     let cached_function_info_map_path = scratch_dir.join("cached_function_info_map.json");
 
     if !cached_function_info_map_path.exists() {
         let flock = std::fs::File::create(scratch_dir.join(".lock"))
             .to_syn_result(span, "unable to create file lock")?;
-        FileExt::lock_exclusive(&flock).to_syn_result(span, "unable to obtain file lock")?;
+
+        // When _flock_guard goes out of scope, the file lock is released
+        let _flock_guard = FileLockGuard::new(flock, span)
+            .to_syn_result(span, "unable to create file lock guard")?;
 
         // Before this thread acquires the lock, it's possible that a concurrent thread
         // already created the cache. If so, this thread skips cache generation.
         if !cached_function_info_map_path.exists() {
             let function_info_map = create_wdf_function_info_file_cache(
                 types_path,
-                &cached_function_info_map_path,
+                cached_function_info_map_path.as_path(),
                 span,
-            )?;
-            FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
+            );
+            let function_info_map = function_info_map?;
             return Ok(function_info_map);
         }
-        FileExt::unlock(&flock).to_syn_result(span, "unable to unlock file lock")?;
     }
     let function_info_map =
-        read_wdf_function_info_file_cache(&cached_function_info_map_path, span)?;
+        read_wdf_function_info_file_cache(cached_function_info_map_path.as_path(), span)?;
     Ok(function_info_map)
 }
 
 /// Reads the cache of function information, then deserializes it into a
 /// `BTreeMap`.
 fn read_wdf_function_info_file_cache(
-    cached_function_info_map_path: &PathBuf,
+    cached_function_info_map_path: &std::path::Path,
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
     let generated_map_string = std::fs::read_to_string(cached_function_info_map_path)
@@ -455,7 +480,7 @@ fn read_wdf_function_info_file_cache(
 /// concurrent threads from reading and writing to the same file.
 fn create_wdf_function_info_file_cache(
     types_path: &LitStr,
-    cached_function_info_map_path: &PathBuf,
+    cached_function_info_map_path: &std::path::Path,
     span: Span,
 ) -> Result<BTreeMap<String, CachedFunctionInfo>> {
     let generated_map = generate_wdf_function_info_file_cache(types_path, span)?;
