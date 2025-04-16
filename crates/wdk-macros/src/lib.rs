@@ -114,16 +114,15 @@ struct IntermediateOutputASTFragments {
     inline_wdf_fn_invocation: ExprCall,
 }
 
-/// Struct to represent a file lock guard. This struct enforces RAII, ensuring that
-/// the file lock is released when the guard goes out of scope.
+/// Struct to represent a file lock guard. This struct enforces RAII, ensuring
+/// that the file lock is released when the guard goes out of scope.
 struct FileLockGuard {
-    file: std::fs::File
+    file: std::fs::File,
 }
 
 impl FileLockGuard {
     fn new(file: std::fs::File, span: Span) -> Result<Self> {
-        FileExt::lock_exclusive(&file)
-            .to_syn_result(span, "unable to obtain file lock")?;
+        FileExt::lock_exclusive(&file).to_syn_result(span, "unable to obtain file lock")?;
         Ok(Self { file })
     }
 }
