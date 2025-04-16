@@ -176,12 +176,11 @@ mod dbg_print_buf_writer {
                 str_byte_slice = &str_byte_slice[chunk_size..];
 
                 str_byte_slice = advance_slice_to_next_non_null_byte(str_byte_slice);
+                self.used += chunk_size;
 
                 // Flush buffer if full, otherwise update amount used
                 if chunk_size == remaining_buffer_len && !str_byte_slice.is_empty() {
                     self.flush();
-                } else {
-                    self.used += chunk_size;
                 }
 
                 remaining_buffer = &mut self.buffer[self.used..Self::USABLE_BUFFER_SIZE];
