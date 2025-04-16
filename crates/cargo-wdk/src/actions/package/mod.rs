@@ -384,9 +384,7 @@ impl<'a> PackageAction<'a> {
         let target_arch = self.target_arch.unwrap_or({
             match detect_arch_from_rustup_toolchain() {
                 Ok(arch) => arch,
-                Err(e) => {
-                    return Err(PackageActionError::TargetArchNotSet(e.to_string()));
-                }
+                Err(e) => return Err(e),
             }
         });
         debug!(
@@ -440,7 +438,7 @@ impl<'a> PackageAction<'a> {
 /// * `CpuArchitecture`
 /// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
 ///   variable is not available
-fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture> {
+fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, PackageActionError> {
     std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
         |e| Err(PackageActionError::UnableToReadRustupToolchainEnv(e.to_string()).into()),
         |rustup_toolchain| {

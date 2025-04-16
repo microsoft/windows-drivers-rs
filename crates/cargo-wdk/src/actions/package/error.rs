@@ -50,11 +50,6 @@ pub enum PackageActionError {
          {0}"
     )]
     UnableToReadArchInRustupToolChainEnv(String),
-    #[error(
-        "Unable to determine target architecture. Error: {0}. \n Please try with the \
-         --target-arch option"
-    )]
-    TargetArchNotSet(String),
 }
 
 /// Errors for the low level package task layer
