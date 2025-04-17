@@ -257,7 +257,7 @@ mod dbg_print_buf_writer {
                 .expect("fmt::write should succeed");
             assert_eq!(writer.used, TEST_STRING_LEN);
             assert_eq!(&writer.buffer[..writer.used], TEST_STRING.as_bytes());
-
+            let old_used = writer.used;
             writer.flush();
             // FIXME: When this test is compiled, rustc automatically links the
             // usermode-version of DbgPrint. We should either figure out a way to prevent
@@ -267,7 +267,13 @@ mod dbg_print_buf_writer {
             // that gets called for flushing (real impl uses Dbgprint and test impl uses a
             // mock with a counter and some way to validate contents being sent to the flush
             // closure)
+
+            // Check that the buffer is empty after flushing
             assert_eq!(writer.used, 0);
+            // Check that the string is null-terminated at the end of the buffer.
+            assert_eq!(writer.buffer[old_used], b'\0');
+            // Check that the string isn't null-terminated at the beginning of the buffer. 
+            assert_ne!(writer.buffer[0], b'\0')
         }
 
         #[test]
