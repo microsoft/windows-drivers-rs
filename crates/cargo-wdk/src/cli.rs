@@ -142,8 +142,8 @@ impl Cli {
                 let package_action = PackageAction::new(
                     &PackageActionParams {
                         working_dir: &cli_args.cwd,
-                        profile: &cli_args.profile,
-                        target_arch: &cli_args.target_arch,
+                        profile: cli_args.profile.as_ref(),
+                        target_arch: cli_args.target_arch.as_ref(),
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample_class,
                         verbosity_level: self.verbose,

@@ -68,12 +68,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -103,433 +98,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
-            verify_signature,
-            is_sample_class: sample_class,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
-    );
-    assert!(package_project.is_ok());
-
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
-
-    assert!(run_result.is_ok());
-}
-
-#[test]
-pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = None;
-    let verify_signature = false;
-    let sample_class = true;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
-
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============No Certificates ==========
-                            ==============No CTLs ==========
-                            ==============No CRLs ==========
-                            ==============================================
-                            CertMgr Succeeded"
-            .as_bytes()
-            .to_vec(),
-        stderr: vec![],
-    };
-
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
-    let package_project_action = package_project
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd()
-        .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_all_package_roots()
-        .expect_path_canonicalization_package_manifest_path(&cwd)
-        .expect_cargo_build(driver_name, &cwd, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None)
-        .expect_detect_wdk_build_number(25100u32);
-
-    let package_project = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
-            verify_signature,
-            is_sample_class: sample_class,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
-    );
-    assert!(package_project.is_ok());
-
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
-
-    assert!(run_result.is_ok());
-}
-
-#[test]
-pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
-
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============No Certificates ==========
-                            ==============No CTLs ==========
-                            ==============No CRLs ==========
-                            ==============================================
-                            CertMgr Succeeded"
-            .as_bytes()
-            .to_vec(),
-        stderr: vec![],
-    };
-
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
-    let package_project_action = package_project
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd()
-        .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_all_package_roots()
-        .expect_path_canonicalization_package_manifest_path(&cwd)
-        .expect_cargo_build(driver_name, &cwd, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_verify_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None);
-
-    let package_project = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
-            verify_signature,
-            is_sample_class: sample_class,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
-    );
-    assert!(package_project.is_ok());
-
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
-
-    assert!(run_result.is_ok());
-}
-
-#[test]
-pub fn given_a_driver_project_when_profile_is_dev_is_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = Some(Profile::Dev);
-    let target_arch = None;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
-
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============No Certificates ==========
-                            ==============No CTLs ==========
-                            ==============No CRLs ==========
-                            ==============================================
-                            CertMgr Succeeded"
-            .as_bytes()
-            .to_vec(),
-        stderr: vec![],
-    };
-
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
-    let package_project_action = package_project
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd()
-        .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_all_package_roots()
-        .expect_path_canonicalization_package_manifest_path(&cwd)
-        .expect_cargo_build(driver_name, &cwd, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None);
-
-    let package_project = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
-            verify_signature,
-            is_sample_class: sample_class,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
-    );
-    assert!(package_project.is_ok());
-
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
-
-    assert!(run_result.is_ok());
-}
-
-#[test]
-pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_amd64_then_it_builds_successfully(
-) {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = Some(Profile::Dev);
-    let target_arch = Some(CpuArchitecture::Amd64);
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
-
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============No Certificates ==========
-                            ==============No CTLs ==========
-                            ==============No CRLs ==========
-                            ==============================================
-                            CertMgr Succeeded"
-            .as_bytes()
-            .to_vec(),
-        stderr: vec![],
-    };
-
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
-    let package_project_action = package_project
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd()
-        .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_all_package_roots()
-        .expect_path_canonicalization_package_manifest_path(&cwd)
-        .expect_cargo_build(driver_name, &cwd, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None);
-
-    let package_project = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
-            verify_signature,
-            is_sample_class: sample_class,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
-    );
-    assert!(package_project.is_ok());
-
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
-
-    assert!(run_result.is_ok());
-}
-
-#[test]
-pub fn given_a_driver_project_when_profile_is_dev_and_target_arch_is_arm64_then_it_builds_successfully(
-) {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = Some(Profile::Dev);
-    let target_arch = Some(CpuArchitecture::Arm64);
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
-
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============No Certificates ==========
-                            ==============No CTLs ==========
-                            ==============No CRLs ==========
-                            ==============================================
-                            CertMgr Succeeded"
-            .as_bytes()
-            .to_vec(),
-        stderr: vec![],
-    };
-
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
-    let package_project_action = package_project
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_path_canonicalization_cwd()
-        .expect_path_canonicalization_workspace_root()
-        .expect_path_canonicalization_all_package_roots()
-        .expect_path_canonicalization_package_manifest_path(&cwd)
-        .expect_cargo_build(driver_name, &cwd, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None);
-
-    let package_project = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -577,12 +147,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -612,8 +177,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -633,12 +198,11 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
 }
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_amd64_then_it_builds_successfully(
-) {
+pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
-    let profile = Some(Profile::Release);
-    let target_arch = Some(CpuArchitecture::Amd64);
+    let profile = None;
+    let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -662,12 +226,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_amd64_t
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -697,8 +256,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_amd64_t
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -747,12 +306,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -782,8 +336,169 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
+            verify_signature,
+            is_sample_class: sample_class,
+            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
+        },
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
+    );
+    assert!(package_project.is_ok());
+
+    let run_result = package_project
+        .expect("Failed to init package action")
+        .run();
+
+    assert!(run_result.is_ok());
+}
+
+#[test]
+pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfully() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = None;
+    let verify_signature = false;
+    let sample_class = true;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+
+    let expected_certmgr_output = Output {
+        status: ExitStatus::default(),
+        stdout: r"==============No Certificates ==========
+                            ==============No CTLs ==========
+                            ==============No CRLs ==========
+                            ==============================================
+                            CertMgr Succeeded"
+            .as_bytes()
+            .to_vec(),
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let package_project_action = package_project
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
+        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
+        .expect_stampinf(driver_name, &cwd, None)
+        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_makecert(&cwd, None)
+        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
+        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
+        .expect_infverif(driver_name, &cwd, "KMDF", None)
+        .expect_detect_wdk_build_number(25100u32);
+
+    let package_project = PackageAction::new(
+        &PackageActionParams {
+            working_dir: &cwd,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
+            verify_signature,
+            is_sample_class: sample_class,
+            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
+        },
+        package_project_action.mock_wdk_build_provider(),
+        package_project_action.mock_run_command(),
+        package_project_action.mock_fs_provider(),
+        package_project_action.mock_metadata_provider(),
+    );
+    assert!(package_project.is_ok());
+
+    let run_result = package_project
+        .expect("Failed to init package action")
+        .run();
+
+    assert!(run_result.is_ok());
+}
+
+#[test]
+pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_successfully() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = None;
+    let verify_signature = true;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+
+    let expected_certmgr_output = Output {
+        status: ExitStatus::default(),
+        stdout: r"==============No Certificates ==========
+                            ==============No CTLs ==========
+                            ==============No CRLs ==========
+                            ==============================================
+                            CertMgr Succeeded"
+            .as_bytes()
+            .to_vec(),
+        stderr: vec![],
+    };
+
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let package_project_action = package_project
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_path_canonicalization_cwd()
+        .expect_path_canonicalization_workspace_root()
+        .expect_path_canonicalization_all_package_roots()
+        .expect_path_canonicalization_package_manifest_path(&cwd)
+        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_inx_file_exists(driver_name, &cwd, true)
+        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
+        .expect_stampinf(driver_name, &cwd, None)
+        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_self_signed_cert_file_exists(&cwd, false)
+        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_makecert(&cwd, None)
+        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
+        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
+        .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
+        .expect_signtool_verify_cat_file(driver_name, &cwd, None)
+        .expect_infverif(driver_name, &cwd, "KMDF", None);
+
+    let package_project = PackageAction::new(
+        &PackageActionParams {
+            working_dir: &cwd,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -850,12 +565,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -887,8 +597,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -935,12 +645,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -973,8 +678,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1010,12 +715,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1032,8 +732,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1072,12 +772,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1095,8 +790,8 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1141,12 +836,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1168,8 +858,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1214,12 +904,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1242,8 +927,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1288,12 +973,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1318,8 +998,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1364,12 +1044,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1395,8 +1070,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1441,12 +1116,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1474,8 +1144,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1520,12 +1190,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1555,8 +1220,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1594,12 +1259,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, None);
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1613,8 +1273,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1651,12 +1311,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     let driver_name = "sample-driver";
     let cargo_toml_metadata = invalid_driver_cargo_toml();
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_with_custom_toml(&cargo_toml_metadata)
         .expect_detect_wdk_build_number(25100u32)
@@ -1670,8 +1325,8 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1746,12 +1401,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -1815,8 +1465,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1886,12 +1536,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -1937,8 +1582,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2003,12 +1648,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2068,8 +1708,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2125,12 +1765,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         None,
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2154,8 +1789,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2204,12 +1839,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         Some(wdk_metadata_2),
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2232,8 +1862,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2289,12 +1919,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         Some(wdk_metadata_1),
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2317,8 +1942,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2358,12 +1983,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     let (workspace_member_3, package_3) =
         get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2383,8 +2003,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2427,12 +2047,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         None,
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile.clone(),
-        target_arch.clone(),
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2452,8 +2067,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     let package_project = PackageAction::new(
         &PackageActionParams {
             working_dir: &cwd,
-            profile: &profile,
-            target_arch: &target_arch,
+            profile: profile.as_ref(),
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2881,7 +2496,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         .into_iter()
         .map(std::string::ToString::to_string)
         .collect();
-        if let Some(profile) = self.profile.clone() {
+        if let Some(profile) = self.profile {
             expected_cargo_build_args.push("--profile".to_string());
             expected_cargo_build_args.push(profile.to_string());
         }

@@ -33,8 +33,8 @@ pub enum BuildActionError {
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
-    profile: &'a Option<Profile>,
-    target_arch: &'a Option<CpuArchitecture>,
+    profile: Option<&'a Profile>,
+    target_arch: Option<&'a CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -59,8 +59,8 @@ impl<'a> BuildAction<'a> {
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
-        profile: &'a Option<Profile>,
-        target_arch: &'a Option<CpuArchitecture>,
+        profile: Option<&'a Profile>,
+        target_arch: Option<&'a CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,

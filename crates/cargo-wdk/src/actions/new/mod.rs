@@ -119,7 +119,7 @@ impl<'a> NewAction<'a> {
         let new_project_path = self.cwd.to_string_lossy().to_string();
         let mut args = vec!["new", "--lib", &new_project_path, "--vcs", "none"];
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
-            args.push(&flag);
+            args.push(flag);
         }
         if let Err(e) = self.command_exec.run("cargo", &args, None) {
             return Err(NewActionError::CargoNewCommand(e));

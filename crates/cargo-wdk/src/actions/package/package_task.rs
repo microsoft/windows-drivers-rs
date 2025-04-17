@@ -31,7 +31,7 @@ pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
     pub target_dir: &'a Path,
-    pub target_arch: CpuArchitecture,
+    pub target_arch: &'a CpuArchitecture,
     pub verify_signature: bool,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
@@ -60,7 +60,7 @@ pub struct PackageTask<'a> {
     dest_cert_file_path: PathBuf,
     dest_cat_file_path: PathBuf,
 
-    arch: CpuArchitecture,
+    arch: &'a CpuArchitecture,
     os_mapping: &'a str,
     driver_model: DriverConfig,
 

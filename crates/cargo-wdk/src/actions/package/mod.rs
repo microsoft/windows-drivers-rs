@@ -37,8 +37,8 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
-    pub profile: &'a Option<Profile>,
-    pub target_arch: &'a Option<CpuArchitecture>,
+    pub profile: Option<&'a Profile>,
+    pub target_arch: Option<&'a CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -48,8 +48,8 @@ pub struct PackageActionParams<'a> {
 /// This also includes the build step as pre-requisite for packaging
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
-    profile: &'a Option<Profile>,
-    target_arch: &'a Option<CpuArchitecture>,
+    profile: Option<&'a Profile>,
+    target_arch: Option<&'a CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -381,12 +381,10 @@ impl<'a> PackageAction<'a> {
         debug!("Creating the drive package");
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
         let driver_model = wdk_metadata.driver_model.clone();
-        let target_arch = self.target_arch.unwrap_or({
-            match detect_arch_from_rustup_toolchain() {
-                Ok(arch) => arch,
-                Err(e) => return Err(e),
-            }
-        });
+        let target_arch = match self.target_arch {
+            Some(arch) => *arch,
+            None => detect_arch_from_rustup_toolchain()?,
+        };
         debug!(
             "Target architecture for package: {} is: {}",
             package_name, target_arch
@@ -410,7 +408,7 @@ impl<'a> PackageAction<'a> {
                 package_name: &package_name,
                 working_dir,
                 target_dir: &target_dir,
-                target_arch,
+                target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
                 driver_model,
@@ -440,19 +438,22 @@ impl<'a> PackageAction<'a> {
 ///   variable is not available
 fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, PackageActionError> {
     std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
-        |e| Err(PackageActionError::UnableToReadRustupToolchainEnv(e.to_string()).into()),
+        |e| {
+            Err(PackageActionError::UnableToReadRustupToolchainEnv(
+                e.to_string(),
+            ))
+        },
         |rustup_toolchain| {
             if let Some(arch) = rustup_toolchain.split('-').nth(1) {
                 match arch {
                     "x86_64" => Ok(CpuArchitecture::Amd64),
                     "aarch64" => Ok(CpuArchitecture::Arm64),
-                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain).into()),
+                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
                 }
             } else {
-                Err(
-                    PackageActionError::UnableToReadArchInRustupToolChainEnv(rustup_toolchain)
-                        .into(),
-                )
+                Err(PackageActionError::UnableToReadArchInRustupToolChainEnv(
+                    rustup_toolchain,
+                ))
             }
         },
     )
