@@ -38,6 +38,18 @@ pub enum PackageActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to package in the working directory: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+    #[error(
+        "CPU Architecture of the host is not supported: {0} \n Please try with the --target-arch \
+         option"
+    )]
+    UnsupportedHostArch(String),
+    #[error("RUSTUP_TOOLCHAIN env variable not found. Error: {0}")]
+    UnableToReadRustupToolchainEnv(String),
+    #[error(
+        "Architecture could not be determined from RUSTUP_TOOLCHAIN env variable, current value: \
+         {0}"
+    )]
+    UnableToReadArchInRustupToolChainEnv(String),
 }
 
 /// Errors for the low level package task layer

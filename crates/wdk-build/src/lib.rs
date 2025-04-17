@@ -11,6 +11,7 @@
 //! models (WDM, KMDF, UMDF).
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
+use std::{fmt, str::FromStr};
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
@@ -28,6 +29,11 @@ use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
+
+/// `x86_64/Amd64` target triple name
+pub const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
+/// `aarch64/Arm64` target triple name
+pub const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 /// Configuration parameters for a build dependent on the WDK
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,6 +64,30 @@ pub enum DriverConfig {
     Umdf(UmdfConfig),
 }
 
+impl FromStr for DriverConfig {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "kmdf" => std::result::Result::Ok(Self::Kmdf(KmdfConfig::default())),
+            "umdf" => std::result::Result::Ok(Self::Umdf(UmdfConfig::default())),
+            "wdm" => std::result::Result::Ok(Self::Wdm),
+            _ => Err(format!("'{s}' is not a valid driver type")),
+        }
+    }
+}
+
+impl fmt::Display for DriverConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Wdm => "wdm",
+            Self::Kmdf(_) => "kmdf",
+            Self::Umdf(_) => "umdf",
+        };
+        write!(f, "{s}")
+    }
+}
+
 /// Private enum identical to [`DriverConfig`] but with different tag name to
 /// deserialize from.
 ///
@@ -84,6 +114,39 @@ pub enum CpuArchitecture {
     Amd64,
     /// ARM64 CPU architecture. Also known as aarch64.
     Arm64,
+}
+
+impl FromStr for CpuArchitecture {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "amd64" => std::result::Result::Ok(Self::Amd64),
+            "arm64" => std::result::Result::Ok(Self::Arm64),
+            _ => Err(format!("'{s}' is not a valid target architecture")),
+        }
+    }
+}
+
+impl fmt::Display for CpuArchitecture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Amd64 => "amd64",
+            Self::Arm64 => "arm64",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl CpuArchitecture {
+    /// Converts `CpuArchitecture` to its corresponding target triple name.
+    #[must_use]
+    pub fn to_target_triple(&self) -> String {
+        match self {
+            Self::Amd64 => X86_64_TARGET_TRIPLE_NAME.to_string(),
+            Self::Arm64 => AARCH64_TARGET_TRIPLE_NAME.to_string(),
+        }
+    }
 }
 
 /// The configuration parameters for KMDF drivers

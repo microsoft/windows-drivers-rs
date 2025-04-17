@@ -1,5 +1,7 @@
 //! Common methods for tests.
 
+#![allow(clippy::literal_string_with_formatting_args)]
+
 use fs4::fs_std::FileExt;
 
 /// Sets the `RUSTFLAGS` environment variable to include `+crt-static`.

@@ -1,6 +1,6 @@
-//! Module that initializes packaging a driver project.
-//!
-//! This module defines the `PackageAction` struct and its associated methods
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+//! This module contains the `PackageAction` struct and its associated methods
 //! for orchestrating the packaging of a driver project. It includes the build
 //! step as a prerequisite for packaging. It consists the logic to build and
 //! package standalone projects, workspaces, individual members in a workspace
@@ -26,16 +26,19 @@ use std::{
 use anyhow::Result;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
-use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
+use wdk_build::{
+    metadata::{TryFromCargoMetadataError, Wdk},
+    CpuArchitecture,
+};
 
-use super::{build::BuildAction, Profile, TargetArch};
+use crate::actions::{build::BuildAction, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
-    pub profile: Profile,
-    pub target_arch: TargetArch,
+    pub profile: Option<&'a Profile>,
+    pub target_arch: Option<&'a CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -45,8 +48,8 @@ pub struct PackageActionParams<'a> {
 /// This also includes the build step as pre-requisite for packaging
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
-    profile: Profile,
-    target_arch: TargetArch,
+    profile: Option<&'a Profile>,
+    target_arch: Option<&'a CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -84,18 +87,6 @@ impl<'a> PackageAction<'a> {
         metadata: &'a Metadata,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
-        wdk_build::cargo_make::setup_path()?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
-
-        let build_number = wdk_build_provider.detect_wdk_build_number()?;
-        info!("Detected WDK build number: {}", build_number);
-
-        debug!(
-            "Initializing packaging for project at: {}",
-            params.working_dir.display()
-        );
-        // FIXME: Canonicalizing here leads to a cargo_metadata error. Probably because
-        // it is already canonicalized, * (wild chars) won't be resolved to actual paths
         let working_dir = fs_provider.canonicalize_path(params.working_dir)?;
         Ok(Self {
             working_dir,
@@ -136,6 +127,14 @@ impl<'a> PackageAction<'a> {
     /// * `PackageActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build
     pub fn run(&self) -> Result<(), PackageActionError> {
+        wdk_build::cargo_make::setup_path()?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
+        debug!(
+            "Initializing packaging for project at: {}",
+            self.working_dir.display()
+        );
+        let build_number = self.wdk_build_provider.detect_wdk_build_number()?;
+        debug!("WDK build number: {}", build_number);
         // Standalone driver/driver workspace support
         if self
             .fs_provider
@@ -233,9 +232,7 @@ impl<'a> PackageAction<'a> {
         working_dir: &PathBuf,
         cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageActionError> {
-        let target_directory = cargo_metadata
-            .target_directory
-            .join(self.profile.target_folder_name());
+        let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
         let workspace_root = self
@@ -243,7 +240,6 @@ impl<'a> PackageAction<'a> {
             .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
         if workspace_root.eq(working_dir) {
             debug!("Running from workspace root");
-            let target_directory: PathBuf = target_directory.into();
             let mut failed_atleast_one_workspace_member = false;
             for package in workspace_packages {
                 let package_root_path: PathBuf = package
@@ -313,7 +309,7 @@ impl<'a> PackageAction<'a> {
             &wdk_metadata,
             package,
             package.name.clone(),
-            target_directory.as_std_path(),
+            &target_directory,
         )?;
 
         if let Err(e) = wdk_metadata {
@@ -348,7 +344,8 @@ impl<'a> PackageAction<'a> {
         BuildAction::new(
             &package_name,
             working_dir,
-            &self.profile,
+            self.profile,
+            self.target_arch,
             self.verbosity_level,
             self.command_exec,
             self.fs_provider,
@@ -373,22 +370,48 @@ impl<'a> PackageAction<'a> {
             );
             return Ok(());
         }
-
         if wdk_metadata.is_err() {
+            warn!(
+                "WDK metadata is not available. Skipping driver package workflow for package: {}",
+                package_name
+            );
             return Ok(());
         }
-
+        debug!("Found wdk metadata in package: {}", package_name);
+        debug!("Creating the drive package");
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
+        let driver_model = wdk_metadata.driver_model.clone();
+        let target_arch = match self.target_arch {
+            Some(arch) => *arch,
+            None => detect_arch_from_rustup_toolchain()?,
+        };
+        debug!(
+            "Target architecture for package: {} is: {}",
+            package_name, target_arch
+        );
+        let mut target_dir = target_dir.to_path_buf();
+        if let Some(arch) = self.target_arch {
+            target_dir = target_dir.join(arch.to_target_triple());
+        }
+        target_dir = match self.profile {
+            Some(Profile::Release) => target_dir.join("release"),
+            _ => target_dir.join("debug"),
+        };
+        debug!(
+            "Target directory for package: {} is: {}",
+            package_name,
+            target_dir.display()
+        );
 
         let package_driver = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
                 working_dir,
-                target_dir,
-                target_arch: self.target_arch,
+                target_dir: &target_dir,
+                target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
-                driver_model: wdk_metadata.driver_model.clone(),
+                driver_model,
             },
             self.wdk_build_provider,
             self.command_exec,
@@ -397,7 +420,6 @@ impl<'a> PackageAction<'a> {
         if let Err(e) = package_driver {
             return Err(PackageActionError::PackageTaskInit(package_name, e));
         }
-
         if let Err(e) = package_driver
             .expect("PackageDriver failed to initialize")
             .run()
@@ -407,4 +429,32 @@ impl<'a> PackageAction<'a> {
         info!("Processing completed for package: {}", package_name);
         Ok(())
     }
+}
+
+/// # Errors
+/// Returns
+/// * `CpuArchitecture`
+/// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
+///   variable is not available
+fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, PackageActionError> {
+    std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
+        |e| {
+            Err(PackageActionError::UnableToReadRustupToolchainEnv(
+                e.to_string(),
+            ))
+        },
+        |rustup_toolchain| {
+            if let Some(arch) = rustup_toolchain.split('-').nth(1) {
+                match arch {
+                    "x86_64" => Ok(CpuArchitecture::Amd64),
+                    "aarch64" => Ok(CpuArchitecture::Arm64),
+                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
+                }
+            } else {
+                Err(PackageActionError::UnableToReadArchInRustupToolChainEnv(
+                    rustup_toolchain,
+                ))
+            }
+        },
+    )
 }

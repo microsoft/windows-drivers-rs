@@ -90,10 +90,10 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
 
 ## Driver Package Signature Verification
 
-`signtool verify` requires the certificate to be installed as in the `Trusted Root Certification Authorities` for this verification to succeed. These tasks are not enabled by default as the default behavior of `WDR` is to sign with a generated test certificate. These test certificates are typically only installed into `Trusted Root Certification Authorities` on computers dedicated to testing drivers, and not personal development machines, given the security implications of installing your own root certificates.
+The `build` command can be run with `--verify-signature` option to enable the verification of the `.sys/.dll` and `.cat` files generated in the final package. Currently, the `build` command uses a **test certificate** named "WDRLocalTestCert" in a store named "WDRTestCertStore" to sign the files. Verification using the `signtool verify` command requires these certificates to be present in the host system's `Trusted Root Certification Authorities`. Typically, these test certificates are only installed into `Trusted Root Certification Authorities` on computers dedicated to testing drivers, and not personal development machines, given the security implications of installing your own root certificates.
 
 If you understand these implications, and have installed the test certificate, then you may validate the signatures as follows:
 
 ```pwsh
-cargo wdk build --verify-signature=true
+cargo wdk build --verify-signature
 ```

@@ -11,7 +11,10 @@ use anyhow::Result;
 use mockall_double::double;
 use thiserror::Error;
 use tracing::{debug, info};
-use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
+use wdk_build::{
+    utils::{PathExt, StripExtendedPathPrefixError},
+    CpuArchitecture,
+};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
@@ -30,7 +33,8 @@ pub enum BuildActionError {
 /// Action that orchestrates building of driver project using cargo command.
 pub struct BuildAction<'a> {
     package_name: &'a str,
-    profile: &'a Profile,
+    profile: Option<&'a Profile>,
+    target_arch: Option<&'a CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -41,8 +45,11 @@ impl<'a> BuildAction<'a> {
     /// # Arguments
     /// * `package_name` - The name of the package to build
     /// * `working_dir` - The working directory for the build
+    /// * `profile` - An optional profile for the build
+    /// * `target_arch` - An optional target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
+    /// * `fs_provider` - The file system provider
     /// # Returns
     /// * `Result<Self>` - A result containing the new instance of `BuildAction`
     ///   or an error
@@ -52,72 +59,62 @@ impl<'a> BuildAction<'a> {
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
-        profile: &'a Profile,
+        profile: Option<&'a Profile>,
+        target_arch: Option<&'a CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
     ) -> Result<Self, BuildActionError> {
-        let manifest_path = fs_provider.canonicalize_path(&working_dir.join("Cargo.toml"))?;
-        match manifest_path.strip_extended_length_path_prefix() {
-            Ok(path) => Ok(Self {
-                package_name,
-                profile,
-                verbosity_level,
-                manifest_path: path,
-                command_exec,
-            }),
-            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => Ok(Self {
-                package_name,
-                profile,
-                verbosity_level,
-                manifest_path,
-                command_exec,
-            }),
+        let mut manifest_path = fs_provider.canonicalize_path(&working_dir.join("Cargo.toml"))?;
+        manifest_path = match manifest_path.strip_extended_length_path_prefix() {
+            Ok(path) => path,
+            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => manifest_path,
             Err(StripExtendedPathPrefixError::EmptyPath) => {
-                Err(BuildActionError::EmptyManifestPath)
+                return Err(BuildActionError::EmptyManifestPath);
             }
-        }
+        };
+        Ok(Self {
+            package_name,
+            profile,
+            target_arch,
+            verbosity_level,
+            manifest_path,
+            command_exec,
+        })
     }
 
     /// Entry point method to run the build action
     /// # Returns
-    /// * `Result<(), CommandError>` - Result indicating success or failure of
-    ///   the build action
+    /// * `Result<(), BuildActionError>` - Result indicating success or failure
+    ///   of the build action
     /// # Errors
     /// * `CommandError` - If the command execution fails
     pub fn run(&self) -> Result<(), BuildActionError> {
-        info!(
-            "Running cargo build for package: {}, profile: {}",
-            self.package_name, self.profile
-        );
-        let manifest_path = self.manifest_path.to_string_lossy().to_string();
-        let profile = &self.profile.to_string();
-        let args = trace::get_cargo_verbose_flags(self.verbosity_level).map_or_else(
-            || {
-                vec![
-                    "build",
-                    "--manifest-path",
-                    &manifest_path,
-                    "-p",
-                    self.package_name,
-                    "--profile",
-                    profile,
-                ]
-            },
-            |flag| {
-                vec![
-                    "build",
-                    flag,
-                    "--manifest-path",
-                    &manifest_path,
-                    "-p",
-                    self.package_name,
-                    "--profile",
-                    profile,
-                ]
-            },
-        );
-
+        info!("Running cargo build for package: {}", self.package_name);
+        let mut args = vec!["build".to_string()];
+        args.push("-p".to_string());
+        args.push(self.package_name.to_string());
+        if let Some(path) = self.manifest_path.to_str() {
+            args.push("--manifest-path".to_string());
+            args.push(path.to_string());
+        } else {
+            return Err(BuildActionError::EmptyManifestPath);
+        }
+        if let Some(profile) = self.profile {
+            args.push("--profile".to_string());
+            args.push(profile.to_string());
+        }
+        if let Some(target_arch) = self.target_arch {
+            args.push("--target".to_string());
+            args.push(target_arch.to_target_triple());
+        }
+        if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
+            args.push(flag.to_string());
+        }
+        let args = args
+            .iter()
+            .map(std::string::String::as_str)
+            .collect::<Vec<&str>>();
         self.command_exec.run("cargo", &args, None)?;
         debug!("Done");
         Ok(())
