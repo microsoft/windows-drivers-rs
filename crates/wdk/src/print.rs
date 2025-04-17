@@ -272,7 +272,7 @@ mod dbg_print_buf_writer {
             assert_eq!(writer.used, 0);
             // Check that the string is null-terminated at the end of the buffer.
             assert_eq!(writer.buffer[old_used], b'\0');
-            // Check that the string isn't null-terminated at the beginning of the buffer. 
+            // Check that the string isn't null-terminated at the beginning of the buffer.
             assert_ne!(writer.buffer[0], b'\0')
         }
 
