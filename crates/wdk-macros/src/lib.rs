@@ -450,8 +450,7 @@ fn get_wdf_function_info_map(
                 types_path,
                 cached_function_info_map_path.as_path(),
                 span,
-            );
-            let function_info_map = function_info_map?;
+            )?;
             return Ok(function_info_map);
         }
     }
