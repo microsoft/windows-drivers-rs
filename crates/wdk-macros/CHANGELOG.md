@@ -5,6 +5,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-macros-v0.3.0...wdk-macros-v0.4.0) - 2025-04-18
+
+### Added
+
+- Cache parameters & return type during `call_unsafe_wdf_function_binding` macro expansion ([#295](https://github.com/microsoft/windows-drivers-rs/pull/295))
+
+### Fixed
+
+- passing cache tests when WDK config is enabled ([#332](https://github.com/microsoft/windows-drivers-rs/pull/332))
+
+### Other
+
+- update README to clarify community engagement and contact methods ([#312](https://github.com/microsoft/windows-drivers-rs/pull/312))
+- [**breaking**] Remove lazy static instances ([#250](https://github.com/microsoft/windows-drivers-rs/pull/250))
+
 ## [0.3.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-macros-v0.2.0...wdk-macros-v0.3.0) - 2024-09-27
 
 ### Added
