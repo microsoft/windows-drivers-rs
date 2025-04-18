@@ -13,7 +13,11 @@ extern crate alloc;
 #[cfg(not(test))]
 extern crate wdk_panic;
 
-use alloc::{ffi::CString, slice, string::String};
+use alloc::{
+    ffi::CString,
+    slice,
+    string::String,
+};
 
 use wdk::println;
 #[cfg(not(test))]
@@ -56,9 +60,9 @@ pub unsafe extern "system" fn driver_entry(
     let string = CString::new("Hello World!\n").unwrap();
 
     // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
-    // string
+    // string (`CString` guarantees null-termination)
     unsafe {
-        DbgPrint(string.as_ptr());
+        DbgPrint(c"%s".as_ptr().cast(), string.as_ptr());
     }
 
     driver.DriverUnload = Some(driver_exit);
