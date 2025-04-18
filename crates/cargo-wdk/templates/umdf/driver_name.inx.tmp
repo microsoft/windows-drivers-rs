@@ -1,0 +1,61 @@
+;
+; ##driver_name_placeholder##.inf
+;
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = ; TODO: specify appropriate Class
+ClassGuid   = ; TODO: specify appropriate ClassGuid
+Provider    = %ManufacturerName%
+CatalogFile = ##driver_name_placeholder##.cat
+DriverVer   = ; TODO: set DriverVer in stampinf property pages
+PnpLockdown = 1
+
+[Manufacturer]
+; This driver package is only installable on Win11+
+%ManufacturerName% = Standard,NT$ARCH$.10.0...22000 ; wudfrd.inf introduced in build 22000
+
+[Standard.NT$ARCH$.10.0...22000]
+%DeviceName% = ##driver_name_placeholder##, Root\##driver_name_placeholder## ; TODO: edit hw-id
+
+[SourceDisksFiles]
+##driver_name_placeholder##.dll = 1
+
+[SourceDisksNames]
+1 = %DiskName%
+
+; =================== UMDF Device ==================================
+
+[##driver_name_placeholder##.NT]
+CopyFiles = UMDriverCopy
+Include = wudfrd.inf
+Needs = WUDFRD.NT
+
+[##driver_name_placeholder##.NT.hw]
+Include = wudfrd.inf
+Needs = WUDFRD.NT.HW
+
+[##driver_name_placeholder##.NT.Services]
+Include = wudfrd.inf
+Needs = WUDFRD.NT.Services
+
+[##driver_name_placeholder##.NT.Wdf]
+UmdfService = ##driver_name_placeholder##,##driver_name_placeholder##_Install
+UmdfServiceOrder = ##driver_name_placeholder##
+
+[##driver_name_placeholder##_Install]
+UmdfLibraryVersion = $UMDFVERSION$ 
+ServiceBinary = %13%\##driver_name_placeholder##.dll
+
+[DestinationDirs]
+UMDriverCopy = 13
+
+[UMDriverCopy]
+##driver_name_placeholder##.dll
+
+; =================== Generic ==================================
+
+[Strings]
+ManufacturerName = "" ;TODO: Replace with your manufacturer name
+DiskName = "##driver_name_placeholder## Installation Disk"
+DeviceName ="##driver_name_placeholder## Device"
