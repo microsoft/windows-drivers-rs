@@ -695,6 +695,7 @@ dependencies = [
 name = "wdk-macros"
 version = "0.3.0"
 dependencies = [
+ "cfg-if",
  "fs4",
  "itertools",
  "proc-macro2",
