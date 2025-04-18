@@ -333,6 +333,49 @@ mod dbg_print_buf_writer {
         }
 
         #[test]
+        fn write_that_exceeds_buffer_prints_all() {
+            const TEST_STRING: &str =
+                "This is a test string that exceeds the buffer size limit set for \
+                 DbgPrintBufWriter. It should trigger multiple flushes to handle the overflow \
+                 correctly. The buffer has a limited capacity of 511 bytes (512 minus 1 for null \
+                 terminator), and this string is intentionally much longer. When writing this \
+                 string to the DbgPrintBufWriter, the implementation should automatically chunk \
+                 the content and flush each chunk separately. This ensures large debug messages \
+                 can be properly displayed without being truncated. The current implementation \
+                 handles this by filling the buffer as much as possible, flushing it using \
+                 DbgPrint, then continuing with the remaining content until everything is \
+                 processed. This approach allows debugging messages of arbitrary length without \
+                 requiring heap allocations, which is particularly important in kernel mode where \
+                 memory allocation constraints might be stricter. This test verifies that strings \
+                 larger than the max buffer size are handled correctly, confirming that our \
+                 buffer management logic works as expected. This string is now well over 1000 \
+                 characters long to ensure that the DbgPrintBufWriter's buffer overflow handling \
+                 is thoroughly tested.";
+            const TEST_STRING_LEN: usize = TEST_STRING.len();
+            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize =
+                TEST_STRING_LEN - (TEST_STRING_LEN % DbgPrintBufWriter::USABLE_BUFFER_SIZE);
+
+            const {
+                assert!(
+                    TEST_STRING_LEN > DbgPrintBufWriter::USABLE_BUFFER_SIZE,
+                    "TEST_STRING_LEN should be greater than buffer size for this test"
+                );
+            }
+
+            let expected_unflushed_string_contents =
+                &TEST_STRING[UNFLUSHED_STRING_CONTENTS_STARTING_INDEX..];
+
+            let mut writer = DbgPrintBufWriter::new();
+            // set the last byte to 1 to ensure that the buffer is not null-terminated
+            writer.buffer[DBG_PRINT_MAX_TXN_SIZE - 1] = 1;
+            fmt::write(&mut writer, format_args!("{TEST_STRING}"))
+                .expect("fmt::write should succeed");
+            // if the last byte has been changed to the null terminator, we know that the
+            // buffer was flushed with overflow correctly.
+            assert_eq!(writer.buffer[DBG_PRINT_MAX_TXN_SIZE - 1], b'\0');
+        }
+
+        #[test]
         fn write_string_with_null_char_beginning() {
             const TEST_STRING: &str = "\0Hello, world!This is a test string with a null byte.";
             const TEST_STRING_NULL_REMOVED: &str =
