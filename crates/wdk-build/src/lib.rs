@@ -237,6 +237,8 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    /// API subset for Filesystem and Minifilter drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_ifsk/>
+    Filesystem,
 }
 
 impl Default for Config {
@@ -703,6 +705,7 @@ impl Config {
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => self.usb_headers(),
+            ApiSubset::Filesystem => self.filesystem_headers(),
         }
         .into_iter()
         .map(str::to_string)
@@ -849,6 +852,15 @@ impl Config {
                 headers.extend(["ufx/1.1/ufxclient.h"]);
             }
         }
+        headers
+    }
+
+    fn filesystem_headers(&self) -> Vec<&'static str>{
+        let headers: Vec<&str> = vec![
+            "fltkernel.h",
+            "fltuserstructures.h",
+        ];
+
         headers
     }
 

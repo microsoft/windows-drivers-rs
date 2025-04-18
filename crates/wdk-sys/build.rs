@@ -138,6 +138,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("spb.rs", generate_spb),
     ("storage.rs", generate_storage),
     ("usb.rs", generate_usb),
+    ("filesystem.rs", generate_filesystem),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -212,6 +213,8 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
+        #[cfg(feature = "filesystem")]
+        ApiSubset::Filesystem,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -244,6 +247,8 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
+        #[cfg(feature = "filesystem")]
+        ApiSubset::Filesystem,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -526,6 +531,42 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
 
             info!("Skipping usb.rs generation since usb feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_filesystem(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "filesystem")] {
+            info!("Generating bindings to WDK: filesystem.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Filesystem]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("filesystem-input.h", &header_contents);
+
+                // Only allowlist files in the filesystem-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Filesystem) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("filesystem.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
+
+            info!("Skipping filesystem.rs generation since usb feature is not enabled");
             Ok(())
         }
     }
