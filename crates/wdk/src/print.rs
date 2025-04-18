@@ -370,7 +370,6 @@ mod dbg_print_buf_writer {
             // set the last byte to 1 to ensure that the buffer is not automatically
             // null-terminated when full
             writer.buffer[DBG_PRINT_MAX_TXN_SIZE - 1] = 1;
-            
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
 
