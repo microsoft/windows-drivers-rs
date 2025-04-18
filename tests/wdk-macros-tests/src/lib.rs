@@ -3,7 +3,7 @@
 
 use std::{path::PathBuf, sync::LazyLock};
 
-use fs4::FileExt;
+use fs4::fs_std::FileExt;
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
 pub use paste::paste;
