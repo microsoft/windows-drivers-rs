@@ -366,10 +366,14 @@ mod dbg_print_buf_writer {
                 &TEST_STRING[UNFLUSHED_STRING_CONTENTS_STARTING_INDEX..];
 
             let mut writer = DbgPrintBufWriter::new();
-            // set the last byte to 1 to ensure that the buffer is not null-terminated
+
+            // set the last byte to 1 to ensure that the buffer is not automatically
+            // null-terminated when full
             writer.buffer[DBG_PRINT_MAX_TXN_SIZE - 1] = 1;
+            
             fmt::write(&mut writer, format_args!("{TEST_STRING}"))
                 .expect("fmt::write should succeed");
+
             // if the last byte has been changed to the null terminator, we know that the
             // buffer was flushed with overflow correctly.
             assert_eq!(writer.buffer[DBG_PRINT_MAX_TXN_SIZE - 1], b'\0');
