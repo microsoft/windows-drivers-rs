@@ -2317,6 +2317,18 @@ impl TestPackageAction {
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
+
+    fn setup_target_dir(&self, dir_path: &Path) -> PathBuf {
+        let mut expected_target_dir = dir_path.join("target");
+        if let Some(arch) = self.target_arch {
+            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
+        }
+        expected_target_dir = match self.profile {
+            Some(Profile::Release) => expected_target_dir.join("release"),
+            _ => expected_target_dir.join("debug"),
+        };
+        expected_target_dir
+    }
 }
 
 impl TestSetupPackageExpectations for TestPackageAction {
@@ -2391,14 +2403,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     }
 
     fn expect_self_signed_cert_file_exists(mut self, driver_dir: &Path, does_exist: bool) -> Self {
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
         self.mock_fs_provider
             .expect_exists()
@@ -2415,14 +2420,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         does_exist: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = cwd.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(cwd);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         self.mock_fs_provider
@@ -2435,14 +2433,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn expect_dir_created(mut self, driver_name: &str, cwd: &Path, created: bool) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = cwd.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(cwd);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         self.mock_fs_provider
@@ -2551,14 +2542,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         driver_dir: &Path,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_src_driver_dll_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}.dll"));
         let expected_src_driver_sys_path =
@@ -2581,14 +2565,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2622,14 +2599,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2664,14 +2634,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         workspace_root_dir: &Path,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = workspace_root_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(workspace_root_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2705,14 +2668,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2747,14 +2703,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         is_success: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
@@ -2788,14 +2737,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // Run stampinf command
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_dest_driver_inf_path =
@@ -2883,14 +2825,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
     ) -> Self {
         // Run inf2cat command
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
 
@@ -2990,14 +2925,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         // create cert from store using certmgr
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_self_signed_cert_file_path = expected_target_dir.join("WDRLocalTestCert.cer");
 
         let expected_certmgr_command: &'static str = "certmgr.exe";
@@ -3043,14 +2971,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn expect_makecert(mut self, driver_dir: &Path, override_output: Option<Output>) -> Self {
         // create self signed certificate using makecert
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_makecert_command: &'static str = "makecert";
         let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
         let expected_makecert_args: Vec<String> = vec![
@@ -3103,14 +3024,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -3170,14 +3084,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -3236,14 +3143,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -3295,14 +3195,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         override_output: Option<Output>,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
@@ -3373,14 +3266,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
         }
         let expected_infverif_command: &'static str = "infverif";
         let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let mut expected_target_dir = driver_dir.join("target");
-        if let Some(arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(arch.to_target_triple());
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
-        };
+        let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_dest_inf_file_path =
