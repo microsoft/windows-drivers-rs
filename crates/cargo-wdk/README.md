@@ -97,3 +97,11 @@ If you understand these implications, and have installed the test certificate, t
 ```pwsh
 cargo wdk build --verify-signature
 ```
+
+## Building Sample Class Drivers
+
+The `build` command can be used to build drivers whose class is defined as `Sample` in its `.inx` file, for ex, [echo (kmdf) DriverSync](https://github.com/microsoft/Windows-rust-driver-samples/tree/main/general/echo/kmdf/driver/DriverSync). The command handles passing additional flags to `InfVerif` task based on the WDK Version being used. So, if you are building a `Sample` class driver, you may use the `build` command with the `--sample-class` flag as follows,
+
+```pwsh
+cargo wdk build --sample-class
+```
