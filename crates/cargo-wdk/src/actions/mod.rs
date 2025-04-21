@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! This module provides the core functionality for the cargo-wdk CLI tool.
 //! It includes submodules for handling actions such as creating new driver
 //! projects, building them, and packaging them.

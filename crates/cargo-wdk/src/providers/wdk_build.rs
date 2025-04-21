@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! This module provides a wrapper around the `wdk-build` crate methods,
 //! focusing on the functionality required for detecting the WDK build number.
 //! It leverages the `mockall` crate to enable mocking of the `WdkBuild` struct

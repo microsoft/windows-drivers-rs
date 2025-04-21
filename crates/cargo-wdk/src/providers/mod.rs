@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! The `providers` module serves as a centralized abstraction layer for various
 //! subsystems used throughout the application. It encapsulates functionality
 //! such as file system operations, command execution, metadata handling, and

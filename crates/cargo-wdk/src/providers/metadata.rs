@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! This module provides a wrapper around the `cargo-metadata` crate, offering
 //! methods to retrieve metadata about Cargo projects. The module leverages the
 //! `mockall` crate to enable mocking of its methods, facilitating easier unit

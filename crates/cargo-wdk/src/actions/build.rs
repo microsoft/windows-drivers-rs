@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! Module for building a package using cargo.
 //!
 //! This module defines the `BuildAction` struct and its associated methods for

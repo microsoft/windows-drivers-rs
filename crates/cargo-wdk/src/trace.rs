@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! This module provides utilities for configuring logging and determining
 //! cargo verbosity flags based on the verbosity level specified via clap.
 //!

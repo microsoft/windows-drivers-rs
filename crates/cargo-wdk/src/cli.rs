@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! This module defines the top-level CLI layer, its argument types and
 //! structures used for parsing and validating arguments for various
 //! subcommands.

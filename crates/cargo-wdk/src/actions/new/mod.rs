@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! Module for handling the creation of new driver projects.
 //!
 //! This module defines the `NewAction` struct and its associated methods for

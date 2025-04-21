@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! Module for handling low-level driver packaging tasks.
 //!
 //! This module defines the `PackageTask` struct and its associated methods

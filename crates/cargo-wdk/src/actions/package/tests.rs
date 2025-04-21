@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 #![allow(clippy::too_many_lines)] // Package tests are longer and splitting them into sub functions can make the code less readable
 #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
 use std::{

@@ -1,5 +1,7 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! This module provides a standardized and testable interface for command
-//! execution and error handling. It wraps around `std::process::Command` to
+//! execution and error handling. It wraps the `std::process::Command` to
 //! simplify usage and ensure consistent error reporting. The use of `mockall`
 //! enables mocking the `CommandExec` struct for unit testing.
 
