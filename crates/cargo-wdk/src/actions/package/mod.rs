@@ -229,7 +229,7 @@ impl<'a> PackageAction<'a> {
     // and the cargo metadata
     fn run_from_workspace_root(
         &self,
-        working_dir: &PathBuf,
+        working_dir: &Path,
         cargo_metadata: &CargoMetadata,
     ) -> Result<(), PackageActionError> {
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
@@ -276,7 +276,7 @@ impl<'a> PackageAction<'a> {
 
             if failed_atleast_one_workspace_member {
                 return Err(PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(
-                    working_dir.clone(),
+                    working_dir.to_owned(),
                 ));
             }
             return Ok(());
@@ -300,7 +300,9 @@ impl<'a> PackageAction<'a> {
         });
 
         if package.is_none() {
-            return Err(PackageActionError::NotAWorkspaceMember(working_dir.clone()));
+            return Err(PackageActionError::NotAWorkspaceMember(
+                working_dir.to_owned(),
+            ));
         }
 
         let package = package.expect("Package cannot be empty");
