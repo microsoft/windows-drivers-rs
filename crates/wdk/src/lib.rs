@@ -5,7 +5,10 @@
 //! built on top of the raw FFI bindings provided by [`wdk-sys`], and provides a
 //! safe, idiomatic rust interface to the WDK.
 
-#![no_std]
+#![cfg_attr(
+    any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
+    no_std
+)]
 
 #[cfg(any(
     all(
