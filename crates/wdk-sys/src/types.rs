@@ -10,8 +10,11 @@ pub use bindings::*;
 #[allow(unsafe_op_in_unsafe_fn)]
 #[allow(clippy::cast_lossless)]
 #[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_possible_wrap)]
 #[allow(clippy::cognitive_complexity)]
+#[allow(clippy::doc_markdown)]
 #[allow(clippy::default_trait_access)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[rustversion::attr(
     any(
         all(not(nightly), before(1.74)),
@@ -26,13 +29,14 @@ pub use bindings::*;
     ),
     allow(clippy::non_canonical_clone_impl)
 )]
-#[allow(clippy::missing_safety_doc)]
 #[allow(clippy::missing_const_for_fn)]
+#[allow(clippy::missing_safety_doc)]
 #[allow(clippy::module_name_repetitions)]
 #[allow(clippy::multiple_unsafe_ops_per_block)]
 #[allow(clippy::must_use_candidate)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[allow(clippy::ptr_as_ptr)]
+#[allow(clippy::ptr_offset_with_cast)]
 #[rustversion::attr(
     any(
         all(not(nightly), since(1.77)),

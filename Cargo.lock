@@ -1224,6 +1224,7 @@ dependencies = [
 name = "wdk"
 version = "0.3.0"
 dependencies = [
+ "cfg-if",
  "tracing",
  "tracing-subscriber",
  "wdk-build",
@@ -1265,6 +1266,7 @@ dependencies = [
 name = "wdk-macros"
 version = "0.3.0"
 dependencies = [
+ "cfg-if",
  "fs4",
  "itertools",
  "pretty_assertions",
