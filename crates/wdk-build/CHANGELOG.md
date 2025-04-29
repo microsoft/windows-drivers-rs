@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
-- Use stack-based formatter for debug-printing. ([#233](https://github.com/microsoft/windows-drivers-rs/pull/233))
 - update README to clarify community engagement and contact methods ([#312](https://github.com/microsoft/windows-drivers-rs/pull/312))
 - remove noop `must_use` on trait impl ([#302](https://github.com/microsoft/windows-drivers-rs/pull/302))
 - [**breaking**] Remove lazy static instances ([#250](https://github.com/microsoft/windows-drivers-rs/pull/250))

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add support for Storage API subset in `wdk-sys` ([#287](https://github.com/microsoft/windows-drivers-rs/pull/287))
 - expand `wdk-sys` coverage to include spb-related headers ([#263](https://github.com/microsoft/windows-drivers-rs/pull/263))
 - [**breaking**] expand `wdk-sys` coverage to include hid-related headers ([#260](https://github.com/microsoft/windows-drivers-rs/pull/260))
+- Use stack-based formatter for debug-printing. ([#233](https://github.com/microsoft/windows-drivers-rs/pull/233))
 
 ### Fixed
 
@@ -23,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
-- Use stack-based formatter for debug-printing. ([#233](https://github.com/microsoft/windows-drivers-rs/pull/233))
 - update README to clarify community engagement and contact methods ([#312](https://github.com/microsoft/windows-drivers-rs/pull/312))
 - [**breaking**] Remove lazy static instances ([#250](https://github.com/microsoft/windows-drivers-rs/pull/250))
 - use `is_none_or` for `clippy::nonminimal_bool` and resolve `clippy::needless_raw_string_hashes` ([#231](https://github.com/microsoft/windows-drivers-rs/pull/231))
