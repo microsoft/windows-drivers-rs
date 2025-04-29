@@ -7,7 +7,10 @@ pub use bindings::*;
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
-#[allow(unnecessary_transmutes)]
+#[rustversion::attr(
+    all(nightly, since(1.88)),
+    allow(unnecessary_transmutes)
+)]
 #[allow(unsafe_op_in_unsafe_fn)]
 #[allow(clippy::cast_lossless)]
 #[allow(clippy::cast_possible_truncation)]
