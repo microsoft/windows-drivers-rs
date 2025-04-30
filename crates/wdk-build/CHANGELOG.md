@@ -5,6 +5,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.3.0...wdk-build-v0.4.0) - 2025-04-18
+
+### Added
+
+- extend coverage in `wdk-sys` to include usb-related headers ([#296](https://github.com/microsoft/windows-drivers-rs/pull/296))
+- expand wdk-sys coverage to include gpio and parallel ports related headers ([#278](https://github.com/microsoft/windows-drivers-rs/pull/278))
+- add support for Storage API subset in `wdk-sys` ([#287](https://github.com/microsoft/windows-drivers-rs/pull/287))
+- expand `wdk-sys` coverage to include spb-related headers ([#263](https://github.com/microsoft/windows-drivers-rs/pull/263))
+- [**breaking**] expand `wdk-sys` coverage to include hid-related headers ([#260](https://github.com/microsoft/windows-drivers-rs/pull/260))
+
+### Fixed
+
+- [**breaking**] specify rust version & edition to wdk-default bindgen::builder ([#314](https://github.com/microsoft/windows-drivers-rs/pull/314))
+- [**breaking**] explicitly mark `_KGDTENTRY64` and `_KIDTENTRY64` as opaque types in `bindgen` ([#277](https://github.com/microsoft/windows-drivers-rs/pull/277))
+- suppress linker warnings exposed by nightly rustc change ([#279](https://github.com/microsoft/windows-drivers-rs/pull/279))
+- add missing arm64rt library to linker flags for arm64 kernel-mode builds ([#261](https://github.com/microsoft/windows-drivers-rs/pull/261))
+
+### Other
+
+- update README to clarify community engagement and contact methods ([#312](https://github.com/microsoft/windows-drivers-rs/pull/312))
+- remove noop `must_use` on trait impl ([#302](https://github.com/microsoft/windows-drivers-rs/pull/302))
+- [**breaking**] Remove lazy static instances ([#250](https://github.com/microsoft/windows-drivers-rs/pull/250))
+- fix panic condition docs for `package_driver_flow_condition_script` ([#264](https://github.com/microsoft/windows-drivers-rs/pull/264))
+- port certificate-generation condition script to Rust ([#259](https://github.com/microsoft/windows-drivers-rs/pull/259))
+- remove redundant code-path in `detect_wdk_content_root` ([#249](https://github.com/microsoft/windows-drivers-rs/pull/249))
+- use `next_back` instead of `last` on double-ended iterators (`clippy::double_ended_iterator_last`) ([#262](https://github.com/microsoft/windows-drivers-rs/pull/262))
+- use `is_none_or` for `clippy::nonminimal_bool` and resolve `clippy::needless_raw_string_hashes` ([#231](https://github.com/microsoft/windows-drivers-rs/pull/231))
+- fix `clippy::nonminimal_bool` and `clippy::ref_option` issues ([#230](https://github.com/microsoft/windows-drivers-rs/pull/230))
+
 ## [0.3.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.2.0...wdk-build-v0.3.0) - 2024-09-27
 
 ### Added
