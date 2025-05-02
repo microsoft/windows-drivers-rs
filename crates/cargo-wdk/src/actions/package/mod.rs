@@ -33,7 +33,13 @@ use wdk_build::{
 
 use crate::actions::{build::BuildAction, Profile};
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+use crate::providers::{
+    env::Env,
+    exec::CommandExec,
+    fs::Fs,
+    metadata::Metadata,
+    wdk_build::WdkBuild,
+};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
@@ -59,6 +65,7 @@ pub struct PackageAction<'a> {
     command_exec: &'a CommandExec,
     fs_provider: &'a Fs,
     metadata: &'a Metadata,
+    env_provider: &'a Env,
 }
 
 impl<'a> PackageAction<'a> {
@@ -85,6 +92,7 @@ impl<'a> PackageAction<'a> {
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
         metadata: &'a Metadata,
+        env_provider: &'a Env,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
         let working_dir = fs_provider.canonicalize_path(params.working_dir)?;
@@ -99,6 +107,7 @@ impl<'a> PackageAction<'a> {
             command_exec,
             fs_provider,
             metadata,
+            env_provider,
         })
     }
 
@@ -385,7 +394,7 @@ impl<'a> PackageAction<'a> {
         let driver_model = wdk_metadata.driver_model.clone();
         let target_arch = match self.target_arch {
             Some(arch) => *arch,
-            None => detect_arch_from_rustup_toolchain()?,
+            None => self.detect_arch_from_rustup_toolchain()?,
         };
         debug!(
             "Target architecture for package: {} is: {}",
@@ -431,32 +440,32 @@ impl<'a> PackageAction<'a> {
         info!("Processing completed for package: {}", package_name);
         Ok(())
     }
-}
 
-/// # Errors
-/// Returns
-/// * `CpuArchitecture`
-/// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
-///   variable is not available
-fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, PackageActionError> {
-    std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
-        |e| {
-            Err(PackageActionError::UnableToReadRustupToolchainEnv(
-                e.to_string(),
-            ))
-        },
-        |rustup_toolchain| {
-            if let Some(arch) = rustup_toolchain.split('-').nth(1) {
-                match arch {
-                    "x86_64" => Ok(CpuArchitecture::Amd64),
-                    "aarch64" => Ok(CpuArchitecture::Arm64),
-                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
-                }
-            } else {
-                Err(PackageActionError::UnableToReadArchInRustupToolChainEnv(
-                    rustup_toolchain,
+    /// # Errors
+    /// Returns
+    /// * `CpuArchitecture`
+    /// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
+    ///   variable is not available
+    fn detect_arch_from_rustup_toolchain(&self) -> Result<CpuArchitecture, PackageActionError> {
+        self.env_provider.var("RUSTUP_TOOLCHAIN").map_or_else(
+            |e| {
+                Err(PackageActionError::UnableToReadRustupToolchainEnv(
+                    e.to_string(),
                 ))
-            }
-        },
-    )
+            },
+            |rustup_toolchain| {
+                if let Some(arch) = rustup_toolchain.split_once('-') {
+                    match arch {
+                        ("x86_64", _) => Ok(CpuArchitecture::Amd64),
+                        ("aarch64", _) => Ok(CpuArchitecture::Arm64),
+                        _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
+                    }
+                } else {
+                    Err(PackageActionError::UnableToReadArchInRustupToolChainEnv(
+                        rustup_toolchain,
+                    ))
+                }
+            },
+        )
+    }
 }

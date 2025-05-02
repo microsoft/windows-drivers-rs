@@ -16,7 +16,13 @@ use crate::actions::{
     Profile,
 };
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+use crate::providers::{
+    env::Env,
+    exec::CommandExec,
+    fs::Fs,
+    metadata::Metadata,
+    wdk_build::WdkBuild,
+};
 
 /// Validation errors for the driver project name arg passed to new project sub
 /// command
@@ -126,6 +132,7 @@ impl Cli {
         let command_exec = CommandExec::default();
         let fs_provider = Fs::default();
         let metadata = Metadata::default();
+        let env_provider = Env::default();
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
@@ -154,6 +161,7 @@ impl Cli {
                     &command_exec,
                     &fs_provider,
                     &metadata,
+                    &env_provider,
                 )?;
                 package_action.run()?;
                 Ok(())
