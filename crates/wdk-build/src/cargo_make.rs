@@ -557,9 +557,14 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
     );
 
+
+    let wdk_legacy_tool_root = wdk_content_root
+        .join(format!("Tools"))
+        .canonicalize()?;
     let wdk_tool_root = wdk_content_root
         .join(format!("Tools/{version}"))
-        .canonicalize()?
+        .canonicalize()
+        .unwrap_or(wdk_legacy_tool_root)
         .strip_extended_length_path_prefix()?;
     let arch_specific_wdk_tool_root = wdk_tool_root
         .join(host_arch.as_windows_str())
