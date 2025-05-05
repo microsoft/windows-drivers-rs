@@ -1,0 +1,24 @@
+[package]
+name = "umdf-driver"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata.wdk.driver-model]
+driver-type = "UMDF"
+umdf-version-major = 2
+target-umdf-version-minor = 33
+
+[lib]
+crate-type = ["cdylib"]
+# Tests from root driver crates must be excluded since there's no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
+test = false
+
+[build-dependencies]
+wdk-build = { path = "../../../../crates/wdk-build", version = "0.3.0" }
+
+[dependencies]
+wdk = { path = "../../../../crates/wdk", version = "0.3.0" }
+wdk-sys = { path = "../../../../crates/wdk-sys", version = "0.3.0" }
+
+[workspace]
