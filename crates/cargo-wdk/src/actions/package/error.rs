@@ -47,11 +47,6 @@ pub enum PackageActionError {
     UnsupportedHostArch(String),
     #[error("RUSTUP_TOOLCHAIN env variable not found. Error: {0}")]
     UnableToReadRustupToolchainEnv(String),
-    #[error(
-        "Architecture could not be determined from RUSTUP_TOOLCHAIN env variable, current value: \
-         {0}"
-    )]
-    UnableToReadArchInRustupToolChainEnv(String),
 }
 
 /// Errors for the low level package task layer

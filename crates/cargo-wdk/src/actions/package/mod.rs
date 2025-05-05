@@ -454,16 +454,18 @@ impl<'a> PackageAction<'a> {
                 ))
             },
             |rustup_toolchain| {
-                if let Some(arch) = rustup_toolchain.split_once('-') {
-                    match arch {
-                        ("x86_64", _) => Ok(CpuArchitecture::Amd64),
-                        ("aarch64", _) => Ok(CpuArchitecture::Arm64),
-                        _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
-                    }
-                } else {
-                    Err(PackageActionError::UnableToReadArchInRustupToolChainEnv(
-                        rustup_toolchain,
-                    ))
+                // Multiple formats of RUSTUP_TOOLCHAIN are possible:
+                // 1. 1.88.0-x86_64-pc-windows-msvc
+                // 2. nightly-x86_64-pc-windows-msvc
+                // 3. nightly-2025-05-05-x86_64-pc-windows-msvc
+                match rustup_toolchain
+                    .splitn(6, '-')
+                    .collect::<Vec<&str>>()
+                    .as_slice()
+                {
+                    [_, "x86_64", ..] | [_, _, _, _, "x86_64", ..] => Ok(CpuArchitecture::Amd64),
+                    [_, "aarch64", ..] | [_, _, _, _, "aarch64", ..] => Ok(CpuArchitecture::Arm64),
+                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
                 }
             },
         )

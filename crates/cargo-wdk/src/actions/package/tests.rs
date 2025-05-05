@@ -2311,7 +2311,54 @@ pub fn given_rustup_toolchain_env_var_is_set_when_detect_arch_from_rustup_toolch
         .expect_var()
         .with(eq("RUSTUP_TOOLCHAIN"))
         .once()
-        .returning(|_| Ok("x86_64-pc-windows-msvc".to_string()));
+        .returning(|_| Ok("stable-x86_64-pc-windows-msvc".to_string()));
+
+    let path = PathBuf::from("C:\\tmp");
+    let expected_path = path.clone();
+    let path_to_be_returned = path.clone();
+
+    mock_fs_provider
+        .expect_canonicalize_path()
+        .withf(move |d: &Path| d.eq(&expected_path))
+        .once()
+        .returning(move |_| Ok(path_to_be_returned.clone()));
+    let package_action = PackageAction::new(
+        &PackageActionParams {
+            working_dir: &path,
+            profile: None,
+            target_arch: None,
+            verify_signature: false,
+            is_sample_class: false,
+            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
+        },
+        &mock_build_provider,
+        &mock_command_exec,
+        &mock_fs_provider,
+        &mock_metadata_provider,
+        &mock_env_provider,
+    );
+
+    let result = package_action
+        .expect("package action should be created")
+        .detect_arch_from_rustup_toolchain();
+
+    assert_eq!(result.unwrap(), CpuArchitecture::Amd64);
+}
+
+#[test]
+pub fn given_rustup_toolchain_env_var_is_set_with_release_date_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_arch(
+) {
+    let mock_build_provider = WdkBuild::default();
+    let mock_command_exec = CommandExec::default();
+    let mut mock_fs_provider = Fs::default();
+    let mock_metadata_provider = MetadataProvider::default();
+    let mut mock_env_provider = EnvProvider::default();
+
+    mock_env_provider
+        .expect_var()
+        .with(eq("RUSTUP_TOOLCHAIN"))
+        .once()
+        .returning(|_| Ok("stable-2025-05-05-x86_64-pc-windows-msvc".to_string()));
 
     let path = PathBuf::from("C:\\tmp");
     let expected_path = path.clone();
@@ -2358,7 +2405,7 @@ pub fn given_rustup_toolchain_env_var_is_set_to_arm64_when_detect_arch_from_rust
         .expect_var()
         .with(eq("RUSTUP_TOOLCHAIN"))
         .once()
-        .returning(|_| Ok("aarch64-pc-windows-msvc".to_string()));
+        .returning(|_| Ok("nightly-aarch64-pc-windows-msvc".to_string()));
 
     let path = PathBuf::from("C:\\tmp");
     let expected_path = path.clone();
@@ -2492,58 +2539,6 @@ pub fn given_rustup_toolchain_env_var_is_set_to_some_value_when_detect_arch_from
         result.unwrap_err().to_string(),
         "CPU Architecture of the host is not supported: some-toolchain \n Please try with the \
          --target-arch option"
-    );
-}
-
-#[test]
-pub fn given_rustup_toolchain_env_var_is_set_to_invalid_value_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_error(
-) {
-    let mock_build_provider = WdkBuild::default();
-    let mock_command_exec = CommandExec::default();
-    let mut mock_fs_provider = Fs::default();
-    let mock_metadata_provider = MetadataProvider::default();
-    let mut mock_env_provider = EnvProvider::default();
-
-    mock_env_provider
-        .expect_var()
-        .with(eq("RUSTUP_TOOLCHAIN"))
-        .once()
-        .returning(|_| Ok("somerandomvalue".to_string()));
-
-    let path = PathBuf::from("C:\\tmp");
-    let expected_path = path.clone();
-    let path_to_be_returned = path.clone();
-
-    mock_fs_provider
-        .expect_canonicalize_path()
-        .withf(move |d: &Path| d.eq(&expected_path))
-        .once()
-        .returning(move |_| Ok(path_to_be_returned.clone()));
-    let package_action = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &path,
-            profile: None,
-            target_arch: None,
-            verify_signature: false,
-            is_sample_class: false,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        &mock_build_provider,
-        &mock_command_exec,
-        &mock_fs_provider,
-        &mock_metadata_provider,
-        &mock_env_provider,
-    );
-
-    let result = package_action
-        .expect("package action should be created")
-        .detect_arch_from_rustup_toolchain();
-
-    assert!(result.is_err());
-    assert_eq!(
-        result.unwrap_err().to_string(),
-        "Architecture could not be determined from RUSTUP_TOOLCHAIN env variable, current value: \
-         somerandomvalue"
     );
 }
 
@@ -2993,7 +2988,12 @@ impl TestSetupPackageExpectations for TestPackageAction {
             .expect_var()
             .with(eq("RUSTUP_TOOLCHAIN"))
             .once()
-            .returning(move |_| Ok(self.toolchain_target_arch.to_target_triple()));
+            .returning(move |_| {
+                Ok(format!(
+                    "stable-{}",
+                    self.toolchain_target_arch.to_target_triple()
+                ))
+            });
         self
     }
 
