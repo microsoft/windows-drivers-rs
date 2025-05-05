@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-panic-v0.3.0...wdk-panic-v0.3.1) - 2025-04-18
+
+### Other
+
+- update README to clarify community engagement and contact methods ([#312](https://github.com/microsoft/windows-drivers-rs/pull/312))
+
 ## [0.3.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-panic-v0.2.0...wdk-panic-v0.3.0) - 2024-09-27
 
 ### Added
