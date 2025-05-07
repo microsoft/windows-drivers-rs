@@ -26,25 +26,17 @@ use std::{
 use anyhow::Result;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
-use wdk_build::{
-    metadata::{TryFromCargoMetadataError, Wdk},
-    CpuArchitecture,
-};
+use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
+use super::TargetArch;
 use crate::actions::{build::BuildAction, Profile};
 #[double]
-use crate::providers::{
-    env::Env,
-    exec::CommandExec,
-    fs::Fs,
-    metadata::Metadata,
-    wdk_build::WdkBuild,
-};
+use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct PackageActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
-    pub target_arch: Option<&'a CpuArchitecture>,
+    pub target_arch: TargetArch,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -55,7 +47,7 @@ pub struct PackageActionParams<'a> {
 pub struct PackageAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
-    target_arch: Option<&'a CpuArchitecture>,
+    target_arch: TargetArch,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -65,7 +57,6 @@ pub struct PackageAction<'a> {
     command_exec: &'a CommandExec,
     fs_provider: &'a Fs,
     metadata: &'a Metadata,
-    env_provider: &'a Env,
 }
 
 impl<'a> PackageAction<'a> {
@@ -92,7 +83,6 @@ impl<'a> PackageAction<'a> {
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
         metadata: &'a Metadata,
-        env_provider: &'a Env,
     ) -> Result<Self> {
         // TODO: validate and init attrs here
         let working_dir = fs_provider.canonicalize_path(params.working_dir)?;
@@ -107,7 +97,6 @@ impl<'a> PackageAction<'a> {
             command_exec,
             fs_provider,
             metadata,
-            env_provider,
         })
     }
 
@@ -393,15 +382,14 @@ impl<'a> PackageAction<'a> {
         let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
         let driver_model = wdk_metadata.driver_model.clone();
         let target_arch = match self.target_arch {
-            Some(arch) => *arch,
-            None => self.detect_arch_from_rustup_toolchain()?,
+            TargetArch::Default(arch) | TargetArch::Selected(arch) => arch,
         };
         debug!(
             "Target architecture for package: {} is: {}",
             package_name, target_arch
         );
         let mut target_dir = target_dir.to_path_buf();
-        if let Some(arch) = self.target_arch {
+        if let TargetArch::Selected(arch) = self.target_arch {
             target_dir = target_dir.join(arch.to_target_triple());
         }
         target_dir = match self.profile {
@@ -439,35 +427,5 @@ impl<'a> PackageAction<'a> {
         }
         info!("Processing completed for package: {}", package_name);
         Ok(())
-    }
-
-    /// # Errors
-    /// Returns
-    /// * `CpuArchitecture`
-    /// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
-    ///   variable is not available
-    fn detect_arch_from_rustup_toolchain(&self) -> Result<CpuArchitecture, PackageActionError> {
-        self.env_provider.var("RUSTUP_TOOLCHAIN").map_or_else(
-            |e| {
-                Err(PackageActionError::UnableToReadRustupToolchainEnv(
-                    e.to_string(),
-                ))
-            },
-            |rustup_toolchain| {
-                // Multiple formats of RUSTUP_TOOLCHAIN are possible:
-                // 1. 1.88.0-x86_64-pc-windows-msvc
-                // 2. nightly-x86_64-pc-windows-msvc
-                // 3. nightly-2025-05-05-x86_64-pc-windows-msvc
-                match rustup_toolchain
-                    .splitn(6, '-')
-                    .collect::<Vec<&str>>()
-                    .as_slice()
-                {
-                    [_, "x86_64", ..] | [_, _, _, _, "x86_64", ..] => Ok(CpuArchitecture::Amd64),
-                    [_, "aarch64", ..] | [_, _, _, _, "aarch64", ..] => Ok(CpuArchitecture::Arm64),
-                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
-                }
-            },
-        )
     }
 }

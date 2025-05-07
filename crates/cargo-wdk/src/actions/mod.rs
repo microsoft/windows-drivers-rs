@@ -14,6 +14,8 @@ pub mod build;
 pub mod new;
 pub mod package;
 
+use wdk_build::CpuArchitecture;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Profile {
     Dev,
@@ -40,4 +42,13 @@ impl fmt::Display for Profile {
         };
         write!(f, "{s}")
     }
+}
+
+/// Enum is used to determine the architecture for which the driver is being
+/// built. It can be either a selected architecture passed via CLI or a default
+/// host architecture.
+#[derive(Debug, Clone, Copy)]
+pub enum TargetArch {
+    Selected(CpuArchitecture),
+    Default(CpuArchitecture),
 }

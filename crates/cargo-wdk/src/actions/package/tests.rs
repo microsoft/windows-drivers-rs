@@ -23,7 +23,6 @@ use wdk_build::{
 use super::PackageAction;
 #[double]
 use crate::providers::{
-    env::Env as EnvProvider,
     exec::CommandExec,
     fs::Fs,
     metadata::Metadata as MetadataProvider,
@@ -33,6 +32,7 @@ use crate::{
     actions::{
         package::{error::PackageActionError, PackageActionParams},
         Profile,
+        TargetArch,
     },
     providers::error::CommandError,
 };
@@ -49,7 +49,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = false;
     let sample_class = false;
     // Driver project data
@@ -71,13 +71,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -87,7 +81,6 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -109,7 +102,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -118,7 +111,6 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -134,7 +126,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Some(Profile::Release);
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -158,13 +150,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -174,7 +160,6 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -196,7 +181,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -205,7 +190,6 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -221,7 +205,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = Some(CpuArchitecture::Arm64);
+    let target_arch = TargetArch::Selected(CpuArchitecture::Arm64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -245,13 +229,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Arm64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -282,7 +260,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -291,7 +269,6 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -308,7 +285,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Some(Profile::Release);
-    let target_arch = Some(CpuArchitecture::Arm64);
+    let target_arch = TargetArch::Selected(CpuArchitecture::Arm64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -332,13 +309,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Arm64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -369,7 +340,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -378,7 +349,6 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -394,7 +364,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = false;
     let sample_class = true;
 
@@ -418,13 +388,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -434,7 +398,6 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -457,7 +420,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -466,7 +429,6 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -482,7 +444,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -506,13 +468,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -522,7 +478,6 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -546,7 +501,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -555,7 +510,6 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -571,7 +525,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -614,13 +568,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -630,7 +578,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -654,7 +601,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -663,7 +610,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -679,7 +625,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -702,13 +648,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -718,7 +658,6 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -743,7 +682,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -752,7 +691,6 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -768,7 +706,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -780,13 +718,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -796,7 +728,6 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, false);
@@ -805,7 +736,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -814,7 +745,6 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -833,7 +763,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -845,13 +775,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -861,7 +785,6 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -871,7 +794,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -880,7 +803,6 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -899,7 +821,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -917,13 +839,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -933,7 +849,6 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -947,7 +862,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -956,7 +871,6 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -975,7 +889,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -993,13 +907,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1009,7 +917,6 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1024,7 +931,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1033,7 +940,6 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1052,7 +958,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1070,13 +976,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1086,7 +986,6 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1103,7 +1002,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1112,7 +1011,6 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1131,7 +1029,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1149,13 +1047,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1165,7 +1057,6 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1183,7 +1074,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1192,7 +1083,6 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1211,7 +1101,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1229,13 +1119,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1245,7 +1129,6 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1265,7 +1148,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1274,7 +1157,6 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1293,7 +1175,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1311,13 +1193,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1327,7 +1203,6 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1349,7 +1224,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1358,7 +1233,6 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1378,7 +1252,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1388,13 +1262,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, None);
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
@@ -1409,7 +1277,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1418,7 +1286,6 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1439,7 +1306,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp\\sample-driver");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1447,13 +1314,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     let driver_name = "sample-driver";
     let cargo_toml_metadata = invalid_driver_cargo_toml();
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_with_custom_toml(&cargo_toml_metadata)
         .expect_detect_wdk_build_number(25100u32)
@@ -1468,7 +1329,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1477,7 +1338,6 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1504,7 +1364,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1544,13 +1404,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -1568,7 +1422,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
@@ -1590,7 +1443,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         // Second driver project
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
@@ -1617,7 +1469,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1626,7 +1478,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1644,7 +1495,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("sample-kmdf-1");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1688,13 +1539,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -1714,7 +1559,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_path_canonicalization_package_root(&cwd)
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name_1, &cwd, None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
         .expect_inx_file_exists(driver_name_1, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
@@ -1742,7 +1586,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1751,7 +1595,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1768,7 +1611,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -1808,13 +1651,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -1832,7 +1669,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
@@ -1852,7 +1688,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         // Second driver project
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
-        .expect_rustup_toolchain_var()
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
@@ -1877,7 +1712,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1886,7 +1721,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1902,7 +1736,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1934,13 +1768,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         None,
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -1965,7 +1793,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1974,7 +1802,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -1989,7 +1816,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -2015,13 +1842,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         Some(wdk_metadata_2),
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2045,7 +1866,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2054,7 +1875,6 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -2076,7 +1896,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -2102,13 +1922,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         Some(wdk_metadata_1),
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
@@ -2132,7 +1946,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2141,7 +1955,6 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -2163,7 +1976,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -2173,13 +1986,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     let (workspace_member_3, package_3) =
         get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2200,7 +2007,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2209,7 +2016,6 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -2230,7 +2036,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
     let profile = None;
-    let target_arch = None;
+    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -2244,13 +2050,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         None,
     );
 
-    let package_project = TestPackageAction::new(
-        cwd.clone(),
-        profile,
-        CpuArchitecture::Amd64,
-        target_arch,
-        sample_class,
-    );
+    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
     let package_project_action = package_project
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
@@ -2271,7 +2071,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         &PackageActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch: target_arch.as_ref(),
+            target_arch,
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2280,7 +2080,6 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         package_project_action.mock_run_command(),
         package_project_action.mock_fs_provider(),
         package_project_action.mock_metadata_provider(),
-        package_project_action.mock_env_provider(),
     );
     assert!(package_project.is_ok());
 
@@ -2294,261 +2093,12 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     ));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-/// detect rustup toolchain tests
-////////////////////////////////////////////////////////////////////////////////
-
-#[test]
-pub fn given_rustup_toolchain_env_var_is_set_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_arch(
-) {
-    let mock_build_provider = WdkBuild::default();
-    let mock_command_exec = CommandExec::default();
-    let mut mock_fs_provider = Fs::default();
-    let mock_metadata_provider = MetadataProvider::default();
-    let mut mock_env_provider = EnvProvider::default();
-
-    mock_env_provider
-        .expect_var()
-        .with(eq("RUSTUP_TOOLCHAIN"))
-        .once()
-        .returning(|_| Ok("stable-x86_64-pc-windows-msvc".to_string()));
-
-    let path = PathBuf::from("C:\\tmp");
-    let expected_path = path.clone();
-    let path_to_be_returned = path.clone();
-
-    mock_fs_provider
-        .expect_canonicalize_path()
-        .withf(move |d: &Path| d.eq(&expected_path))
-        .once()
-        .returning(move |_| Ok(path_to_be_returned.clone()));
-    let package_action = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &path,
-            profile: None,
-            target_arch: None,
-            verify_signature: false,
-            is_sample_class: false,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        &mock_build_provider,
-        &mock_command_exec,
-        &mock_fs_provider,
-        &mock_metadata_provider,
-        &mock_env_provider,
-    );
-
-    let result = package_action
-        .expect("package action should be created")
-        .detect_arch_from_rustup_toolchain();
-
-    assert_eq!(result.unwrap(), CpuArchitecture::Amd64);
-}
-
-#[test]
-pub fn given_rustup_toolchain_env_var_is_set_with_release_date_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_arch(
-) {
-    let mock_build_provider = WdkBuild::default();
-    let mock_command_exec = CommandExec::default();
-    let mut mock_fs_provider = Fs::default();
-    let mock_metadata_provider = MetadataProvider::default();
-    let mut mock_env_provider = EnvProvider::default();
-
-    mock_env_provider
-        .expect_var()
-        .with(eq("RUSTUP_TOOLCHAIN"))
-        .once()
-        .returning(|_| Ok("stable-2025-05-05-x86_64-pc-windows-msvc".to_string()));
-
-    let path = PathBuf::from("C:\\tmp");
-    let expected_path = path.clone();
-    let path_to_be_returned = path.clone();
-
-    mock_fs_provider
-        .expect_canonicalize_path()
-        .withf(move |d: &Path| d.eq(&expected_path))
-        .once()
-        .returning(move |_| Ok(path_to_be_returned.clone()));
-    let package_action = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &path,
-            profile: None,
-            target_arch: None,
-            verify_signature: false,
-            is_sample_class: false,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        &mock_build_provider,
-        &mock_command_exec,
-        &mock_fs_provider,
-        &mock_metadata_provider,
-        &mock_env_provider,
-    );
-
-    let result = package_action
-        .expect("package action should be created")
-        .detect_arch_from_rustup_toolchain();
-
-    assert_eq!(result.unwrap(), CpuArchitecture::Amd64);
-}
-
-#[test]
-pub fn given_rustup_toolchain_env_var_is_set_to_arm64_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_arm64(
-) {
-    let mock_build_provider = WdkBuild::default();
-    let mock_command_exec = CommandExec::default();
-    let mut mock_fs_provider = Fs::default();
-    let mock_metadata_provider = MetadataProvider::default();
-    let mut mock_env_provider = EnvProvider::default();
-
-    mock_env_provider
-        .expect_var()
-        .with(eq("RUSTUP_TOOLCHAIN"))
-        .once()
-        .returning(|_| Ok("nightly-aarch64-pc-windows-msvc".to_string()));
-
-    let path = PathBuf::from("C:\\tmp");
-    let expected_path = path.clone();
-    let path_to_be_returned = path.clone();
-
-    mock_fs_provider
-        .expect_canonicalize_path()
-        .withf(move |d: &Path| d.eq(&expected_path))
-        .once()
-        .returning(move |_| Ok(path_to_be_returned.clone()));
-    let package_action = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &path,
-            profile: None,
-            target_arch: None,
-            verify_signature: false,
-            is_sample_class: false,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        &mock_build_provider,
-        &mock_command_exec,
-        &mock_fs_provider,
-        &mock_metadata_provider,
-        &mock_env_provider,
-    );
-
-    let result = package_action
-        .expect("package action should be created")
-        .detect_arch_from_rustup_toolchain();
-
-    assert_eq!(result.unwrap(), CpuArchitecture::Arm64);
-}
-
-#[test]
-pub fn given_rustup_toolchain_env_var_is_not_set_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_error(
-) {
-    let mock_build_provider = WdkBuild::default();
-    let mock_command_exec = CommandExec::default();
-    let mut mock_fs_provider = Fs::default();
-    let mock_metadata_provider = MetadataProvider::default();
-    let mut mock_env_provider = EnvProvider::default();
-
-    mock_env_provider
-        .expect_var()
-        .with(eq("RUSTUP_TOOLCHAIN"))
-        .once()
-        .returning(|_| Err(std::env::VarError::NotPresent));
-
-    let path = PathBuf::from("C:\\tmp");
-    let expected_path = path.clone();
-    let path_to_be_returned = path.clone();
-
-    mock_fs_provider
-        .expect_canonicalize_path()
-        .withf(move |d: &Path| d.eq(&expected_path))
-        .once()
-        .returning(move |_| Ok(path_to_be_returned.clone()));
-    let package_action = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &path,
-            profile: None,
-            target_arch: None,
-            verify_signature: false,
-            is_sample_class: false,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        &mock_build_provider,
-        &mock_command_exec,
-        &mock_fs_provider,
-        &mock_metadata_provider,
-        &mock_env_provider,
-    );
-
-    let result = package_action
-        .expect("package action should be created")
-        .detect_arch_from_rustup_toolchain();
-
-    assert!(result.is_err());
-    assert_eq!(
-        result.unwrap_err().to_string(),
-        "RUSTUP_TOOLCHAIN env variable not found. Error: environment variable not found"
-    );
-}
-
-#[test]
-pub fn given_rustup_toolchain_env_var_is_set_to_some_value_when_detect_arch_from_rustup_toolchain_is_called_then_it_returns_error(
-) {
-    let mock_build_provider = WdkBuild::default();
-    let mock_command_exec = CommandExec::default();
-    let mut mock_fs_provider = Fs::default();
-    let mock_metadata_provider = MetadataProvider::default();
-    let mut mock_env_provider = EnvProvider::default();
-
-    mock_env_provider
-        .expect_var()
-        .with(eq("RUSTUP_TOOLCHAIN"))
-        .once()
-        .returning(|_| Ok("some-toolchain".to_string()));
-
-    let path = PathBuf::from("C:\\tmp");
-    let expected_path = path.clone();
-    let path_to_be_returned = path.clone();
-
-    mock_fs_provider
-        .expect_canonicalize_path()
-        .withf(move |d: &Path| d.eq(&expected_path))
-        .once()
-        .returning(move |_| Ok(path_to_be_returned.clone()));
-    let package_action = PackageAction::new(
-        &PackageActionParams {
-            working_dir: &path,
-            profile: None,
-            target_arch: None,
-            verify_signature: false,
-            is_sample_class: false,
-            verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
-        },
-        &mock_build_provider,
-        &mock_command_exec,
-        &mock_fs_provider,
-        &mock_metadata_provider,
-        &mock_env_provider,
-    );
-
-    let result = package_action
-        .expect("package action should be created")
-        .detect_arch_from_rustup_toolchain();
-
-    assert!(result.is_err());
-    assert_eq!(
-        result.unwrap_err().to_string(),
-        "CPU Architecture of the host is not supported: some-toolchain \n Please try with the \
-         --target-arch option"
-    );
-}
-
 /// Helper functions
 ////////////////////////////////////////////////////////////////////////////////
 struct TestPackageAction {
     cwd: PathBuf,
     profile: Option<Profile>,
-    toolchain_target_arch: CpuArchitecture,
-    target_arch: Option<CpuArchitecture>,
+    target_arch: TargetArch,
     sample_class: bool,
 
     cargo_metadata: Option<CargoMetadata>,
@@ -2557,7 +2107,6 @@ struct TestPackageAction {
     mock_wdk_build_provider: WdkBuild,
     mock_fs_provider: Fs,
     mock_metadata_provider: MetadataProvider,
-    mock_env_provider: EnvProvider,
 }
 
 // Presence of method ensures specific mock expectation is set
@@ -2585,7 +2134,6 @@ trait TestSetupPackageExpectations {
         driver_dir: &Path,
         override_output: Option<Output>,
     ) -> Self;
-    fn expect_rustup_toolchain_var(self) -> Self;
     fn expect_inx_file_exists(self, driver_name: &str, driver_dir: &Path, does_exist: bool)
         -> Self;
     fn expect_rename_driver_binary_dll_to_sys(self, driver_name: &str, driver_dir: &Path) -> Self;
@@ -2679,34 +2227,29 @@ trait TestSetupPackageExpectations {
     fn mock_run_command(&self) -> &CommandExec;
     fn mock_fs_provider(&self) -> &Fs;
     fn mock_metadata_provider(&self) -> &MetadataProvider;
-    fn mock_env_provider(&self) -> &EnvProvider;
 }
 
 impl TestPackageAction {
     fn new(
         cwd: PathBuf,
         profile: Option<Profile>,
-        toolchain_target_arch: CpuArchitecture,
-        target_arch: Option<CpuArchitecture>,
+        target_arch: TargetArch,
         sample_class: bool,
     ) -> Self {
         let mock_run_command = CommandExec::default();
         let mock_wdk_build_provider = WdkBuild::default();
         let mock_fs_provider = Fs::default();
         let mock_metadata_provider = MetadataProvider::default();
-        let mock_env_provider = EnvProvider::default();
 
         Self {
             cwd,
             profile,
-            toolchain_target_arch,
             target_arch,
             sample_class,
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
             mock_metadata_provider,
-            mock_env_provider,
             cargo_metadata: None,
         }
     }
@@ -2781,7 +2324,7 @@ impl TestPackageAction {
     fn setup_target_dir(&self, dir_path: &Path) -> PathBuf {
         let mut expected_target_dir = dir_path.join("target");
 
-        if let Some(target_arch) = self.target_arch {
+        if let TargetArch::Selected(target_arch) = self.target_arch {
             expected_target_dir = expected_target_dir.join(target_arch.to_target_triple());
         }
 
@@ -2954,7 +2497,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
             expected_cargo_build_args.push(profile.to_string());
         }
 
-        if let Some(target_arch) = self.target_arch {
+        if let TargetArch::Selected(target_arch) = self.target_arch {
             expected_cargo_build_args.push("--target".to_string());
             expected_cargo_build_args.push(target_arch.to_target_triple());
         }
@@ -2980,20 +2523,6 @@ impl TestSetupPackageExpectations for TestPackageAction {
             )
             .once()
             .returning(move |_, _, _| Ok(expected_output.clone()));
-        self
-    }
-
-    fn expect_rustup_toolchain_var(mut self) -> Self {
-        self.mock_env_provider
-            .expect_var()
-            .with(eq("RUSTUP_TOOLCHAIN"))
-            .once()
-            .returning(move |_| {
-                Ok(format!(
-                    "stable-{}",
-                    self.toolchain_target_arch.to_target_triple()
-                ))
-            });
         self
     }
 
@@ -3229,10 +2758,8 @@ impl TestSetupPackageExpectations for TestPackageAction {
         )
         .expect("Wdk metadata must be available");
 
-        let target_arch = if let Some(target_arch) = self.target_arch {
-            target_arch.to_string()
-        } else {
-            self.toolchain_target_arch.to_string()
+        let target_arch = match self.target_arch {
+            TargetArch::Default(target_arch) | TargetArch::Selected(target_arch) => target_arch,
         };
 
         if let DriverConfig::Kmdf(kmdf_config) = wdk_metadata.driver_model {
@@ -3243,7 +2770,7 @@ impl TestSetupPackageExpectations for TestPackageAction {
                 "-d".to_string(),
                 "*".to_string(),
                 "-a".to_string(),
-                target_arch,
+                target_arch.to_string(),
                 "-c".to_string(),
                 expected_cat_file_name,
                 "-v".to_string(),
@@ -3304,10 +2831,8 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
         let expected_inf2cat_command: &'static str = "inf2cat";
 
-        let target_arch = if let Some(target_arch) = self.target_arch {
-            target_arch
-        } else {
-            self.toolchain_target_arch
+        let target_arch = match self.target_arch {
+            TargetArch::Default(target_arch) | TargetArch::Selected(target_arch) => target_arch,
         };
 
         let expected_inf2cat_arg = match target_arch {
@@ -3788,10 +3313,6 @@ impl TestSetupPackageExpectations for TestPackageAction {
 
     fn mock_metadata_provider(&self) -> &MetadataProvider {
         &self.mock_metadata_provider
-    }
-
-    fn mock_env_provider(&self) -> &EnvProvider {
-        &self.mock_env_provider
     }
 }
 

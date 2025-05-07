@@ -14,15 +14,10 @@ use crate::actions::{
     new::NewAction,
     package::{PackageAction, PackageActionParams},
     Profile,
+    TargetArch,
 };
 #[double]
-use crate::providers::{
-    env::Env,
-    exec::CommandExec,
-    fs::Fs,
-    metadata::Metadata,
-    wdk_build::WdkBuild,
-};
+use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 /// Validation errors for the driver project name arg passed to new project sub
 /// command
@@ -132,7 +127,6 @@ impl Cli {
         let command_exec = CommandExec::default();
         let fs_provider = Fs::default();
         let metadata = Metadata::default();
-        let env_provider = Env::default();
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
@@ -148,11 +142,19 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
+                let target_arch = if let Some(arch) = cli_args.target_arch {
+                    TargetArch::Selected(arch)
+                } else {
+                    // Detect the default target architecture using rustc
+                    let detected_arch =
+                        Self::detect_default_target_arch_using_rustc(&command_exec)?;
+                    TargetArch::Default(detected_arch)
+                };
                 let package_action = PackageAction::new(
                     &PackageActionParams {
                         working_dir: &cli_args.cwd,
                         profile: cli_args.profile.as_ref(),
-                        target_arch: cli_args.target_arch.as_ref(),
+                        target_arch,
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample_class,
                         verbosity_level: self.verbose,
@@ -161,11 +163,268 @@ impl Cli {
                     &command_exec,
                     &fs_provider,
                     &metadata,
-                    &env_provider,
                 )?;
                 package_action.run()?;
                 Ok(())
             }
         }
+    }
+
+    /// Returns the default architecture of the host machine by running `rustc
+    /// --print host-tuple` command.
+    ///
+    /// # Arguments
+    /// * `command_exec` - A reference to the `CommandExec` struct that provides
+    ///   methods for executing commands.
+    /// # Returns
+    /// * `CpuArchitecture`
+    /// * `anyhow::Error` if the command fails to execute or the output is not
+    ///   in the expected format.
+    fn detect_default_target_arch_using_rustc(
+        command_exec: &CommandExec,
+    ) -> Result<CpuArchitecture> {
+        command_exec
+            .run("rustc", &["--print", "host-tuple"], None)
+            .map_or_else(
+                |e| Err(anyhow::anyhow!("Unable to read rustc host tuple: {e}")),
+                |output| {
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    let stdout = stdout.trim();
+                    match stdout.split_once('-') {
+                        Some(("x86_64", _)) => Ok(CpuArchitecture::Amd64),
+                        Some(("aarch64", _)) => Ok(CpuArchitecture::Arm64),
+                        Some((..)) => Err(anyhow::anyhow!(
+                            "CPU Architecture of the host is not supported: {} \n Please try \
+                             selecting target by passing --target-arch option",
+                            stdout
+                        )),
+                        None => Err(anyhow::anyhow!(
+                            "Invalid format for host architecture: {}",
+                            stdout
+                        )),
+                    }
+                },
+            )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
+    use std::{
+        collections::HashMap,
+        process::{ExitStatus, Output},
+    };
+
+    use mockall_double::double;
+    use wdk_build::CpuArchitecture;
+
+    use crate::cli::Cli;
+    #[double]
+    use crate::providers::exec::CommandExec;
+
+    #[test]
+    pub fn given_toolchain_host_tuple_is_x86_64_when_detect_default_arch_from_rustc_is_called_then_it_returns_arch(
+    ) {
+        let mut mock_command_exec = CommandExec::default();
+
+        let expected_rustc_command = "rustc";
+        let expected_rustc_args = vec!["--print", "host-tuple"];
+
+        mock_command_exec
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      -> bool {
+                    println!("command: {command}, args: {args:?}");
+                    println!(
+                        "expected_command: {expected_rustc_command}, expected_args: \
+                         {expected_rustc_args:?}"
+                    );
+                    command == expected_rustc_command && args == expected_rustc_args
+                },
+            )
+            .once()
+            .returning(move |_, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: b"x86_64-pc-windows-msvc".to_vec(),
+                    stderr: vec![],
+                })
+            });
+
+        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
+
+        assert_eq!(result.unwrap(), CpuArchitecture::Amd64);
+    }
+
+    #[test]
+    pub fn given_toolchain_host_tuple_is_aarch64_when_detect_default_arch_from_rustc_is_called_then_it_returns_arch(
+    ) {
+        let mut mock_command_exec = CommandExec::default();
+
+        let expected_rustc_command = "rustc";
+        let expected_rustc_args = vec!["--print", "host-tuple"];
+
+        mock_command_exec
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      -> bool {
+                    println!("command: {command}, args: {args:?}");
+                    println!(
+                        "expected_command: {expected_rustc_command}, expected_args: \
+                         {expected_rustc_args:?}"
+                    );
+                    command == expected_rustc_command && args == expected_rustc_args
+                },
+            )
+            .once()
+            .returning(move |_, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: b"aarch64-pc-windows-msvc".to_vec(),
+                    stderr: vec![],
+                })
+            });
+
+        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
+
+        assert_eq!(result.unwrap(), CpuArchitecture::Arm64);
+    }
+
+    #[test]
+    pub fn given_toolchain_host_tuple_is_unsupported_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
+    ) {
+        let mut mock_command_exec = CommandExec::default();
+
+        let expected_rustc_command = "rustc";
+        let expected_rustc_args = vec!["--print", "host-tuple"];
+
+        mock_command_exec
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      -> bool {
+                    println!("command: {command}, args: {args:?}");
+                    println!(
+                        "expected_command: {expected_rustc_command}, expected_args: \
+                         {expected_rustc_args:?}"
+                    );
+                    command == expected_rustc_command && args == expected_rustc_args
+                },
+            )
+            .once()
+            .returning(move |_, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: b"i686-pc-windows-msvc".to_vec(),
+                    stderr: vec![],
+                })
+            });
+
+        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
+
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            format!(
+                "CPU Architecture of the host is not supported: {} \n Please try selecting target \
+                 by passing --target-arch option",
+                "i686-pc-windows-msvc"
+            )
+        );
+    }
+
+    #[test]
+    pub fn given_toolchain_host_tuple_is_invalid_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
+    ) {
+        let mut mock_command_exec = CommandExec::default();
+
+        let expected_rustc_command = "rustc";
+        let expected_rustc_args = vec!["--print", "host-tuple"];
+
+        mock_command_exec
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      -> bool {
+                    println!("command: {command}, args: {args:?}");
+                    println!(
+                        "expected_command: {expected_rustc_command}, expected_args: \
+                         {expected_rustc_args:?}"
+                    );
+                    command == expected_rustc_command && args == expected_rustc_args
+                },
+            )
+            .once()
+            .returning(move |_, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: b"somerandomvalue".to_vec(),
+                    stderr: vec![],
+                })
+            });
+
+        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
+
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            format!(
+                "Invalid format for host architecture: {}",
+                "somerandomvalue"
+            )
+        );
+    }
+
+    #[test]
+    pub fn given_rustc_command_fails_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
+    ) {
+        let mut mock_command_exec = CommandExec::default();
+
+        let expected_rustc_command = "rustc";
+        let expected_rustc_args = vec!["--print", "host-tuple"];
+
+        mock_command_exec
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      -> bool {
+                    println!("command: {command}, args: {args:?}");
+                    println!(
+                        "expected_command: {expected_rustc_command}, expected_args: \
+                         {expected_rustc_args:?}"
+                    );
+                    command == expected_rustc_command && args == expected_rustc_args
+                },
+            )
+            .once()
+            .returning(move |_, _, _| {
+                Err(crate::providers::error::CommandError::CommandFailed {
+                    command: "rustc".to_string(),
+                    args: vec!["--print".to_string(), "host-tuple".to_string()],
+                    stdout: "command error".to_string(),
+                })
+            });
+
+        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
+
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            format!(
+                "Unable to read rustc host tuple: Command 'rustc' with args [\"--print\", \
+                 \"host-tuple\"] failed \n STDOUT: {}",
+                "command error"
+            )
+        );
     }
 }

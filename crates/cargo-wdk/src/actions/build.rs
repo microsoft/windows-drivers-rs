@@ -13,11 +13,9 @@ use anyhow::Result;
 use mockall_double::double;
 use thiserror::Error;
 use tracing::{debug, info};
-use wdk_build::{
-    utils::{PathExt, StripExtendedPathPrefixError},
-    CpuArchitecture,
-};
+use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
+use super::TargetArch;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{actions::Profile, providers::error::CommandError, trace};
@@ -36,7 +34,7 @@ pub enum BuildActionError {
 pub struct BuildAction<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
-    target_arch: Option<&'a CpuArchitecture>,
+    target_arch: TargetArch,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -48,7 +46,7 @@ impl<'a> BuildAction<'a> {
     /// * `package_name` - The name of the package to build
     /// * `working_dir` - The working directory for the build
     /// * `profile` - An optional profile for the build
-    /// * `target_arch` - An optional target architecture for the build
+    /// * `target_arch` - The target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
     /// * `fs_provider` - The file system provider
@@ -62,7 +60,7 @@ impl<'a> BuildAction<'a> {
         package_name: &'a str,
         working_dir: &'a Path,
         profile: Option<&'a Profile>,
-        target_arch: Option<&'a CpuArchitecture>,
+        target_arch: TargetArch,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
@@ -106,7 +104,7 @@ impl<'a> BuildAction<'a> {
             args.push("--profile".to_string());
             args.push(profile.to_string());
         }
-        if let Some(target_arch) = self.target_arch {
+        if let TargetArch::Selected(target_arch) = self.target_arch {
             args.push("--target".to_string());
             args.push(target_arch.to_target_triple());
         }
