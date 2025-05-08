@@ -11,8 +11,8 @@ use mockall_double::double;
 use wdk_build::{CpuArchitecture, DriverConfig};
 
 use crate::actions::{
+    build::{BuildAction, BuildActionParams},
     new::NewAction,
-    package::{PackageAction, PackageActionParams},
     Profile,
 };
 #[double]
@@ -141,8 +141,8 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
-                let package_action = PackageAction::new(
-                    &PackageActionParams {
+                let build_action = BuildAction::new(
+                    &BuildActionParams {
                         working_dir: &cli_args.cwd,
                         profile: cli_args.profile.as_ref(),
                         target_arch: cli_args.target_arch.as_ref(),
@@ -155,7 +155,7 @@ impl Cli {
                     &fs_provider,
                     &metadata,
                 )?;
-                package_action.run()?;
+                build_action.run()?;
                 Ok(())
             }
         }

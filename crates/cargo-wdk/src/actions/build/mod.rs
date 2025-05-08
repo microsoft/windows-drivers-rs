@@ -1,21 +1,17 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! This module contains the `PackageAction` struct and its associated methods
-//! for orchestrating the packaging of a driver project. It includes the build
-//! step as a prerequisite for packaging. It consists the logic to build and
-//! package standalone projects, workspaces, individual members in a workspace
-//! and emulated workspaces. It handles various tasks such as creation of the
-//! `PackageTask` struct and interacting with `wdk-build`.
+//! This module contains the `BuildAction` struct and its associated methods
+//! for orchestrating the build and packaging of a driver project. It consists
+//! the logic to build and package standalone projects, workspaces, individual
+//! members in a workspace and emulated workspaces. It consists of two tasks -
+//! `BuildTask` that handles the build phase and the `PackageTask` that handles
+//! the package phase.
 
+mod build_task;
+mod error;
+mod package_task;
 #[cfg(test)]
 mod tests;
-
-mod error;
-use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
-use error::PackageActionError;
-use mockall_double::double;
-mod package_task;
-
 use std::{
     fs::read_dir,
     io,
@@ -24,6 +20,10 @@ use std::{
 };
 
 use anyhow::Result;
+use build_task::BuildTask;
+use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
+use error::BuildActionError;
+use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
 use wdk_build::{
@@ -31,11 +31,11 @@ use wdk_build::{
     CpuArchitecture,
 };
 
-use crate::actions::{build::BuildAction, Profile};
+use crate::actions::Profile;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
-pub struct PackageActionParams<'a> {
+pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
     pub target_arch: Option<&'a CpuArchitecture>,
@@ -44,9 +44,9 @@ pub struct PackageActionParams<'a> {
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
-/// Action that orchestrates the packaging of a driver project
-/// This also includes the build step as pre-requisite for packaging
-pub struct PackageAction<'a> {
+/// Action that orchestrates the build and package of a driver project. Build is
+/// a pre-requisite for packaging.
+pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
     target_arch: Option<&'a CpuArchitecture>,
@@ -61,26 +61,22 @@ pub struct PackageAction<'a> {
     metadata: &'a Metadata,
 }
 
-impl<'a> PackageAction<'a> {
-    /// Creates a new instance of `PackageAction`
+impl<'a> BuildAction<'a> {
+    /// Creates a new instance of `BuildAction`
     /// # Arguments
-    /// * `working_dir` - The working directory to operate on
-    /// * `profile` - The profile to be used for cargo build and package target
-    ///   dir
-    /// * `target_arch` - The target architecture
-    /// * `is_sample_class` - Indicates if the driver is a sample class driver
-    /// * `verbosity_level` - The verbosity level for logging
+    /// * `params` - The `BuildActionParams` struct containing the parameters
+    ///   for the build action
     /// * `wdk_build_provider` - The WDK build provider instance
     /// * `command_exec` - The command execution provider instance
     /// * `fs_provider` - The file system provider instance
     /// # Returns
-    /// * `Result<Self>` - A result containing the new instance of
-    ///   `PackageAction` or an error
+    /// * `Result<Self>` - A result containing the new instance of `BuildAction`
+    ///   or an error
     /// # Errors
-    /// * `PackageActionError::IoError` - If there is an IO error while
+    /// * `BuildActionError::IoError` - If there is an IO error while
     ///   canonicalizing the working dir
     pub fn new(
-        params: &PackageActionParams<'a>,
+        params: &BuildActionParams<'a>,
         wdk_build_provider: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs_provider: &'a Fs,
@@ -105,28 +101,28 @@ impl<'a> PackageAction<'a> {
     /// Entry point method to execute the packaging action flow
     /// # Returns
     /// * `Result<Self>` - A result containing an empty tuple or an error of
-    ///   type `PackageActionError`
+    ///   type `BuildActionError`
     /// # Errors
-    /// * `PackageActionError::NotAWorkspaceMemberError` - If the working
+    /// * `BuildActionError::NotAWorkspaceMemberError` - If the working
     ///   directory is not a workspace member
-    /// * `PackageActionError::PackageDriverInitError` - If there is an error
+    /// * `BuildActionError::PackageDriverInitError` - If there is an error
     ///   initializing the package driver
-    /// * `PackageActionError::PackageDriverError` - If there is an error during
+    /// * `BuildActionError::PackageDriverError` - If there is an error during
     ///   the package driver process
-    /// * `PackageActionError::CargoMetadataParseError` - If there is an error
+    /// * `BuildActionError::CargoMetadataParseError` - If there is an error
     ///   parsing the Cargo metadata
-    /// * `PackageActionError::WdkMetadataParseError` - If there is an error
+    /// * `BuildActionError::WdkMetadataParseError` - If there is an error
     ///   parsing the WDK metadata
-    /// * `PackageActionError::WdkBuildConfigError` - If there is an error with
+    /// * `BuildActionError::WdkBuildConfigError` - If there is an error with
     ///   the WDK build config
-    /// * `PackageActionError::IoError` - Wraps all possible IO errors
-    /// * `PackageActionError::CommandExecutionError` - If there is an error
+    /// * `BuildActionError::IoError` - Wraps all possible IO errors
+    /// * `BuildActionError::CommandExecutionError` - If there is an error
     ///   executing a command
-    /// * `PackageActionError::NoValidRustProjectsInTheDirectory` - If no valid
+    /// * `BuildActionError::NoValidRustProjectsInTheDirectory` - If no valid
     ///   Rust projects are found in the directory
-    /// * `PackageActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
+    /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build
-    pub fn run(&self) -> Result<(), PackageActionError> {
+    pub fn run(&self) -> Result<(), BuildActionError> {
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
         debug!(
@@ -169,7 +165,7 @@ impl<'a> PackageAction<'a> {
         }
 
         if !is_valid_dir_with_rust_projects {
-            return Err(PackageActionError::NoValidRustProjectsInTheDirectory(
+            return Err(BuildActionError::NoValidRustProjectsInTheDirectory(
                 self.working_dir.clone(),
             ));
         }
@@ -216,7 +212,7 @@ impl<'a> PackageAction<'a> {
 
         debug!("Done checking for valid Rust(possibly driver) projects in the working director");
         if failed_atleast_one_project {
-            return Err(PackageActionError::OneOrMoreRustProjectsFailedToBuild(
+            return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
         }
@@ -231,7 +227,7 @@ impl<'a> PackageAction<'a> {
         &self,
         working_dir: &Path,
         cargo_metadata: &CargoMetadata,
-    ) -> Result<(), PackageActionError> {
+    ) -> Result<(), BuildActionError> {
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
@@ -271,11 +267,11 @@ impl<'a> PackageAction<'a> {
                 }
             }
             if let Err(e) = wdk_metadata {
-                return Err(PackageActionError::WdkMetadataParse(e));
+                return Err(BuildActionError::WdkMetadataParse(e));
             }
 
             if failed_atleast_one_workspace_member {
-                return Err(PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(
+                return Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(
                     working_dir.to_owned(),
                 ));
             }
@@ -300,7 +296,7 @@ impl<'a> PackageAction<'a> {
         });
 
         if package.is_none() {
-            return Err(PackageActionError::NotAWorkspaceMember(
+            return Err(BuildActionError::NotAWorkspaceMember(
                 working_dir.to_owned(),
             ));
         }
@@ -315,7 +311,7 @@ impl<'a> PackageAction<'a> {
         )?;
 
         if let Err(e) = wdk_metadata {
-            return Err(PackageActionError::WdkMetadataParse(e));
+            return Err(BuildActionError::WdkMetadataParse(e));
         }
 
         info!("Building and packaging completed successfully");
@@ -323,7 +319,7 @@ impl<'a> PackageAction<'a> {
         Ok(())
     }
 
-    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, PackageActionError> {
+    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, BuildActionError> {
         let working_dir_path_trimmed: PathBuf = working_dir
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
@@ -341,9 +337,9 @@ impl<'a> PackageAction<'a> {
         package: &Package,
         package_name: String,
         target_dir: &Path,
-    ) -> Result<(), PackageActionError> {
+    ) -> Result<(), BuildActionError> {
         info!("Processing package: {}", package_name);
-        BuildAction::new(
+        BuildTask::new(
             &package_name,
             working_dir,
             self.profile,
@@ -420,28 +416,28 @@ impl<'a> PackageAction<'a> {
             self.fs_provider,
         );
         if let Err(e) = package_driver {
-            return Err(PackageActionError::PackageTaskInit(package_name, e));
+            return Err(BuildActionError::PackageTaskInit(package_name, e));
         }
         if let Err(e) = package_driver
             .expect("PackageDriver failed to initialize")
             .run()
         {
-            return Err(PackageActionError::PackageTask(package_name, e));
+            return Err(BuildActionError::PackageTask(package_name, e));
         }
         info!("Processing completed for package: {}", package_name);
         Ok(())
     }
 }
 
-/// # Errors
-/// Returns
+/// Detects the CPU architecture from the `RUSTUP_TOOLCHAIN` environment
+/// variable Returns
 /// * `CpuArchitecture`
 /// * `RustupToolChainNotFound` error when `RUSTUP_TOOLCHAIN` environment
 ///   variable is not available
-fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, PackageActionError> {
+fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, BuildActionError> {
     std::env::var("RUSTUP_TOOLCHAIN").map_or_else(
         |e| {
-            Err(PackageActionError::UnableToReadRustupToolchainEnv(
+            Err(BuildActionError::UnableToReadRustupToolchainEnv(
                 e.to_string(),
             ))
         },
@@ -450,10 +446,10 @@ fn detect_arch_from_rustup_toolchain() -> Result<CpuArchitecture, PackageActionE
                 match arch {
                     "x86_64" => Ok(CpuArchitecture::Amd64),
                     "aarch64" => Ok(CpuArchitecture::Arm64),
-                    _ => Err(PackageActionError::UnsupportedHostArch(rustup_toolchain)),
+                    _ => Err(BuildActionError::UnsupportedHostArch(rustup_toolchain)),
                 }
             } else {
-                Err(PackageActionError::UnableToReadArchInRustupToolChainEnv(
+                Err(BuildActionError::UnableToReadArchInRustupToolChainEnv(
                     rustup_toolchain,
                 ))
             }

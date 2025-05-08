@@ -14,12 +14,12 @@ crate-type = ["cdylib"]
 test = false
 
 [build-dependencies]
-wdk-build = "0.3.0"
+wdk-build = { path = "../../../../crates/wdk-build" }
 
 [dependencies]
-wdk-alloc = "0.3.0"
-wdk-panic = "0.3.0"
-wdk-sys = "0.3.0"
+wdk-alloc = { path = "../../../../crates/wdk-alloc" }
+wdk-panic = { path = "../../../../crates/wdk-panic" }
+wdk-sys = { path = "../../../../crates/wdk-sys" }
 
 [features]
 default = []

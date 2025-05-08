@@ -20,7 +20,7 @@ use wdk_build::{
     DriverConfig,
 };
 
-use super::{detect_arch_from_rustup_toolchain, PackageAction};
+use super::detect_arch_from_rustup_toolchain;
 #[double]
 use crate::providers::{
     exec::CommandExec,
@@ -30,7 +30,7 @@ use crate::providers::{
 };
 use crate::{
     actions::{
-        package::{error::PackageActionError, PackageActionParams},
+        build::{BuildAction, BuildActionError, BuildActionParams},
         Profile,
     },
     providers::error::CommandError,
@@ -70,8 +70,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -97,8 +97,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -106,16 +106,14 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -149,8 +147,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -176,8 +174,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -185,16 +183,14 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -228,8 +224,8 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -255,8 +251,8 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -264,16 +260,14 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -308,8 +302,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -335,8 +329,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -344,16 +338,14 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -387,8 +379,8 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -415,8 +407,8 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         .expect_infverif(driver_name, &cwd, "KMDF", None)
         .expect_detect_wdk_build_number(25100u32);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -424,16 +416,14 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -467,8 +457,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -496,8 +486,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         .expect_signtool_verify_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -505,16 +495,14 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -567,8 +555,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -596,8 +584,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_signtool_verify_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -605,16 +593,14 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -647,8 +633,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -677,8 +663,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .expect_signtool_verify_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -686,16 +672,14 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -717,8 +701,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -731,8 +715,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, false);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -740,20 +724,18 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -774,8 +756,8 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -789,8 +771,8 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, false);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -798,20 +780,18 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -838,8 +818,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -857,8 +837,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, Some(expected_stampinf_output));
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -866,20 +846,18 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -906,8 +884,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -926,8 +904,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, Some(expected_inf2cat_output));
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -935,20 +913,18 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -975,8 +951,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -997,8 +973,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_output));
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1006,20 +982,18 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -1046,8 +1020,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -1069,8 +1043,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, Some(expected_output));
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1078,20 +1052,18 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -1118,8 +1090,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -1143,8 +1115,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, Some(expected_output));
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1152,20 +1124,18 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -1192,8 +1162,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -1219,8 +1189,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", Some(expected_output));
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1228,20 +1198,18 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
 
@@ -1261,8 +1229,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, None);
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -1272,8 +1240,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1281,21 +1249,17 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::NoWdkConfigurationsDetected
-        )
+        BuildActionError::WdkMetadataParse(TryFromCargoMetadataError::NoWdkConfigurationsDetected)
     ));
 }
 
@@ -1313,8 +1277,8 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     let driver_name = "sample-driver";
     let cargo_toml_metadata = invalid_driver_cargo_toml();
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_with_custom_toml(&cargo_toml_metadata)
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
@@ -1324,8 +1288,8 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1333,24 +1297,20 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
-        PackageActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::WdkMetadataDeserialization {
-                metadata_source: _,
-                error_source: _
-            }
-        )
+        BuildActionError::WdkMetadataParse(TryFromCargoMetadataError::WdkMetadataDeserialization {
+            metadata_source: _,
+            error_source: _
+        })
     ));
 }
 
@@ -1403,8 +1363,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
             Some(wdk_metadata),
@@ -1464,8 +1424,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_path_canonicalization_package_manifest_path(&cwd.join(non_driver))
         .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1473,16 +1433,14 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1538,8 +1496,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
         .set_up_workspace_with_multiple_driver_projects(
@@ -1581,8 +1539,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_signtool_verify_cat_file(driver_name_1, &workspace_root_dir, None)
         .expect_infverif(driver_name_1, &workspace_root_dir, "KMDF", None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1590,16 +1548,14 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project
-        .expect("Failed to init package action")
-        .run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1650,8 +1606,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         stderr: vec![],
     };
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
             Some(wdk_metadata),
@@ -1707,8 +1663,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_path_canonicalization_package_manifest_path(&cwd.join(non_driver))
         .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1716,14 +1672,14 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project.expect("package project error in test: given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verify_signature_is_false_then_it_skips_verify_tasks").run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1767,8 +1723,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         None,
     );
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
         .set_up_workspace_with_multiple_driver_projects(
@@ -1788,8 +1744,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(non_driver, &cwd, None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1797,14 +1753,14 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project.expect("package project init error in test: given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_driver_project_then_it_builds_but_skips_packaging").run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1841,8 +1797,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         Some(wdk_metadata_2),
     );
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
             Some(wdk_metadata_1),
@@ -1861,8 +1817,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1870,18 +1826,18 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project.expect("given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail").run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        PackageActionError::WdkMetadataParse(
+        BuildActionError::WdkMetadataParse(
             TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
                 wdk_metadata_configurations: _
             }
@@ -1921,8 +1877,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         Some(wdk_metadata_1),
     );
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         .set_up_workspace_with_multiple_driver_projects(
             &cwd,
             Some(wdk_metadata_2),
@@ -1941,8 +1897,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -1950,18 +1906,18 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project.expect("package project init error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail").run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        PackageActionError::WdkMetadataParse(
+        BuildActionError::WdkMetadataParse(
             TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
                 wdk_metadata_configurations: _
             }
@@ -1985,8 +1941,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     let (workspace_member_3, package_3) =
         get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
         .set_up_workspace_with_multiple_driver_projects(
@@ -2002,8 +1958,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         .expect_path_canonicalization_package_manifest_path(&cwd.join(non_driver))
         .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -2011,18 +1967,18 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project.expect("packge project init error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail").run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail"),
-        PackageActionError::WdkMetadataParse(
+        BuildActionError::WdkMetadataParse(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected
         )
     ));
@@ -2049,8 +2005,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         None,
     );
 
-    let package_project = TestPackageAction::new(cwd.clone(), profile, target_arch, sample_class);
-    let package_project_action = package_project
+    let test_build_action = TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class);
+    let mock_build_action = test_build_action
         // Even when cwd is changed to driver project inside the workspace, cargo metadata read is
         // going to be for the whole workspace
         .set_up_workspace_with_multiple_driver_projects(
@@ -2066,8 +2022,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(non_driver, &cwd, None);
 
-    let package_project = PackageAction::new(
-        &PackageActionParams {
+    let build_action = BuildAction::new(
+        &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
             target_arch: target_arch.as_ref(),
@@ -2075,18 +2031,18 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        package_project_action.mock_wdk_build_provider(),
-        package_project_action.mock_run_command(),
-        package_project_action.mock_fs_provider(),
-        package_project_action.mock_metadata_provider(),
+        mock_build_action.mock_wdk_build_provider(),
+        mock_build_action.mock_run_command(),
+        mock_build_action.mock_fs_provider(),
+        mock_build_action.mock_metadata_provider(),
     );
-    assert!(package_project.is_ok());
+    assert!(build_action.is_ok());
 
-    let run_result = package_project.expect("Package project init error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail").run();
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail"),
-        PackageActionError::WdkMetadataParse(
+        BuildActionError::WdkMetadataParse(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected
         )
     ));
@@ -2095,7 +2051,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
 ////////////////////////////////////////////////////////////////////////////////
 /// Helper functions
 ////////////////////////////////////////////////////////////////////////////////
-struct TestPackageAction {
+struct TestBuildAction {
     cwd: PathBuf,
     profile: Option<Profile>,
     target_arch: Option<CpuArchitecture>,
@@ -2229,7 +2185,7 @@ trait TestSetupPackageExpectations {
     fn mock_metadata_provider(&self) -> &MetadataProvider;
 }
 
-impl TestPackageAction {
+impl TestBuildAction {
     fn new(
         cwd: PathBuf,
         profile: Option<Profile>,
@@ -2333,7 +2289,7 @@ impl TestPackageAction {
     }
 }
 
-impl TestSetupPackageExpectations for TestPackageAction {
+impl TestSetupPackageExpectations for TestBuildAction {
     fn expect_root_manifest_exists(mut self, root_dir: &Path, does_exist: bool) -> Self {
         self.mock_fs_provider
             .expect_exists()

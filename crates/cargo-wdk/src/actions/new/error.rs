@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::providers::error::{CommandError, FileError};
 
-/// Errors for the action layer
+/// Errors for the new action layer
 #[derive(Debug, Error)]
 pub enum NewActionError {
     #[error("Error executing cargo new, error: {0}")]
