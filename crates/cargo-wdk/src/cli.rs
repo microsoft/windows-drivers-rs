@@ -11,8 +11,8 @@ use mockall_double::double;
 use wdk_build::{CpuArchitecture, DriverConfig};
 
 use crate::actions::{
+    build::{BuildAction, BuildActionParams},
     new::NewAction,
-    package::{PackageAction, PackageActionParams},
     Profile,
     TargetArch,
 };
@@ -150,8 +150,8 @@ impl Cli {
                         Self::detect_default_target_arch_using_rustc(&command_exec)?;
                     TargetArch::Default(detected_arch)
                 };
-                let package_action = PackageAction::new(
-                    &PackageActionParams {
+                let build_action = BuildAction::new(
+                    &BuildActionParams {
                         working_dir: &cli_args.cwd,
                         profile: cli_args.profile.as_ref(),
                         target_arch,
@@ -164,7 +164,7 @@ impl Cli {
                     &fs_provider,
                     &metadata,
                 )?;
-                package_action.run()?;
+                build_action.run()?;
                 Ok(())
             }
         }

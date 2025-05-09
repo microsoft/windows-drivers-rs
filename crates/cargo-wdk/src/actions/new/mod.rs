@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! Module for handling the creation of new driver projects.
+//! `Action` Module that creates new driver projects.
 //!
 //! This module defines the `NewAction` struct and its associated methods for
-//! creating new driver projects using predefined templates and the `cargo new`
-//! command.
+//! creating new driver projects. It runs `cargo new` with the provided options
+//! and uses the pre-defined templates to setup the new project with the
+//! necessary files and configurations.
 mod error;
 
 use std::{
@@ -25,8 +26,8 @@ use crate::trace;
 /// Directory containing the templates to be bundled with the utility
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-/// Action that orchestrates creation of new driver project based on the
-/// specified driver type.
+/// `NewAction` struct and its methods orchestrates the creation of new driver
+/// project based on the specified driver type.
 pub struct NewAction<'a> {
     driver_project_name: String,
     driver_type: DriverConfig,
@@ -45,6 +46,7 @@ impl<'a> NewAction<'a> {
     /// * `driver_type` - The type of the driver project to be created.
     /// * `cwd` - The current working directory inside which driver project will
     ///   be created.
+    /// * `verbosity_level` - The verbosity level for logging.
     /// * `command_exec` - The provider for command exection.
     /// * `fs_provider` - The provider for file system operations.
     ///

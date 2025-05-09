@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! Module for handling low-level driver packaging tasks.
-//!
+//! Module that handles low-level driver packaging tasks.
 //! This module defines the `PackageTask` struct and its associated methods
 //! for packaging driver projects.  It handles file system
 //! operations and interacting with WDK tools to generate the driver package. It

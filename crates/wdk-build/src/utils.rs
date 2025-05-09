@@ -296,7 +296,9 @@ fn read_registry_key_string_value(
     // SAFETY: `&mut opened_key_handle` is coerced to a &raw mut, so the address passed as the
     // argument is always valid. `&mut opened_key_handle` is coerced to a pointer of the correct
     // type.
-    unsafe { RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut opened_key_handle) }.is_ok() {
+    unsafe { RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &raw mut opened_key_handle) }
+        .is_ok()
+    {
         if
         // SAFETY: `opened_key_handle` is valid key opened with the `KEY_QUERY_VALUE` access right
         // (included in `KEY_READ`). `&mut len` is coerced to a &raw mut, so the address passed as
@@ -310,7 +312,7 @@ fn read_registry_key_string_value(
                 RRF_RT_REG_SZ,
                 None,
                 None,
-                Some(&mut len),
+                Some(&raw mut len),
             )
         }
         .is_ok()
@@ -331,7 +333,7 @@ fn read_registry_key_string_value(
                     RRF_RT_REG_SZ,
                     None,
                     Some(buffer.as_mut_ptr().cast()),
-                    Some(&mut len),
+                    Some(&raw mut len),
                 )
             }
             .is_ok()

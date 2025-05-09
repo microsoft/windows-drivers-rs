@@ -847,7 +847,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "wdk-build"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-macros"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cfg-if",
  "fs4 0.12.0",
@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-sys"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bindgen",

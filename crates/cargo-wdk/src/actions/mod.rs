@@ -1,27 +1,22 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! This module provides the core functionality for the cargo-wdk CLI tool.
-//! It includes submodules for handling actions such as creating new driver
-//! projects, building them, and packaging them.
-//! This module also defines common types to be shared across the action layer.
-use std::{fmt, str::FromStr};
-
-/// Business logic is divided into the following action modules
-/// * `new` - New action module
-/// * `build` - Build action module
-/// * `package` - Package action module
+//! This module contains the core functionality of the cargo-wdk utility. It
+//! include modules which implement the business logic and common types that can
+//! be shared across different actions. The `action` modules that implement the
+//! business logic of the cargo-wdk utility are:
+//! * `new` - New action module
+//! * `build` - Build action module
 pub mod build;
 pub mod new;
-pub mod package;
+
+use std::{fmt, str::FromStr};
 
 use wdk_build::CpuArchitecture;
-
 #[derive(Debug, Clone, Copy)]
 pub enum Profile {
     Dev,
     Release,
 }
-
 impl FromStr for Profile {
     type Err = String;
 
@@ -33,7 +28,6 @@ impl FromStr for Profile {
         }
     }
 }
-
 impl fmt::Display for Profile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {

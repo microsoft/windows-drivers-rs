@@ -1,16 +1,16 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! This module defines error types for package action module.
+//! This module defines error types used in the build action module.
 
 use std::{path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
-use crate::{actions::build::BuildActionError, providers::error::CommandError};
+use crate::providers::error::CommandError;
 
-/// Errors for the package action layer
+/// Errors for the build action layer
 #[derive(Error, Debug)]
-pub enum PackageActionError {
+pub enum BuildActionError {
     #[error("Wdk Build Config Error: {0}")]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Error Parsing Cargo.toml, not a valid rust project/workspace: {0}")]
@@ -20,7 +20,7 @@ pub enum PackageActionError {
     )]
     WdkMetadataParse(#[from] wdk_build::metadata::TryFromCargoMetadataError),
     #[error("Error running build action: {0}")]
-    BuildAction(#[from] BuildActionError),
+    BuildTask(#[from] BuildTaskError),
     #[error("IO Error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Command Execution Error: {0}")]
@@ -40,6 +40,17 @@ pub enum PackageActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to package in the working directory: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+}
+
+/// Errors for the low level build task layer
+#[derive(Error, Debug)]
+pub enum BuildTaskError {
+    #[error("Error getting canonicalized path for manifest file: {0}")]
+    CanonicalizeManifestPath(#[from] std::io::Error),
+    #[error("Empty manifest path found error")]
+    EmptyManifestPath,
+    #[error("Error running cargo build command: {0}")]
+    CargoBuild(#[from] CommandError),
 }
 
 /// Errors for the low level package task layer
