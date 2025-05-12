@@ -302,7 +302,7 @@ impl Config {
     }
 
     /// Emit `cargo::rustc-check-cfg` directives corresponding to all the
-    /// possible `rustc-cfg` settings [`wdk_build`] could emit
+    /// possible `rustc-cfg` settings `wdk_build` could emit
     ///
     /// This is useful in situations where a library may not have a valid WDK
     /// config available during build. This function is not needed if the build
