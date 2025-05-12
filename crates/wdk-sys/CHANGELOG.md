@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.3.0...wdk-sys-v0.4.0) - 2025-04-18
+
+### Added
+
+- extend coverage in `wdk-sys` to include usb-related headers ([#296](https://github.com/microsoft/windows-drivers-rs/pull/296))
+- expand wdk-sys coverage to include gpio and parallel ports related headers ([#278](https://github.com/microsoft/windows-drivers-rs/pull/278))
+- add support for Storage API subset in `wdk-sys` ([#287](https://github.com/microsoft/windows-drivers-rs/pull/287))
+- expand `wdk-sys` coverage to include spb-related headers ([#263](https://github.com/microsoft/windows-drivers-rs/pull/263))
+- [**breaking**] expand `wdk-sys` coverage to include hid-related headers ([#260](https://github.com/microsoft/windows-drivers-rs/pull/260))
+- Use stack-based formatter for debug-printing. ([#233](https://github.com/microsoft/windows-drivers-rs/pull/233))
+
+### Fixed
+
+- passing cache tests when WDK config is enabled ([#332](https://github.com/microsoft/windows-drivers-rs/pull/332))
+- [**breaking**] specify rust version & edition to wdk-default bindgen::builder ([#314](https://github.com/microsoft/windows-drivers-rs/pull/314))
+- use absolute paths for items used in PAGED_CODE macro ([#297](https://github.com/microsoft/windows-drivers-rs/pull/297))
+
+### Other
+
+- update README to clarify community engagement and contact methods ([#312](https://github.com/microsoft/windows-drivers-rs/pull/312))
+- [**breaking**] Remove lazy static instances ([#250](https://github.com/microsoft/windows-drivers-rs/pull/250))
+- use `is_none_or` for `clippy::nonminimal_bool` and resolve `clippy::needless_raw_string_hashes` ([#231](https://github.com/microsoft/windows-drivers-rs/pull/231))
+
 ## [0.3.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.2.0...wdk-sys-v0.3.0) - 2024-09-27
 
 ### Added

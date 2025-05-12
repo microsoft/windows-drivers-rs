@@ -4,14 +4,16 @@
 //! A collection of macros that help make it easier to interact with
 //! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
 
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
+use fs4::fs_std::FileExt;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
+use serde::{Deserialize, Serialize};
 use syn::{
-    parse::{Parse, ParseStream},
+    parse::{Parse, ParseStream, Parser},
     parse2,
     parse_file,
     parse_quote,
@@ -41,6 +43,10 @@ use syn::{
     TypePath,
 };
 
+/// Name of the `bindgen`-generated Rust module that contains the `TableIndex`
+/// constants for the `WDF`'s function table
+const WDF_FUNC_ENUM_MOD_NAME: &str = "_WDFFUNCENUM";
+
 /// A procedural macro that allows WDF functions to be called by name.
 ///
 /// This macro is only intended to be used in the `wdk-sys` crate. Users wanting
@@ -56,6 +62,19 @@ pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStrea
 trait StringExt {
     /// Convert a string to `snake_case`
     fn to_snake_case(&self) -> String;
+}
+
+/// A trait to provide additional functionality to `std::result::Result`
+trait ResultExt<T, E> {
+    fn to_syn_result(self, span: Span, error: &str) -> syn::Result<T>;
+}
+
+/// Struct storing string representations of the information we want to cache
+/// from `types.rs`.
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+struct CachedFunctionInfo {
+    parameters: String,
+    return_type: String,
 }
 
 /// Struct storing the input tokens directly parsed from calls to
@@ -95,6 +114,25 @@ struct IntermediateOutputASTFragments {
     inline_wdf_fn_invocation: ExprCall,
 }
 
+/// Struct to represent a file lock guard. This struct enforces RAII, ensuring
+/// that the file lock is released when the guard goes out of scope.
+struct FileLockGuard {
+    file: std::fs::File,
+}
+
+impl FileLockGuard {
+    fn new(file: std::fs::File, span: Span) -> Result<Self> {
+        FileExt::lock_exclusive(&file).to_syn_result(span, "unable to obtain file lock")?;
+        Ok(Self { file })
+    }
+}
+
+impl Drop for FileLockGuard {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.file);
+    }
+}
+
 impl StringExt for String {
     fn to_snake_case(&self) -> String {
         // There will be, at max, 2 characters unhandled by the 3-char windows. It is
@@ -128,6 +166,21 @@ impl StringExt for String {
         }
 
         snake_case_string
+    }
+}
+
+impl<T, E: std::error::Error> ResultExt<T, E> for std::result::Result<T, E> {
+    fn to_syn_result(self, span: Span, error_description: &str) -> syn::Result<T> {
+        self.map_err(|err| Error::new(span, format!("{error_description}, {err}")))
+    }
+}
+
+impl From<(Punctuated<BareFnArg, Token![,]>, ReturnType)> for CachedFunctionInfo {
+    fn from((parameters, return_type): (Punctuated<BareFnArg, Token![,]>, ReturnType)) -> Self {
+        Self {
+            parameters: parameters.to_token_stream().to_string(),
+            return_type: return_type.to_token_stream().to_string(),
+        }
     }
 }
 
@@ -171,9 +224,31 @@ impl Inputs {
             span = self.wdf_function_identifier.span()
         );
 
-        let types_ast = parse_types_ast(&self.types_path)?;
-        let (parameters, return_type) =
-            generate_parameters_and_return_type(&types_ast, &function_pointer_type)?;
+        let function_name_to_info_map: BTreeMap<String, CachedFunctionInfo> =
+            get_wdf_function_info_map(&self.types_path, self.wdf_function_identifier.span())?;
+        let function_info = function_name_to_info_map
+            .get(&self.wdf_function_identifier.to_string())
+            .ok_or_else(|| {
+                Error::new(
+                    self.wdf_function_identifier.span(),
+                    format!(
+                        "Failed to find function info for {}",
+                        self.wdf_function_identifier
+                    ),
+                )
+            })?;
+        let parameters_tokens = TokenStream2::from_str(&function_info.parameters).to_syn_result(
+            self.wdf_function_identifier.span(),
+            "unable to parse parameter tokens",
+        )?;
+        let return_type_tokens = TokenStream2::from_str(&function_info.return_type).to_syn_result(
+            self.wdf_function_identifier.span(),
+            "unable to parse return type tokens",
+        )?;
+        let parameters =
+            Punctuated::<BareFnArg, Token![,]>::parse_terminated.parse2(parameters_tokens)?;
+        let return_type = ReturnType::parse.parse2(return_type_tokens)?;
+
         let parameter_identifiers = parameters
             .iter()
             .cloned()
@@ -229,9 +304,24 @@ impl DerivedASTFragments {
                 //         arguments for the WDF function is safe befause WDF maintains the strict mapping between the
                 //         function table index and the correct function pointer type.
                 unsafe {
+                    let wdf_function_table = wdk_sys::WdfFunctions;
+                    let wdf_function_count = wdk_sys::wdf::__private::get_wdf_function_count();
+
+                    // SAFETY: This is safe because:
+                    //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
+                    //            bytes, and is guaranteed to be aligned and it must be properly aligned.
+                    //         2. `WdfFunctions` points to `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` consecutive properly initialized values of
+                    //            type `WDFFUNC`.
+                    //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
+                    //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
+                    //            larger than `isize::MAX`. This is proven by the below `const_assert!`.
+
+                    debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<wdk_sys::WDFFUNC>()).is_ok());
+                    let wdf_function_table = core::slice::from_raw_parts(wdf_function_table, wdf_function_count);
+
                     core::mem::transmute(
                         // FIXME: investigate why _WDFFUNCENUM does not have a generated type alias without the underscore prefix
-                        wdk_sys::WDF_FUNCTION_TABLE[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],
+                        wdf_function_table[wdk_sys::_WDFFUNCENUM::#function_table_index as usize],
                     )
                 }
             );
@@ -319,6 +409,147 @@ fn call_unsafe_wdf_function_binding_impl(input_tokens: TokenStream2) -> TokenStr
         .assemble_final_output()
 }
 
+/// Fetch the function table information from the cache, if
+/// it exists. If not, create the cache by reading the
+/// `types.rs` file. Returns a `BTreeMap`, where
+/// `key` is the function name and `value` is the cached function table
+/// information.
+///
+/// Instead of parsing `types.rs` for relevant data on
+/// every macro invocation, all relevant function
+/// table information is extracted during the first `proc-macro` invocation and
+/// serialized to a location accessible by all proc-macro invocations.
+/// Subsequent invocations fetching from the cache significantly reduces
+/// compilation time.
+fn get_wdf_function_info_map(
+    types_path: &LitStr,
+    span: Span,
+) -> Result<BTreeMap<String, CachedFunctionInfo>> {
+    cfg_if::cfg_if! {
+        if #[cfg(test)] {
+            let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test"));
+        } else {
+            let scratch_dir = scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments"));
+        }
+    }
+
+    let cached_function_info_map_path = scratch_dir.join("cached_function_info_map.json");
+
+    if !cached_function_info_map_path.exists() {
+        let flock = std::fs::File::create(scratch_dir.join(".lock"))
+            .to_syn_result(span, "unable to create file lock")?;
+
+        // When _flock_guard goes out of scope, the file lock is released
+        let _flock_guard = FileLockGuard::new(flock, span)
+            .to_syn_result(span, "unable to create file lock guard")?;
+
+        // Before this thread acquires the lock, it's possible that a concurrent thread
+        // already created the cache. If so, this thread skips cache generation.
+        if !cached_function_info_map_path.exists() {
+            let function_info_map = create_wdf_function_info_file_cache(
+                types_path,
+                cached_function_info_map_path.as_path(),
+                span,
+            )?;
+            return Ok(function_info_map);
+        }
+    }
+    let function_info_map =
+        read_wdf_function_info_file_cache(cached_function_info_map_path.as_path(), span)?;
+    Ok(function_info_map)
+}
+
+/// Reads the cache of function information, then deserializes it into a
+/// `BTreeMap`.
+fn read_wdf_function_info_file_cache(
+    cached_function_info_map_path: &std::path::Path,
+    span: Span,
+) -> Result<BTreeMap<String, CachedFunctionInfo>> {
+    let generated_map_string = std::fs::read_to_string(cached_function_info_map_path)
+        .to_syn_result(span, "unable to read cache to string")?;
+    let map: BTreeMap<String, CachedFunctionInfo> = serde_json::from_str(&generated_map_string)
+        .to_syn_result(span, "unable to parse cache to BTreeMap")?;
+    Ok(map)
+}
+
+/// Generates the cache of function information, then
+/// serializes it into a JSON string and writes it to a designated location.
+/// Must obtain an exclusive file lock prior to calling this function to prevent
+/// concurrent threads from reading and writing to the same file.
+fn create_wdf_function_info_file_cache(
+    types_path: &LitStr,
+    cached_function_info_map_path: &std::path::Path,
+    span: Span,
+) -> Result<BTreeMap<String, CachedFunctionInfo>> {
+    let generated_map = generate_wdf_function_info_file_cache(types_path, span)?;
+    let generated_map_string = serde_json::to_string(&generated_map)
+        .to_syn_result(span, "unable to parse cache to JSON string")?;
+    std::fs::write(cached_function_info_map_path, generated_map_string)
+        .to_syn_result(span, "unable to write cache to file")?;
+    Ok(generated_map)
+}
+
+/// Parses file from `types_path` to generate a `BTreeMap` of
+/// function information, where `key` is the function name and `value` is
+/// the cached function table information.
+fn generate_wdf_function_info_file_cache(
+    types_path: &LitStr,
+    span: Span,
+) -> Result<BTreeMap<String, CachedFunctionInfo>> {
+    let types_ast = parse_types_ast(types_path)?;
+    let func_enum_mod = types_ast
+        .items
+        .iter()
+        .find_map(|item| {
+            if let Item::Mod(mod_alias) = item {
+                if mod_alias.ident == WDF_FUNC_ENUM_MOD_NAME {
+                    return Some(mod_alias);
+                }
+            }
+            None
+        })
+        .ok_or_else(|| {
+            Error::new(
+                span,
+                format!("Failed to find {WDF_FUNC_ENUM_MOD_NAME} module in types.rs file",),
+            )
+        })?;
+
+    let (_brace, func_enum_mod_contents) = &func_enum_mod.content.as_ref().ok_or_else(|| {
+        Error::new(
+            span,
+            format!("Failed to find {WDF_FUNC_ENUM_MOD_NAME} module contents in types.rs file",),
+        )
+    })?;
+
+    func_enum_mod_contents
+        .iter()
+        .filter_map(|item| {
+            if let Item::Const(const_alias) = item {
+                return const_alias
+                    .ident
+                    .to_string()
+                    .strip_suffix("TableIndex")
+                    .and_then(|function_name| {
+                        let function_pointer_type = format_ident!(
+                            "PFN_{uppercase_c_function_name}",
+                            uppercase_c_function_name = function_name.to_uppercase(),
+                            span = span
+                        );
+                        generate_cached_function_info(&types_ast, &function_pointer_type)
+                            .transpose()
+                            .map(|generate_cached_function_info_result| {
+                                generate_cached_function_info_result.map(|cached_function_info| {
+                                    (function_name.to_string(), cached_function_info)
+                                })
+                            })
+                    });
+            }
+            None
+        })
+        .collect()
+}
+
 fn parse_types_ast(path: &LitStr) -> Result<File> {
     let types_path = PathBuf::from(path.value());
     let types_path = match types_path.canonicalize() {
@@ -377,14 +608,23 @@ fn parse_types_ast(path: &LitStr) -> Result<File> {
 /// ```
 ///
 /// and return type as the [`ReturnType`] representation of `wdk_sys::NTSTATUS`
-fn generate_parameters_and_return_type(
+fn generate_cached_function_info(
     types_ast: &File,
     function_pointer_type: &Ident,
-) -> Result<(Punctuated<BareFnArg, Token![,]>, ReturnType)> {
-    let type_alias_definition = find_type_alias_definition(types_ast, function_pointer_type)?;
-    let fn_pointer_definition =
-        extract_fn_pointer_definition(type_alias_definition, function_pointer_type.span())?;
-    parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())
+) -> Result<Option<CachedFunctionInfo>> {
+    match find_type_alias_definition(types_ast, function_pointer_type) {
+        Ok(type_alias_definition) => {
+            let fn_pointer_definition =
+                extract_fn_pointer_definition(type_alias_definition, function_pointer_type.span())?;
+            Ok(Some(
+                parse_fn_pointer_definition(fn_pointer_definition, function_pointer_type.span())?
+                    .into(),
+            ))
+        }
+        // `types.rs` includes only a subset of types listed in _WDFFUNCENUM. Therefore, not finding
+        // a type alias definition is expected behavior.
+        Err(_err) => Ok(None),
+    }
 }
 
 /// Find type alias declaration and definition that matches the Ident of
@@ -719,10 +959,42 @@ fn generate_must_use_attribute(return_type: &ReturnType) -> Option<Attribute> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use pretty_assertions::assert_eq as pretty_assert_eq;
     use quote::ToTokens;
 
     use super::*;
+
+    static SCRATCH_DIR: LazyLock<PathBuf> =
+        LazyLock::new(|| scratch::path(concat!(env!("CARGO_CRATE_NAME"), "_ast_fragments_test")));
+    const CACHE_FILE_NAME: &str = "cached_function_info_map.json";
+
+    fn with_file_lock_clean_env<F>(f: F)
+    where
+        F: FnOnce(),
+    {
+        let test_flock: std::fs::File =
+            std::fs::File::create(SCRATCH_DIR.join("test.lock")).unwrap();
+        FileExt::lock_exclusive(&test_flock).unwrap();
+
+        let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
+
+        pretty_assert_eq!(
+            cached_function_info_map_path.exists(),
+            false,
+            "could not remove file {}",
+            cached_function_info_map_path.display()
+        );
+
+        f();
+
+        if cached_function_info_map_path.exists() {
+            std::fs::remove_file(cached_function_info_map_path).unwrap();
+        }
+
+        FileExt::unlock(&test_flock).unwrap();
+    }
 
     mod to_snake_case {
         use super::*;
@@ -893,71 +1165,262 @@ mod tests {
 
             #[test]
             fn valid_input() {
-                let inputs = Inputs {
-                    types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
-                    wdf_function_identifier: format_ident!("WdfDriverCreate"),
-                    wdf_function_arguments: parse_quote! {
-                        driver,
-                        registry_path,
-                        WDF_NO_OBJECT_ATTRIBUTES,
-                        &mut driver_config,
-                        driver_handle_output,
-                    },
-                };
-                let expected = DerivedASTFragments {
-                    function_pointer_type: format_ident!("PFN_WDFDRIVERCREATE"),
-                    function_table_index: format_ident!("WdfDriverCreateTableIndex"),
-                    parameters: parse_quote! {
-                        driver_object__: PDRIVER_OBJECT,
-                        registry_path__: PCUNICODE_STRING,
-                        driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
-                        driver_config__: PWDF_DRIVER_CONFIG,
-                        driver__: *mut WDFDRIVER
-                    },
-                    parameter_identifiers: parse_quote! {
-                        driver_object__,
-                        registry_path__,
-                        driver_attributes__,
-                        driver_config__,
-                        driver__
-                    },
-                    return_type: parse_quote! { -> NTSTATUS },
-                    arguments: parse_quote! {
-                        driver,
-                        registry_path,
-                        WDF_NO_OBJECT_ATTRIBUTES,
-                        &mut driver_config,
-                        driver_handle_output,
-                    },
-                    inline_wdf_fn_name: format_ident!("wdf_driver_create_impl"),
-                };
+                with_file_lock_clean_env(|| {
+                    let inputs = Inputs {
+                        types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
+                        wdf_function_identifier: format_ident!("WdfDriverCreate"),
+                        wdf_function_arguments: parse_quote! {
+                            driver,
+                            registry_path,
+                            WDF_NO_OBJECT_ATTRIBUTES,
+                            &mut driver_config,
+                            driver_handle_output,
+                        },
+                    };
+                    let expected = DerivedASTFragments {
+                        function_pointer_type: format_ident!("PFN_WDFDRIVERCREATE"),
+                        function_table_index: format_ident!("WdfDriverCreateTableIndex"),
+                        parameters: parse_quote! {
+                            driver_object__: PDRIVER_OBJECT,
+                            registry_path__: PCUNICODE_STRING,
+                            driver_attributes__: PWDF_OBJECT_ATTRIBUTES,
+                            driver_config__: PWDF_DRIVER_CONFIG,
+                            driver__: *mut WDFDRIVER
+                        },
+                        parameter_identifiers: parse_quote! {
+                            driver_object__,
+                            registry_path__,
+                            driver_attributes__,
+                            driver_config__,
+                            driver__
+                        },
+                        return_type: parse_quote! { -> NTSTATUS },
+                        arguments: parse_quote! {
+                            driver,
+                            registry_path,
+                            WDF_NO_OBJECT_ATTRIBUTES,
+                            &mut driver_config,
+                            driver_handle_output,
+                        },
+                        inline_wdf_fn_name: format_ident!("wdf_driver_create_impl"),
+                    };
 
-                pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
+                    pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
+                });
             }
 
             #[test]
             fn valid_input_with_no_arguments() {
+                with_file_lock_clean_env(|| {
+                    let inputs = Inputs {
+                        types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
+                        wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                        wdf_function_arguments: Punctuated::new(),
+                    };
+                    let expected = DerivedASTFragments {
+                        function_pointer_type: format_ident!("PFN_WDFVERIFIERDBGBREAKPOINT"),
+                        function_table_index: format_ident!("WdfVerifierDbgBreakPointTableIndex"),
+                        parameters: Punctuated::new(),
+                        parameter_identifiers: Punctuated::new(),
+                        return_type: ReturnType::Default,
+                        arguments: Punctuated::new(),
+                        inline_wdf_fn_name: format_ident!("wdf_verifier_dbg_break_point_impl"),
+                    };
+
+                    pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
+                });
+            }
+        }
+    }
+
+    mod get_wdf_function_info_map {
+        use super::*;
+
+        #[test]
+        fn valid_input_no_cache() {
+            with_file_lock_clean_env(|| {
                 let inputs = Inputs {
                     types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
                     wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
                     wdf_function_arguments: Punctuated::new(),
                 };
-                let expected = DerivedASTFragments {
-                    function_pointer_type: format_ident!("PFN_WDFVERIFIERDBGBREAKPOINT"),
-                    function_table_index: format_ident!("WdfVerifierDbgBreakPointTableIndex"),
-                    parameters: Punctuated::new(),
-                    parameter_identifiers: Punctuated::new(),
-                    return_type: ReturnType::Default,
-                    arguments: Punctuated::new(),
-                    inline_wdf_fn_name: format_ident!("wdf_verifier_dbg_break_point_impl"),
-                };
 
-                pretty_assert_eq!(inputs.generate_derived_ast_fragments().unwrap(), expected);
-            }
+                let mut expected: BTreeMap<String, CachedFunctionInfo> = BTreeMap::new();
+                expected.insert(
+                    "WdfDriverCreate".into(),
+                    CachedFunctionInfo {
+                        parameters: "driver_object__ : PDRIVER_OBJECT , registry_path__ : \
+                                     PCUNICODE_STRING , driver_attributes__ : \
+                                     PWDF_OBJECT_ATTRIBUTES , driver_config__ : \
+                                     PWDF_DRIVER_CONFIG , driver__ : * mut WDFDRIVER"
+                            .into(),
+                        return_type: "-> NTSTATUS".into(),
+                    },
+                );
+
+                expected.insert(
+                    "WdfVerifierDbgBreakPoint".into(),
+                    CachedFunctionInfo {
+                        parameters: String::new(),
+                        return_type: String::new(),
+                    },
+                );
+                pretty_assert_eq!(
+                    get_wdf_function_info_map(
+                        &inputs.types_path,
+                        inputs.wdf_function_identifier.span()
+                    )
+                    .unwrap(),
+                    expected
+                );
+
+                pretty_assert_eq!(SCRATCH_DIR.join(CACHE_FILE_NAME).exists(), true);
+            });
+        }
+
+        #[test]
+        fn valid_input_cache_exists() {
+            with_file_lock_clean_env(|| {
+                let inputs = Inputs {
+                    types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
+                    wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                    wdf_function_arguments: Punctuated::new(),
+                };
+                // create cache with first call to get_wdf_function_info_map
+
+                get_wdf_function_info_map(
+                    &inputs.types_path,
+                    inputs.wdf_function_identifier.span(),
+                )
+                .unwrap();
+
+                // make sure cache exists
+                pretty_assert_eq!(SCRATCH_DIR.join(CACHE_FILE_NAME).exists(), true);
+
+                let mut expected: BTreeMap<String, CachedFunctionInfo> = BTreeMap::new();
+                expected.insert(
+                    "WdfDriverCreate".into(),
+                    CachedFunctionInfo {
+                        parameters: "driver_object__ : PDRIVER_OBJECT , registry_path__ : \
+                                     PCUNICODE_STRING , driver_attributes__ : \
+                                     PWDF_OBJECT_ATTRIBUTES , driver_config__ : \
+                                     PWDF_DRIVER_CONFIG , driver__ : * mut WDFDRIVER"
+                            .into(),
+                        return_type: "-> NTSTATUS".into(),
+                    },
+                );
+
+                expected.insert(
+                    "WdfVerifierDbgBreakPoint".into(),
+                    CachedFunctionInfo {
+                        parameters: String::new(),
+                        return_type: String::new(),
+                    },
+                );
+                pretty_assert_eq!(
+                    get_wdf_function_info_map(
+                        &inputs.types_path,
+                        inputs.wdf_function_identifier.span()
+                    )
+                    .unwrap(),
+                    expected
+                );
+            });
         }
     }
 
-    mod generate_parameters_and_return_type {
+    mod generate_wdf_function_info_file_cache {
+        use super::*;
+
+        #[test]
+        fn valid_input() {
+            let inputs = Inputs {
+                types_path: parse_quote! { "tests/unit-tests-input/generated-types.rs" },
+                wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                wdf_function_arguments: Punctuated::new(),
+            };
+
+            let mut expected: BTreeMap<String, CachedFunctionInfo> = BTreeMap::new();
+            expected.insert(
+                "WdfDriverCreate".into(),
+                CachedFunctionInfo {
+                    parameters: "driver_object__ : PDRIVER_OBJECT , registry_path__ : \
+                                 PCUNICODE_STRING , driver_attributes__ : PWDF_OBJECT_ATTRIBUTES \
+                                 , driver_config__ : PWDF_DRIVER_CONFIG , driver__ : * mut \
+                                 WDFDRIVER"
+                        .into(),
+                    return_type: "-> NTSTATUS".into(),
+                },
+            );
+
+            expected.insert(
+                "WdfVerifierDbgBreakPoint".into(),
+                CachedFunctionInfo {
+                    parameters: String::new(),
+                    return_type: String::new(),
+                },
+            );
+
+            pretty_assert_eq!(
+                generate_wdf_function_info_file_cache(
+                    &inputs.types_path,
+                    inputs.wdf_function_identifier.span()
+                )
+                .unwrap(),
+                expected
+            );
+        }
+
+        #[test]
+        fn invalid_input_missing_wdf_func_enum() {
+            let inputs = Inputs {
+                types_path: parse_quote! { "tests/unit-tests-input/missing-wdf-func-enum.rs" },
+                wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                wdf_function_arguments: Punctuated::new(),
+            };
+
+            let expected = Error::new(
+                Span::call_site(),
+                "Failed to find _WDFFUNCENUM module in types.rs file",
+            );
+
+            pretty_assert_eq!(
+                generate_wdf_function_info_file_cache(
+                    &inputs.types_path,
+                    inputs.wdf_function_identifier.span()
+                )
+                .unwrap_err()
+                .to_string(),
+                expected.to_string()
+            );
+        }
+
+        #[test]
+        fn invalid_input_missing_wdf_func_enum_contents() {
+            let inputs = Inputs {
+                types_path: parse_quote! { "tests/unit-tests-input/missing-wdf-func-enum-contents.rs" },
+                wdf_function_identifier: format_ident!("WdfVerifierDbgBreakPoint"),
+                wdf_function_arguments: Punctuated::new(),
+            };
+
+            let expected = Error::new(
+                Span::call_site(),
+                "Failed to find _WDFFUNCENUM module contents in types.rs file",
+            );
+
+            pretty_assert_eq!(
+                generate_wdf_function_info_file_cache(
+                    &inputs.types_path,
+                    inputs.wdf_function_identifier.span()
+                )
+                .unwrap_err()
+                .to_string(),
+                expected.to_string()
+            );
+        }
+    }
+
+    mod generate_cached_function_info {
         use super::*;
 
         #[test]
@@ -970,15 +1433,18 @@ mod tests {
                 >;
             };
             let function_pointer_type = format_ident!("PFN_WDFIOQUEUEPURGESYNCHRONOUSLY");
-            let expected = (
-                parse_quote! {
-                    queue__: WDFQUEUE
-                },
-                ReturnType::Default,
+            let expected: Option<CachedFunctionInfo> = Some(
+                (
+                    parse_quote! {
+                        queue__: WDFQUEUE
+                    },
+                    ReturnType::Default,
+                )
+                    .into(),
             );
 
             pretty_assert_eq!(
-                generate_parameters_and_return_type(&types_ast, &function_pointer_type).unwrap(),
+                generate_cached_function_info(&types_ast, &function_pointer_type).unwrap(),
                 expected
             );
         }

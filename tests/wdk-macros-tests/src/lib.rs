@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::LazyLock};
 
-use fs4::FileExt;
-use lazy_static::lazy_static;
+use fs4::fs_std::FileExt;
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
 pub use paste::paste;
@@ -19,19 +18,20 @@ const TOOLCHAIN_CHANNEL_NAME: &str = "beta";
 #[rustversion::nightly]
 const TOOLCHAIN_CHANNEL_NAME: &str = "nightly";
 
-lazy_static! {
-    static ref TESTS_FOLDER_PATH: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect();
-    static ref INPUTS_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("inputs");
-    pub static ref MACROTEST_INPUT_FOLDER_PATH: PathBuf = INPUTS_FOLDER_PATH.join("macrotest");
-    pub static ref TRYBUILD_INPUT_FOLDER_PATH: PathBuf = INPUTS_FOLDER_PATH.join("trybuild");
-    static ref OUTPUTS_FOLDER_PATH: PathBuf = TESTS_FOLDER_PATH.join("outputs");
-    static ref TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: PathBuf =
-        OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME);
-    pub static ref MACROTEST_OUTPUT_FOLDER_PATH: PathBuf =
-        TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("macrotest");
-    pub static ref TRYBUILD_OUTPUT_FOLDER_PATH: PathBuf =
-        TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("trybuild");
-}
+static TESTS_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| [env!("CARGO_MANIFEST_DIR"), "tests"].iter().collect());
+static INPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| TESTS_FOLDER_PATH.join("inputs"));
+pub static MACROTEST_INPUT_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| INPUTS_FOLDER_PATH.join("macrotest"));
+pub static TRYBUILD_INPUT_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| INPUTS_FOLDER_PATH.join("trybuild"));
+static OUTPUTS_FOLDER_PATH: LazyLock<PathBuf> = LazyLock::new(|| TESTS_FOLDER_PATH.join("outputs"));
+static TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| OUTPUTS_FOLDER_PATH.join(TOOLCHAIN_CHANNEL_NAME));
+pub static MACROTEST_OUTPUT_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("macrotest"));
+pub static TRYBUILD_OUTPUT_FOLDER_PATH: LazyLock<PathBuf> =
+    LazyLock::new(|| TOOLCHAIN_SPECIFIC_OUTPUTS_FOLDER_PATH.join("trybuild"));
 
 /// Given a filename `f` which contains code utilizing
 /// [`wdk_sys::call_unsafe_wdf_function_binding`], generates a pair of tests to
@@ -71,7 +71,7 @@ macro_rules! generate_macrotest_tests {
                         let symlink_target = &$crate::MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         let symlink_path = &$crate::MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                         $crate::_create_symlink_if_nonexistent(symlink_path, symlink_target);
-                        $crate::expand(                            symlink_path);
+                        $crate::expand(symlink_path);
                     }
                 )?
 
@@ -84,8 +84,7 @@ macro_rules! generate_macrotest_tests {
                             let symlink_target = &$crate::MACROTEST_INPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             let symlink_path = &$crate::MACROTEST_OUTPUT_FOLDER_PATH.join(format!("{}.rs", stringify!($filename)));
                             $crate::_create_symlink_if_nonexistent(symlink_path, symlink_target);
-                            $crate::expand_args(
-                                symlink_path, &["--features", "nightly"]);
+                            $crate::expand_args(symlink_path, &["--features", "nightly"]);
                         }
                     )?
                 }
@@ -230,37 +229,48 @@ macro_rules! generate_call_unsafe_wdf_binding_tests {
 
 #[doc(hidden)]
 pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path::Path) {
-    // Use relative paths for symlink creation
+    // use relative paths for symlink creation
     let relative_target_path =
         pathdiff::diff_paths(target, link.parent().expect("link.parent() should exist"))
             .expect("target path should be resolvable as relative to link");
 
-    // Lock based off target_file so tests can run in parallel
     let target_file = std::fs::File::open(
         target
             .canonicalize()
             .expect("canonicalize of symlink target should succeed"),
     )
     .expect("target file should be successfully opened");
-    target_file
-        .lock_exclusive()
-        .expect("exclusive lock should be successfully acquired");
 
-    // Only create a new symlink if there isn't an existing one, or if the existing
+    // only create a new symlink if there isn't an existing one, or if the existing
     // one points to the wrong place
-    if !link.exists() {
-        std::os::windows::fs::symlink_file(relative_target_path, link)
-            .expect("symlink creation should succeed");
-    } else if !link.is_symlink()
-        || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
-    {
-        std::fs::remove_file(link).expect("stale symlink removal should succeed");
-        // wait for deletion to complete
-        while !matches!(link.try_exists(), Ok(false)) {}
+    let link_needs_update = || {
+        !link.is_symlink()
+            || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
+    };
+    if !link.exists() || link_needs_update() {
+        // create flock based off target_file, so tests can run in parallel
+        target_file
+            .lock_exclusive()
+            .expect("exclusive lock should be successfully acquired");
 
-        std::os::windows::fs::symlink_file(relative_target_path, link)
-            .expect("symlink creation should succeed");
-    } else {
-        // symlink already exists and points to the correct place
+        if !link.exists() {
+            std::os::windows::fs::symlink_file(relative_target_path, link)
+                .expect("symlink creation should succeed");
+        } else if link_needs_update() {
+            std::fs::remove_file(link).expect("stale symlink removal should succeed");
+
+            // wait for deletion to complete
+            while !matches!(link.try_exists(), Ok(false)) {}
+
+            std::os::windows::fs::symlink_file(relative_target_path, link)
+                .expect("symlink creation should succeed");
+        } else {
+            // symlink already exists and points to the correct place
+        }
+
+        // explicitly unlock the target_file to avoid waiting for windows to eventually
+        // automatically release the lock when target_file handle is closed
+        FileExt::unlock(&target_file)
+            .expect("file locks should be successfully released");
     }
 }

@@ -128,19 +128,6 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
         }
     }
 
-    // Check WDKContentRoot environment variable
-    if let Ok(wdk_content_root) = env::var("WDKContentRoot") {
-        let path = Path::new(wdk_content_root.as_str());
-        if path.is_dir() {
-            return Some(path.to_path_buf());
-        }
-        eprintln!(
-            "WDKContentRoot({}) was found in environment, but does not exist or is not a valid \
-             directory.",
-            path.display()
-        );
-    }
-
     // Check HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed
     // Roots@KitsRoot10 registry key
     if let Some(path) = read_registry_key_string_value(
@@ -309,7 +296,9 @@ fn read_registry_key_string_value(
     // SAFETY: `&mut opened_key_handle` is coerced to a &raw mut, so the address passed as the
     // argument is always valid. `&mut opened_key_handle` is coerced to a pointer of the correct
     // type.
-    unsafe { RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &mut opened_key_handle) }.is_ok() {
+    unsafe { RegOpenKeyExA(key_handle, sub_key, 0, KEY_READ, &raw mut opened_key_handle) }
+        .is_ok()
+    {
         if
         // SAFETY: `opened_key_handle` is valid key opened with the `KEY_QUERY_VALUE` access right
         // (included in `KEY_READ`). `&mut len` is coerced to a &raw mut, so the address passed as
@@ -323,7 +312,7 @@ fn read_registry_key_string_value(
                 RRF_RT_REG_SZ,
                 None,
                 None,
-                Some(&mut len),
+                Some(&raw mut len),
             )
         }
         .is_ok()
@@ -344,7 +333,7 @@ fn read_registry_key_string_value(
                     RRF_RT_REG_SZ,
                     None,
                     Some(buffer.as_mut_ptr().cast()),
-                    Some(&mut len),
+                    Some(&raw mut len),
                 )
             }
             .is_ok()
@@ -357,7 +346,7 @@ fn read_registry_key_string_value(
                 return Some(
                     CStr::from_bytes_with_nul(&buffer[..len as usize])
                         .expect(
-                            "RegGetValueA should always return a null terminated string. The read \
+                            "RegGetValueA should always return a null-terminated string. The read \
                              string (REG_SZ) from the registry should not contain any interior \
                              nulls.",
                         )

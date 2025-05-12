@@ -8,21 +8,24 @@
 
 use std::{
     env,
+    fs::File,
     io::Write,
+    panic,
     path::{Path, PathBuf},
+    sync::LazyLock,
     thread,
 };
 
 use anyhow::Context;
 use bindgen::CodegenConfig;
-use lazy_static::lazy_static;
-use tracing::{info, info_span, Span};
+use tracing::{info, info_span, trace, Span};
 use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
     EnvFilter,
 };
 use wdk_build::{
     configure_wdk_library_build_and_then,
+    ApiSubset,
     BuilderExt,
     Config,
     ConfigError,
@@ -31,51 +34,34 @@ use wdk_build::{
     UmdfConfig,
 };
 
-const NUM_WDF_FUNCTIONS_PLACEHOLDER: &str =
-    "<PLACEHOLDER FOR IDENTIFIER FOR VARIABLE CORRESPONDING TO NUMBER OF WDF FUNCTIONS>";
-const WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER: &str =
-    "<PLACEHOLDER FOR DECLARATION OF wdf_function_count VARIABLE>";
 const OUT_DIR_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING OUT_DIR OF wdk-sys CRATE>";
 const WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER: &str =
     "<PLACEHOLDER FOR LITERAL VALUE CONTAINING WDFFUNCTIONS SYMBOL NAME>";
+const WDF_FUNCTION_COUNT_PLACEHOLDER: &str =
+    "<PLACEHOLDER FOR EXPRESSION FOR NUMBER OF WDF FUNCTIONS IN `wdk_sys::WdfFunctions`";
 
-const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str = "
-        // SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
-                                                              to be ever mutated by WDF.
-        let wdf_function_count = unsafe { crate::WdfFunctionCount } as usize;";
-const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str = "
-        let wdf_function_count = crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize;";
+const WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL: &str =
+    "// SAFETY: `crate::WdfFunctionCount` is generated as a mutable static, but is not supposed \
+     to be ever mutated by WDF.
+    (unsafe { crate::WdfFunctionCount }) as usize";
 
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-lazy_static! {
-    static ref WDF_FUNCTION_TABLE_TEMPLATE: String = format!(
-        r#"
-// FIXME: replace lazy_static with std::Lazy once available: https://github.com/rust-lang/rust/issues/109736
-#[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
-lazy_static::lazy_static! {{
-    #[allow(missing_docs)]
-    pub static ref WDF_FUNCTION_TABLE: &'static [crate::WDFFUNC] = {{
-        // SAFETY: `WdfFunctions` is generated as a mutable static, but is not supposed to be ever mutated by WDF.
-        let wdf_function_table = unsafe {{ crate::WdfFunctions }};
-{WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER}
+const WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX: &str =
+    "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries as usize";
 
-        // SAFETY: This is safe because:
-        //         1. `WdfFunctions` is valid for reads for `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`
-        //            bytes, and is guaranteed to be aligned and it must be properly aligned.
-        //         2. `WdfFunctions` points to `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` consecutive properly initialized values of
-        //            type `WDFFUNC`.
-        //         3. WDF does not mutate the memory referenced by the returned slice for for its entire `'static' lifetime.
-        //         4. The total size, `{NUM_WDF_FUNCTIONS_PLACEHOLDER}` * `core::mem::size_of::<WDFFUNC>()`, of the slice must be no
-        //            larger than `isize::MAX`. This is proven by the below `debug_assert!`.
-        unsafe {{
-            debug_assert!(isize::try_from(wdf_function_count * core::mem::size_of::<crate::WDFFUNC>()).is_ok());
-            core::slice::from_raw_parts(wdf_function_table, wdf_function_count)
-        }}
-    }};
-}}"#
-    );
-    static ref CALL_UNSAFE_WDF_BINDING_TEMPLATE: String = format!(
+static WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        r"#[allow(clippy::must_use_candidate)]
+/// Returns the number of functions available in the WDF function table.
+/// Should not be used in public API.
+pub fn get_wdf_function_count() -> usize {{
+    {WDF_FUNCTION_COUNT_PLACEHOLDER}
+}}"
+    )
+});
+
+static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r#"
 /// A procedural macro that allows WDF functions to be called by name.
 ///
@@ -125,18 +111,20 @@ macro_rules! call_unsafe_wdf_function_binding {{
         )
     }}
 }}"#
-    );
-    static ref TEST_STUBS_TEMPLATE: String = format!(
+    )
+});
+
+static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+    format!(
         r"
 use crate::WDFFUNC;
 
-/// Stubbed version of the symbol that [`WdfFunctions`] links to so that test targets will compile
+/// Stubbed version of the symbol that `WdfFunctions` links to so that test targets will compile
 #[no_mangle]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
 ",
-    );
-}
-
+    )
+});
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
@@ -144,6 +132,12 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("types.rs", generate_types),
     ("base.rs", generate_base),
     ("wdf.rs", generate_wdf),
+    ("gpio.rs", generate_gpio),
+    ("hid.rs", generate_hid),
+    ("parallel_ports.rs", generate_parallel_ports),
+    ("spb.rs", generate_spb),
+    ("storage.rs", generate_storage),
+    ("usb.rs", generate_usb),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -203,8 +197,30 @@ fn initialize_tracing() -> Result<(), ParseError> {
 fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: constants.rs");
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+    let header_contents = config.bindgen_header_contents([
+        ApiSubset::Base,
+        ApiSubset::Wdf,
+        #[cfg(feature = "gpio")]
+        ApiSubset::Gpio,
+        #[cfg(feature = "hid")]
+        ApiSubset::Hid,
+        #[cfg(feature = "parallel-ports")]
+        ApiSubset::ParallelPorts,
+        #[cfg(feature = "spb")]
+        ApiSubset::Spb,
+        #[cfg(feature = "storage")]
+        ApiSubset::Storage,
+        #[cfg(feature = "usb")]
+        ApiSubset::Usb,
+    ]);
+    trace!(header_contents = ?header_contents);
+
+    let bindgen_builder = bindgen::Builder::wdk_default(config)?
         .with_codegen_config(CodegenConfig::VARS)
+        .header_contents("constants-input.h", &header_contents);
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(out_path.join("constants.rs"))?)
@@ -213,8 +229,30 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+    let header_contents = config.bindgen_header_contents([
+        ApiSubset::Base,
+        ApiSubset::Wdf,
+        #[cfg(feature = "gpio")]
+        ApiSubset::Gpio,
+        #[cfg(feature = "hid")]
+        ApiSubset::Hid,
+        #[cfg(feature = "parallel-ports")]
+        ApiSubset::ParallelPorts,
+        #[cfg(feature = "spb")]
+        ApiSubset::Spb,
+        #[cfg(feature = "storage")]
+        ApiSubset::Storage,
+        #[cfg(feature = "usb")]
+        ApiSubset::Usb,
+    ]);
+    trace!(header_contents = ?header_contents);
+
+    let bindgen_builder = bindgen::Builder::wdk_default(config)?
         .with_codegen_config(CodegenConfig::TYPES)
+        .header_contents("types-input.h", &header_contents);
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(out_path.join("types.rs"))?)
@@ -222,31 +260,41 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
 fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let outfile_name = match &config.driver_config {
-        DriverConfig::Wdm | DriverConfig::Kmdf(_) => "ntddk.rs",
-        DriverConfig::Umdf(_) => "windows.rs",
+        DriverConfig::Wdm | DriverConfig::Kmdf(_) => "ntddk",
+        DriverConfig::Umdf(_) => "windows",
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 
-    Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+    let header_contents = config.bindgen_header_contents([ApiSubset::Base]);
+    trace!(header_contents = ?header_contents);
+
+    let bindgen_builder = bindgen::Builder::wdk_default(config)?
         .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+        .header_contents(&format!("{outfile_name}-input.h"), &header_contents);
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join(outfile_name))?)
+        .write_to_file(out_path.join(format!("{outfile_name}.rs")))?)
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = &config.driver_config {
+    if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
         info!("Generating bindings to WDK: wdf.rs");
 
-        // As of NI WDK, this may generate an empty file due to no non-type and non-var
-        // items in the wdf headers(i.e. functions are all inlined). This step is
-        // intentionally left here in case older/newer WDKs have non-inlined functions
-        // or new WDKs may introduce non-inlined functions.
-        Ok(bindgen::Builder::wdk_default(vec!["src/input.h"], config)?
+        let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]);
+        trace!(header_contents = ?header_contents);
+
+        let bindgen_builder = bindgen::Builder::wdk_default(config)?
             .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("wdf-input.h", &header_contents)
             // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
             // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
-            .allowlist_file("(?i).*wdf.*")
+            .allowlist_file("(?i).*wdf.*");
+        trace!(bindgen_builder = ?bindgen_builder);
+
+        Ok(bindgen_builder
             .generate()
             .expect("Bindings should succeed to generate")
             .write_to_file(out_path.join("wdf.rs"))?)
@@ -259,15 +307,239 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     }
 }
 
-/// Generates a `wdf_function_table.rs` file in `OUT_DIR` which contains the
-/// definition of `WDF_FUNCTION_TABLE`. This is required to be generated here
-/// since the size of the table is derived from either a global symbol
-/// (`WDF_FUNCTION_COUNT`) that newer WDF versions expose, or an enum that older
-/// versions use.
-fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Result<()> {
+fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "gpio")] {
+            info!("Generating bindings to WDK: gpio.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Gpio]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("gpio-input.h", &header_contents);
+
+                // Only allowlist files in the gpio-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Gpio) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("gpio.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when gpio feature is not enabled
+
+            info!("Skipping gpio.rs generation since gpio feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hid")] {
+            info!("Generating bindings to WDK: hid.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("hid-input.h", &header_contents);
+
+                // Only allowlist files in the hid-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Hid) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("hid.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when hid feature is not enabled
+
+            info!("Skipping hid.rs generation since hid feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "parallel-ports")] {
+            info!("Generating bindings to WDK: parallel_ports.rs");
+
+            let header_contents = config.bindgen_header_contents([
+                ApiSubset::Base,
+                ApiSubset::Wdf,
+                ApiSubset::ParallelPorts,
+            ]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("parallel-ports-input.h", &header_contents);
+
+                // Only allowlist files in the parallel-ports-specific files to
+                // avoid duplicate definitions
+                for header_file in config.headers(ApiSubset::ParallelPorts) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("parallel_ports.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when parallel-ports feature is not enabled
+
+            info!(
+                "Skipping parallel_ports.rs generation since parallel-ports feature is not enabled"
+            );
+            Ok(())
+        }
+    }
+}
+
+fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "spb")] {
+            info!("Generating bindings to WDK: spb.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("spb-input.h", &header_contents);
+
+                // Only allowlist files in the spb-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Spb) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("spb.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when spb feature is not enabled
+
+            info!("Skipping spb.rs generation since spb feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "storage")] {
+            info!("Generating bindings to WDK: storage.rs");
+
+            let header_contents = config.bindgen_header_contents([
+                ApiSubset::Base,
+                ApiSubset::Wdf,
+                ApiSubset::Storage,
+            ]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("storage-input.h", &header_contents);
+
+                // Only allowlist files in the storage-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Storage) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("storage.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when storage feature is not enabled
+
+            info!("Skipping storage.rs generation since storage feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "usb")] {
+            info!("Generating bindings to WDK: usb.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb]);
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("usb-input.h", &header_contents);
+
+                // Only allowlist files in the usb-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Usb) {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("usb.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
+
+            info!("Skipping usb.rs generation since usb feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+/// Generates a `wdf_function_count.rs` file in `OUT_DIR` which contains the
+/// definition of the function `get_wdf_function_count()`. This is required to
+/// be generated here since the size of the table is derived from either a
+/// global symbol that newer WDF versions expose, or an enum that older versions
+/// use.
+fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Result<()> {
     const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
 
-    let generated_file_path = out_path.join("wdf_function_table.rs");
+    let generated_file_path = out_path.join("wdf_function_count.rs");
     let mut generated_file = std::fs::File::create(generated_file_path)?;
 
     let is_wdf_function_count_generated = match *config {
@@ -304,26 +576,16 @@ fn generate_wdf_function_table(out_path: &Path, config: &Config) -> std::io::Res
         }
     };
 
-    let wdf_function_table_code_snippet = if is_wdf_function_count_generated {
-        WDF_FUNCTION_TABLE_TEMPLATE
-            .replace(NUM_WDF_FUNCTIONS_PLACEHOLDER, "crate::WdfFunctionCount")
-            .replace(
-                WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER,
-                WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL,
-            )
-    } else {
-        WDF_FUNCTION_TABLE_TEMPLATE
-            .replace(
-                NUM_WDF_FUNCTIONS_PLACEHOLDER,
-                "crate::_WDFFUNCENUM::WdfFunctionTableNumEntries",
-            )
-            .replace(
-                WDF_FUNCTION_COUNT_DECLARATION_PLACEHOLDER,
-                WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX,
-            )
-    };
+    let wdf_function_table_count_snippet = WDF_FUNCTION_COUNT_FUNCTION_TEMPLATE.replace(
+        WDF_FUNCTION_COUNT_PLACEHOLDER,
+        if is_wdf_function_count_generated {
+            WDF_FUNCTION_COUNT_DECLARATION_EXTERNAL_SYMBOL
+        } else {
+            WDF_FUNCTION_COUNT_DECLARATION_TABLE_INDEX
+        },
+    );
 
-    generated_file.write_all(wdf_function_table_code_snippet.as_bytes())?;
+    generated_file.write_all(wdf_function_table_count_snippet.as_bytes())?;
     Ok(())
 }
 
@@ -394,7 +656,7 @@ fn main() -> anyhow::Result<()> {
                             .name(format!("bindgen {file_name} generator"))
                             .spawn_scoped(thread_scope, move || {
                                 // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                                info_span!(parent: current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
+                                info_span!(parent: &current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
                             })
                             .expect("Scoped Thread should spawn successfully"),
                     );
@@ -403,23 +665,50 @@ fn main() -> anyhow::Result<()> {
 
             if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
                 let current_span = Span::current();
+                let config = &config;
+                let out_path = &out_path;
+
                 // Compile a c library to expose symbols that are not exposed because of
                 // __declspec(selectany)
                 thread_join_handles.push(
                     thread::Builder::new()
                         .name("wdf.c cc compilation".to_string())
-                        .spawn_scoped(thread_scope, || {
+                        .spawn_scoped(thread_scope, move || {
                             // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
                             info_span!(parent: current_span, "cc").in_scope(|| {
                                 info!("Compiling wdf.c");
+
+                                // Write all included headers into wdf.c (existing file, if present
+                                // (i.e. incremental rebuild), is truncated)
+                                let wdf_c_file_path = out_path.join("wdf.c");
+                                {
+                                    let mut wdf_c_file = File::create(&wdf_c_file_path)?;
+                                    wdf_c_file.write_all(
+                                        config
+                                            .bindgen_header_contents([
+                                                ApiSubset::Base,
+                                                ApiSubset::Wdf,
+                                                #[cfg(feature = "hid")]
+                                                ApiSubset::Hid,
+                                                #[cfg(feature = "spb")]
+                                                ApiSubset::Spb,
+                                            ])
+                                            .as_bytes(),
+                                    )?;
+
+                                    // Explicitly sync_all to surface any IO errors (File::drop
+                                    // silently ignores close errors)
+                                    wdf_c_file.sync_all()?;
+                                }
+
                                 let mut cc_builder = cc::Build::new();
-                                for (key, value) in config.get_preprocessor_definitions_iter() {
+                                for (key, value) in config.preprocessor_definitions() {
                                     cc_builder.define(&key, value.as_deref());
                                 }
 
                                 cc_builder
-                                    .includes(config.get_include_paths()?)
-                                    .file("src/wdf.c")
+                                    .includes(config.include_paths()?)
+                                    .file(wdf_c_file_path)
                                     .compile("wdf");
                                 Ok::<(), ConfigError>(())
                             })
@@ -427,30 +716,37 @@ fn main() -> anyhow::Result<()> {
                         .expect("Scoped Thread should spawn successfully"),
                 );
 
-                info_span!("wdf_function_table.rs generation").in_scope(|| {
-                    generate_wdf_function_table(&out_path, &config)?;
+                info_span!("wdf_function_count.rs generation").in_scope(|| {
+                    generate_wdf_function_count(out_path, config)?;
                     Ok::<(), std::io::Error>(())
                 })?;
 
                 info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
-                    generate_call_unsafe_wdf_function_binding_macro(&out_path)?;
+                    generate_call_unsafe_wdf_function_binding_macro(out_path)?;
                     Ok::<(), std::io::Error>(())
                 })?;
 
                 info_span!("test_stubs.rs generation").in_scope(|| {
-                    generate_test_stubs(&out_path, &config)?;
+                    generate_test_stubs(out_path, config)?;
                     Ok::<(), std::io::Error>(())
                 })?;
             }
 
             for join_handle in thread_join_handles {
                 let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
-                join_handle
-                    .join()
-                    .expect("Thread should complete without panicking")
-                    .with_context(|| {
-                        format!(r#""{thread_name}" thread failed to exit successfully"#)
-                    })?;
+
+                match join_handle.join() {
+                    // Forward panics to the main thread
+                    Err(panic_payload) => {
+                        panic::resume_unwind(panic_payload);
+                    }
+
+                    Ok(thread_result) => {
+                        thread_result.with_context(|| {
+                            format!(r#""{thread_name}" thread failed to exit successfully"#)
+                        })?;
+                    }
+                }
             }
             Ok::<(), anyhow::Error>(())
         })?;

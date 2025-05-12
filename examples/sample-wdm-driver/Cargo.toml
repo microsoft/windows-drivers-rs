@@ -19,17 +19,24 @@ crate-type = ["cdylib"]
 test = false
 
 [build-dependencies]
-wdk-build = { path = "../../crates/wdk-build", version = "0.3.0" }
+wdk-build = { path = "../../crates/wdk-build", version = "0.4.0" }
 
 [dependencies]
-wdk-alloc = { path = "../../crates/wdk-alloc", version = "0.3.0" }
-wdk = { path = "../../crates/wdk", version = "0.3.0" }
-wdk-panic = { path = "../../crates/wdk-panic", version = "0.3.0" }
-wdk-sys = { path = "../../crates/wdk-sys", version = "0.3.0" }
-
+wdk-alloc = { path = "../../crates/wdk-alloc", version = "0.3.1" }
+wdk = { path = "../../crates/wdk", version = "0.3.1" }
+wdk-panic = { path = "../../crates/wdk-panic", version = "0.3.1" }
+wdk-sys = { path = "../../crates/wdk-sys", version = "0.4.0" }
 
 [features]
 default = []
+
+gpio = ["wdk-sys/gpio"]
+hid = ["wdk-sys/hid"]
+parallel-ports = ["wdk-sys/parallel-ports"]
+spb = ["wdk-sys/spb"]
+storage = ["wdk-sys/storage"]
+usb = ["wdk-sys/usb"]
+
 nightly = ["wdk/nightly", "wdk-sys/nightly"]
 
 [profile.dev]

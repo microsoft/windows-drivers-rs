@@ -1,6 +1,7 @@
 {
   "rust-analyzer.rustfmt.extraArgs": [
-    "+nightly"
+    "+nightly",
+    "--all"
   ],
   "rust-analyzer.rustfmt.rangeFormatting.enable": true,
   "evenBetterToml.formatter.crlf": true,
@@ -19,5 +20,6 @@
     "./tests/umdf-driver-workspace/Cargo.toml",
     "./tests/wdk-macros-tests/Cargo.toml",
     "./tests/wdk-sys-tests/Cargo.toml",
-  ]
+  ],
+  "rust-analyzer.cargo.features": "all"
 }

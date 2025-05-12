@@ -42,7 +42,7 @@ pub unsafe extern "system" fn driver_entry(
     let string = CString::new("Hello World!\n").unwrap();
 
     // SAFETY: This is safe because `string` is a valid pointer to a null-terminated
-    // string
+    // string (`CString` guarantees null-termination)
     unsafe {
         OutputDebugStringA(string.as_ptr());
     }
@@ -120,9 +120,10 @@ pub unsafe extern "system" fn driver_entry(
         //            of the slice must be no larger than `isize::MAX`. This is proven by the below
         //            `debug_assert!`.
         unsafe {
-            debug_assert!(
-                isize::try_from(number_of_slice_elements * core::mem::size_of::<WCHAR>()).is_ok()
-            );
+            debug_assert!(isize::try_from(
+                number_of_slice_elements * core::mem::size_of::<WCHAR>()
+            )
+            .is_ok());
             slice::from_raw_parts(registry_path.Buffer, number_of_slice_elements)
         },
     );

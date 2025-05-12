@@ -89,7 +89,7 @@ jobs:
           targets: ${{ matrix.target_triple }}
 
       - name: Run Cargo Build
-        run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
+        run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --all-features
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
