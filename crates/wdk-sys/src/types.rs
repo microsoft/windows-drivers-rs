@@ -11,7 +11,7 @@ pub use bindings::*;
     any(
         all(not(nightly), since(1.88)),
         all(nightly, since(2025-04-25)),
-    )
+    ),
     allow(unnecessary_transmutes)
 )]
 #[allow(unsafe_op_in_unsafe_fn)]
