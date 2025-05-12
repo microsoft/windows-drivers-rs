@@ -9,7 +9,7 @@ pub use bindings::*;
 #[allow(non_snake_case)]
 #[rustversion::attr(
     any(
-        all(not(nightly), since(1.87)),
+        all(not(nightly), since(1.88)),
         all(nightly, since(2025-04-25)),
     )
     allow(unnecessary_transmutes)
