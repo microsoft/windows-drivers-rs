@@ -301,7 +301,13 @@ impl Config {
         })
     }
 
-    fn emit_check_cfg_settings() {
+    /// Emit `cargo::rustc-check-cfg` directives corresponding to all the
+    /// possible `rustc-cfg` settings [`wdk_build`] could emit
+    ///
+    /// This is useful in situations where a library may not have a valid WDK
+    /// config available during build. This function is not needed if the build
+    /// was already configured via [`configure_wdk`
+    pub fn emit_check_cfg_settings() {
         for (cfg_key, allowed_values) in EXPORTED_CFG_SETTINGS.iter() {
             let allowed_cfg_value_string =
                 allowed_values.iter().fold(String::new(), |mut acc, value| {
