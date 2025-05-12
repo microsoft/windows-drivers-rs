@@ -38,11 +38,12 @@ impl<'a> BuildTask<'a> {
     /// * `command_exec` - The command execution provider
     /// * `fs` - The file system provider
     /// # Returns
-    /// * `Result<Self>` - A result containing the new instance of `BuildTask`
-    ///   or an error
+    /// * `Result<Self, BuildTaskError>` - A result containing the new instance
+    ///   of `BuildTask` or an error
     /// # Errors
-    /// * `BuildTaskError::IoError` - If there is an IO error while
-    ///   canonicalizing the working dir
+    /// * `BuildTaskError::CanonicalizeManifestPath` - If there is an IO error
+    ///   while canonicalizing the working dir
+    /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
@@ -70,10 +71,13 @@ impl<'a> BuildTask<'a> {
         })
     }
 
-    /// Entry point method to run the build action
+    /// Entry point method to run the build task
     /// # Returns
     /// * `Result<(), BuildTaskError>` - Result indicating success or failure of
-    ///   the build action
+    ///   the build task
+    /// # Errors
+    /// * `BuildTaskError::CargoBuild` - If there is an error running the cargo
+    ///   build command
     pub fn run(&self) -> Result<(), BuildTaskError> {
         info!("Running cargo build for package: {}", self.package_name);
         let mut args = vec!["build".to_string()];

@@ -82,8 +82,8 @@ impl<'a> PackageTask<'a> {
     /// * `Result<Self, PackageTaskError>` - A result containing the new
     ///   instance or an error.
     /// # Errors
-    /// * `PackageTaskError::IoError` - If there is an IO error while creating
-    ///   the final package directory.
+    /// * `PackageTaskError::Io` - If there is an IO error while creating the
+    ///   final package directory.
     pub fn new(
         params: PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
@@ -169,32 +169,32 @@ impl<'a> PackageTask<'a> {
     /// * `Result<(), PackageTaskError>` - A result indicating success or
     ///   failure.
     /// # Errors
-    /// * `PackageTaskError::CopyFileError` - If there is an error copying a
-    ///   file.
-    /// * `PackageTaskError::CertGenerationInStoreError` - If there is an error
-    ///   generating a certificate in the store.
-    /// * `PackageTaskError::CreateCertFileFromStoreError` - If there is an
+    /// * `PackageTaskError::CopyFile` - If there is an error copying artifacts
+    ///   to final package directory.
+    /// * `PackageTaskError::CertGenerationInStoreCommand` - If there is an
+    ///   error generating a certificate in the store.
+    /// * `PackageTaskError::CreateCertFileFromStoreCommand` - If there is an
     ///   error creating a certificate file from the store.
-    /// * `PackageTaskError::DriverBinarySignError` - If there is an error
+    /// * `PackageTaskError::DriverBinarySignCommand` - If there is an error
     ///   signing the driver binary.
-    /// * `PackageTaskError::DriverBinarySignVerificationError` - If there is an
-    ///   error verifying the driver binary signature.
-    /// * `PackageTaskError::Inf2CatError` - If there is an error running the
-    ///   inf2cat command.
-    /// * `PackageTaskError::InfVerificationError` - If there is an error
+    /// * `PackageTaskError::DriverBinarySignVerificationCommand` - If there is
+    ///   an error verifying the driver binary signature.
+    /// * `PackageTaskError::Inf2CatCommand` - If there is an error running the
+    ///   inf2cat command to generate the cat file.
+    /// * `PackageTaskError::InfVerificationCommand` - If there is an error
     ///   verifying the inf file.
-    /// * `PackageTaskError::MissingInxSrcFileError` - If the .inx source file
-    ///   is missing.
-    /// * `PackageTaskError::StampinfError` - If there is an error running the
-    ///   stampinf command.
-    /// * `PackageTaskError::VerifyCertExistsInStoreError` - If there is an
+    /// * `PackageTaskError::MissingInxSrcFile` - If the .inx source file is
+    ///   missing.
+    /// * `PackageTaskError::StampinfCommand` - If there is an error running the
+    ///   stampinf command to generate the inf file from the .inx template file.
+    /// * `PackageTaskError::VerifyCertExistsInStoreCommand` - If there is an
     ///   error verifying if the certificate exists in the store.
-    /// * `PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutputError`
+    /// * `PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput`
     ///   - If the command output is invalid when verifying if the certificate
     ///     exists in the store.
-    /// * `PackageTaskError::WdkBuildConfigError` - If there is an error with
-    ///   the WDK build config.
-    /// * `PackageTaskError::IoError` - If there is an IO error.
+    /// * `PackageTaskError::WdkBuildConfig` - If there is an error detecting
+    ///   the WDK build number.
+    /// * `PackageTaskError::Io` - Wraps all possible IO errors.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
         info!(

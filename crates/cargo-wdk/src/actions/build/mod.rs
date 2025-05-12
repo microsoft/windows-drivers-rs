@@ -97,30 +97,34 @@ impl<'a> BuildAction<'a> {
         })
     }
 
-    /// Entry point method to execute the packaging action flow
+    /// Entry point method to execute the packaging action flow.
     /// # Returns
     /// * `Result<Self>` - A result containing an empty tuple or an error of
-    ///   type `BuildActionError`
+    ///   type `BuildActionError`.
     /// # Errors
-    /// * `BuildActionError::NotAWorkspaceMemberError` - If the working
-    ///   directory is not a workspace member
-    /// * `BuildActionError::PackageDriverInitError` - If there is an error
-    ///   initializing the package driver
-    /// * `BuildActionError::PackageDriverError` - If there is an error during
-    ///   the package driver process
-    /// * `BuildActionError::CargoMetadataParseError` - If there is an error
-    ///   parsing the Cargo metadata
-    /// * `BuildActionError::WdkMetadataParseError` - If there is an error
-    ///   parsing the WDK metadata
-    /// * `BuildActionError::WdkBuildConfigError` - If there is an error with
-    ///   the WDK build config
-    /// * `BuildActionError::IoError` - Wraps all possible IO errors
-    /// * `BuildActionError::CommandExecutionError` - If there is an error
-    ///   executing a command
+    /// * `BuildActionError::NotAWorkspaceMember` - If the working directory is
+    ///   not a workspace member.
+    /// * `BuildActionError::PackageTaskInit` - If there is an error
+    ///   initializing the package task.
+    /// * `BuildActionError::PackageTask` - If there is an error during the
+    ///   package task process.
+    /// * `BuildActionError::CargoMetadataParse` - If it is not a valid rust
+    ///   project/workspace and error parsing Cargo.toml.
+    /// * `BuildActionError::WdkMetadataParse` - Error Parsing WDK metadata from
+    ///   Cargo.toml, not a valid driver project/workspace.
+    /// * `BuildActionError::WdkBuildConfig` - If there is an error setting up
+    ///   Path for the tools or when failed to detect WDK build number.
+    /// * `BuildActionError::Io` - Wraps all possible IO errors.
+    /// * `BuildActionError::CommandExecution` - If there is an error executing
+    ///   a command.
     /// * `BuildActionError::NoValidRustProjectsInTheDirectory` - If no valid
-    ///   Rust projects are found in the directory
+    ///   Rust projects are found in the working directory.
     /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
-    ///   more Rust projects fail to build
+    ///   more Rust projects fail to build in an emulated workspace.
+    /// * `BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild` - If one or
+    ///   more workspace members fail to build inside a workspace.
+    /// * `BuildActionError::BuildTask` - If there is an error during the build
+    ///   task process.
     pub fn run(&self) -> Result<(), BuildActionError> {
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
@@ -322,6 +326,7 @@ impl<'a> BuildAction<'a> {
         Ok(cargo_metadata)
     }
 
+    // Method to perform the build and package tasks on the given package
     fn build_and_package(
         &self,
         working_dir: &Path,

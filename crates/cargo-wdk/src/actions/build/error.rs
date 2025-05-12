@@ -34,11 +34,11 @@ pub enum BuildActionError {
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error(
-        "One or more rust (possibly driver) projects failed to package in the working directory: \
+        "One or more rust (possibly driver) projects failed to build in the emulated workspace: \
          {0}"
     )]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
-    #[error("One or more workspace members failed to package in the working directory: {0}")]
+    #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
 }
 
