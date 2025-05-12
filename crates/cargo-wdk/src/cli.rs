@@ -19,6 +19,12 @@ use crate::actions::{
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
+const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to create and build \
+                            Windows Rust driver projects.";
+const USAGE_STRING: &str = "cargo [+toolchain] wdk <subcommand> [options] [args]";
+const CARGO_WDK_DISPLAY_NAME: &str = "cargo wdk";
+const CARGO_WDK_BIN_NAME: &str = "cargo-wdk";
+
 /// Validation errors for the driver project name arg passed to new project sub
 /// command
 #[derive(Debug, thiserror::Error)]
@@ -88,8 +94,12 @@ pub struct BuildProjectArgs {
     pub target_arch: Option<CpuArchitecture>,
     #[clap(long, help = "Verify Signatures", default_value = "false")]
     pub verify_signature: bool,
-    #[clap(long, help = "Sample Class", default_value = "false")]
-    pub sample_class: bool,
+    #[clap(
+        long,
+        help = "Build Sample Class Driver Project",
+        default_value = "false"
+    )]
+    pub sample: bool,
 }
 
 /// Subcommands
@@ -104,11 +114,13 @@ pub enum Subcmd {
 /// Top level command line interface for cargo wdk
 #[derive(Debug, Parser)]
 #[clap(
-    name = "cargo wdk",
-    version = "0.0.1",
-    author = "Microsoft",
-    about = "A tool for building Windows Driver Kit Rust projects",
-    override_usage = "cargo wdk [SUBCOMMAND] [OPTIONS]"
+    name = env!("CARGO_PKG_NAME"),
+    version = env!("CARGO_PKG_VERSION"),
+    display_name = CARGO_WDK_DISPLAY_NAME,
+    bin_name = CARGO_WDK_BIN_NAME,
+    author = env!("CARGO_PKG_AUTHORS"),
+    about = ABOUT_STRING,
+    override_usage = USAGE_STRING,
 )]
 pub struct Cli {
     #[clap(name = "cargo command", default_value = "wdk")]
@@ -156,7 +168,7 @@ impl Cli {
                         profile: cli_args.profile.as_ref(),
                         target_arch,
                         verify_signature: cli_args.verify_signature,
-                        is_sample_class: cli_args.sample_class,
+                        is_sample_class: cli_args.sample,
                         verbosity_level: self.verbose,
                     },
                     &wdk_build,
