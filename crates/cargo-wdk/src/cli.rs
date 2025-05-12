@@ -125,7 +125,7 @@ impl Cli {
     pub fn run(self) -> Result<()> {
         let wdk_build = WdkBuild::default();
         let command_exec = CommandExec::default();
-        let fs_provider = Fs::default();
+        let fs = Fs::default();
         let metadata = Metadata::default();
 
         match self.sub_cmd {
@@ -136,7 +136,7 @@ impl Cli {
                     &cli_args.cwd,
                     self.verbose,
                     &command_exec,
-                    &fs_provider,
+                    &fs,
                 );
                 new_action.run()?;
                 Ok(())
@@ -161,7 +161,7 @@ impl Cli {
                     },
                     &wdk_build,
                     &command_exec,
-                    &fs_provider,
+                    &fs,
                     &metadata,
                 )?;
                 build_action.run()?;

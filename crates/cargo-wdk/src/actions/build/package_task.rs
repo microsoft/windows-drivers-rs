@@ -66,18 +66,18 @@ pub struct PackageTask<'a> {
     driver_model: DriverConfig,
 
     // Injected deps
-    wdk_build_provider: &'a WdkBuild,
+    wdk_build: &'a WdkBuild,
     command_exec: &'a CommandExec,
-    fs_provider: &'a Fs,
+    fs: &'a Fs,
 }
 
 impl<'a> PackageTask<'a> {
     /// Creates a new instance of `PackageTask`.
     /// # Arguments
     /// * `params` - Struct containing the parameters for the package task.
-    /// * `wdk_build_provider` - The provider for WDK build related methods.
+    /// * `wdk_build` - The provider for WDK build related methods.
     /// * `command_exec` - The provider for command execution.
-    /// * `fs_provider` - The provider for file system operations.
+    /// * `fs` - The provider for file system operations.
     /// # Returns
     /// * `Result<Self, PackageTaskError>` - A result containing the new
     ///   instance or an error.
@@ -86,9 +86,9 @@ impl<'a> PackageTask<'a> {
     ///   the final package directory.
     pub fn new(
         params: PackageTaskParams<'a>,
-        wdk_build_provider: &'a WdkBuild,
+        wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
-        fs_provider: &'a Fs,
+        fs: &'a Fs,
     ) -> Result<Self, PackageTaskError> {
         debug!("Package task params: {params:?}");
         let package_name = params.package_name.replace('-', "_");
@@ -130,8 +130,8 @@ impl<'a> PackageTask<'a> {
             dest_root_package_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
         let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
 
-        if !fs_provider.exists(&dest_root_package_folder) {
-            fs_provider.create_dir(&dest_root_package_folder)?;
+        if !fs.exists(&dest_root_package_folder) {
+            fs.create_dir(&dest_root_package_folder)?;
         }
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
@@ -158,10 +158,79 @@ impl<'a> PackageTask<'a> {
             arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
-            wdk_build_provider,
+            wdk_build,
             command_exec,
-            fs_provider,
+            fs,
         })
+    }
+
+    /// Entry point method to run the low level driver packaging operations.
+    /// # Returns
+    /// * `Result<(), PackageTaskError>` - A result indicating success or
+    ///   failure.
+    /// # Errors
+    /// * `PackageTaskError::CopyFileError` - If there is an error copying a
+    ///   file.
+    /// * `PackageTaskError::CertGenerationInStoreError` - If there is an error
+    ///   generating a certificate in the store.
+    /// * `PackageTaskError::CreateCertFileFromStoreError` - If there is an
+    ///   error creating a certificate file from the store.
+    /// * `PackageTaskError::DriverBinarySignError` - If there is an error
+    ///   signing the driver binary.
+    /// * `PackageTaskError::DriverBinarySignVerificationError` - If there is an
+    ///   error verifying the driver binary signature.
+    /// * `PackageTaskError::Inf2CatError` - If there is an error running the
+    ///   inf2cat command.
+    /// * `PackageTaskError::InfVerificationError` - If there is an error
+    ///   verifying the inf file.
+    /// * `PackageTaskError::MissingInxSrcFileError` - If the .inx source file
+    ///   is missing.
+    /// * `PackageTaskError::StampinfError` - If there is an error running the
+    ///   stampinf command.
+    /// * `PackageTaskError::VerifyCertExistsInStoreError` - If there is an
+    ///   error verifying if the certificate exists in the store.
+    /// * `PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutputError`
+    ///   - If the command output is invalid when verifying if the certificate
+    ///     exists in the store.
+    /// * `PackageTaskError::WdkBuildConfigError` - If there is an error with
+    ///   the WDK build config.
+    /// * `PackageTaskError::IoError` - If there is an IO error.
+    pub fn run(&self) -> Result<(), PackageTaskError> {
+        self.check_inx_exists()?;
+        info!(
+            "Copying files to target package folder: {}",
+            self.dest_root_package_folder.to_string_lossy()
+        );
+        self.rename_driver_binary_extension()?;
+        self.copy(
+            &self.src_renamed_driver_binary_file_path,
+            &self.dest_driver_binary_path,
+        )?;
+        self.copy(&self.src_pdb_file_path, &self.dest_pdb_file_path)?;
+        self.copy(&self.src_inx_file_path, &self.dest_inf_file_path)?;
+        self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
+        self.run_stampinf()?;
+        self.run_inf2cat()?;
+        self.generate_certificate()?;
+        self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
+        self.run_signtool_sign(
+            &self.dest_driver_binary_path,
+            WDR_TEST_CERT_STORE,
+            WDR_LOCAL_TEST_CERT,
+        )?;
+        self.run_signtool_sign(
+            &self.dest_cat_file_path,
+            WDR_TEST_CERT_STORE,
+            WDR_LOCAL_TEST_CERT,
+        )?;
+        self.run_infverif()?;
+        // Verify signatures only when --verify-signature flag = true is passed
+        if self.verify_signature {
+            info!("Verifying signatures for driver binary and cat file using signtool");
+            self.run_signtool_verify(&self.dest_driver_binary_path)?;
+            self.run_signtool_verify(&self.dest_cat_file_path)?;
+        }
+        Ok(())
     }
 
     fn check_inx_exists(&self) -> Result<(), PackageTaskError> {
@@ -169,7 +238,7 @@ impl<'a> PackageTask<'a> {
             "Checking for .inx file, path: {}",
             self.src_inx_file_path.to_string_lossy()
         );
-        if !self.fs_provider.exists(&self.src_inx_file_path) {
+        if !self.fs.exists(&self.src_inx_file_path) {
             return Err(PackageTaskError::MissingInxSrcFile(
                 self.src_inx_file_path.clone(),
             ));
@@ -179,7 +248,7 @@ impl<'a> PackageTask<'a> {
 
     fn rename_driver_binary_extension(&self) -> Result<(), PackageTaskError> {
         debug!("Renaming driver binary extension from .dll to .sys");
-        if let Err(e) = self.fs_provider.rename(
+        if let Err(e) = self.fs.rename(
             &self.src_driver_binary_file_path,
             &self.src_renamed_driver_binary_file_path,
         ) {
@@ -202,7 +271,7 @@ impl<'a> PackageTask<'a> {
             src_file_path.to_string_lossy(),
             dest_file_path.to_string_lossy()
         );
-        if let Err(e) = self.fs_provider.copy(src_file_path, dest_file_path) {
+        if let Err(e) = self.fs.copy(src_file_path, dest_file_path) {
             return Err(PackageTaskError::CopyFile(
                 src_file_path.to_path_buf(),
                 dest_file_path.to_path_buf(),
@@ -281,7 +350,7 @@ impl<'a> PackageTask<'a> {
 
     fn generate_certificate(&self) -> Result<(), PackageTaskError> {
         debug!("Generating certificate.");
-        if self.fs_provider.exists(&self.src_cert_file_path) {
+        if self.fs.exists(&self.src_cert_file_path) {
             return Ok(());
         }
         if self.is_self_signed_certificate_in_store()? {
@@ -420,7 +489,7 @@ impl<'a> PackageTask<'a> {
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
         info!("Running infverif command.");
         let additional_args = if self.sample_class {
-            let wdk_build_number = self.wdk_build_provider.detect_wdk_build_number()?;
+            let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
             if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
                 debug!(
                     "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
@@ -453,75 +522,6 @@ impl<'a> PackageTask<'a> {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
-        Ok(())
-    }
-
-    /// Entry point method to run the low level driver packaging operations.
-    /// # Returns
-    /// * `Result<(), PackageTaskError>` - A result indicating success or
-    ///   failure.
-    /// # Errors
-    /// * `PackageTaskError::CopyFileError` - If there is an error copying a
-    ///   file.
-    /// * `PackageTaskError::CertGenerationInStoreError` - If there is an error
-    ///   generating a certificate in the store.
-    /// * `PackageTaskError::CreateCertFileFromStoreError` - If there is an
-    ///   error creating a certificate file from the store.
-    /// * `PackageTaskError::DriverBinarySignError` - If there is an error
-    ///   signing the driver binary.
-    /// * `PackageTaskError::DriverBinarySignVerificationError` - If there is an
-    ///   error verifying the driver binary signature.
-    /// * `PackageTaskError::Inf2CatError` - If there is an error running the
-    ///   inf2cat command.
-    /// * `PackageTaskError::InfVerificationError` - If there is an error
-    ///   verifying the inf file.
-    /// * `PackageTaskError::MissingInxSrcFileError` - If the .inx source file
-    ///   is missing.
-    /// * `PackageTaskError::StampinfError` - If there is an error running the
-    ///   stampinf command.
-    /// * `PackageTaskError::VerifyCertExistsInStoreError` - If there is an
-    ///   error verifying if the certificate exists in the store.
-    /// * `PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutputError`
-    ///   - If the command output is invalid when verifying if the certificate
-    ///     exists in the store.
-    /// * `PackageTaskError::WdkBuildConfigError` - If there is an error with
-    ///   the WDK build config.
-    /// * `PackageTaskError::IoError` - If there is an IO error.
-    pub fn run(&self) -> Result<(), PackageTaskError> {
-        self.check_inx_exists()?;
-        info!(
-            "Copying files to target package folder: {}",
-            self.dest_root_package_folder.to_string_lossy()
-        );
-        self.rename_driver_binary_extension()?;
-        self.copy(
-            &self.src_renamed_driver_binary_file_path,
-            &self.dest_driver_binary_path,
-        )?;
-        self.copy(&self.src_pdb_file_path, &self.dest_pdb_file_path)?;
-        self.copy(&self.src_inx_file_path, &self.dest_inf_file_path)?;
-        self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
-        self.run_stampinf()?;
-        self.run_inf2cat()?;
-        self.generate_certificate()?;
-        self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-        self.run_signtool_sign(
-            &self.dest_driver_binary_path,
-            WDR_TEST_CERT_STORE,
-            WDR_LOCAL_TEST_CERT,
-        )?;
-        self.run_signtool_sign(
-            &self.dest_cat_file_path,
-            WDR_TEST_CERT_STORE,
-            WDR_LOCAL_TEST_CERT,
-        )?;
-        self.run_infverif()?;
-        // Verify signatures only when --verify-signature flag = true is passed
-        if self.verify_signature {
-            info!("Verifying signatures for driver binary and cat file using signtool");
-            self.run_signtool_verify(&self.dest_driver_binary_path)?;
-            self.run_signtool_verify(&self.dest_cat_file_path)?;
-        }
         Ok(())
     }
 }

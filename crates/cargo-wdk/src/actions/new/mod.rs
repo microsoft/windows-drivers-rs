@@ -34,7 +34,7 @@ pub struct NewAction<'a> {
     cwd: PathBuf,
     verbosity_level: clap_verbosity_flag::Verbosity,
     command_exec: &'a CommandExec,
-    fs_provider: &'a Fs,
+    fs: &'a Fs,
 }
 
 impl<'a> NewAction<'a> {
@@ -48,7 +48,7 @@ impl<'a> NewAction<'a> {
     ///   be created.
     /// * `verbosity_level` - The verbosity level for logging.
     /// * `command_exec` - The provider for command exection.
-    /// * `fs_provider` - The provider for file system operations.
+    /// * `fs` - The provider for file system operations.
     ///
     /// # Returns
     ///
@@ -59,7 +59,7 @@ impl<'a> NewAction<'a> {
         cwd: &'a Path,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
-        fs_provider: &'a Fs,
+        fs: &'a Fs,
     ) -> Self {
         let cwd = cwd.join(driver_project_name);
         let driver_project_name = driver_project_name.replace('-', "_");
@@ -69,7 +69,7 @@ impl<'a> NewAction<'a> {
             cwd,
             verbosity_level,
             command_exec,
-            fs_provider,
+            fs,
         }
     }
 
@@ -159,7 +159,7 @@ impl<'a> NewAction<'a> {
             NewActionError::TemplateNotFound(template_path.to_string_lossy().into_owned())
         })?;
         let lib_rs_path = self.cwd.join("src/lib.rs");
-        self.fs_provider
+        self.fs
             .write_to_file(&lib_rs_path, template_file.contents())?;
         Ok(())
     }
@@ -188,7 +188,7 @@ impl<'a> NewAction<'a> {
             NewActionError::TemplateNotFound(template_path.to_string_lossy().into_owned())
         })?;
         let lib_rs_path = self.cwd.join("build.rs");
-        self.fs_provider
+        self.fs
             .write_to_file(&lib_rs_path, template_file.contents())?;
         Ok(())
     }
@@ -209,9 +209,9 @@ impl<'a> NewAction<'a> {
     pub fn update_cargo_toml(&self) -> Result<(), NewActionError> {
         debug!("Updating Cargo.toml for driver type: {}", self.driver_type);
         let cargo_toml_path = self.cwd.join("Cargo.toml");
-        let mut cargo_toml_content = self.fs_provider.read_file_to_string(&cargo_toml_path)?;
+        let mut cargo_toml_content = self.fs.read_file_to_string(&cargo_toml_path)?;
         cargo_toml_content = cargo_toml_content.replace("[dependencies]\n", "");
-        self.fs_provider
+        self.fs
             .write_to_file(&cargo_toml_path, cargo_toml_content.as_bytes())?;
 
         let template_cargo_toml_path =
@@ -223,7 +223,7 @@ impl<'a> NewAction<'a> {
                     template_cargo_toml_path.to_string_lossy().into_owned(),
                 )
             })?;
-        self.fs_provider
+        self.fs
             .append_to_file(&cargo_toml_path, template_cargo_toml_file.contents())?;
         Ok(())
     }
@@ -255,7 +255,7 @@ impl<'a> NewAction<'a> {
         let substituted_inx_content =
             inx_content.replace("##driver_name_placeholder##", &self.driver_project_name);
         let inx_output_path = self.cwd.join(format!("{}.inx", self.driver_project_name));
-        self.fs_provider
+        self.fs
             .write_to_file(&inx_output_path, substituted_inx_content.as_bytes())?;
         Ok(())
     }
@@ -285,7 +285,7 @@ impl<'a> NewAction<'a> {
                     cargo_config_template_path.to_string_lossy().into_owned(),
                 )
             })?;
-        self.fs_provider
+        self.fs
             .write_to_file(&cargo_config_path, cargo_config_template_file.contents())?;
         Ok(())
     }

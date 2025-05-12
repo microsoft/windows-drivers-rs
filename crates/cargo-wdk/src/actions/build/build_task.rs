@@ -36,7 +36,7 @@ impl<'a> BuildTask<'a> {
     /// * `target_arch` - The target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
-    /// * `fs_provider` - The file system provider
+    /// * `fs` - The file system provider
     /// # Returns
     /// * `Result<Self>` - A result containing the new instance of `BuildTask`
     ///   or an error
@@ -50,9 +50,9 @@ impl<'a> BuildTask<'a> {
         target_arch: TargetArch,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
-        fs_provider: &'a Fs,
+        fs: &'a Fs,
     ) -> Result<Self, BuildTaskError> {
-        let mut manifest_path = fs_provider.canonicalize_path(&working_dir.join("Cargo.toml"))?;
+        let mut manifest_path = fs.canonicalize_path(&working_dir.join("Cargo.toml"))?;
         manifest_path = match manifest_path.strip_extended_length_path_prefix() {
             Ok(path) => path,
             Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => manifest_path,
