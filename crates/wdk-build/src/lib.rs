@@ -80,6 +80,8 @@ enum DeserializableDriverConfig {
 /// The CPU architecture that's configured to be compiled for
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CpuArchitecture {
+    /// Intel CPU architecture. Also known as i386 or i586 or i686.
+    X86,
     /// AMD64 CPU architecture. Also known as x64 or x86-64.
     Amd64,
     /// ARM64 CPU architecture. Also known as aarch64.
@@ -588,6 +590,11 @@ impl Config {
         // .into_iter()
         // .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
         match self.cpu_architecture {
+            // Definitions sourced from `Program Files\Windows
+            // Kits\10\build\10.0.22621.0\WindowsDriver.win32.props`
+            CpuArchitecture::X86 => {
+                vec![("_X86_", None), ("i386", None), ("STD_CALL", None)]
+            }
             // Definitions sourced from `Program Files\Windows
             // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
             CpuArchitecture::Amd64 => {
@@ -1149,6 +1156,7 @@ impl CpuArchitecture {
     #[must_use]
     pub const fn as_windows_str(&self) -> &str {
         match self {
+            Self::X86 => "x86",
             Self::Amd64 => "x64",
             Self::Arm64 => "ARM64",
         }
@@ -1160,6 +1168,7 @@ impl CpuArchitecture {
         // Specifically not using the [`std::convert::TryFrom`] trait to be more
         // explicit in function name, since only arch strings from cargo are handled.
         match cargo_str.as_ref() {
+            "x86" => Some(Self::X86),
             "x86_64" => Some(Self::Amd64),
             "aarch64" => Some(Self::Arm64),
             _ => None,
