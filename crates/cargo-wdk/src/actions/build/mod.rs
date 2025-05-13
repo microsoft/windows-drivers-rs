@@ -126,14 +126,15 @@ impl<'a> BuildAction<'a> {
     /// * `BuildActionError::BuildTask` - If there is an error during the build
     ///   task process.
     pub fn run(&self) -> Result<(), BuildActionError> {
-        wdk_build::cargo_make::setup_path()?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
         debug!(
-            "Initializing packaging for project at: {}",
+            "Initialized build for project at: {}",
             self.working_dir.display()
         );
+        wdk_build::cargo_make::setup_path()?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
         let build_number = self.wdk_build.detect_wdk_build_number()?;
         debug!("WDK build number: {}", build_number);
+
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
             let cargo_metadata = self.get_cargo_metadata(&self.working_dir)?;
@@ -152,10 +153,12 @@ impl<'a> BuildAction<'a> {
             if dir.file_type()?.is_dir() && self.fs.exists(&dir.path().join("Cargo.toml")) {
                 debug!(
                     "Found atleast one valid Rust project directory: {}, continuing with the \
-                     package flow",
+                     build flow",
                     dir.path()
                         .file_name()
-                        .expect("error reading the folder name")
+                        .expect(
+                            "package sub directory name ended with \"..\" which is not expected"
+                        )
                         .to_string_lossy()
                 );
                 is_valid_dir_with_rust_projects = true;
@@ -181,7 +184,9 @@ impl<'a> BuildAction<'a> {
                     "Processing Rust(possibly driver) project: {}",
                     dir.path()
                         .file_name()
-                        .expect("error reading the folder name")
+                        .expect(
+                            "package sub directory name ended with \"..\" which is not expected"
+                        )
                         .to_string_lossy()
                 );
                 match self.get_cargo_metadata(&dir.path()) {
@@ -189,10 +194,13 @@ impl<'a> BuildAction<'a> {
                         if let Err(e) = self.run_from_workspace_root(&dir.path(), &cargo_metadata) {
                             failed_atleast_one_project = true;
                             err!(
-                                "Error packaging the child project: {}, error: {}",
+                                "Error building the child project: {}, error: {}",
                                 dir.path()
                                     .file_name()
-                                    .expect("error reading the folder name")
+                                    .expect(
+                                        "package sub directory name ended with \"..\" which is \
+                                         not expected"
+                                    )
                                     .to_string_lossy(),
                                 e
                             );
@@ -208,14 +216,14 @@ impl<'a> BuildAction<'a> {
             }
         }
 
-        debug!("Done checking for valid Rust(possibly driver) projects in the working director");
+        debug!("Done checking for valid Rust(possibly driver) projects in the working directory");
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
         }
 
-        info!("Building and packaging completed successfully");
+        info!("Build completed successfully");
         Ok(())
     }
 
@@ -244,7 +252,7 @@ impl<'a> BuildAction<'a> {
 
                 let package_root_path = self.fs.canonicalize_path(package_root_path.as_path())?;
                 debug!(
-                    "Processing workspace driver package: {}",
+                    "Processing workspace member package: {}",
                     package_root_path.display()
                 );
                 if let Err(e) = self.build_and_package(
@@ -273,7 +281,7 @@ impl<'a> BuildAction<'a> {
             }
             return Ok(());
         }
-        info!("Running from workspace member directory");
+        info!("Running from standalone/workspace member directory");
         let package = workspace_packages.iter().find(|p| {
             let package_root_path: PathBuf = p
                 .manifest_path
@@ -284,20 +292,16 @@ impl<'a> BuildAction<'a> {
                 .canonicalize_path(package_root_path.as_path())
                 .is_ok_and(|package_root_path| {
                     debug!(
-                        "Processing workspace driver package: {}",
+                        "Processing standalone/workspace member package: {}",
                         package_root_path.display()
                     );
                     package_root_path.eq(working_dir)
                 })
         });
 
-        if package.is_none() {
-            return Err(BuildActionError::NotAWorkspaceMember(
-                working_dir.to_owned(),
-            ));
-        }
+        let package =
+            package.ok_or_else(|| BuildActionError::NotAWorkspaceMember(working_dir.to_owned()))?;
 
-        let package = package.expect("Package cannot be empty");
         self.build_and_package(
             working_dir,
             &wdk_metadata,
@@ -310,7 +314,10 @@ impl<'a> BuildAction<'a> {
             return Err(BuildActionError::WdkMetadataParse(e));
         }
 
-        info!("Building and packaging completed successfully");
+        info!(
+            "Build completed successfully for path: {}",
+            working_dir.display()
+        );
 
         Ok(())
     }
@@ -348,7 +355,7 @@ impl<'a> BuildAction<'a> {
         .run()?;
         if package.metadata.get("wdk").is_none() {
             warn!(
-                "No package.metadata.wdk section found. Skipping driver package workflow for \
+                "No package.metadata.wdk section found. Skipping driver build workflow for \
                  package: {}",
                 package_name
             );
@@ -360,21 +367,24 @@ impl<'a> BuildAction<'a> {
             .any(|t| t.kind.contains(&TargetKind::CDyLib))
         {
             warn!(
-                "No cdylib target found. Skipping driver package workflow for package: {}",
+                "No cdylib target found. Skipping driver build workflow for package: {}",
                 package_name
             );
             return Ok(());
         }
-        if wdk_metadata.is_err() {
+
+        let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
+            debug!("Found wdk metadata in package: {}", package_name);
+            wdk_metadata
+        } else {
             warn!(
-                "WDK metadata is not available. Skipping driver package workflow for package: {}",
+                "WDK metadata is not available. Skipping driver build workflow for package: {}",
                 package_name
             );
             return Ok(());
-        }
-        debug!("Found wdk metadata in package: {}", package_name);
-        debug!("Creating the drive package");
-        let wdk_metadata = wdk_metadata.as_ref().expect("WDK metadata cannot be empty");
+        };
+
+        debug!("Creating the driver package in the target directory");
         let driver_model = wdk_metadata.driver_model.clone();
         let target_arch = match self.target_arch {
             TargetArch::Default(arch) | TargetArch::Selected(arch) => arch,
@@ -397,7 +407,7 @@ impl<'a> BuildAction<'a> {
             target_dir.display()
         );
 
-        let package_driver = PackageTask::new(
+        let package_task = PackageTask::new(
             PackageTaskParams {
                 package_name: &package_name,
                 working_dir,
@@ -411,15 +421,18 @@ impl<'a> BuildAction<'a> {
             self.command_exec,
             self.fs,
         );
-        if let Err(e) = package_driver {
-            return Err(BuildActionError::PackageTaskInit(package_name, e));
+
+        match package_task {
+            Ok(package_task) => {
+                if let Err(e) = package_task.run() {
+                    return Err(BuildActionError::PackageTask(package_name, e));
+                }
+            }
+            Err(e) => {
+                return Err(BuildActionError::PackageTaskInit(package_name, e));
+            }
         }
-        if let Err(e) = package_driver
-            .expect("PackageDriver failed to initialize")
-            .run()
-        {
-            return Err(BuildActionError::PackageTask(package_name, e));
-        }
+
         info!("Processing completed for package: {}", package_name);
         Ok(())
     }

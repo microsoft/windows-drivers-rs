@@ -53,8 +53,8 @@ impl<'a> BuildTask<'a> {
         command_exec: &'a CommandExec,
         fs: &'a Fs,
     ) -> Result<Self, BuildTaskError> {
-        let mut manifest_path = fs.canonicalize_path(&working_dir.join("Cargo.toml"))?;
-        manifest_path = match manifest_path.strip_extended_length_path_prefix() {
+        let manifest_path = fs.canonicalize_path(&working_dir.join("Cargo.toml"))?;
+        let manifest_path = match manifest_path.strip_extended_length_path_prefix() {
             Ok(path) => path,
             Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => manifest_path,
             Err(StripExtendedPathPrefixError::EmptyPath) => {
