@@ -34,12 +34,10 @@ jobs:
           - release
 
         target_triple:
-          - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
-
-        target_arch:
-          - amd64
-          - arm64
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
 
     steps:
       - name: Checkout Repository
@@ -100,8 +98,8 @@ jobs:
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }} --sample-class
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample-class
 
-      - name: Build Tests (via cargo-wdk)
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_arch }}
+      - name: Run build on tests folder (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
         continue-on-error: true # This is set to true as the some of the tests are expected to fail.
