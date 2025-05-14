@@ -12,12 +12,12 @@ use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
-use super::{error::BuildTaskError, TargetArch};
+use super::{error::BuildTaskError, to_target_triple, TargetArch};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{actions::Profile, trace};
 
-/// Suports low level driver build operations
+/// Supports low level driver build operations
 pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
@@ -95,7 +95,7 @@ impl<'a> BuildTask<'a> {
         }
         if let TargetArch::Selected(target_arch) = self.target_arch {
             args.push("--target".to_string());
-            args.push(target_arch.to_target_triple());
+            args.push(to_target_triple(target_arch));
         }
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());

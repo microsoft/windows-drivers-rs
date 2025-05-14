@@ -30,11 +30,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
 
-/// `x86_64/Amd64` target triple name
-pub const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
-/// `aarch64/Arm64` target triple name
-pub const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
-
 /// Configuration parameters for a build dependent on the WDK
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -135,17 +130,6 @@ impl fmt::Display for CpuArchitecture {
             Self::Arm64 => "arm64",
         };
         write!(f, "{s}")
-    }
-}
-
-impl CpuArchitecture {
-    /// Converts `CpuArchitecture` to its corresponding target triple name.
-    #[must_use]
-    pub fn to_target_triple(&self) -> String {
-        match self {
-            Self::Amd64 => X86_64_TARGET_TRIPLE_NAME.to_string(),
-            Self::Arm64 => AARCH64_TARGET_TRIPLE_NAME.to_string(),
-        }
     }
 }
 

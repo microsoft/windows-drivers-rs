@@ -30,6 +30,7 @@ use crate::providers::{
 use crate::{
     actions::{
         build::{BuildAction, BuildActionError, BuildActionParams},
+        to_target_triple,
         Profile,
         TargetArch,
     },
@@ -2250,7 +2251,7 @@ impl TestBuildAction {
         let mut expected_target_dir = dir_path.join("target");
 
         if let TargetArch::Selected(target_arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(target_arch.to_target_triple());
+            expected_target_dir = expected_target_dir.join(to_target_triple(target_arch));
         }
 
         expected_target_dir = match self.profile {
@@ -2424,7 +2425,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
 
         if let TargetArch::Selected(target_arch) = self.target_arch {
             expected_cargo_build_args.push("--target".to_string());
-            expected_cargo_build_args.push(target_arch.to_target_triple());
+            expected_cargo_build_args.push(to_target_triple(target_arch));
         }
 
         expected_cargo_build_args.push("-v".to_string());

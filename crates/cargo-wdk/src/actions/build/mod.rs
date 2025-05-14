@@ -28,7 +28,7 @@ use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
 use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
-use super::TargetArch;
+use super::{to_target_triple, TargetArch};
 use crate::actions::Profile;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
@@ -381,7 +381,7 @@ impl<'a> BuildAction<'a> {
         );
         let mut target_dir = target_dir.to_path_buf();
         if let TargetArch::Selected(arch) = self.target_arch {
-            target_dir = target_dir.join(arch.to_target_triple());
+            target_dir = target_dir.join(to_target_triple(arch));
         }
         target_dir = match self.profile {
             Some(Profile::Release) => target_dir.join("release"),
