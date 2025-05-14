@@ -12,16 +12,18 @@ extern crate alloc;
 #[cfg(not(test))]
 extern crate wdk_panic;
 
-use alloc::{ffi::CString, slice, string::String};
+use alloc::{ffi::CString, slice, string::String, boxed::Box, vec};
 
 use wdk::println;
-#[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
 use wdk_sys::{ntddk::DbgPrint, DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS};
 
-#[cfg(not(test))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
+
+// Example of using custom-aligned allocator
+#[derive(Debug)]
+#[repr(C,align(1024))] struct AlignedHigher(u32);
 
 /// `driver_entry` function required by WDM
 ///
@@ -53,7 +55,22 @@ pub unsafe extern "system" fn driver_entry(
             (*registry_path).Length as usize / core::mem::size_of_val(&(*(*registry_path).Buffer)),
         )
     });
-
+    {
+        // Example of using WDK allocator.
+        // Allocations will be properly aligned on their boundaries!
+        // Allocate a single instance.
+        let ah=Box::new(AlignedHigher(1234));
+        println!("ah is allocated at {:p}, value={ah:?}",&raw const *ah);
+        // Verify its alignment.
+        assert_eq!((&raw const *ah) as usize & (align_of::<AlignedHigher>() - 1), 0);
+        // Allocate a vector that occupies more than a page.
+        let vh=vec![AlignedHigher(1234), AlignedHigher(5678), AlignedHigher(9012), AlignedHigher(3456), AlignedHigher(7890)];
+        println!("vh is allocated at {:p}, value={vh:?}",vh.as_ptr());
+        // Verify their alignments.
+        for x in &vh {
+            assert_eq!((core::ptr::from_ref::<AlignedHigher>(x) as usize) & (align_of::<AlignedHigher>() - 1), 0);
+        }
+    }
     // It is much better to use the println macro that has an implementation in
     // wdk::print.rs to call DbgPrint. The println! implementation in
     // wdk::print.rs has the same features as the one in std (ex. format args
