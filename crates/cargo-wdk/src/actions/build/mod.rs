@@ -339,25 +339,6 @@ impl<'a> BuildAction<'a> {
             self.fs,
         )?
         .run()?;
-        if package.metadata.get("wdk").is_none() {
-            warn!(
-                "No package.metadata.wdk section found. Skipping driver build workflow for \
-                 package: {}",
-                package_name
-            );
-            return Ok(());
-        }
-        if !package
-            .targets
-            .iter()
-            .any(|t| t.kind.contains(&TargetKind::CDyLib))
-        {
-            warn!(
-                "No cdylib target found. Skipping driver build workflow for package: {}",
-                package_name
-            );
-            return Ok(());
-        }
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
             debug!("Found wdk metadata in package: {}", package_name);
@@ -369,6 +350,27 @@ impl<'a> BuildAction<'a> {
             );
             return Ok(());
         };
+
+        if package.metadata.get("wdk").is_none() {
+            warn!(
+                "No package.metadata.wdk section found. Skipping driver build workflow for \
+                 package: {}",
+                package_name
+            );
+            return Ok(());
+        }
+
+        if !package
+            .targets
+            .iter()
+            .any(|t| t.kind.contains(&TargetKind::CDyLib))
+        {
+            warn!(
+                "No cdylib target found. Skipping driver build workflow for package: {}",
+                package_name
+            );
+            return Ok(());
+        }
 
         debug!("Creating the driver package in the target directory");
         let driver_model = wdk_metadata.driver_model.clone();
