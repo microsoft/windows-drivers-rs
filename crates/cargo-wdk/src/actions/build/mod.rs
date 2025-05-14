@@ -137,8 +137,7 @@ impl<'a> BuildAction<'a> {
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
-            let cargo_metadata = self.get_cargo_metadata(&self.working_dir)?;
-            return self.run_from_workspace_root(&self.working_dir, &cargo_metadata);
+            return self.run_from_workspace_root(&self.working_dir);
         }
 
         // Emulated workspaces support
@@ -179,40 +178,30 @@ impl<'a> BuildAction<'a> {
                 "Verifying the dir entry if it is a valid Rust project: {}",
                 dir.path().display()
             );
-            if dir.file_type()?.is_dir() && self.fs.exists(&dir.path().join("Cargo.toml")) {
-                info!(
-                    "Processing Rust(possibly driver) project: {}",
+            if !dir.file_type()?.is_dir() || !self.fs.exists(&dir.path().join("Cargo.toml")) {
+                debug!("Skipping the dir entry as it is not a valid Rust project");
+                continue;
+            }
+
+            info!(
+                "Processing Rust(possibly driver) project: {}",
+                dir.path()
+                    .file_name()
+                    .expect("package sub directory name ended with \"..\" which is not expected")
+                    .to_string_lossy()
+            );
+            if let Err(e) = self.run_from_workspace_root(&dir.path()) {
+                failed_atleast_one_project = true;
+                err!(
+                    "Error building the child project: {}, error: {}",
                     dir.path()
                         .file_name()
                         .expect(
                             "package sub directory name ended with \"..\" which is not expected"
                         )
-                        .to_string_lossy()
+                        .to_string_lossy(),
+                    e
                 );
-                match self.get_cargo_metadata(&dir.path()) {
-                    Ok(cargo_metadata) => {
-                        if let Err(e) = self.run_from_workspace_root(&dir.path(), &cargo_metadata) {
-                            failed_atleast_one_project = true;
-                            err!(
-                                "Error building the child project: {}, error: {}",
-                                dir.path()
-                                    .file_name()
-                                    .expect(
-                                        "package sub directory name ended with \"..\" which is \
-                                         not expected"
-                                    )
-                                    .to_string_lossy(),
-                                e
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        failed_atleast_one_project = true;
-                        err!("Error reading cargo metadata: {}", e);
-                    }
-                }
-            } else {
-                debug!("Skipping the dir entry as it is not a valid Rust project");
             }
         }
 
@@ -229,11 +218,8 @@ impl<'a> BuildAction<'a> {
 
     // Method to initiate the packaging process for the given working directory
     // and the cargo metadata
-    fn run_from_workspace_root(
-        &self,
-        working_dir: &Path,
-        cargo_metadata: &CargoMetadata,
-    ) -> Result<(), BuildActionError> {
+    fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
+        let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
