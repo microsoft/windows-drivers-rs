@@ -871,6 +871,21 @@ impl Config {
             headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
         }
 
+        if matches!(self.driver_config, DriverConfig::Umdf(_)) {
+            /* the hidport.h file is expected for Umdf, but located in km folder */
+            let include_directory = self.wdk_content_root.join("Include");
+            let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path()).expect("sdk version");
+            let windows_sdk_include_path = include_directory.join(sdk_version);
+            let hidports_path = windows_sdk_include_path
+                .join("km")
+                .join("hidport.h")
+                .canonicalize().unwrap()
+                .strip_extended_length_path_prefix().unwrap()
+                .to_string_lossy().to_string().replace("\\", "/");
+
+            headers.push(Box::leak(hidports_path.into_boxed_str()));
+        }
+
         if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
             headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
         }
