@@ -108,14 +108,11 @@ impl<'a> PackageTask<'a> {
         let src_cert_file_path = params.target_dir.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
 
         // destination paths
-        let dest_driver_binary_extension = if matches!(
-            params.driver_model,
-            DriverConfig::Kmdf(_) | DriverConfig::Wdm
-        ) {
-            "sys"
-        } else {
-            "dll"
+        let dest_driver_binary_extension = match params.driver_model {
+            DriverConfig::Kmdf(_) | DriverConfig::Wdm => "sys",
+            DriverConfig::Umdf(_) => "dll",
         };
+
         let src_renamed_driver_binary_file_path = params
             .target_dir
             .join(format!("{package_name}.{dest_driver_binary_extension}"));
@@ -364,24 +361,13 @@ impl<'a> PackageTask<'a> {
     fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
         debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
         let args = ["-s", WDR_TEST_CERT_STORE];
+
         match self.command_exec.run("certmgr.exe", &args, None) {
-            Ok(output) => {
-                if output.status.success() {
-                    match String::from_utf8(output.stdout) {
-                        Ok(stdout) => {
-                            if stdout.contains(WDR_LOCAL_TEST_CERT) {
-                                return Ok(true);
-                            }
-                        }
-                        Err(e) => {
-                            return Err(
-                                PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e),
-                            );
-                        }
-                    }
-                }
-                Ok(false)
-            }
+            Ok(output) if output.status.success() => String::from_utf8(output.stdout).map_or_else(
+                |e| Err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e)),
+                |stdout| Ok(stdout.contains(WDR_LOCAL_TEST_CERT)),
+            ),
+            Ok(_) => Ok(false),
             Err(e) => Err(PackageTaskError::VerifyCertExistsInStoreCommand(e)),
         }
     }
@@ -465,10 +451,10 @@ impl<'a> PackageTask<'a> {
         if let Err(e) = self.command_exec.run("signtool", &args, None) {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
-        std::result::Result::Ok(())
+        Ok(())
     }
 
-    fn run_signtool_verify(&self, file_path: &Path) -> std::result::Result<(), PackageTaskError> {
+    fn run_signtool_verify(&self, file_path: &Path) -> Result<(), PackageTaskError> {
         info!(
             "Verifying {} using signtool.",
             file_path
@@ -483,7 +469,7 @@ impl<'a> PackageTask<'a> {
         if let Err(e) = self.command_exec.run("signtool", &args, None) {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
-        std::result::Result::Ok(())
+        Ok(())
     }
 
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
