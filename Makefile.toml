@@ -146,4 +146,9 @@ workspace = false # Run only at workspace level
 install_script = "cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --locked --force"
 description = "Sort dependencies in Cargo.toml using cargo-sort"
 command = "cargo"
-args = ["sort", "-w", "-g", "-n"] # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps, -n do not run formatting
+args = [
+  "sort",
+  "-w",
+  "-g",
+  "-n",
+] # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps, -n do not run formatting
