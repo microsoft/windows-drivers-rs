@@ -58,6 +58,7 @@ jobs:
       - name: Install cargo-sort binary from specific branch
         run: cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --locked --force
 
-      # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps, --check to only check without modifying files
-      - run: cargo sort -g -w --check
+      # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps,
+      # -n do not run formatting, --check to only check without modifying files
+      - run: cargo sort -g -w -n --check
         name: Check if dependencies in Cargo.toml are sorted
