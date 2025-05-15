@@ -1340,20 +1340,20 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
 static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
     LazyLock::new(|| vec![("DRIVER_MODEL-DRIVER_TYPE", vec!["WDM", "KMDF", "UMDF"])]);
 
-/// Detect the WDK build number.
+/// Detects the WDK build number.
 ///
-/// This function detects the Windows Driver Kit (WDK) build number by locating
+/// Detects the Windows Driver Kit (WDK) build number by locating
 /// the WDK content root, retrieving the latest Windows SDK version, validating
 /// the version format, and extracting the build number.
 ///
 /// # Returns
 ///
-/// This function returns a `Result<u32, ConfigError>`, which contains the WDK
+/// Returns a `Result<u32, ConfigError>`, which contains the WDK
 /// build number on success or a `ConfigError` on failure.
 ///
 /// # Errors
 ///
-/// This function will return an error if:
+/// Returns an error if:
 /// * The WDK content root cannot be detected.
 /// * The latest Windows SDK version cannot be retrieved.
 /// * The WDK version string format is invalid.
@@ -1361,7 +1361,7 @@ static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
 ///
 /// # Panics
 ///
-/// This function will panic if the WDK version number cannot be extracted from
+/// Panics if the WDK version number cannot be extracted from
 /// the version string.
 pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
     let wdk_content_root =
