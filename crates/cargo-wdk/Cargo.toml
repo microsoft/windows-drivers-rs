@@ -11,12 +11,6 @@ license.workspace = true
 keywords = ["wdk", "windows", "cargo"]
 categories = ["build-tools"]
 
-[dev-dependencies]
-assert_cmd.workspace = true
-assert_fs.workspace = true
-predicates.workspace = true
-sha256.workspace = true
-
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
@@ -31,6 +25,12 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wdk-build.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+assert_fs.workspace = true
+predicates.workspace = true
+sha256.workspace = true
 
 [lints.rust]
 missing_docs = "warn"

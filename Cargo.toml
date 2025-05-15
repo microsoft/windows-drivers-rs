@@ -14,12 +14,6 @@ exclude = [
 ]
 resolver = "3"
 
-[profile.dev]
-lto = true
-
-[profile.release]
-lto = true
-
 [workspace.package]
 edition = "2021"
 rust-version = "1.84.0"
@@ -47,8 +41,8 @@ cc = "1.2.17"
 cfg-if = "1.0.0"
 clap = "4.5.13"
 clap-cargo = "0.14.1"
-fs4 = "0.12.0"
 clap-verbosity-flag = "3.0.2"
+fs4 = "0.12.0"
 include_dir = "0.7.4"
 itertools = "0.13.0"
 mockall = "0.13.1"
@@ -60,9 +54,9 @@ proc-macro2 = "1.0.94"
 quote = "1.0.40"
 rustversion = "1.0.20"
 scratch = "1.0"
+semver = "1.0.26"
 serde = "1.0"
 serde_json = "1.0"
-semver = "1.0.26"
 sha256 = "1.6.0"
 syn = "2.0.100"
 thiserror = "2.0.12"
@@ -119,3 +113,9 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
+
+[profile.dev]
+lto = true
+
+[profile.release]
+lto = true
