@@ -16,6 +16,7 @@ jobs:
   build:
     name: Build
     runs-on: windows-latest
+    continue-on-error: true # Since remaining jobs in the matrix are just cancelled on one job failure, we could allow them to finish and report the errors
     strategy:
       matrix:
         wdk:
