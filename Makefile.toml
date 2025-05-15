@@ -17,6 +17,7 @@ description = "Run pre-commit tasks and checks"
 category = "Development"
 workspace = false
 dependencies = [
+  "sort-deps",
   "format-flow",
   "format-toml-conditioned-flow",
   "build",
@@ -137,3 +138,12 @@ env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "${CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN
 [tasks.beta-docs]
 extend = "docs"
 toolchain = "beta"
+
+[tasks.sort-deps]
+workspace = false # Run only at workspace level
+# Installing cargo-sort from main branch since there is an unreleased fix
+# Ref: https://github.com/DevinR528/cargo-sort/issues/67#issuecomment-2486868511
+install_script = "cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --locked --force"
+description = "Sort dependencies in Cargo.toml using cargo-sort"
+command = "cargo"
+args = ["sort", "-w", "-g", "-n"] # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps, -n do not run formatting
