@@ -41,3 +41,23 @@ jobs:
 
       - run: taplo fmt --check --diff
         name: Check TOML files formatting
+
+  cargo-sort:
+    name: Sorting dependencies in Cargo.toml
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain (Stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      # Installing cargo-sort from main branch since there is an unreleased fix
+      # Ref: https://github.com/DevinR528/cargo-sort/issues/67#issuecomment-2486868511
+      - name: Install cargo-sort binary from specific branch
+        run: cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --locked --force
+
+      # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps, --check to only check without modifying files
+      - run: cargo sort -g -w --check
+        name: Check if dependencies in Cargo.toml are sorted
