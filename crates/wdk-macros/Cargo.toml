@@ -14,8 +14,9 @@ categories = [
   "os",
 ]
 
-[lib]
-proc-macro = true
+[features]
+default = []
+nightly = []
 
 [dependencies]
 cfg-if.workspace = true
@@ -32,9 +33,8 @@ syn = { workspace = true, features = ["full", "extra-traits"] }
 pretty_assertions.workspace = true
 syn.workspace = true
 
-[features]
-default = []
-nightly = []
+[lib]
+proc-macro = true
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
