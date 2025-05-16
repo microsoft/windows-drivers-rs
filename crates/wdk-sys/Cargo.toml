@@ -41,6 +41,7 @@ parallel-ports = ["gpio"]
 spb = []
 storage = []
 usb = []
+filters = []
 
 nightly = ["wdk-macros/nightly", "wdk-build/nightly"]
 test-stubs = []

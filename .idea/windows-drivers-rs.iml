@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk-alloc/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk-build/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk-macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk-macros/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk-panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk-sys/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/wdk/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/sample-kmdf-driver/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/sample-umdf-driver/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/sample-wdm-driver/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/config-kmdf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/config-kmdf/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/config-umdf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/config-umdf/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/config-wdm/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/mixed-package-kmdf-workspace/crates/driver/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/mixed-package-kmdf-workspace/crates/non_driver_crate/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/umdf-driver-workspace/crates/driver_1/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/umdf-driver-workspace/crates/driver_2/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/wdk-macros-tests/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/wdk-macros-tests/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/wdk-sys-tests/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/wdk-sys-tests/tests" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/sample-kmdf-driver/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/sample-umdf-driver/target" />
+      <excludeFolder url="file://$MODULE_DIR$/examples/sample-wdm-driver/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/config-kmdf/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/config-umdf/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/config-wdm/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/mixed-package-kmdf-workspace/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/umdf-driver-workspace/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/wdk-macros-tests/target" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/wdk-sys-tests/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
