@@ -1056,6 +1056,8 @@ impl Config {
                 // provides no way to set a symbol's name without also exporting the symbol:
                 // https://github.com/rust-lang/rust/issues/67399
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
+                // For the filters (available in kernel mode only)
+                println!("cargo:rustc-link-lib=FltMgr");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -1085,6 +1087,9 @@ impl Config {
                 // Ignore `LNK4257: object file was not compiled for kernel mode; the image
                 // might not run` since `rustc` has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // For the filters (available in kernel mode only)
+                println!("cargo:rustc-link-lib=FltMgr");
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
