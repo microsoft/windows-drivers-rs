@@ -12,10 +12,13 @@ use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
-use super::{error::BuildTaskError, to_target_triple, TargetArch};
+use crate::actions::build::error::BuildTaskError;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{actions::Profile, trace};
+use crate::{
+    actions::{to_target_triple, Profile, TargetArch},
+    trace,
+};
 
 /// Supports low level driver build operations
 pub struct BuildTask<'a> {

@@ -17,7 +17,7 @@ use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
-use super::error::PackageTaskError;
+use crate::actions::build::error::PackageTaskError;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 
