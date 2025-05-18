@@ -862,6 +862,13 @@ impl Config {
         headers
     }
 
+    fn kernel_mode_include_path(&self) -> PathBuf {
+        let include_directory = self.wdk_content_root.join("Include");
+        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())
+            .expect("sdk version");
+        include_directory.join(sdk_version).join("km")
+    }
+
     fn hid_headers(&self) -> Vec<Cow<'static, str>> {
         let mut headers: Vec<Cow<'static, str>> = ["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"]
             .map(Cow::Borrowed)
@@ -878,13 +885,8 @@ impl Config {
                 headers.push("HidSpiCx/1.0/hidspicx.h".into());
             }
             DriverConfig::Umdf(_) => {
-                let include_directory = self.wdk_content_root.join("Include");
-                let sdk_version =
-                    utils::get_latest_windows_sdk_version(include_directory.as_path())
-                        .expect("sdk version");
-                let windows_sdk_include_path = include_directory.join(sdk_version);
                 let hidports_path =
-                    path::absolute(windows_sdk_include_path.join("km").join("hidport.h"))
+                    path::absolute(self.kernel_mode_include_path().join("hidport.h"))
                         .unwrap()
                         .to_string_lossy()
                         .replace("\\", "/");
