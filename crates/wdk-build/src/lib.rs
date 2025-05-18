@@ -12,6 +12,7 @@
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 use std::{
+    borrow::Cow,
     env,
     fmt,
     path::{Path, PathBuf, absolute},
@@ -861,34 +862,37 @@ impl Config {
         headers
     }
 
-    #[tracing::instrument(level = "trace")]
-    fn hid_headers(&self) -> Vec<&'static str> {
-        let mut headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
-        if matches!(
-            self.driver_config,
-            DriverConfig::Wdm | DriverConfig::Kmdf(_)
-        ) {
-            headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+    fn hid_headers(&self) -> Vec<Cow<'static, str>> {
+        let mut headers: Vec<Cow<'static, str>> = ["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"]
+            .map(Cow::Borrowed)
+            .into();
+
+        let common_wdm_kmdf = ["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"];
+
+        match &self.driver_config {
+            DriverConfig::Wdm => {
+                headers.extend(common_wdm_kmdf.map(Cow::Borrowed));
+            }
+            DriverConfig::Kmdf(_) => {
+                headers.extend(common_wdm_kmdf.map(Cow::Borrowed));
+                headers.push("HidSpiCx/1.0/hidspicx.h".into());
+            }
+            DriverConfig::Umdf(_) => {
+                let include_directory = self.wdk_content_root.join("Include");
+                let sdk_version =
+                    utils::get_latest_windows_sdk_version(include_directory.as_path())
+                        .expect("sdk version");
+                let windows_sdk_include_path = include_directory.join(sdk_version);
+                let hidports_path =
+                    path::absolute(windows_sdk_include_path.join("km").join("hidport.h"))
+                        .unwrap()
+                        .to_string_lossy()
+                        .replace("\\", "/");
+
+                headers.push(hidports_path.into());
+            }
         }
 
-        if matches!(self.driver_config, DriverConfig::Umdf(_)) {
-            /* the hidport.h file is expected for Umdf, but located in km folder */
-            let include_directory = self.wdk_content_root.join("Include");
-            let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path()).expect("sdk version");
-            let windows_sdk_include_path = include_directory.join(sdk_version);
-            let hidports_path = windows_sdk_include_path
-                .join("km")
-                .join("hidport.h")
-                .canonicalize().unwrap()
-                .strip_extended_length_path_prefix().unwrap()
-                .to_string_lossy().to_string().replace("\\", "/");
-
-            headers.push(Box::leak(hidports_path.into_boxed_str()));
-        }
-
-        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
-            headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
-        }
         headers
     }
 
