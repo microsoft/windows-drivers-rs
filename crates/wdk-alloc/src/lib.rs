@@ -31,7 +31,7 @@ mod kernel_mode {
     use core::alloc::{GlobalAlloc, Layout};
 
     use wdk_sys::{
-        ntddk::{ExAllocatePool2, ExFreePoolWithTag}, PAGE_SIZE, POOL_FLAG_NON_PAGED, PVOID, SIZE_T, ULONG
+        ntddk::{ExAllocatePool2, ExFreePoolWithTag}, MEMORY_ALLOCATION_ALIGNMENT, PAGE_SIZE, POOL_FLAG_NON_PAGED, PVOID, SIZE_T, ULONG
     };
 
     /// Allocator implementation to use with `#[global_allocator]` to allow use
@@ -45,16 +45,15 @@ mod kernel_mode {
     // The value of memory tags are stored in little-endian order, so it is
     // convenient to reverse the order for readability in tooling (ie. Windbg).
     const RUST_TAG: ULONG = u32::from_ne_bytes(*b"rust");
-    
-    // The minimum alignment of pointer returned by ExAllocatePool2.
-    const POOL_ALIGNMENT: usize = size_of::<*mut u8>() * 2;
 
     #[inline] fn require_realignment(layout: Layout) -> bool {
-        if layout.align() <= POOL_ALIGNMENT {
-            false
-        } else {
-            layout.align() > PAGE_SIZE as usize || layout.size() < PAGE_SIZE as usize
-        }
+        // `ExAllocatePool2` uses an alignment of `PAGE_SIZE` or minimum pool
+        // alignment depending on the requested size. See documentation:
+        // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepool2#remarks
+        let chosen_alignment = if layout.size() >= PAGE_SIZE as usize { PAGE_SIZE } else { MEMORY_ALLOCATION_ALIGNMENT } as usize;
+        // Realignment needed only if requested alignment cannot
+        // be satisfied by `ExAllocatePool2`'s chosen alignment
+        layout.align() > chosen_alignment
     }
 
     // SAFETY: This is safe because the Wdk allocator:
@@ -73,6 +72,7 @@ mod kernel_mode {
                         ExAllocatePool2(POOL_FLAG_NON_PAGED, size as SIZE_T, RUST_TAG)
                     };
                     if !p.is_null() {
+                        // Align the pointer up to the first address that meets alignment requirement.
                         let q = ((p as usize & mask) + layout.align()) as *mut PVOID;
                         // Store the original pointer right before the pointer to return,
                         // so that ExFreePoolWithTag can receive the correct pointer.
@@ -101,9 +101,9 @@ mod kernel_mode {
             // SAFETY: `ExFreePool` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
             // since its freeing memory allocated from `POOL_FLAG_NON_PAGED` in `alloc`
             let p = if require_realignment(layout) {
-                // The alignment is too large, the original pointer is stored right before
+                // The alignment is too large, so the original pointer is stored right before
                 // the ptr. This is also how `_aligned_free` is implemented in msvcrt.dll
-                let q: *mut *mut u8 = ptr.cast();
+                let q: *mut PVOID = ptr.cast();
                 unsafe {
                     q.sub(1).read()
                 }
@@ -112,7 +112,7 @@ mod kernel_mode {
                 ptr.cast()
             };
             unsafe {
-                ExFreePoolWithTag(p.cast(), RUST_TAG);
+                ExFreePoolWithTag(p, RUST_TAG);
             }
         }
     }
