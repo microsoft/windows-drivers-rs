@@ -31,7 +31,7 @@ mod kernel_mode {
     use core::alloc::{GlobalAlloc, Layout};
 
     use wdk_sys::{
-        ntddk::{ExAllocatePool2, ExFreePoolWithTag}, MEMORY_ALLOCATION_ALIGNMENT, PAGE_SIZE, POOL_FLAG_NON_PAGED, PVOID, SIZE_T, ULONG
+        ntddk::{ExAllocatePool2, ExFreePoolWithTag}, PAGE_SIZE, POOL_FLAG_NON_PAGED, PVOID, SIZE_T, ULONG
     };
 
     /// Allocator implementation to use with `#[global_allocator]` to allow use
@@ -45,12 +45,15 @@ mod kernel_mode {
     // The value of memory tags are stored in little-endian order, so it is
     // convenient to reverse the order for readability in tooling (ie. Windbg).
     const RUST_TAG: ULONG = u32::from_ne_bytes(*b"rust");
+    
+    // The minimum alignment of pointer returned by ExAllocatePool2.
+    const MIN_POOL_ALIGNMENT: usize = size_of::<*mut u8>() * 2;
 
     #[inline] fn require_realignment(layout: Layout) -> bool {
         // `ExAllocatePool2` uses an alignment of `PAGE_SIZE` or minimum pool
         // alignment depending on the requested size. See documentation:
         // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepool2#remarks
-        let chosen_alignment = if layout.size() >= PAGE_SIZE as usize { PAGE_SIZE } else { MEMORY_ALLOCATION_ALIGNMENT } as usize;
+        let chosen_alignment = if layout.size() >= PAGE_SIZE as usize { PAGE_SIZE as usize } else { MIN_POOL_ALIGNMENT };
         // Realignment needed only if requested alignment cannot
         // be satisfied by `ExAllocatePool2`'s chosen alignment
         layout.align() > chosen_alignment
