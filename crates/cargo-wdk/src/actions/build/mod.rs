@@ -192,7 +192,7 @@ impl<'a> BuildAction<'a> {
             if let Err(e) = self.run_from_workspace_root(&dir.path()) {
                 failed_atleast_one_project = true;
                 err!(
-                    "Error building the child project: {}, error: {}",
+                    "Error building the child project: {}, error: {:?}",
                     dir.path()
                         .file_name()
                         .expect(
@@ -215,8 +215,8 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Method to initiate the packaging process for the given working directory
-    // and the cargo metadata
+    // Method to initiate the build and package process for the given working
+    // directory and the cargo metadata
     fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
@@ -226,7 +226,12 @@ impl<'a> BuildAction<'a> {
             .fs
             .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
         if workspace_root.eq(working_dir) {
-            debug!("Running from workspace root");
+            // If the working directory is root of a standalone project or a
+            // workspace
+            debug!(
+                "Running from standalone project or from a root of a workspace: {}",
+                working_dir.display()
+            );
             let mut failed_atleast_one_workspace_member = false;
             for package in workspace_packages {
                 let package_root_path: PathBuf = package
@@ -244,12 +249,12 @@ impl<'a> BuildAction<'a> {
                     &package_root_path,
                     &wdk_metadata,
                     package,
-                    package.name.clone(),
+                    &package.name,
                     &target_directory,
                 ) {
                     failed_atleast_one_workspace_member = true;
                     err!(
-                        "Error packaging the workspace member project: {}, error: {}",
+                        "Error building the workspace member project: {}, error: {:#?}",
                         package_root_path.display(),
                         e
                     );
@@ -264,39 +269,43 @@ impl<'a> BuildAction<'a> {
                     working_dir.to_owned(),
                 ));
             }
-            return Ok(());
-        }
-        info!("Running from standalone/workspace member directory");
-        let package = workspace_packages.iter().find(|p| {
-            let package_root_path: PathBuf = p
-                .manifest_path
-                .parent()
-                .expect("Unable to find package path from Cargo manifest path")
-                .into();
-            self.fs
-                .canonicalize_path(package_root_path.as_path())
-                .is_ok_and(|package_root_path| {
-                    debug!(
-                        "Processing standalone/workspace member package: {}",
-                        package_root_path.display()
-                    );
-                    package_root_path.eq(working_dir)
-                })
-        });
+        } else {
+            // If the working directory is a workspace member directory
+            debug!(
+                "Running from a workspace member directory: {}",
+                working_dir.display()
+            );
+            let package = workspace_packages.iter().find(|p| {
+                let package_root_path: PathBuf = p
+                    .manifest_path
+                    .parent()
+                    .expect("Unable to find package path from Cargo manifest path")
+                    .into();
+                self.fs
+                    .canonicalize_path(package_root_path.as_path())
+                    .is_ok_and(|package_root_path| {
+                        debug!(
+                            "Processing workspace member package: {}",
+                            package_root_path.display()
+                        );
+                        package_root_path.eq(working_dir)
+                    })
+            });
 
-        let package =
-            package.ok_or_else(|| BuildActionError::NotAWorkspaceMember(working_dir.to_owned()))?;
+            let package = package
+                .ok_or_else(|| BuildActionError::NotAWorkspaceMember(working_dir.to_owned()))?;
 
-        self.build_and_package(
-            working_dir,
-            &wdk_metadata,
-            package,
-            package.name.clone(),
-            &target_directory,
-        )?;
+            self.build_and_package(
+                working_dir,
+                &wdk_metadata,
+                package,
+                &package.name,
+                &target_directory,
+            )?;
 
-        if let Err(e) = wdk_metadata {
-            return Err(BuildActionError::WdkMetadataParse(e));
+            if let Err(e) = wdk_metadata {
+                return Err(BuildActionError::WdkMetadataParse(e));
+            }
         }
 
         info!(
@@ -324,12 +333,12 @@ impl<'a> BuildAction<'a> {
         working_dir: &Path,
         wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
         package: &Package,
-        package_name: String,
+        package_name: &str,
         target_dir: &Path,
     ) -> Result<(), BuildActionError> {
         info!("Processing package: {}", package_name);
         BuildTask::new(
-            &package_name,
+            package_name,
             working_dir,
             self.profile,
             self.target_arch,
@@ -394,9 +403,9 @@ impl<'a> BuildAction<'a> {
             target_dir.display()
         );
 
-        let package_task = PackageTask::new(
+        PackageTask::new(
             PackageTaskParams {
-                package_name: &package_name,
+                package_name,
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
@@ -407,18 +416,8 @@ impl<'a> BuildAction<'a> {
             self.wdk_build,
             self.command_exec,
             self.fs,
-        );
-
-        match package_task {
-            Ok(package_task) => {
-                if let Err(e) = package_task.run() {
-                    return Err(BuildActionError::PackageTask(package_name, e));
-                }
-            }
-            Err(e) => {
-                return Err(BuildActionError::PackageTaskInit(package_name, e));
-            }
-        }
+        )?
+        .run()?;
 
         info!("Processing completed for package: {}", package_name);
         Ok(())

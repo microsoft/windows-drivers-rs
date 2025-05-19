@@ -8,12 +8,12 @@ use crate::providers::error::{CommandError, FileError};
 /// Errors for the new action layer
 #[derive(Debug, Error)]
 pub enum NewActionError {
-    #[error("Error executing cargo new, error: {0}")]
-    CargoNewCommand(CommandError),
-    #[error("File System Error, error: {0}")]
+    #[error("Error executing cargo new")]
+    CargoNewCommand(#[from] CommandError),
+    #[error(transparent)]
     FileSystem(#[from] FileError),
     #[error("Template file not found: {0}")]
     TemplateNotFound(String),
-    #[error("IO Error")]
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 }

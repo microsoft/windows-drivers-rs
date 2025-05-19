@@ -2,35 +2,31 @@
 // License: MIT OR Apache-2.0
 //! This module defines error types used in the build action module.
 
-use std::{path::PathBuf, string::FromUtf8Error};
+use std::{error::Error, fmt, path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
 use crate::providers::error::CommandError;
 
 /// Errors for the build action layer
-#[derive(Error, Debug)]
+#[derive(Error)]
 pub enum BuildActionError {
-    #[error("Wdk Build Config Error: {0}")]
+    #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
-    #[error("Error Parsing Cargo.toml, not a valid rust project/workspace: {0}")]
+    #[error("Error Parsing Cargo.toml, not a valid rust project/workspace")]
     CargoMetadataParse(#[from] cargo_metadata::Error),
-    #[error(
-        "Error Parsing WDK metadata from Cargo.toml, not a valid driver project/workspace: {0}"
-    )]
+    #[error("Error Parsing WDK metadata from Cargo.toml, not a valid driver project/workspace")]
     WdkMetadataParse(#[from] wdk_build::metadata::TryFromCargoMetadataError),
-    #[error("Error running build action: {0}")]
+    #[error(transparent)]
     BuildTask(#[from] BuildTaskError),
-    #[error("IO Error: {0}")]
+    #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[error("Command Execution Error: {0}")]
+    #[error(transparent)]
     CommandExecution(#[from] CommandError),
     #[error("Not a workspace member, working directory: {0}")]
     NotAWorkspaceMember(PathBuf),
-    #[error("Error initiating package tasks, package_name: {0}, error: {1}")]
-    PackageTaskInit(String, PackageTaskError),
-    #[error("Error performing packaging tasks, package_name: {0}, error: {1}")]
-    PackageTask(String, PackageTaskError),
+    #[error(transparent)]
+    PackageTask(#[from] PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error(
@@ -42,14 +38,27 @@ pub enum BuildActionError {
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
 }
 
+// Require explicit implementation since we log at multiple levels
+impl fmt::Debug for BuildActionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{self}")?;
+        let mut source = self.source();
+        while let Some(err) = source {
+            writeln!(f, "Caused by: {err}")?;
+            source = err.source();
+        }
+        Ok(())
+    }
+}
+
 /// Errors for the low level build task layer
 #[derive(Error, Debug)]
 pub enum BuildTaskError {
-    #[error("Error getting canonicalized path for manifest file: {0}")]
+    #[error("Error getting canonicalized path for manifest file")]
     CanonicalizeManifestPath(#[from] std::io::Error),
     #[error("Empty manifest path found error")]
     EmptyManifestPath,
-    #[error("Error running cargo build command: {0}")]
+    #[error("Error running cargo build command")]
     CargoBuild(#[from] CommandError),
 }
 
@@ -61,33 +70,30 @@ pub enum PackageTaskError {
          directory."
     )]
     MissingInxSrcFile(PathBuf),
-    #[error("Failed to copy file error, src: {0:?}, dest: {1:?}, error: {2:?}")]
+    #[error("Failed to copy file error, src: {0}, dest: {1}, error: {2:#?}")]
     CopyFile(PathBuf, PathBuf, std::io::Error),
-    #[error("Error running stampinf command, error: {0}")]
-    StampinfCommand(CommandError),
-    #[error("Error running inf2cat command, error: {0}")]
-    Inf2CatCommand(CommandError),
-    #[error("Creating cert file from store using certmgr, error: {0}")]
-    CreateCertFileFromStoreCommand(CommandError),
-    #[error("Checking for existence of cert in store using certmgr, error: {0}")]
-    VerifyCertExistsInStoreCommand(CommandError),
-    #[error(
-        "Error reading stdout while checking for existence of cert in store using certmgr, error: \
-         {0}"
-    )]
-    VerifyCertExistsInStoreInvalidCommandOutput(FromUtf8Error),
-    #[error("Error generating certificate to cert store using makecert, error: {0}")]
-    CertGenerationInStoreCommand(CommandError),
-    #[error("Error signing driver binary using signtool, error: {0}")]
-    DriverBinarySignCommand(CommandError),
-    #[error("Error verifying signed driver binary using signtool, error: {0}")]
-    DriverBinarySignVerificationCommand(CommandError),
-    #[error("Error verifying inf file using infverif, error: {0}")]
-    InfVerificationCommand(CommandError),
+    #[error("Error running stampinf command")]
+    StampinfCommand(#[source] CommandError),
+    #[error("Error running inf2cat command")]
+    Inf2CatCommand(#[source] CommandError),
+    #[error("Creating cert file from store using certmgr")]
+    CreateCertFileFromStoreCommand(#[source] CommandError),
+    #[error("Checking for existence of cert in store using certmgr")]
+    VerifyCertExistsInStoreCommand(#[source] CommandError),
+    #[error("Error reading stdout while checking for existence of cert in store using certmgr")]
+    VerifyCertExistsInStoreInvalidCommandOutput(#[source] FromUtf8Error),
+    #[error("Error generating certificate to cert store using makecert")]
+    CertGenerationInStoreCommand(#[source] CommandError),
+    #[error("Error signing driver binary using signtool")]
+    DriverBinarySignCommand(#[source] CommandError),
+    #[error("Error verifying signed driver binary using signtool")]
+    DriverBinarySignVerificationCommand(#[source] CommandError),
+    #[error("Error verifying inf file using infverif")]
+    InfVerificationCommand(#[source] CommandError),
 
     // TODO: We can make this specific error instead of generic one
-    #[error("Error from wdk build, error: {0}")]
+    #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
-    #[error("Io error, error: {0}")]
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 }

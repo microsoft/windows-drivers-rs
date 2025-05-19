@@ -26,7 +26,7 @@ pub mod error {
             args: Vec<String>,
             stdout: String,
         },
-        #[error("IO error: {0}")]
+        #[error("IO error")]
         IoError(#[from] Error),
     }
 
@@ -43,15 +43,15 @@ pub mod error {
     /// Error type for `std::file` operations
     #[derive(Debug, thiserror::Error)]
     pub enum FileError {
-        #[error("File not found error: {0}")]
+        #[error("File {0} not found")]
         NotFound(PathBuf),
-        #[error("Failed to write to file: {0}")]
-        WriteError(PathBuf, Error),
-        #[error("Failed to read file: {0}")]
-        ReadError(PathBuf, Error),
-        #[error("Failed to open file: {0}")]
-        OpenError(PathBuf, Error),
-        #[error("Failed to append to file: {0}")]
-        AppendError(PathBuf, Error),
+        #[error("Failed to write to file {0}")]
+        WriteError(PathBuf, #[source] Error),
+        #[error("Failed to read file {0}")]
+        ReadError(PathBuf, #[source] Error),
+        #[error("Failed to open file {0}")]
+        OpenError(PathBuf, #[source] Error),
+        #[error("Failed to append to file {0}")]
+        AppendError(PathBuf, #[source] Error),
     }
 }
