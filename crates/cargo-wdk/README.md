@@ -1,6 +1,6 @@
 # cargo-wdk
 
-`cargo-wdk` is a Cargo extension (plugin) that provides a "Cargo-like" command line interface for developers to create and build Windows Rust Driver crates that depend on the Windows Driver Kit (WDK) and windows-drivers-rs. It extends `new` and `build` functionalities of Cargo and allows developers to start new projects and build existing or new projects with simple “Cargo-like" commands. 
+`cargo-wdk` is a Cargo extension (plugin) that provides a Cargo-like command line interface for developers to create and build Windows Rust Driver crates that depend on the Windows Driver Kit (WDK) and windows-drivers-rs. It extends `new` and `build` functionalities of Cargo and allows developers to start new projects and build existing or new projects with simple “Cargo-like" commands. 
 
 ## Features
 
@@ -10,21 +10,21 @@
 
 - **`build`** command compiles, builds and packages Rust driver projects. The build profile and the target architecture are optional arguments, and can be passed to the command invocation. Consists of a **`build_task`** that invokes `cargo build` and **`package_task`** that invokes WDK binaries - `StampInf`, `Inf2Cat`, `InfVerif`, `Signtool`, `CertMgr` in the correct order, and generates the final driver package. If no valid WDK configuration is found in the package/workspace `package_task` is skipped.
 
-    The command can be run from -  
-    
-    *i. Root of an individual/stand-alone crate:* Final package available under the crate's **target** directory - `./target/[target_triple]/[profile]/<driver_crate_name>_package`. 
-
-    *ii. Root of a workspace:* Final package will be available under the workspace's `target` directory - `./target/[target_triple]/[profile]/<driver_crate_name>_package`.
+    The command can be run from:  
         
-    **NOTE**: The command can be used to build workspaces with both driver and non-driver crates. Non-driver crates are built as if they were built by invoking the same `cargo build` command. Driver crates are build as well as packaged into a final driver package.
-    
-    *iii. Root of a member crate of a workspace:* Recognizes the workspace the member is part of, executes the build and package tasks for this member alone. Final package will be available under the workspace's `target` directory. 
-    
-    *iv. Root of an emulated workspace:* An emulated workspace is a directory containing one or more Rust workspaces. In this case, `cargo-wdk` builds each workspace individually and the final driver packages can be found under the `target` directory of the specific workspaces/crates.
+    1. Root of an individual/stand-alone crate: Final package available under the crate's **target** directory - `./target/[target_triple]/[profile]/<driver_crate_name>_package`. 
+
+    2. Root of a workspace: Final package will be available under the workspace's `target` directory - `./target/[target_triple]/[profile]/<driver_crate_name>_package`.
+            
+    3. Root of a member crate of a workspace: Recognizes the workspace the member is part of, executes the build and package tasks for this member alone. Final package will be available under the workspace's `target` directory. 
+        
+    4. Root of an emulated workspace: An emulated workspace is a directory containing one or more Rust workspaces. In this case, `cargo-wdk` builds each workspace individually and the final driver packages can be found under the `target` directory of the specific workspaces/crates.
+
+    **NOTE**: The `build` command can build workspaces containing both driver and non-driver crates: driver crates are built and packaged, while non-driver crates are only built and the packaging step is skipped.
 
 ## Installation
 
-To install `cargo-wdk`, you need to have [Rust (and Cargo) installed on your system](https://www.rust-lang.org/tools/install).
+To install `cargo-wdk`, you need to have [Rust installed on your system](https://www.rust-lang.org/tools/install).
 
 Once you have Rust installed, you can install `cargo-wdk` as follows:
 
@@ -47,11 +47,11 @@ cargo wdk --help
 ## Installing WDK
 
 `cargo-wdk` builds the drivers using the WDK. Please ensure that the WDK is installed on the development system.
-The recommended way to do this is to [enter an eWDK developer prompt](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/using-the-enterprise-wdk#getting-started)
+The recommended way to do this is to [enter an eWDK developer prompt](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/using-the-enterprise-wdk#getting-started).
 
 ## Usage Examples
 
-1. `new` command to create a new Rust driver project - 
+1. `new` command to create a new Rust driver project: 
     ```pwsh
     cargo wdk new [OPTIONS] [DRIVER_PROJECT_NAME]
     ```
@@ -63,32 +63,37 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
 
     Use `--help` for more information on arguments and options
 
-2. `build` command to build and package driver projects.
+2. `build` command to build and package driver projects:
     ```pwsh
     cargo wdk build [OPTIONS]
     ```
     
     Example Usage: 
-    * Navigate to the project/workspace root and run - 
-    ```pwsh 
-    cargo wdk build 
-    ```
+    * Navigate to the project/workspace root and run
+
+        ```pwsh 
+        cargo wdk build 
+        ```
+
     * With `--cwd`
-    ```pwsh 
-    cargo wdk build --cwd /path/to/project
-    ```
+
+        ```pwsh 
+        cargo wdk build --cwd /path/to/project
+        ```
+
     * With `--target-arch`
-    ```pwsh 
-    cargo wdk build --target-arch arm64
-    ```
+
+        ```pwsh 
+        cargo wdk build --target-arch arm64
+        ```
+
     * With `--profile`
-    ```pwsh 
-    cargo wdk build --profile Release
-    ```
 
-    Use `--help` for more information on arguments and options
+        ```pwsh 
+        cargo wdk build --profile Release
+        ```
 
-    **NOTE**: 
+    Please use `--help` for more information on arguments and options.
 
 ## Driver Package Signature Verification
 
@@ -96,16 +101,16 @@ The `build` command can be run with `--verify-signature` option to enable the ve
 
 If you understand these implications, and have installed the test certificate, then you may validate the signatures as follows:
 
-```pwsh
-cargo wdk build --verify-signature
-```
+    ```pwsh
+    cargo wdk build --verify-signature
+    ```
 
 ## Building Sample Class Drivers
 
 The `build` command can be used to build drivers whose class is defined as `Sample` in its `.inx` file, for ex, [echo (kmdf) DriverSync](https://github.com/microsoft/Windows-rust-driver-samples/tree/main/general/echo/kmdf/driver/DriverSync). The command handles passing additional flags to `InfVerif` task based on the WDK Version being used. So, if you are building a `Sample` class driver, you may use the `build` command with the `--sample` flag as follows,
 
-```pwsh
-cargo wdk build --sample
-```
+    ```pwsh
+    cargo wdk build --sample
+    ```
 
 **NOTE**: Running `cargo wdk build --sample` from a workspace root will try to package **all** the driver crates in that workspace as `Sample` class drivers. If the workspace contains a non-sample class driver, it will result in an error. A workaround is to build each crate individually (pass `--sample` only for "Sample" class driver) or ensure all driver crates in a workspace are "Sample" class drivers.
