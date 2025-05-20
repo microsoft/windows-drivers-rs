@@ -237,6 +237,7 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    Filters,
 }
 
 impl Default for Config {
@@ -711,6 +712,7 @@ impl Config {
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => self.usb_headers(),
+            ApiSubset::Filters => self.filters_headers(),
         }
         .into_iter()
         .map(str::to_string)
@@ -857,6 +859,45 @@ impl Config {
                 headers.extend(["ufx/1.1/ufxclient.h"]);
             }
         }
+        headers
+    }
+
+    fn filters_headers(&self) -> Vec<&'static str> {
+        let mut headers = vec![
+            "fltkernel.h",
+        ];
+
+        // todo: remove
+        //if matches!(
+        //    self.driver_config,
+        //    DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        //) {
+        //    headers.extend(["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]);
+        //}
+
+        //if matches!(
+        //    self.driver_config,
+        //    DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
+        //) {
+        //    headers.extend(["wdfusb.h"]);
+        //}
+
+        //if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+        //    headers.extend([
+        //        "ucm/1.0/UcmCx.h",
+        //        "UcmTcpci/1.0/UcmTcpciCx.h",
+        //        "UcmUcsi/1.0/UcmucsiCx.h",
+        //        "ucx/1.6/ucxclass.h",
+        //        "ude/1.1/UdeCx.h",
+        //        "ufx/1.1/ufxbase.h",
+        //        "ufxproprietarycharger.h",
+        //        "urs/1.0/UrsCx.h",
+        //    ]);
+
+        //    if Self::should_include_ufxclient() {
+        //        headers.extend(["ufx/1.1/ufxclient.h"]);
+        //    }
+        //}
         headers
     }
 
@@ -1015,6 +1056,8 @@ impl Config {
                 // provides no way to set a symbol's name without also exporting the symbol:
                 // https://github.com/rust-lang/rust/issues/67399
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
+                // For the filters (available in kernel mode only)
+                println!("cargo:rustc-link-lib=FltMgr");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -1044,6 +1087,9 @@ impl Config {
                 // Ignore `LNK4257: object file was not compiled for kernel mode; the image
                 // might not run` since `rustc` has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // For the filters (available in kernel mode only)
+                println!("cargo:rustc-link-lib=FltMgr");
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
