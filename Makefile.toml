@@ -143,7 +143,8 @@ toolchain = "beta"
 workspace = false # Run only at workspace level
 # Installing cargo-sort from main branch since there is an unreleased fix
 # Ref: https://github.com/DevinR528/cargo-sort/issues/67#issuecomment-2486868511
-install_script = "cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --locked --force"
+# Locking down to a specific commit (20th May 2025) until a new stable release is cut out on cargo-sort
+install_script = "cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --rev 4a1ecf093649b87fa610aec32a1bdaa4829d416b --locked --force"
 description = "Sort dependencies in Cargo.toml using cargo-sort"
 command = "cargo"
 args = [
