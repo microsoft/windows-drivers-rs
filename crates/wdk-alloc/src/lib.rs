@@ -90,12 +90,15 @@ mod kernel_mode {
                         //   | ......... | p | ..................... | ...... |
                         //                   ^                       ^
                         //             aligned start            aligned end
-                        // "p" is where we store the original address returned by `ExAllocatePool2`.
-                        // We will also pass "p" to ExFreePoolWithTag on `dealloc` method.
                         // "aligned start" is the address we will return in `alloc` method.
+                        // The gap between the "aligned start" and the original address has a
+                        // guaranteed minimum size of two pointers, so it's safe to store this pointer.
+                        // "p" is where we store the original address returned by `ExAllocatePool2`.
+                        // We will also pass "p" to `ExFreePoolWithTag` on `dealloc` method.
+                        // This is also how `_aligned_free` in msvcrt.dll receives the original pointer.
                         unsafe {
                             // Store the original pointer right before the pointer to return,
-                            // so that ExFreePoolWithTag can receive the correct pointer.
+                            // so that `ExFreePoolWithTag` can receive the correct pointer.
                             // This is also how `_aligned_malloc` is implemented in msvcrt.dll
                             q.sub(1).write(p);
                         }
@@ -128,14 +131,14 @@ mod kernel_mode {
                 //                   ^                       ^
                 //             aligned start            aligned end
                 // "p" is where we store the original address returned by `ExAllocatePool2`.
-                // So we will pass "p" to ExFreePoolWithTag on `dealloc` method.
+                // So we will pass "p" to `ExFreePoolWithTag` on `dealloc` method.
                 // "aligned start" is the address we received from `ptr` argument in `dealloc` method.
                 unsafe { q.sub(1).read() }
             } else {
                 // The alignment is normal, so the ptr is already the original pointer.
                 ptr.cast()
             };
-            // SAFETY: `ExFreePool` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
+            // SAFETY: `ExFreePoolWithTag` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
             // since its freeing memory allocated from `POOL_FLAG_NON_PAGED` in `alloc`
             unsafe {
                 ExFreePoolWithTag(p, RUST_TAG);
