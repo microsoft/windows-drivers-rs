@@ -12,7 +12,7 @@ extern crate alloc;
 #[cfg(not(test))]
 extern crate wdk_panic;
 
-use alloc::{ffi::CString, slice, string::String, boxed::Box, vec};
+use alloc::{boxed::Box, ffi::CString, slice, string::String, vec};
 
 use wdk::println;
 use wdk_alloc::WdkAllocator;
@@ -21,9 +21,11 @@ use wdk_sys::{ntddk::DbgPrint, DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS
 #[global_allocator]
 static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 
-// Example of using custom-aligned allocator
+// Example of using custom-aligned allocator.
+// 256-byte boundary is sufficient to trigger realignment in global allocator.
 #[derive(Debug)]
-#[repr(C,align(1024))] struct AlignedHigher(u32);
+#[repr(C, align(256))]
+struct BigAligned(u32);
 
 /// `driver_entry` function required by WDM
 ///
@@ -59,16 +61,31 @@ pub unsafe extern "system" fn driver_entry(
         // Example of using WDK allocator.
         // Allocations will be properly aligned on their boundaries!
         // Allocate a single instance.
-        let ah=Box::new(AlignedHigher(1234));
-        println!("ah is allocated at {:p}, value={ah:?}",&raw const *ah);
+        let ah = Box::new(BigAligned(1234));
+        // Check if the address is ended with "00" in hexadecimal!
+        println!("ah is allocated at {:p}, value={ah:?}", &raw const *ah);
         // Verify its alignment.
-        assert_eq!((&raw const *ah) as usize & (align_of::<AlignedHigher>() - 1), 0);
+        assert_eq!(
+            (&raw const *ah) as usize & (align_of::<BigAligned>() - 1),
+            0
+        );
         // Allocate a vector that occupies more than a page.
-        let vh=vec![AlignedHigher(1234), AlignedHigher(5678), AlignedHigher(9012), AlignedHigher(3456), AlignedHigher(7890)];
-        println!("vh is allocated at {:p}, value={vh:?}",vh.as_ptr());
+        let vh = vec![
+            BigAligned(1234),
+            BigAligned(5678),
+            BigAligned(9012),
+            BigAligned(3456),
+            BigAligned(7890),
+        ];
+        // Check if the address is ended with "00" in hexadecimal!
+        println!("vh is allocated at {:p}, value={vh:?}", vh.as_ptr());
         // Verify their alignments.
         for x in &vh {
-            assert_eq!((core::ptr::from_ref::<AlignedHigher>(x) as usize) & (align_of::<AlignedHigher>() - 1), 0);
+            assert_eq!(
+                (core::ptr::from_ref::<BigAligned>(x) as usize)
+                    & (align_of::<BigAligned>() - 1),
+                0
+            );
         }
     }
     // It is much better to use the println macro that has an implementation in
