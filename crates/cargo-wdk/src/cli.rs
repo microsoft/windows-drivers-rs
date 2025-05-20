@@ -201,17 +201,14 @@ impl Cli {
                 |e| Err(anyhow::anyhow!("Unable to read rustc host tuple: {e}")),
                 |output| {
                     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                    let stdout = stdout.trim();
-                    match stdout.split_once('-') {
-                        Some(("x86_64", _)) => Ok(CpuArchitecture::Amd64),
-                        Some(("aarch64", _)) => Ok(CpuArchitecture::Arm64),
-                        Some((..)) => Err(anyhow::anyhow!(
-                            "CPU Architecture of the host is not supported: {} \n Please try \
-                             selecting target by passing --target-arch option",
-                            stdout
-                        )),
-                        None => Err(anyhow::anyhow!(
-                            "Invalid format for host architecture: {}",
+                    match stdout.trim() {
+                        "x86_64-pc-windows-msvc" => Ok(CpuArchitecture::Amd64),
+                        "aarch64-pc-windows-msvc" => Ok(CpuArchitecture::Arm64),
+                        _ => Err(anyhow::anyhow!(
+                            "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
+                             aarch64-pc-windows-msvc are supported.\n If you're on Windows, \
+                             consider using the --target-arch option to specify a supported \
+                             architecture.",
                             stdout
                         )),
                     }
@@ -310,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    pub fn given_toolchain_host_tuple_is_unsupported_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
+    pub fn given_toolchain_host_tuple_is_i686_pc_windows_msvc_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
     ) {
         let mut mock_command_exec = CommandExec::default();
 
@@ -346,15 +343,16 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             format!(
-                "CPU Architecture of the host is not supported: {} \n Please try selecting target \
-                 by passing --target-arch option",
+                "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
+                 aarch64-pc-windows-msvc are supported.\n If you're on Windows, consider using \
+                 the --target-arch option to specify a supported architecture.",
                 "i686-pc-windows-msvc"
             )
         );
     }
 
     #[test]
-    pub fn given_toolchain_host_tuple_is_invalid_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
+    pub fn given_toolchain_host_tuple_is_x86_64_win7_windows_msvc_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
     ) {
         let mut mock_command_exec = CommandExec::default();
 
@@ -380,7 +378,7 @@ mod tests {
             .returning(move |_, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
-                    stdout: b"somerandomvalue".to_vec(),
+                    stdout: b"x86_64-win7-windows-msvc".to_vec(),
                     stderr: vec![],
                 })
             });
@@ -390,8 +388,10 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             format!(
-                "Invalid format for host architecture: {}",
-                "somerandomvalue"
+                "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
+                 aarch64-pc-windows-msvc are supported.\n If you're on Windows, consider using \
+                 the --target-arch option to specify a supported architecture.",
+                "x86_64-win7-windows-msvc"
             )
         );
     }
