@@ -237,6 +237,7 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    /// Minifilters support: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/filter-manager-concepts>
     Filters,
 }
 
@@ -863,41 +864,10 @@ impl Config {
     }
 
     fn filters_headers(&self) -> Vec<&'static str> {
-        let mut headers = vec![
+        let headers = vec![
             "fltkernel.h",
         ];
 
-        // todo: remove
-        //if matches!(
-        //    self.driver_config,
-        //    DriverConfig::Wdm | DriverConfig::Kmdf(_)
-        //) {
-        //    headers.extend(["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]);
-        //}
-
-        //if matches!(
-        //    self.driver_config,
-        //    DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
-        //) {
-        //    headers.extend(["wdfusb.h"]);
-        //}
-
-        //if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
-        //    headers.extend([
-        //        "ucm/1.0/UcmCx.h",
-        //        "UcmTcpci/1.0/UcmTcpciCx.h",
-        //        "UcmUcsi/1.0/UcmucsiCx.h",
-        //        "ucx/1.6/ucxclass.h",
-        //        "ude/1.1/UdeCx.h",
-        //        "ufx/1.1/ufxbase.h",
-        //        "ufxproprietarycharger.h",
-        //        "urs/1.0/UrsCx.h",
-        //    ]);
-
-        //    if Self::should_include_ufxclient() {
-        //        headers.extend(["ufx/1.1/ufxclient.h"]);
-        //    }
-        //}
         headers
     }
 
