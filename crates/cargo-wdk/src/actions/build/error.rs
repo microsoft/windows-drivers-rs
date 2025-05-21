@@ -2,14 +2,14 @@
 // License: MIT OR Apache-2.0
 //! This module defines error types used in the build action module.
 
-use std::{error::Error, fmt, path::PathBuf, string::FromUtf8Error};
+use std::{path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
 use crate::providers::error::CommandError;
 
 /// Errors for the build action layer
-#[derive(Error)]
+#[derive(Error, Debug)]
 pub enum BuildActionError {
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
@@ -36,19 +36,6 @@ pub enum BuildActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
-}
-
-// Require explicit implementation since we log at multiple levels
-impl fmt::Debug for BuildActionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{self}")?;
-        let mut source = self.source();
-        while let Some(err) = source {
-            writeln!(f, "Caused by: {err}")?;
-            source = err.source();
-        }
-        Ok(())
-    }
 }
 
 /// Errors for the low level build task layer

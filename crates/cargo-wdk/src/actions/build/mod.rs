@@ -199,7 +199,7 @@ impl<'a> BuildAction<'a> {
                             "package sub directory name ended with \"..\" which is not expected"
                         )
                         .to_string_lossy(),
-                    e
+                    anyhow::Error::new(e)
                 );
             }
         }
@@ -254,9 +254,9 @@ impl<'a> BuildAction<'a> {
                 ) {
                     failed_atleast_one_workspace_member = true;
                     err!(
-                        "Error building the workspace member project: {}, error: {:#?}",
+                        "Error building the workspace member project: {}, error: {:?}",
                         package_root_path.display(),
-                        e
+                        anyhow::Error::new(e)
                     );
                 }
             }
