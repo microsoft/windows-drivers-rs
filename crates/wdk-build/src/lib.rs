@@ -713,7 +713,7 @@ impl Config {
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => self.usb_headers(),
-            ApiSubset::Filters => self.filters_headers(),
+            ApiSubset::Filters => Self::filters_headers(),
         }
         .into_iter()
         .map(str::to_string)
@@ -863,10 +863,8 @@ impl Config {
         headers
     }
 
-    fn filters_headers(&self) -> Vec<&'static str> {
-        let headers = vec![
-            "fltkernel.h",
-        ];
+    fn filters_headers() -> Vec<&'static str> {
+        let headers = vec!["fltkernel.h"];
 
         headers
     }

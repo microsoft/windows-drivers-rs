@@ -138,7 +138,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("spb.rs", generate_spb),
     ("storage.rs", generate_storage),
     ("usb.rs", generate_usb),
-    ("filters.rs", generate_filters)
+    ("filters.rs", generate_filters),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -628,9 +628,7 @@ fn generate_filters(out_path: &Path, config: &Config) -> Result<(), ConfigError>
             Ok(())
         }
     }
-
 }
-
 
 /// Generates a `macros.rs` file in `OUT_DIR` which contains a
 /// `call_unsafe_wdf_function_binding!` macro that redirects to the
@@ -675,8 +673,6 @@ fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> 
     )?;
     Ok(())
 }
-
-
 
 fn main() -> anyhow::Result<()> {
     initialize_tracing()?;

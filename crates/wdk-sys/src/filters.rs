@@ -6,4 +6,3 @@ mod bindings {
     use crate::types::*;
     include!(concat!(env!("OUT_DIR"), "/filters.rs"));
 }
-
