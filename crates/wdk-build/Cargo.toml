@@ -43,7 +43,7 @@ check-cfg = ["cfg(wdk_build_unstable)", "cfg(skip_umdf_static_crt_check)"]
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
 # workspace = true
-# 
+#
 # Differences from the workspace lints have comments explaining why they are different
 
 [lints.rust]
@@ -77,3 +77,6 @@ unescaped_backticks = "warn"
 
 [features]
 nightly = []
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"

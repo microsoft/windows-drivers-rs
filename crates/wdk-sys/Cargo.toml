@@ -48,7 +48,7 @@ test-stubs = []
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
 # workspace = true
-# 
+#
 # Differences from the workspace lints have comments explaining why they are different
 
 [lints.rust]
@@ -79,3 +79,6 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"
