@@ -823,13 +823,13 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .filter(|package| package.name == "wdk-build")
         .collect::<Vec<_>>();
 
-    match wdk_build_package_matches.len(){
+    match wdk_build_package_matches.len() {
         0 => {
             return Err(ConfigError::NoWdkBuildCrateDetected);
         }
         1 => {}
         _ => {
-            return Err(ConfigError::MultipleWdkBuildCratesDetected{
+            return Err(ConfigError::MultipleWdkBuildCratesDetected {
                 package_ids: wdk_build_package_matches
                     .iter()
                     .map(|package_info| package_info.id.clone())
