@@ -4,5 +4,5 @@ pub use bindings::*;
 #[allow(clippy::derive_partial_eq_without_eq)]
 mod bindings {
     use crate::types::*;
-    include!(concat!(env!("OUT_DIR"), "/filters.rs"));
+    include!(concat!(env!("OUT_DIR"), "/filesystem.rs"));
 }
