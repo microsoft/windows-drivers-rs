@@ -922,9 +922,16 @@ impl Config {
             .into_iter()
             .flat_map(|api_subset| {
                 self.headers(api_subset)
-                    .map(|header| format!("#include \"{header}\"\n"))
+                    .map(move |header| format!("#include \"{header}\"\n")).chain(
+                        std::iter::once(String::from(if api_subset == ApiSubset::Filesystem {
+                            r#"#include <initguid.h>
+#undef INITGUID
+#include <guiddef.h>
+"#
+                        } else {""})
+                    ))
             })
-            .collect::<String>()
+            .collect::<String>()        
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
@@ -1553,6 +1560,27 @@ mod tests {
 #include "wdf.h"
 "#,
             );
+        }
+
+        #[test]
+        fn wdm_with_filesystem() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Wdm,
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Filesystem]),
+                r#"#include "ntifs.h"
+#include "ntddk.h"
+#include "ntstrsafe.h"
+#include "fltkernel.h"
+#include <initguid.h>
+#undef INITGUID
+#include <guiddef.h>
+"#,
+            );
+
         }
     }
     mod compute_wdffunctions_symbol_name {

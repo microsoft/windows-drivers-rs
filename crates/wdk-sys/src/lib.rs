@@ -95,9 +95,9 @@ pub mod usb;
         driver_model__driver_type = "KMDF",
         driver_model__driver_type = "UMDF"
     ),
-    feature = "filters"
+    feature = "filesystem"
 ))]
-pub mod filters;
+pub mod filesystem;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
