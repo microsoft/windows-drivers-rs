@@ -138,7 +138,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("spb.rs", generate_spb),
     ("storage.rs", generate_storage),
     ("usb.rs", generate_usb),
-    ("filters.rs", generate_filters),
+    ("filesystem.rs", generate_filesystem),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -213,8 +213,8 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
-        #[cfg(feature = "filters")]
-        ApiSubset::Filters,
+        #[cfg(feature = "filesystem")]
+        ApiSubset::Filesystem,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -247,8 +247,8 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
-        #[cfg(feature = "filters")]
-        ApiSubset::Filters,
+        #[cfg(feature = "filesystem")]
+        ApiSubset::Filesystem,
     ]);
     trace!(header_contents = ?header_contents);
 
@@ -594,23 +594,23 @@ fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Res
     Ok(())
 }
 
-fn generate_filters(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+fn generate_filesystem(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     cfg_if::cfg_if! {
-        if #[cfg(feature = "filters")] {
-            info!("Generating bindings to WDK: filters.rs");
+        if #[cfg(feature = "filesystem")] {
+            info!("Generating bindings to WDK: filesystem.rs");
 
             let header_contents =
-                config.bindgen_header_contents([ApiSubset::Filters]);
+                config.bindgen_header_contents([ApiSubset::Filesystem]);
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
                 let mut builder = bindgen::Builder::wdk_default(config)?
                     .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("filters.h", &header_contents);
+                    .header_contents("filesystem.h", &header_contents);
 
                 // Only allowlist files in the usb-specific files to avoid
                 // duplicate definitions
-                for header_file in config.headers(ApiSubset::Filters) {
+                for header_file in config.headers(ApiSubset::Filesystem) {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -620,11 +620,11 @@ fn generate_filters(out_path: &Path, config: &Config) -> Result<(), ConfigError>
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("filters.rs"))?)
+                .write_to_file(out_path.join("filesystem.rs"))?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
 
-            info!("Skipping filters.rs generation since filters feature is not enabled");
+            info!("Skipping filesystem.rs generation since filesystem feature is not enabled");
             Ok(())
         }
     }

@@ -238,7 +238,7 @@ pub enum ApiSubset {
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
     /// Minifilters support: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/filter-manager-concepts>
-    FileSystem,
+    Filesystem,
 }
 
 impl Default for Config {
@@ -713,7 +713,7 @@ impl Config {
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => self.usb_headers(),
-            ApiSubset::Filters => Self::filters_headers(),
+            ApiSubset::Filesystem => Self::filesystem_headers(),
         }
         .into_iter()
         .map(str::to_string)
@@ -863,7 +863,7 @@ impl Config {
         headers
     }
 
-    fn filters_headers() -> Vec<&'static str> {
+    fn filesystem_headers() -> Vec<&'static str> {
         let headers = vec!["fltkernel.h"];
 
         headers
