@@ -238,7 +238,7 @@ pub enum ApiSubset {
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
     /// Minifilters support: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/filter-manager-concepts>
-    Filters,
+    FileSystem,
 }
 
 impl Default for Config {
