@@ -22,7 +22,7 @@ mod utils;
 
 mod bindgen;
 
-use std::{env, path::PathBuf, sync::LazyLock};
+use std::{borrow::Cow, env, path, path::PathBuf, sync::LazyLock};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
@@ -702,18 +702,25 @@ impl Config {
     /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
     /// determine which headers to yield
     pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
-        match api_subset {
-            ApiSubset::Base => self.base_headers(),
-            ApiSubset::Wdf => self.wdf_headers(),
-            ApiSubset::Gpio => self.gpio_headers(),
-            ApiSubset::Hid => self.hid_headers(),
-            ApiSubset::ParallelPorts => self.parallel_ports_headers(),
-            ApiSubset::Spb => self.spb_headers(),
-            ApiSubset::Storage => self.storage_headers(),
-            ApiSubset::Usb => self.usb_headers(),
-        }
-        .into_iter()
-        .map(str::to_string)
+        let result: Vec<String> = match api_subset {
+            ApiSubset::Base => self.base_headers().into_iter().map(String::from).collect(),
+            ApiSubset::Wdf => self.wdf_headers().into_iter().map(String::from).collect(),
+            ApiSubset::Gpio => self.gpio_headers().into_iter().map(String::from).collect(),
+            ApiSubset::Hid => self.hid_headers().into_iter().map(String::from).collect(),
+            ApiSubset::ParallelPorts => self
+                .parallel_ports_headers()
+                .into_iter()
+                .map(String::from)
+                .collect(),
+            ApiSubset::Spb => self.spb_headers().into_iter().map(String::from).collect(),
+            ApiSubset::Storage => self
+                .storage_headers()
+                .into_iter()
+                .map(String::from)
+                .collect(),
+            ApiSubset::Usb => self.usb_headers().into_iter().map(String::from).collect(),
+        };
+        result.into_iter()
     }
 
     fn base_headers(&self) -> Vec<&'static str> {
@@ -746,18 +753,39 @@ impl Config {
         headers
     }
 
-    fn hid_headers(&self) -> Vec<&'static str> {
-        let mut headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
-        if matches!(
-            self.driver_config,
-            DriverConfig::Wdm | DriverConfig::Kmdf(_)
-        ) {
-            headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+    fn kernel_mode_include_path(&self) -> PathBuf {
+        let include_directory = self.wdk_content_root.join("Include");
+        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())
+            .expect("sdk version");
+        include_directory.join(sdk_version).join("km")
+    }
+
+    fn hid_headers(&self) -> Vec<Cow<'static, str>> {
+        let mut headers: Vec<Cow<'static, str>> = ["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"]
+            .map(Cow::Borrowed)
+            .into();
+
+        let common_wdm_kmdf = ["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"];
+
+        match &self.driver_config {
+            DriverConfig::Wdm => {
+                headers.extend(common_wdm_kmdf.map(Cow::Borrowed));
+            }
+            DriverConfig::Kmdf(_) => {
+                headers.extend(common_wdm_kmdf.map(Cow::Borrowed));
+                headers.push("HidSpiCx/1.0/hidspicx.h".into());
+            }
+            DriverConfig::Umdf(_) => {
+                let hidports_path =
+                    path::absolute(self.kernel_mode_include_path().join("hidport.h"))
+                        .unwrap()
+                        .to_string_lossy()
+                        .replace('\\', "/");
+
+                headers.push(hidports_path.into());
+            }
         }
 
-        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
-            headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
-        }
         headers
     }
 
