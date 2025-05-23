@@ -53,18 +53,39 @@ fn given_a_cargo_wdk_new_command_when_driver_type_is_wdm_then_it_creates_valid_d
     });
 }
 
+#[test]
+fn given_a_cargo_wdk_new_command_when_no_driver_type_is_provided_then_it_fails() {
+    with_file_lock(|| {
+        let driver_name = "test-invalid-driver";
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        println!("Temp dir: {}", tmp_dir.path().display());
+        let driver_path = tmp_dir.join(driver_name);
+        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+        cmd.args(["new", driver_path.to_string_lossy().as_ref()]);
+
+        // assert command output
+        let cmd_assertion = cmd.assert().failure();
+        let output = cmd_assertion.get_output();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("stdout: {stdout}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("stderr: {stderr}");
+        assert!(stderr.contains("error: the following required arguments were not provided:"));
+        assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
+    });
+}
+
 fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
     let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
     println!("Temp dir: {}", tmp_dir.path().display());
+    let driver_path = tmp_dir.join(driver_name.clone());
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
     cmd.args([
         "new",
-        &driver_name,
-        driver_type,
-        "--cwd",
-        &tmp_dir.to_string_lossy(), // Root dir for tests is cargo-wdk
+        &format!("--{driver_type}"),
+        driver_path.to_string_lossy().as_ref(),
     ]);
 
     // assert command output
@@ -73,14 +94,11 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("stdout: {stdout}");
     println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-    println!(
-        "driver path: {}",
-        tmp_dir.path().join(&driver_name).display()
-    );
+    println!("driver path: {}", driver_path.display());
     assert!(stdout.contains(&format!(
-        "New Driver Project {} created at {}",
-        &driver_name_underscored,
-        tmp_dir.join(&driver_name).display()
+        "New {} driver crate created successfully at: {}",
+        driver_type,
+        tmp_dir.path().join(&driver_name).display()
     )));
 
     // asert paths

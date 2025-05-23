@@ -13,15 +13,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use clap_verbosity_flag::Verbosity;
 use error::NewActionError;
 use include_dir::{include_dir, Dir};
 use mockall_double::double;
 use tracing::{debug, info};
-use wdk_build::DriverConfig;
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::trace;
+use crate::{actions::DriverType, trace};
 
 /// Directory containing the templates to be bundled with the utility
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -29,10 +29,9 @@ static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 /// `NewAction` struct and its methods orchestrates the creation of new driver
 /// project based on the specified driver type.
 pub struct NewAction<'a> {
-    driver_project_name: String,
-    driver_type: DriverConfig,
-    cwd: PathBuf,
-    verbosity_level: clap_verbosity_flag::Verbosity,
+    path: &'a Path,
+    driver_type: DriverType,
+    verbosity_level: Verbosity,
     command_exec: &'a CommandExec,
     fs: &'a Fs,
 }
@@ -53,20 +52,16 @@ impl<'a> NewAction<'a> {
     /// # Returns
     ///
     /// * `Self` - A new instance of `NewAction`.
-    pub fn new(
-        driver_project_name: &'a str,
-        driver_type: DriverConfig,
-        cwd: &'a Path,
-        verbosity_level: clap_verbosity_flag::Verbosity,
+    pub const fn new(
+        path: &'a Path,
+        driver_type: DriverType,
+        verbosity_level: Verbosity,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
     ) -> Self {
-        let cwd = cwd.join(driver_project_name);
-        let driver_project_name = driver_project_name.replace('-', "_");
         Self {
-            driver_project_name,
+            path,
             driver_type,
-            cwd,
             verbosity_level,
             command_exec,
             fs,
@@ -89,7 +84,11 @@ impl<'a> NewAction<'a> {
     /// * `NewActionError::FileSystem` - If there is an error with file system
     ///   operations.
     pub fn run(&self) -> Result<(), NewActionError> {
-        debug!("Creating new project");
+        info!(
+            "Creating new {} driver crate at: {}",
+            self.driver_type,
+            self.path.display()
+        );
         self.run_cargo_new()?;
         self.copy_lib_rs_template()?;
         self.update_cargo_toml()?;
@@ -97,9 +96,9 @@ impl<'a> NewAction<'a> {
         self.copy_build_rs_template()?;
         self.copy_cargo_config()?;
         info!(
-            "New Driver Project {} created at {}",
-            self.driver_project_name,
-            self.cwd.display()
+            "New {} driver crate created successfully at: {}",
+            self.driver_type,
+            self.path.display()
         );
         Ok(())
     }
@@ -116,22 +115,15 @@ impl<'a> NewAction<'a> {
     /// * `NewActionError::CargoNewCommand` - If there is an error running the
     ///   `cargo new` command.
     fn run_cargo_new(&self) -> Result<(), NewActionError> {
-        debug!(
-            "Running cargo new for project: {}",
-            self.driver_project_name
-        );
-        let new_project_path = self.cwd.to_string_lossy().to_string();
-        let mut args = vec!["new", "--lib", &new_project_path, "--vcs", "none"];
+        debug!("Running cargo new command");
+        let path_str = self.path.to_string_lossy().to_string();
+        let mut args = vec!["new", "--lib", &path_str, "--vcs", "none"];
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
         if let Err(e) = self.command_exec.run("cargo", &args, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }
-        debug!(
-            "Successfully ran cargo new for project: {}",
-            self.driver_project_name
-        );
         Ok(())
     }
 
@@ -158,7 +150,7 @@ impl<'a> NewAction<'a> {
         let template_file = TEMPLATES_DIR.get_file(&template_path).ok_or_else(|| {
             NewActionError::TemplateNotFound(template_path.to_string_lossy().into_owned())
         })?;
-        let lib_rs_path = self.cwd.join("src/lib.rs");
+        let lib_rs_path = self.path.join("src").join("lib.rs");
         self.fs
             .write_to_file(&lib_rs_path, template_file.contents())?;
         Ok(())
@@ -187,7 +179,7 @@ impl<'a> NewAction<'a> {
         let template_file = TEMPLATES_DIR.get_file(&template_path).ok_or_else(|| {
             NewActionError::TemplateNotFound(template_path.to_string_lossy().into_owned())
         })?;
-        let lib_rs_path = self.cwd.join("build.rs");
+        let lib_rs_path = self.path.join("build.rs");
         self.fs
             .write_to_file(&lib_rs_path, template_file.contents())?;
         Ok(())
@@ -208,7 +200,7 @@ impl<'a> NewAction<'a> {
     ///   template content to the destination Cargo.toml file.
     pub fn update_cargo_toml(&self) -> Result<(), NewActionError> {
         debug!("Updating Cargo.toml for driver type: {}", self.driver_type);
-        let cargo_toml_path = self.cwd.join("Cargo.toml");
+        let cargo_toml_path = self.path.join("Cargo.toml");
         let mut cargo_toml_content = self.fs.read_file_to_string(&cargo_toml_path)?;
         cargo_toml_content = cargo_toml_content.replace("[dependencies]\n", "");
         self.fs
@@ -242,19 +234,29 @@ impl<'a> NewAction<'a> {
     /// * `NewActionError::FileSystem` - If there is an error writing .inx
     ///   template content to the destination .inx file.
     pub fn create_inx_file(&self) -> Result<(), NewActionError> {
-        debug!(
-            "Creating .inx file for driver: {}",
-            self.driver_project_name
-        );
+        let driver_crate_name = self
+            .path
+            .file_name()
+            .ok_or_else(|| {
+                NewActionError::InvalidDriverCrateName(self.path.to_string_lossy().into_owned())
+            })?
+            .to_string_lossy()
+            .to_string();
+        debug!("Creating .inx file for: {}", driver_crate_name);
+        let underscored_driver_crate_name = driver_crate_name.replace('-', "_");
         let inx_template_path =
             PathBuf::from(&self.driver_type.to_string()).join("driver_name.inx.tmp");
         let inx_template_file = TEMPLATES_DIR.get_file(&inx_template_path).ok_or_else(|| {
             NewActionError::TemplateNotFound(inx_template_path.to_string_lossy().into_owned())
         })?;
         let inx_content = String::from_utf8_lossy(inx_template_file.contents()).to_string();
-        let substituted_inx_content =
-            inx_content.replace("##driver_name_placeholder##", &self.driver_project_name);
-        let inx_output_path = self.cwd.join(format!("{}.inx", self.driver_project_name));
+        let substituted_inx_content = inx_content.replace(
+            "##driver_name_placeholder##",
+            &underscored_driver_crate_name,
+        );
+        let inx_output_path = self
+            .path
+            .join(format!("{underscored_driver_crate_name}.inx"));
         self.fs
             .write_to_file(&inx_output_path, substituted_inx_content.as_bytes())?;
         Ok(())
@@ -275,8 +277,8 @@ impl<'a> NewAction<'a> {
     ///   config.toml template content to the destination config.toml file.
     pub fn copy_cargo_config(&self) -> Result<(), NewActionError> {
         debug!("Copying .cargo/config.toml file");
-        create_dir_all(self.cwd.join(".cargo"))?;
-        let cargo_config_path = self.cwd.join(".cargo/config.toml");
+        create_dir_all(self.path.join(".cargo"))?;
+        let cargo_config_path = self.path.join(".cargo").join("config.toml");
         let cargo_config_template_path = PathBuf::from("config.toml.tmp");
         let cargo_config_template_file = TEMPLATES_DIR
             .get_file(&cargo_config_template_path)

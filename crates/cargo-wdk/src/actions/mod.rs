@@ -9,9 +9,17 @@
 pub mod build;
 pub mod new;
 
-use std::{fmt, str::FromStr};
+use std::{
+    fmt::{self, Display},
+    str::FromStr,
+};
 
 use wdk_build::CpuArchitecture;
+
+pub const KMDF_STR: &str = "kmdf";
+pub const UMDF_STR: &str = "umdf";
+pub const WDM_STR: &str = "wdm";
+
 #[derive(Debug, Clone, Copy)]
 pub enum Profile {
     Dev,
@@ -28,7 +36,7 @@ impl FromStr for Profile {
         }
     }
 }
-impl fmt::Display for Profile {
+impl Display for Profile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
             Self::Dev => "dev",
@@ -58,5 +66,37 @@ pub fn to_target_triple(cpu_arch: CpuArchitecture) -> String {
     match cpu_arch {
         CpuArchitecture::Amd64 => X86_64_TARGET_TRIPLE_NAME.to_string(),
         CpuArchitecture::Arm64 => AARCH64_TARGET_TRIPLE_NAME.to_string(),
+    }
+}
+
+/// Enum of driver types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriverType {
+    Kmdf,
+    Umdf,
+    Wdm,
+}
+
+impl FromStr for DriverType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            KMDF_STR => std::result::Result::Ok(Self::Kmdf),
+            UMDF_STR => std::result::Result::Ok(Self::Umdf),
+            WDM_STR => std::result::Result::Ok(Self::Wdm),
+            _ => Err(format!("'{s}' is not a valid driver type")),
+        }
+    }
+}
+
+impl Display for DriverType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Kmdf => KMDF_STR,
+            Self::Umdf => UMDF_STR,
+            Self::Wdm => WDM_STR,
+        };
+        write!(f, "{s}")
     }
 }
