@@ -22,3 +22,7 @@ wdk-sys = { workspace = true, features = ["test-stubs"] }
 
 [lints]
 workspace = true
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"
+targets = [ "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
