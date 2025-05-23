@@ -1,0 +1,22 @@
+[package]
+name = "driver"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# This driver package uses the metadata from the workspace, but still needs this tag to signal that its a driver crate that needs packaging
+[package.metadata.wdk]
+
+[lib]
+crate-type = ["cdylib"]
+# Tests from root driver crates must be excluded since there's no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
+test = false
+
+[build-dependencies]
+wdk-build.workspace = true
+
+[dependencies]
+wdk.workspace = true
+wdk-alloc.workspace = true
+wdk-panic.workspace = true
+wdk-sys.workspace = true
