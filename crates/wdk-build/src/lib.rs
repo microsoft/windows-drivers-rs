@@ -889,7 +889,7 @@ impl Config {
                     path::absolute(self.kernel_mode_include_path().join("hidport.h"))
                         .unwrap()
                         .to_string_lossy()
-                        .replace("\\", "/");
+                        .replace('\\', '/');
 
                 headers.push(hidports_path.into());
             }
