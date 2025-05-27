@@ -101,6 +101,25 @@ fn given_cargo_wdk_new_command_when_multiple_driver_types_are_provided_then_it_f
     });
 }
 
+#[test]
+fn given_cargo_wdk_new_command_and_no_arguments_are_provided_then_it_fails() {
+    with_file_lock(|| {
+        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+        cmd.arg("new");
+
+        // assert command output
+        let cmd_assertion = cmd.assert().failure();
+        let output = cmd_assertion.get_output();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("stdout: {stdout}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("stderr: {stderr}");
+        assert!(stderr.contains("error: the following required arguments were not provided:"));
+        assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
+        assert!(stderr.contains("<PATH>"))
+    });
+}
+
 fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
