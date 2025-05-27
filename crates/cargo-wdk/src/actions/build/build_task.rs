@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! Module that handles low level build tasks for driver packages
+//! Module that handles low level build operations for driver packages
 //! This module defines the `BuildTask` struct and its associated methods for
 //! building a driver package with the provided options using the `cargo build`
 //! command.
@@ -19,7 +19,7 @@ use crate::{
     trace,
 };
 
-/// Supports low level driver build operations
+/// Builds specified package by running `cargo build`  
 pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,

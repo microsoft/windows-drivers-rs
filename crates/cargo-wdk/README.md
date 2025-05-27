@@ -6,7 +6,7 @@
 
 `cargo-wdk` currently supports creating and building Windows Rust driver crates.
 
-- **`new`** command takes a name, and the driver type (KMDF, UMDF or WDM) as input and creates a new Rust driver project. It relies on pre-defined templates (in `./crates/cargo-wdk/templates`) to scaffold the project with the required files and boilerplate code.
+- **`new`** command takes a path and the driver type (KMDF, UMDF or WDM) as inputs and creates a new Rust driver project of the specified type at the specified path. It relies on pre-defined templates (in `./crates/cargo-wdk/templates`) to scaffold the project with the required files and boilerplate code.  
 
 - **`build`** command compiles, builds and packages Rust driver projects. The build profile and the target architecture are optional arguments, and can be passed to the command invocation. Consists of a **`build_task`** that invokes `cargo build` and **`package_task`** that invokes WDK binaries - `StampInf`, `Inf2Cat`, `InfVerif`, `Signtool`, `CertMgr` in the correct order, and generates the final driver package. If no valid WDK configuration is found in the package/workspace `package_task` is skipped.
 
@@ -53,13 +53,20 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
 
 1. `new` command to create a new Rust driver project: 
     ```pwsh
-    cargo wdk new [OPTIONS] [DRIVER_PROJECT_NAME]
+    cargo wdk new [OPTIONS] [DRIVER_PROJECT_PATH]
     ```
     
     Example Usage:
-    ```pwsh
-    cargo wdk new sample_driver UMDF
-    ```
+
+    * Create a UMDF project called `sample_driver` under the folder `my_projects`  
+    ```pwsh  
+    cargo wdk new my_projects\sample_driver --umdf  
+    ```  
+
+    * Create a KMDF project called `sample_driver` under the current folder  
+    ```pwsh  
+    cargo wdk new sample_driver --kmdf  
+    ``` 
 
     Use `--help` for more information on arguments and options
 

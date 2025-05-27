@@ -75,6 +75,32 @@ fn given_a_cargo_wdk_new_command_when_no_driver_type_is_provided_then_it_fails()
     });
 }
 
+#[test]
+fn given_cargo_wdk_new_command_when_multiple_driver_types_are_provided_then_it_fails() {
+    with_file_lock(|| {
+        let driver_name = "test-invalid-driver";
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        println!("Temp dir: {}", tmp_dir.path().display());
+        let driver_path = tmp_dir.join(driver_name);
+        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+        cmd.args([
+            "new",
+            "--kmdf",
+            "--umdf",
+            driver_path.to_string_lossy().as_ref(),
+        ]);
+
+        // assert command output
+        let cmd_assertion = cmd.assert().failure();
+        let output = cmd_assertion.get_output();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("stdout: {stdout}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("stderr: {stderr}");
+        assert!(stderr.contains("error: the argument '--kmdf' cannot be used with '--umdf'"));
+    });
+}
+
 fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");

@@ -27,7 +27,6 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to create and build \
                             Windows Rust driver projects.";
 const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
-const CARGO_WDK_NEW_USAGE_STRING: &str = "cargo wdk new [OPTIONS] [PATH]";
 
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
@@ -37,30 +36,31 @@ const CARGO_WDK_NEW_USAGE_STRING: &str = "cargo wdk new [OPTIONS] [PATH]";
             .required(true)
             .args([KMDF_STR, UMDF_STR, WDM_STR])
     ),
-    override_usage = CARGO_WDK_NEW_USAGE_STRING,
 )]
 pub struct NewArgs {
     /// Create a KMDF driver crate
-    #[arg(long)]
+    #[arg(long, help_heading = "Driver Type")]
     pub kmdf: bool,
 
     /// Create a UMDF driver crate
-    #[arg(long)]
+    #[arg(long, help_heading = "Driver Type")]
     pub umdf: bool,
 
     /// Create a WDM driver crate
-    #[arg(long)]
+    #[arg(long, help_heading = "Driver Type")]
     pub wdm: bool,
 
     /// Path at which the new driver crate should be created
-    #[arg()]
+    #[arg(required = true)]
     pub path: Option<PathBuf>,
 }
 
 impl NewArgs {
-    /// Checks which `driver_type` flag was passed to the `new` command
-    /// invocation and returns the corresponding `DriverType` enum variant.
-    /// The flag which was passed will be set to `true` in `NewArgs`.
+    /// Returns the variant of `DriverType` based on which of the `driver_type`
+    /// flags, `--kmdf || --umdf || --wdm` was passed to the `new` command.
+    /// The field corresponding to the flag will be set to `true` in `NewArgs`.
+    /// This method checks which of the flags is set and returns the
+    /// corresponding `DriverType`.
     ///
     /// # Returns
     ///
@@ -68,18 +68,25 @@ impl NewArgs {
     ///
     /// # Panics
     ///
-    /// * If none of the driver types were selected.
-    const fn get_selected_driver_type(&self) -> Option<DriverType> {
+    /// * If none of more than one of the `driver_type` flags is set to `true`.
+    ///   This is guaranteed by Clap's `ArgGroup` validation.
+    fn driver_type(&self) -> DriverType {
+        let number_of_flags_set =
+            usize::from(self.kmdf) + usize::from(self.umdf) + usize::from(self.wdm);
+        assert!(
+            (number_of_flags_set == 1),
+            "Expected exactly one of `driver_type` ArgGroup to be passed, but found \
+             {number_of_flags_set}. Possibly a bug.",
+        );
         if self.kmdf {
-            return Some(DriverType::Kmdf);
+            DriverType::Kmdf
+        } else if self.umdf {
+            DriverType::Umdf
+        } else {
+            // At this point, we know that `self.wdm` must be true, because
+            // `number_of_flags_set` is guaranteed to be 1
+            DriverType::Wdm
         }
-        if self.umdf {
-            return Some(DriverType::Umdf);
-        }
-        if self.wdm {
-            return Some(DriverType::Wdm);
-        }
-        None
     }
 }
 
@@ -149,12 +156,7 @@ impl Cli {
             Subcmd::New(cli_args) => {
                 NewAction::new(
                     cli_args.path.as_ref().unwrap_or(&std::env::current_dir()?),
-                    cli_args.get_selected_driver_type().ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "No driver type selected. Please provide one of --kmdf, --umdf, or \
-                             --wdm"
-                        )
-                    })?,
+                    cli_args.driver_type(),
                     self.verbose,
                     &command_exec,
                     &fs,
@@ -453,46 +455,65 @@ mod tests {
     }
 
     #[test]
-    fn test_get_selected_driver_type_kmdf() {
+    fn test_new_args_driver_type_kmdf() {
         let args = NewArgs {
             kmdf: true,
             umdf: false,
             wdm: false,
             path: None,
         };
-        assert_eq!(args.get_selected_driver_type(), Some(DriverType::Kmdf));
+        assert_eq!(args.driver_type(), DriverType::Kmdf);
     }
 
     #[test]
-    fn test_get_selected_driver_type_umdf() {
+    fn test_new_args_driver_type_umdf() {
         let args = NewArgs {
             kmdf: false,
             umdf: true,
             wdm: false,
             path: None,
         };
-        assert_eq!(args.get_selected_driver_type(), Some(DriverType::Umdf));
+        assert_eq!(args.driver_type(), DriverType::Umdf);
     }
 
     #[test]
-    fn test_get_selected_driver_type_wdm() {
+    fn test_new_args_driver_type_wdm() {
         let args = NewArgs {
             kmdf: false,
             umdf: false,
             wdm: true,
             path: None,
         };
-        assert_eq!(args.get_selected_driver_type(), Some(DriverType::Wdm));
+        assert_eq!(args.driver_type(), DriverType::Wdm);
     }
 
     #[test]
-    fn test_get_selected_driver_type_no_selection() {
+    #[should_panic(
+        expected = "Expected exactly one of `driver_type` ArgGroup to be passed, but found 0. \
+                    Possibly a bug."
+    )]
+    fn test_new_args_driver_type_no_selection() {
         let args = NewArgs {
             kmdf: false,
             umdf: false,
             wdm: false,
             path: None,
         };
-        assert_eq!(args.get_selected_driver_type(), None);
+        args.driver_type();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Expected exactly one of `driver_type` ArgGroup to be passed, but found 2. \
+                    Possibly a bug."
+    )]
+    fn test_new_args_driver_type_multiple_selections() {
+        let args = NewArgs {
+            kmdf: true,
+            umdf: true,
+            wdm: false,
+            path: None,
+        };
+        args.driver_type();
     }
 }

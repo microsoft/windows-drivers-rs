@@ -85,7 +85,7 @@ impl<'a> NewAction<'a> {
     ///   operations.
     pub fn run(&self) -> Result<(), NewActionError> {
         info!(
-            "Creating new {} driver crate at: {}",
+            "Trying to create new {} driver package at: {}",
             self.driver_type,
             self.path.display()
         );
