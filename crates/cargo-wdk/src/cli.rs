@@ -217,9 +217,11 @@ impl Cli {
                         "aarch64-pc-windows-msvc" => Ok(CpuArchitecture::Arm64),
                         _ => Err(anyhow::anyhow!(
                             "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                             aarch64-pc-windows-msvc are supported.\n If you're on Windows, \
-                             consider using the --target-arch option to specify a supported \
-                             architecture.",
+                             aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows \
+                             and switch the default target to one of the above two using \
+                             `rustup.exe`. You can also use the --target-arch option to \
+                             explicitly specify a CPU architecture instead of relying on the \
+                             default target.",
                             stdout
                         )),
                     }
@@ -358,8 +360,10 @@ mod tests {
             result.err().unwrap().to_string(),
             format!(
                 "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                 aarch64-pc-windows-msvc are supported.\n If you're on Windows, consider using \
-                 the --target-arch option to specify a supported architecture.",
+                 aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and switch \
+                 the default target to one of the above two using `rustup.exe`. You can also use \
+                 the --target-arch option to explicitly specify a CPU architecture instead of \
+                 relying on the default target.",
                 "i686-pc-windows-msvc"
             )
         );
@@ -403,8 +407,10 @@ mod tests {
             result.err().unwrap().to_string(),
             format!(
                 "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                 aarch64-pc-windows-msvc are supported.\n If you're on Windows, consider using \
-                 the --target-arch option to specify a supported architecture.",
+                 aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and switch \
+                 the default target to one of the above two using `rustup.exe`. You can also use \
+                 the --target-arch option to explicitly specify a CPU architecture instead of \
+                 relying on the default target.",
                 "x86_64-win7-windows-msvc"
             )
         );
