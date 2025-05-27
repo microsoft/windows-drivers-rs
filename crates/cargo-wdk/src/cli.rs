@@ -39,15 +39,15 @@ const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
 )]
 pub struct NewArgs {
     /// Create a KMDF driver crate
-    #[arg(long, help_heading = "Driver Type")]
+    #[arg(long)]
     pub kmdf: bool,
 
     /// Create a UMDF driver crate
-    #[arg(long, help_heading = "Driver Type")]
+    #[arg(long)]
     pub umdf: bool,
 
     /// Create a WDM driver crate
-    #[arg(long, help_heading = "Driver Type")]
+    #[arg(long)]
     pub wdm: bool,
 
     /// Path at which the new driver crate should be created
