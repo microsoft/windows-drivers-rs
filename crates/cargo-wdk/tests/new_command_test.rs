@@ -110,7 +110,7 @@ fn given_cargo_wdk_new_command_and_required_arguments_are_not_provided_then_it_f
         println!("stderr: {stderr}");
         assert!(stderr.contains("error: the following required arguments were not provided:"));
         assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
-        assert!(stderr.contains("<PATH>"))
+        assert!(stderr.contains("<PATH>"));
     });
 }
 
