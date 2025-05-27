@@ -59,30 +59,6 @@ pub enum DriverConfig {
     Umdf(UmdfConfig),
 }
 
-impl FromStr for DriverConfig {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "kmdf" => std::result::Result::Ok(Self::Kmdf(KmdfConfig::default())),
-            "umdf" => std::result::Result::Ok(Self::Umdf(UmdfConfig::default())),
-            "wdm" => std::result::Result::Ok(Self::Wdm),
-            _ => Err(format!("'{s}' is not a valid driver type")),
-        }
-    }
-}
-
-impl fmt::Display for DriverConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Wdm => "wdm",
-            Self::Kmdf(_) => "kmdf",
-            Self::Umdf(_) => "umdf",
-        };
-        write!(f, "{s}")
-    }
-}
-
 /// Private enum identical to [`DriverConfig`] but with different tag name to
 /// deserialize from.
 ///
@@ -116,8 +92,8 @@ impl FromStr for CpuArchitecture {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "amd64" => std::result::Result::Ok(Self::Amd64),
-            "arm64" => std::result::Result::Ok(Self::Arm64),
+            "amd64" => Ok(Self::Amd64),
+            "arm64" => Ok(Self::Arm64),
             _ => Err(format!("'{s}' is not a valid target architecture")),
         }
     }
