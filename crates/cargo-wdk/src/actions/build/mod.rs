@@ -13,8 +13,6 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    fs::read_dir,
-    io,
     path::{Path, PathBuf},
     result::Result::Ok,
 };
@@ -140,7 +138,7 @@ impl<'a> BuildAction<'a> {
         }
 
         // Emulated workspaces support
-        let dirs = read_dir(&self.working_dir)?.collect::<Result<Vec<_>, io::Error>>()?;
+        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
         info!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
@@ -148,7 +146,9 @@ impl<'a> BuildAction<'a> {
 
         let mut is_valid_dir_with_rust_projects = false;
         for dir in &dirs {
-            if dir.file_type()?.is_dir() && self.fs.exists(&dir.path().join("Cargo.toml")) {
+            if self.fs.dir_file_type(dir)?.is_dir()
+                && self.fs.exists(&dir.path().join("Cargo.toml"))
+            {
                 debug!(
                     "Found atleast one valid Rust project directory: {}, continuing with the \
                      build flow",
@@ -177,7 +177,9 @@ impl<'a> BuildAction<'a> {
                 "Verifying the dir entry if it is a valid Rust project: {}",
                 dir.path().display()
             );
-            if !dir.file_type()?.is_dir() || !self.fs.exists(&dir.path().join("Cargo.toml")) {
+            if !self.fs.dir_file_type(&dir)?.is_dir()
+                || !self.fs.exists(&dir.path().join("Cargo.toml"))
+            {
                 debug!("Skipping the dir entry as it is not a valid Rust project");
                 continue;
             }

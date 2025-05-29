@@ -50,7 +50,7 @@ impl CommandExec {
             .stdout(Stdio::piped())
             .spawn()
             .and_then(std::process::Child::wait_with_output)
-            .map_err(CommandError::IoError)?;
+            .map_err(|e| CommandError::from_io_error(command, args, e))?;
 
         if !output.status.success() {
             return Err(CommandError::from_output(command, args, &output));

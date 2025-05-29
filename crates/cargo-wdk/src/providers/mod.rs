@@ -15,7 +15,7 @@ pub mod metadata;
 pub mod wdk_build;
 
 pub mod error {
-    use std::{io::Error, path::PathBuf, process::Output};
+    use std::{io, path::PathBuf, process::Output};
 
     /// Error type for `std::process::command` execution failures
     #[derive(Debug, thiserror::Error)]
@@ -26,8 +26,8 @@ pub mod error {
             args: Vec<String>,
             stdout: String,
         },
-        #[error("IO error")]
-        IoError(#[from] Error),
+        #[error("Command '{0}' with args {1:?} IO error")]
+        IoError(String, Vec<String>, #[source] io::Error),
     }
 
     impl CommandError {
@@ -38,6 +38,14 @@ pub mod error {
                 stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             }
         }
+
+        pub fn from_io_error(command: &str, args: &[&str], e: io::Error) -> Self {
+            Self::IoError(
+                command.to_string(),
+                args.iter().map(|&s| s.to_string()).collect(),
+                e,
+            )
+        }
     }
 
     /// Error type for `std::file` operations
@@ -46,12 +54,26 @@ pub mod error {
         #[error("File {0} not found")]
         NotFound(PathBuf),
         #[error("Failed to write to file {0}")]
-        WriteError(PathBuf, #[source] Error),
+        WriteError(PathBuf, #[source] io::Error),
         #[error("Failed to read file {0}")]
-        ReadError(PathBuf, #[source] Error),
+        ReadError(PathBuf, #[source] io::Error),
         #[error("Failed to open file {0}")]
-        OpenError(PathBuf, #[source] Error),
+        OpenError(PathBuf, #[source] io::Error),
         #[error("Failed to append to file {0}")]
-        AppendError(PathBuf, #[source] Error),
+        AppendError(PathBuf, #[source] io::Error),
+        #[error("Failed to copy file from {0} to {1}")]
+        CopyError(PathBuf, PathBuf, #[source] io::Error),
+        #[error("Failed to canonicalize path {0}")]
+        PathCanonicalizationError(PathBuf, #[source] io::Error),
+        #[error("Failed to create directory at path {0}")]
+        CreateDirError(PathBuf, #[source] io::Error),
+        #[error("Failed to rename file from {0} to {1}")]
+        RenameError(PathBuf, PathBuf, #[source] io::Error),
+        #[error("Failed to get file type for directory entry {0:#?}")]
+        DirFileTypeError(PathBuf, #[source] io::Error),
+        #[error("Failed to read directory {0}")]
+        ReadDirError(PathBuf, #[source] io::Error),
+        #[error("Failed to read directory entries for {0}")]
+        ReadDirEntriesError(PathBuf, #[source] io::Error),
     }
 }

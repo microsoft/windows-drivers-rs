@@ -6,7 +6,7 @@ use std::{path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
-use crate::providers::error::CommandError;
+use crate::providers::error::{CommandError, FileError};
 
 /// Errors for the build action layer
 #[derive(Error, Debug)]
@@ -20,7 +20,7 @@ pub enum BuildActionError {
     #[error(transparent)]
     BuildTask(#[from] BuildTaskError),
     #[error(transparent)]
-    Io(#[from] std::io::Error),
+    FileIo(#[from] FileError),
     #[error(transparent)]
     CommandExecution(#[from] CommandError),
     #[error("Not a workspace member, working directory: {0}")]
@@ -47,6 +47,8 @@ pub enum BuildTaskError {
     EmptyManifestPath,
     #[error("Error running cargo build command")]
     CargoBuild(#[from] CommandError),
+    #[error(transparent)]
+    FileIo(#[from] FileError),
 }
 
 /// Errors for the low level package task layer
@@ -57,8 +59,6 @@ pub enum PackageTaskError {
          directory."
     )]
     MissingInxSrcFile(PathBuf),
-    #[error("Failed to copy file error, src: {0}, dest: {1}, error: {2:#?}")]
-    CopyFile(PathBuf, PathBuf, std::io::Error),
     #[error("Error running stampinf command")]
     StampinfCommand(#[source] CommandError),
     #[error("Error running inf2cat command")]
@@ -82,5 +82,5 @@ pub enum PackageTaskError {
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error(transparent)]
-    Io(#[from] std::io::Error),
+    FileIo(#[from] FileError),
 }

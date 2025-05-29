@@ -11,7 +11,7 @@
 #![allow(clippy::unused_self)]
 
 use std::{
-    fs::{copy, create_dir, rename, File, OpenOptions},
+    fs::{copy, create_dir, read_dir, rename, DirEntry, File, FileType, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
@@ -26,24 +26,37 @@ pub struct Fs {}
 
 #[automock]
 impl Fs {
-    pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, FileError> {
         path.canonicalize()
+            .map_err(|e| FileError::PathCanonicalizationError(path.to_owned(), e))
     }
 
-    pub fn copy(&self, src: &Path, dest: &Path) -> Result<u64, std::io::Error> {
-        copy(src, dest)
+    pub fn copy(&self, src: &Path, dest: &Path) -> Result<u64, FileError> {
+        copy(src, dest).map_err(|e| FileError::CopyError(src.to_owned(), dest.to_owned(), e))
     }
 
     pub fn exists(&self, path: &Path) -> bool {
         path.exists()
     }
 
-    pub fn create_dir(&self, path: &Path) -> Result<(), std::io::Error> {
-        create_dir(path)
+    pub fn create_dir(&self, path: &Path) -> Result<(), FileError> {
+        create_dir(path).map_err(|e| FileError::CreateDirError(path.to_owned(), e))
     }
 
-    pub fn rename(&self, src: &Path, dest: &Path) -> Result<(), std::io::Error> {
-        rename(src, dest)
+    pub fn dir_file_type(&self, dir: &DirEntry) -> Result<FileType, FileError> {
+        dir.file_type()
+            .map_err(|e| FileError::DirFileTypeError(dir.path(), e))
+    }
+
+    pub fn read_dir_entries(&self, path: &Path) -> Result<Vec<DirEntry>, FileError> {
+        read_dir(path)
+            .map_err(|e| FileError::ReadDirError(path.to_owned(), e))?
+            .collect::<Result<Vec<DirEntry>, std::io::Error>>()
+            .map_err(|e| FileError::ReadDirEntriesError(path.to_owned(), e))
+    }
+
+    pub fn rename(&self, src: &Path, dest: &Path) -> Result<(), FileError> {
+        rename(src, dest).map_err(|e| FileError::RenameError(src.to_owned(), dest.to_owned(), e))
     }
 
     pub fn read_file_to_string(&self, path: &Path) -> Result<String, FileError> {

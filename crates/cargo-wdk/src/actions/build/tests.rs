@@ -4,7 +4,6 @@
 #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
 use std::{
     collections::HashMap,
-    io::Error,
     os::windows::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{ExitStatus, Output},
@@ -34,7 +33,7 @@ use crate::{
         Profile,
         TargetArch,
     },
-    providers::error::CommandError,
+    providers::error::{CommandError, FileError},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2369,15 +2368,15 @@ impl TestSetupPackageExpectations for TestBuildAction {
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         self.mock_fs_provider
             .expect_create_dir()
-            .with(eq(expected_final_package_dir_path))
+            .with(eq(expected_final_package_dir_path.clone()))
             .once()
             .returning(move |_| {
                 if created {
                     Ok(())
                 } else {
-                    Err(Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "create error",
+                    Err(FileError::CreateDirError(
+                        expected_final_package_dir_path.clone(),
+                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "create error"),
                     ))
                 }
             });
@@ -2511,15 +2510,19 @@ impl TestSetupPackageExpectations for TestBuildAction {
         self.mock_fs_provider
             .expect_copy()
             .with(
-                eq(expected_src_driver_binary_path),
-                eq(expected_dest_driver_binary_path),
+                eq(expected_src_driver_binary_path.clone()),
+                eq(expected_dest_driver_binary_path.clone()),
             )
             .once()
             .returning(move |_, _| {
                 if is_success {
                     Ok(mock_non_zero_bytes_copied_size)
                 } else {
-                    Err(Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"))
+                    Err(FileError::CopyError(
+                        expected_src_driver_binary_path.clone(),
+                        expected_dest_driver_binary_path.clone(),
+                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
+                    ))
                 }
             });
         self
@@ -2545,15 +2548,19 @@ impl TestSetupPackageExpectations for TestBuildAction {
         self.mock_fs_provider
             .expect_copy()
             .with(
-                eq(expected_src_driver_pdb_path),
-                eq(expected_dest_driver_pdb_path),
+                eq(expected_src_driver_pdb_path.clone()),
+                eq(expected_dest_driver_pdb_path.clone()),
             )
             .once()
             .returning(move |_, _| {
                 if is_success {
                     Ok(mock_non_zero_bytes_copied_size)
                 } else {
-                    Err(Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"))
+                    Err(FileError::CopyError(
+                        expected_src_driver_pdb_path.clone(),
+                        expected_dest_driver_pdb_path.clone(),
+                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
+                    ))
                 }
             });
         self
@@ -2580,15 +2587,19 @@ impl TestSetupPackageExpectations for TestBuildAction {
         self.mock_fs_provider
             .expect_copy()
             .with(
-                eq(expected_src_driver_inx_path),
-                eq(expected_dest_driver_inf_path),
+                eq(expected_src_driver_inx_path.clone()),
+                eq(expected_dest_driver_inf_path.clone()),
             )
             .once()
             .returning(move |_, _| {
                 if is_success {
                     Ok(mock_non_zero_bytes_copied_size)
                 } else {
-                    Err(Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"))
+                    Err(FileError::CopyError(
+                        expected_src_driver_inx_path.clone(),
+                        expected_dest_driver_inf_path.clone(),
+                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
+                    ))
                 }
             });
         self
@@ -2615,15 +2626,19 @@ impl TestSetupPackageExpectations for TestBuildAction {
         self.mock_fs_provider
             .expect_copy()
             .with(
-                eq(expected_src_driver_map_path),
-                eq(expected_dest_driver_map_path),
+                eq(expected_src_driver_map_path.clone()),
+                eq(expected_dest_driver_map_path.clone()),
             )
             .once()
             .returning(move |_, _| {
                 if is_success {
                     Ok(mock_non_zero_bytes_copied_size)
                 } else {
-                    Err(Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"))
+                    Err(FileError::CopyError(
+                        expected_src_driver_map_path.clone(),
+                        expected_dest_driver_map_path.clone(),
+                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
+                    ))
                 }
             });
         self
@@ -2648,15 +2663,19 @@ impl TestSetupPackageExpectations for TestBuildAction {
         self.mock_fs_provider
             .expect_copy()
             .with(
-                eq(expected_src_cert_file_path),
-                eq(expected_dest_driver_cert_path),
+                eq(expected_src_cert_file_path.clone()),
+                eq(expected_dest_driver_cert_path.clone()),
             )
             .once()
             .returning(move |_, _| {
                 if is_success {
                     Ok(mock_non_zero_bytes_copied_size)
                 } else {
-                    Err(Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"))
+                    Err(FileError::CopyError(
+                        expected_src_cert_file_path.clone(),
+                        expected_dest_driver_cert_path.clone(),
+                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
+                    ))
                 }
             });
         self

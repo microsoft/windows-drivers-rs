@@ -17,9 +17,9 @@ use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
-use crate::actions::build::error::PackageTaskError;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
+use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
 // flag is added to InfVerif CLI
@@ -243,39 +243,21 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    fn rename_driver_binary_extension(&self) -> Result<(), PackageTaskError> {
+    fn rename_driver_binary_extension(&self) -> Result<(), FileError> {
         debug!("Renaming driver binary extension from .dll to .sys");
-        if let Err(e) = self.fs.rename(
+        self.fs.rename(
             &self.src_driver_binary_file_path,
             &self.src_renamed_driver_binary_file_path,
-        ) {
-            return Err(PackageTaskError::CopyFile(
-                self.src_driver_binary_file_path.clone(),
-                self.src_renamed_driver_binary_file_path.clone(),
-                e,
-            ));
-        }
-        Ok(())
+        )
     }
 
-    fn copy(
-        &self,
-        src_file_path: &'a Path,
-        dest_file_path: &'a Path,
-    ) -> Result<(), PackageTaskError> {
+    fn copy(&self, src_file_path: &'a Path, dest_file_path: &'a Path) -> Result<u64, FileError> {
         debug!(
             "Copying src file {} to dest folder {}",
             src_file_path.to_string_lossy(),
             dest_file_path.to_string_lossy()
         );
-        if let Err(e) = self.fs.copy(src_file_path, dest_file_path) {
-            return Err(PackageTaskError::CopyFile(
-                src_file_path.to_path_buf(),
-                dest_file_path.to_path_buf(),
-                e,
-            ));
-        }
-        Ok(())
+        self.fs.copy(src_file_path, dest_file_path)
     }
 
     fn run_stampinf(&self) -> Result<(), PackageTaskError> {
