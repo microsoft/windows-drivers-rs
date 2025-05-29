@@ -263,7 +263,10 @@ impl<'a> BuildAction<'a> {
                 }
             }
             if let Err(e) = wdk_metadata {
-                return Err(BuildActionError::WdkMetadataParse(e));
+                // Ignore NoWdkConfigurationsDetected but propagate any other error
+                if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
+                    return Err(BuildActionError::WdkMetadataParse(e));
+                }
             }
 
             if failed_atleast_one_workspace_member {
@@ -306,7 +309,10 @@ impl<'a> BuildAction<'a> {
             )?;
 
             if let Err(e) = wdk_metadata {
-                return Err(BuildActionError::WdkMetadataParse(e));
+                // Ignore NoWdkConfigurationsDetected but propagate any other error
+                if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
+                    return Err(BuildActionError::WdkMetadataParse(e));
+                }
             }
         }
 
@@ -361,6 +367,7 @@ impl<'a> BuildAction<'a> {
             return Ok(());
         };
 
+        // TODO: Do we need this check anymore?
         if package.metadata.get("wdk").is_none() {
             warn!(
                 "No package.metadata.wdk section found. Skipping driver build workflow for \

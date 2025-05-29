@@ -1198,7 +1198,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 }
 
 #[test]
-pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
+pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_metadata_are_provided_then_build_should_be_successful(
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -1240,10 +1240,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_then_wdk_meta
     assert!(build_action.is_ok());
 
     let run_result = build_action.expect("Failed to init build action").run();
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::WdkMetadataParse(TryFromCargoMetadataError::NoWdkConfigurationsDetected)
-    ));
+
+    assert!(run_result.is_ok());
 }
 
 #[test]
@@ -1900,7 +1898,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
 }
 
 #[test]
-pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail(
+pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_build_should_be_successful(
 ) {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -1948,16 +1946,11 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
 
     let run_result = build_action.expect("Failed to init build action").run();
 
-    assert!(matches!(
-        run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_wdk_metadata_parse_should_fail"),
-        BuildActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::NoWdkConfigurationsDetected
-        )
-    ));
+    assert!(run_result.is_ok());
 }
 
 #[test]
-pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail(
+pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_build_should_be_successful(
 ) {
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
@@ -2010,12 +2003,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
 
     let run_result = build_action.expect("Failed to init build action").run();
 
-    assert!(matches!(
-        run_result.expect_err("run_result error in test: given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_wdk_metadata_parse_should_fail"),
-        BuildActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::NoWdkConfigurationsDetected
-        )
-    ));
+    assert!(run_result.is_ok());
 }
 
 /// Helper functions

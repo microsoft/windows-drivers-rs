@@ -102,4 +102,3 @@ jobs:
 
       - name: Run build on tests folder (via cargo-wdk)
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
-        continue-on-error: true # This is set to true as the some of the tests are expected to fail.
