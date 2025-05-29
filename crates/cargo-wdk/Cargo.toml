@@ -30,7 +30,7 @@ wdk-build.workspace = true
 assert_cmd.workspace = true
 assert_fs.workspace = true
 predicates.workspace = true
-sha256.workspace = true
+sha2.workspace = true
 
 [lints.rust]
 missing_docs = "warn"

@@ -2,13 +2,21 @@
 #![allow(clippy::literal_string_with_formatting_args)]
 mod common;
 use std::{
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
 
 use assert_cmd::prelude::*;
 use common::{set_crt_static_flag, with_file_lock};
-use sha256::try_digest;
+use sha2::{Digest, Sha256};
+
+// Helper to hash a file
+fn digest_file<P: AsRef<Path>>(path: P) -> String {
+    let file_contents = fs::read(path).expect("Failed to read file");
+    let result = Sha256::digest(&file_contents);
+    format!("{result:x}")
+}
 
 #[test]
 fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
@@ -65,37 +73,29 @@ fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_p
 
         // assert if the files are copied properly
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.map"
-            ))
-            .expect("Unable to read packaged driver.map"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/mixed-package-kmdf-workspace/target/debug/deps/driver.map"
             ))
-            .expect("Unable to read source driver.map")
         );
-
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.pdb"
-            ))
-            .expect("Unable to read packaged driver.pdb"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/mixed-package-kmdf-workspace/target/debug/driver.pdb"
             ))
-            .expect("Unable to read source driver.pdb")
         );
-
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/mixed-package-kmdf-workspace/target/debug/driver_package/WDRLocalTestCert.\
                  cer"
-            ))
-            .expect("Unable to read packaged WDRLocalTestCert.cer"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/mixed-package-kmdf-workspace/target/debug/WDRLocalTestCert.cer"
             ))
-            .expect("Unable to read source WDRLocalTestCert.cer")
         );
     });
 }
@@ -215,39 +215,33 @@ fn build_driver_project(driver_type: &str) {
 
     // assert if the files are copied properly
     assert_eq!(
-        try_digest(PathBuf::from(format!(
+        digest_file(PathBuf::from(format!(
             "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
              {driver_folder_underscored}.map"
-        )))
-        .unwrap_or_else(|_| format!("Unable to read packaged {driver_folder_underscored}.map")),
-        try_digest(PathBuf::from(format!(
+        ))),
+        digest_file(PathBuf::from(format!(
             "tests/{driver_folder}/target/debug/deps/{driver_folder_underscored}.map"
-        )))
-        .unwrap_or_else(|_| format!("Unable to read source {driver_folder_underscored}.map")),
+        ))),
     );
 
     assert_eq!(
-        try_digest(PathBuf::from(format!(
+        digest_file(PathBuf::from(format!(
             "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
              {driver_folder_underscored}.pdb"
-        )))
-        .unwrap_or_else(|_| format!("Unable to read packaged {driver_folder_underscored}.pdb")),
-        try_digest(PathBuf::from(format!(
+        ))),
+        digest_file(PathBuf::from(format!(
             "tests/{driver_folder}/target/debug/{driver_folder_underscored}.pdb"
         )))
-        .unwrap_or_else(|_| format!("Unable to read source {driver_folder_underscored}.pdb"))
     );
 
     assert_eq!(
-        try_digest(PathBuf::from(format!(
+        digest_file(PathBuf::from(format!(
             "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
              WDRLocalTestCert.cer"
-        )))
-        .unwrap_or_else(|_| "Unable to read packaged WDRLocalTestCert.cer".to_string()),
-        try_digest(PathBuf::from(format!(
+        ))),
+        digest_file(PathBuf::from(format!(
             "tests/{driver_folder}/target/debug/WDRLocalTestCert.cer"
         )))
-        .unwrap_or_else(|_| "Unable to read source WDRLocalTestCert.cer".to_string())
     );
 }
 
@@ -353,75 +347,63 @@ fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_projec
 
         // assert if the files are copied properly
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
                  driver_1.map"
-            ))
-            .expect("Unable to read packaged driver_1.map"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/deps/driver_1.map"
             ))
-            .expect("Unable to read source driver_1.map")
         );
 
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
                  driver_1.pdb"
-            ))
-            .expect("Unable to read packaged driver_1.pdb"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1.pdb"
             ))
-            .expect("Unable to read source driver_1.pdb")
         );
 
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
                  WDRLocalTestCert.cer"
-            ))
-            .expect("Unable to read packaged WDRLocalTestCert.cer"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/WDRLocalTestCert.cer"
             ))
-            .expect("Unable to read source WDRLocalTestCert.cer")
         );
 
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
                  driver_2.map"
-            ))
-            .expect("Unable to read packaged driver_2.map"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/deps/driver_2.map"
             ))
-            .expect("Unable to read source driver_2.map")
         );
 
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
                  driver_2.pdb"
-            ))
-            .expect("Unable to read packaged driver_2.pdb"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2.pdb"
             ))
-            .expect("Unable to read source driver_2.pdb")
         );
 
         assert_eq!(
-            try_digest(Path::new(
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
                  WDRLocalTestCert.cer"
-            ))
-            .expect("Unable to read packaged WDRLocalTestCert.cer"),
-            try_digest(Path::new(
+            )),
+            digest_file(Path::new(
                 "tests/emulated-workspace/umdf-driver-workspace/target/debug/WDRLocalTestCert.cer"
             ))
-            .expect("Unable to read source WDRLocalTestCert.cer")
         );
     });
 }
