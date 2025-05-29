@@ -56,7 +56,7 @@ jobs:
       # Installing cargo-sort from main branch since there is an unreleased fix
       # Ref: https://github.com/DevinR528/cargo-sort/issues/67#issuecomment-2486868511
       - name: Install cargo-sort binary from specific branch
-        run: cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --locked --force
+        run: cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --rev 4a1ecf093649b87fa610aec32a1bdaa4829d416b --locked --force
 
       # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps,
       # -n do not run formatting, --check to only check without modifying files
