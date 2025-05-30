@@ -247,7 +247,7 @@ fn build_driver_project(driver_type: &str) {
 
 #[test]
 #[allow(clippy::too_many_lines)]
-fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_projects_are_built_and_packaged_and_non_driver_rust_projects_failed_and_rest_ignored(
+fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_and_non_driver_projects_are_built_and_packaged_successfully(
 ) {
     with_file_lock(|| {
         set_crt_static_flag();
@@ -260,19 +260,20 @@ fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_projec
         ]);
 
         // assert command output
-        let cmd_assertion = cmd.assert().failure(); // Since setup includes non driver rust project
+        let cmd_assertion = cmd.assert().success();
         let output = cmd_assertion.get_output();
         let stdout = String::from_utf8_lossy(&output.stdout);
 
+        // Matches warning about WDK metadata not being available for non driver project
+        // but a valid rust project
         assert!(stdout.contains(
-            "Error building the child project: rust-project, error: Error Parsing WDK metadata \
-             from Cargo.toml"
-        )); // rust-project is not a driver and it is expected to fail
+            "WDK metadata is not available. Skipping driver build workflow for package: \
+             rust-project"
+        ));
+
         assert!(stdout.contains("Processing completed for package: driver_1"));
         assert!(stdout.contains("Processing completed for package: driver_2"));
-        assert!(stdout.contains(
-        r"One or more rust (possibly driver) projects failed to build in the emulated workspace: "
-    ));
+        assert!(stdout.contains(r"Build completed successfully"));
 
         // assert umdf-driver-workspace driver package
         assert!(PathBuf::from(
