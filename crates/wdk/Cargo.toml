@@ -16,22 +16,22 @@ categories = [
   "os",
 ]
 
-[build-dependencies]
-tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-wdk-build.workspace = true
+[features]
+default = ["alloc"]
+alloc = []
+nightly = ["wdk-sys/nightly"]
 
 [dependencies]
 cfg-if.workspace = true
 wdk-sys.workspace = true
 
+[build-dependencies]
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
+
 [dev-dependencies]
 wdk-sys = { workspace = true, features = ["test-stubs"] }
-
-[features]
-default = ["alloc"]
-alloc = []
-nightly = ["wdk-sys/nightly"]
 
 [lints]
 workspace = true

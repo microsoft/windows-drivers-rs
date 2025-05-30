@@ -1,0 +1,34 @@
+[package]
+name = "kmdf-driver"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.wdk.driver-model]
+driver-type = "KMDF"
+kmdf-version-major = 1
+target-kmdf-version-minor = 33
+
+[lib]
+crate-type = ["cdylib"]
+# Tests from root driver crates must be excluded since there's no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
+test = false
+
+[build-dependencies]
+wdk-build = { path = "../../../../crates/wdk-build" }
+
+[dependencies]
+wdk-alloc = { path = "../../../../crates/wdk-alloc" }
+wdk-panic = { path = "../../../../crates/wdk-panic" }
+wdk-sys = { path = "../../../../crates/wdk-sys" }
+
+[features]
+default = []
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+lto = true
+panic = "abort"
+
+[workspace]

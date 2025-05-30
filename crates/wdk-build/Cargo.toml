@@ -10,8 +10,8 @@ license.workspace = true
 keywords = ["wdk", "windows", "build-dependencies"]
 categories = ["development-tools::build-utils", "development-tools::ffi"]
 
-[build-dependencies]
-rustversion.workspace = true
+[features]
+nightly = []
 
 [dependencies]
 anyhow.workspace = true
@@ -33,12 +33,11 @@ windows = { workspace = true, features = [
   "Win32_System_Registry",
 ] }
 
+[build-dependencies]
+rustversion.workspace = true
+
 [dev-dependencies]
 windows = { workspace = true, features = ["Win32_UI_Shell"] }
-
-[lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = ["cfg(wdk_build_unstable)", "cfg(skip_umdf_static_crt_check)"]
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
@@ -49,6 +48,10 @@ check-cfg = ["cfg(wdk_build_unstable)", "cfg(skip_umdf_static_crt_check)"]
 [lints.rust]
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "forbid"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(wdk_build_unstable)", "cfg(skip_umdf_static_crt_check)"]
 
 [lints.clippy]
 # Lint Groups
@@ -74,6 +77,3 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
-
-[features]
-nightly = []
