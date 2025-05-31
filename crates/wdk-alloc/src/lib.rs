@@ -25,19 +25,16 @@
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 pub use kernel_mode::*;
 
+// Note: to run tests, go to "tests/wdk-alloc-tests" of the root repository
+// and run `cargo test --lib` command.
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 mod kernel_mode {
 
     use core::alloc::{GlobalAlloc, Layout};
 
-    use wdk_sys::{
-        ntddk::{ExAllocatePool2, ExFreePoolWithTag},
-        PAGE_SIZE,
-        POOL_FLAG_NON_PAGED,
-        PVOID,
-        SIZE_T,
-        ULONG,
-    };
+    use wdk_sys::{PAGE_SIZE, POOL_FLAGS, POOL_FLAG_NON_PAGED, PVOID, SIZE_T, ULONG};
+    #[cfg(not(test))]
+    use wdk_sys::ntddk::{ExAllocatePool2, ExFreePoolWithTag};
 
     /// Allocator implementation to use with `#[global_allocator]` to allow use
     /// of [`core::alloc`].
@@ -51,8 +48,19 @@ mod kernel_mode {
     // convenient to reverse the order for readability in tooling (ie. Windbg).
     const RUST_TAG: ULONG = u32::from_ne_bytes(*b"rust");
 
-    // The minimum alignment of pointer returned by ExAllocatePool2.
-    const MIN_POOL_ALIGNMENT: usize = size_of::<*mut u8>() * 2;
+    /// The minimum alignment of pointer returned by ExAllocatePool2.
+    pub const MIN_POOL_ALIGNMENT: usize = size_of::<*mut u8>() * 2;
+
+    type ExAllocatePool2Fn = unsafe extern "C" fn(pool_flags: POOL_FLAGS, number_of_bytes: SIZE_T, tag: ULONG) -> PVOID;
+    type ExFreePoolWithTagFn = unsafe extern "C" fn(p: PVOID, tag: ULONG);
+    #[cfg(test)]
+    const EX_ALLOCATE_POOL2_FN:ExAllocatePool2Fn=super::tests::mock_ex_allocate_pool;
+    #[cfg(test)]
+    const EX_FREE_POOL_WITH_TAG_FN:ExFreePoolWithTagFn=super::tests::mock_ex_free_pool_with_tag;
+    #[cfg(not(test))]
+    const EX_ALLOCATE_POOL2_FN:ExAllocatePool2Fn=ExAllocatePool2;
+    #[cfg(not(test))]
+    const EX_FREE_POOL_WITH_TAG_FN:ExFreePoolWithTagFn=ExFreePoolWithTag;
 
     #[inline]
     fn require_realignment(layout: Layout) -> bool {
@@ -81,7 +89,7 @@ mod kernel_mode {
                     // SAFETY: `ExAllocatePool2` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
                     // since its allocating from `POOL_FLAG_NON_PAGED`
                     let p = unsafe {
-                        ExAllocatePool2(POOL_FLAG_NON_PAGED, size as SIZE_T, RUST_TAG)
+                        EX_ALLOCATE_POOL2_FN(POOL_FLAG_NON_PAGED, size as SIZE_T, RUST_TAG)
                     };
                     if !p.is_null() {
                         // Align the pointer up to the first address that meets alignment requirement.
@@ -112,7 +120,7 @@ mod kernel_mode {
                     unsafe {
                         // Because we know the alignment while in both alloc and dealloc,
                         // we don't need to waste space if the default alignment is small enough.
-                        ExAllocatePool2(POOL_FLAG_NON_PAGED, layout.size() as SIZE_T, RUST_TAG)
+                        EX_ALLOCATE_POOL2_FN(POOL_FLAG_NON_PAGED, layout.size() as SIZE_T, RUST_TAG)
                     }
                 };
             if ptr.is_null() {
@@ -141,8 +149,55 @@ mod kernel_mode {
             // SAFETY: `ExFreePoolWithTag` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
             // since its freeing memory allocated from `POOL_FLAG_NON_PAGED` in `alloc`
             unsafe {
-                ExFreePoolWithTag(p, RUST_TAG);
+                EX_FREE_POOL_WITH_TAG_FN(p, RUST_TAG);
             }
         }
     }
+}
+
+#[cfg(all(test, any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF")))]
+mod tests {
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use wdk_sys::{POOL_FLAGS, PVOID, SIZE_T, ULONG};
+
+    extern crate alloc;
+    use alloc::boxed::Box;
+
+    #[repr(C,align(16))]
+    struct MockPool {
+        buffer:[u8;POOL_SIZE]
+    }
+
+    // For test cases, we use a dumb allocator to mock `ExAllocatePool2`:
+    // Freed memory aren't reused.
+    // The pool has a maximum size of 1MiB.
+    const POOL_SIZE:usize=0x100000;
+    static POOL_BUFFER:MockPool=MockPool{buffer:[0;POOL_SIZE]};
+    // Use AtomicXxx type to grant thread-safety and interior mutability.
+    static POOL_USAGE:AtomicUsize=AtomicUsize::new(0);
+    // The `FREE_TIMES` static could be used for asserting leaks.
+    static FREE_TIMES:AtomicUsize=AtomicUsize::new(0);
+
+    pub(super) unsafe extern "C" fn mock_ex_allocate_pool(_pool_flags:POOL_FLAGS,number_of_bytes:SIZE_T,_tag:ULONG) -> PVOID {
+        let i=POOL_USAGE.fetch_add(number_of_bytes as usize, Ordering::AcqRel);
+        unsafe {
+            POOL_BUFFER.buffer.as_ptr().add(i) as PVOID
+        }
+    }
+
+    pub(super) unsafe extern "C" fn mock_ex_free_pool_with_tag(_p:PVOID,_tag:ULONG) {
+        FREE_TIMES.fetch_add(1,Ordering::AcqRel);
+    }
+
+	use super::{WdkAllocator, MIN_POOL_ALIGNMENT};
+
+	#[global_allocator]
+	static MOCK_ALLOCATOR:WdkAllocator = WdkAllocator;
+
+	#[test]
+	fn basic_mock_and_leak() {
+		let x:Box<u32> = Box::new(12345);
+		assert_eq!((Box::into_raw(x) as usize) & (MIN_POOL_ALIGNMENT - 1), 0);
+        assert_eq!(FREE_TIMES.load(Ordering::SeqCst), 0);
+	}
 }
