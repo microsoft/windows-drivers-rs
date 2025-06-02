@@ -753,6 +753,14 @@ impl Config {
         headers
     }
 
+    /// Constructs and returns the path to the kernel-mode include directory.
+    ///
+    /// This function uses the WDK content root to locate the "Include" directory,
+    /// determines the latest Windows SDK version available, and appends the "km"
+    /// subdirectory to form the full path.
+    ///
+    /// # Returns
+    /// A `PathBuf` representing the path to the kernel-mode include directory.
     fn kernel_mode_include_path(&self) -> PathBuf {
         let include_directory = self.wdk_content_root.join("Include");
         let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())
