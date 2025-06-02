@@ -43,7 +43,7 @@ jobs:
         name: Check TOML files formatting
 
   cargo-sort:
-    name: Sorting dependencies in Cargo.toml
+    name: Check Dependencies are sorted lexicographically
     runs-on: windows-latest
 
     steps:

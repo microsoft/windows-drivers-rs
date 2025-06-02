@@ -114,8 +114,5 @@ private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
 
-[profile.dev]
-lto = true
-
 [profile.release]
 lto = true

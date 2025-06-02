@@ -179,9 +179,9 @@ impl<'a> NewAction<'a> {
         let template_file = TEMPLATES_DIR.get_file(&template_path).ok_or_else(|| {
             NewActionError::TemplateNotFound(template_path.to_string_lossy().into_owned())
         })?;
-        let lib_rs_path = self.path.join("build.rs");
+        let build_rs_path = self.path.join("build.rs");
         self.fs
-            .write_to_file(&lib_rs_path, template_file.contents())?;
+            .write_to_file(&build_rs_path, template_file.contents())?;
         Ok(())
     }
 

@@ -12,13 +12,13 @@
 
     The command can be run from:  
         
-    1. Root of an individual/stand-alone crate: Final package available under the crate's **target** directory - `./target/[target_triple]/[profile]/<driver_crate_name>_package`. 
+    - Root of an individual/stand-alone crate: Final package available under the crate's **target** directory - `./target/<target_triple>/<profile>/<driver_crate_name>_package`.
 
-    2. Root of a workspace: Final package will be available under the workspace's `target` directory - `./target/[target_triple]/[profile]/<driver_crate_name>_package`.
+    - Root of a workspace: Final package will be available under the workspace's `target` directory - `./target/<target_triple>/<profile>/<driver_crate_name>_package`.
             
-    3. Root of a member crate of a workspace: Recognizes the workspace the member is part of, executes the build and package tasks for this member alone. Final package will be available under the workspace's `target` directory. 
+    - Root of a member crate of a workspace: Recognizes the workspace the member is part of, executes the build and package tasks for this member alone. Final package will be available under the workspace's `target` directory. 
         
-    4. Root of an emulated workspace: An emulated workspace is a directory containing one or more Rust workspaces. In this case, `cargo-wdk` builds each workspace individually and the final driver packages can be found under the `target` directory of the specific workspaces/crates.
+    - Root of an emulated workspace: An emulated workspace is a directory containing one or more Rust workspaces. In this case, `cargo-wdk` builds each workspace individually and the final driver packages can be found under the `target` directory of the specific workspaces/crates.
 
     **NOTE**: The `build` command can build workspaces containing both driver and non-driver crates: driver crates are built and packaged, while non-driver crates are only built and the packaging step is skipped.
 
@@ -53,7 +53,7 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
 
 1. `new` command to create a new Rust driver project: 
     ```pwsh
-    cargo wdk new [OPTIONS] [DRIVER_PROJECT_PATH]
+    cargo wdk new [OPTIONS] <DRIVER_PROJECT_PATH>
     ```
     
     Example Usage:

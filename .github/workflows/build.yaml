@@ -73,8 +73,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust_toolchain }}
           targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
+            ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Build
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
