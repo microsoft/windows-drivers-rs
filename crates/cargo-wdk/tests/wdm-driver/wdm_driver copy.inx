@@ -1,0 +1,47 @@
+;
+; wdm_driver.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider=%ManufacturerName%
+DriverVer=03/24/2025,1.0.0.0
+CatalogFile = wdm_driver.cat
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+wdm_driver.sys = 1,,,
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$.10.0...16299 ; %13% support introduced in build 16299
+
+[Standard.NT$ARCH$.10.0...16299]
+%DeviceDesc%=DriverInstall, <hardware_id>
+
+[DriverInstall.NT]
+CopyFiles=Drivers_Dir
+AddService=wdm_driver,0x00000002,DriverService
+
+[Drivers_Dir]
+wdm_driver.sys
+
+[DriverService]
+DisplayName    = %ServiceDisplayName%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\wdm_driver.sys
+
+[Strings]
+ManufacturerName="Sample Manufacturer Name Here" ;TODO: Replace with your manufacturer name
+DiskName="wdm_driver Source Disk"
+DeviceDesc="Sample WDM Driver" ;TODO: Replace with your device description
+ServiceDisplayName="Sample WDM Driver Service" ;TODO: Replace with your service display name

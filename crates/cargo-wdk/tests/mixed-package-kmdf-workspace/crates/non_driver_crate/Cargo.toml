@@ -1,0 +1,9 @@
+[package]
+name = "non_driver_crate"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+
+[dependencies]

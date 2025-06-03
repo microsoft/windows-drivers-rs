@@ -38,8 +38,10 @@ jobs:
           - release
 
         target_triple:
-          - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
 
     steps:
       - name: Checkout Repository
@@ -86,10 +88,11 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
-          targets: ${{ matrix.target_triple }}
+          targets: |
+            ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Build
-        run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --all-features
+        run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
@@ -97,10 +100,20 @@ jobs:
           tool: cargo-make
 
       - name: Run Cargo Make (package-driver-flow) in Workspace
-        run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace
+        run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace
 
       - name: Build Examples (via Cargo Make)
-        run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
+        run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
-        run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }}
+        run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      # Run cargo-wdk on examples
+      - name: Install cargo-wdk
+        run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
+
+      - name: Build & Package Examples (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
+
+      - name: Run build on tests folder (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
