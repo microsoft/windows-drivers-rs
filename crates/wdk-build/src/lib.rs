@@ -755,9 +755,9 @@ impl Config {
 
     /// Constructs and returns the path to the kernel-mode include directory.
     ///
-    /// This function uses the WDK content root to locate the "Include" directory,
-    /// determines the latest Windows SDK version available, and appends the "km"
-    /// subdirectory to form the full path.
+    /// This function uses the WDK content root to locate the "Include"
+    /// directory, determines the latest Windows SDK version available, and
+    /// appends the "km" subdirectory to form the full path.
     ///
     /// # Returns
     /// A `PathBuf` representing the path to the kernel-mode include directory.
