@@ -137,6 +137,8 @@ To maintain the quality of code, tests and tools are required to pass before con
   * `+nightly` is required to use some `nightly` configuration features in [the `rustfmt.toml` config](./rustfmt.toml)
 * Check for consistent `.toml` file formatting: `taplo fmt --check --diff`
   * Running `taplo fmt` resolves these formatting inconsistencies usually
+* Check for sorted sections and dependencies listed in the `Cargo.toml` files: `cargo sort -w -g -n --check`
+  * Running `cargo sort -w -g -n` resolves any formatting inconsistencies.
 
 **_Dependency Analysis:_**
 

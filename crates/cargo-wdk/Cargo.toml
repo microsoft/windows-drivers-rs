@@ -1,0 +1,62 @@
+[package]
+edition.workspace = true
+name = "cargo-wdk"
+version = "0.0.1"
+authors = ["Microsoft"]
+# set to false until the tool is stable and ready to be published
+publish = false
+description = "A Cargo subcommand for building Windows drivers using the Windows Driver Kit (WDK)"
+repository.workspace = true
+license.workspace = true
+keywords = ["wdk", "windows", "cargo"]
+categories = ["build-tools"]
+
+[dependencies]
+anyhow.workspace = true
+cargo_metadata.workspace = true
+clap = { workspace = true, features = ["derive"] }
+clap-verbosity-flag.workspace = true
+fs4.workspace = true
+include_dir.workspace = true
+mockall.workspace = true
+mockall_double.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+wdk-build.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+assert_fs.workspace = true
+predicates.workspace = true
+sha2.workspace = true
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "forbid"
+
+[lints.clippy]
+# Lint Groups
+all = "deny"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+# Individual Lints
+# multiple_unsafe_ops_per_block = "forbid"
+multiple_unsafe_ops_per_block = "deny" # This is lowered to deny since clap generates allow(clippy::restriction) in its Parser and Args derive macros
+# undocumented_unsafe_blocks = "forbid"
+undocumented_unsafe_blocks = "deny" # This is lowered to deny since clap generates allow(clippy::restriction) in its Parser and Args derive macros
+# unnecessary_safety_doc = "forbid"
+unnecessary_safety_doc = "deny" # This is lowered to deny since clap generates allow(clippy::restriction) in its Parser and Args derive macros
+
+[lints.rustdoc]
+bare_urls = "warn"
+broken_intra_doc_links = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_html_tags = "warn"
+invalid_rust_codeblocks = "warn"
+missing_crate_level_docs = "warn"
+private_intra_doc_links = "warn"
+redundant_explicit_links = "warn"
+unescaped_backticks = "warn"
