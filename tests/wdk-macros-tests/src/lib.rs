@@ -3,7 +3,8 @@
 
 use std::{path::PathBuf, sync::LazyLock};
 
-use fs4::fs_std::FileExt;
+// File locking is now available in std::fs::File (stable since Rust 1.88)
+// No additional imports needed for file locking
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
 pub use paste::paste;
@@ -270,7 +271,7 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
 
         // explicitly unlock the target_file to avoid waiting for windows to eventually
         // automatically release the lock when target_file handle is closed
-        FileExt::unlock(&target_file)
+        target_file.unlock()
             .expect("file locks should be successfully released");
     }
 }
