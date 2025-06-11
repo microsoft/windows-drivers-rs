@@ -65,13 +65,13 @@ jobs:
 
       - name: Install WDK (${{ matrix.wdk.version }})
         run: |
-          $wdk = '${{ matrix.wdk.version }}'
+          $ver = '${{ matrix.wdk.version }}'
           if ('${{ matrix.wdk.source }}' -eq 'nuget') {
-            Write-Host "Using pre-installed NuGet to install WDK version $wdk..."
-            nuget install WDK -Version $wdk -Source https://nuget.org -NonInteractive -OutputDirectory C:\WDK
+            Write-Host "Using pre-installed NuGet to install WDK version $ver..."
+            nuget install Microsoft.Windows.WDK -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory C:\WDK
           } else {
-            Write-Host "Using Winget to install WDK version $wdk..."
-            $wdk = "Microsoft.WindowsWDK.$wdk"
+            Write-Host "Using Winget to install WDK version $ver..."
+            $wdk = "Microsoft.WindowsWDK.$ver"
             if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
               Write-Host "$wdk is already installed. Attempting to update..."
               Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
