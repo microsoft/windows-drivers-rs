@@ -15,8 +15,6 @@ driver-type = "WDM"
 
 [lib]
 crate-type = ["cdylib"]
-# Tests from root driver crates must be excluded since there's no way to prevent linker args from being passed to their unit tests: https://github.com/rust-lang/cargo/issues/12663
-test = false
 
 [build-dependencies]
 wdk-build = { path = "../../crates/wdk-build", version = "0.4.0" }
