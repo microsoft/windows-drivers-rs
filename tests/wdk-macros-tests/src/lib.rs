@@ -3,8 +3,9 @@
 
 use std::{path::PathBuf, sync::LazyLock};
 
-// File locking is now available in std::fs::File (stable since Rust 1.88)
-// No additional imports needed for file locking
+// File locking APIs are being stabilized in std::fs::File
+// This migration prepares for the stable file lock APIs
+// See: https://github.com/rust-lang/rust/issues/130994
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
 pub use paste::paste;
