@@ -22,8 +22,6 @@ jobs:
           - version: 10.0.22621 # NI WDK
             source: winget
           - version: 10.0.26100 # GE WDK
-            source: nuget     
-          - version: 10.0.26100.1
             source: nuget
 
         llvm:
