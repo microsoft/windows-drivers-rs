@@ -63,8 +63,8 @@ jobs:
 
       - name: Install WDK (${{ matrix.wdk.version }})
         run: |
+          $ver = '${{ matrix.wdk.version }}'
           if ('${{ matrix.wdk.source }}' -eq 'nuget') {
-            $ver = '${{ matrix.wdk.version }}'
             $arch = '${{ matrix.target_triple.arch }}'
             $outputDir = 'C:\WDK'
             if ($arch -eq 'amd64') {
