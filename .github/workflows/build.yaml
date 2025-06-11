@@ -63,19 +63,21 @@ jobs:
 
       - name: Install WDK (${{ matrix.wdk.version }})
         run: |
-          $ver = '${{ matrix.wdk.version }}'
-          $arch = '${{ matrix.target_triple.arch }}'
-          if ($arch -eq 'amd64') {
-            $arch = 'x64'
-          } elseif ($arch -eq 'arm64') {
-            $arch = 'ARM64'
-          } else {
-            Write-Error "Unsupported architecture: $arch"
-            exit 1
-          }
           if ('${{ matrix.wdk.source }}' -eq 'nuget') {
+            $ver = '${{ matrix.wdk.version }}'
+            $arch = '${{ matrix.target_triple.arch }}'
+            $outputDir = 'C:\WDK'
+            if ($arch -eq 'amd64') {
+              $arch = 'x64'
+            } elseif ($arch -eq 'arm64') {
+              $arch = 'ARM64'
+            } else {
+              Write-Error "Unsupported architecture: $arch"
+              exit 1
+            }
             Write-Host "Using pre-installed NuGet to install WDK version $ver..."
-            nuget install Microsoft.Windows.WDK.$arch -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory C:\WDK
+            nuget install Microsoft.Windows.WDK.$arch -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory $outputDir
+            [System.Environment]::SetEnvironmentVariable('WDKContentRoot', $outputDir, [System.EnvironmentVariableTarget]::Machine)
           } else {
             Write-Host "Using Winget to install WDK version $ver..."
             $wdk = "Microsoft.WindowsWDK.$ver"
