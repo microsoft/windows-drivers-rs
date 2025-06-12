@@ -62,37 +62,11 @@ jobs:
           clang --version
 
       - name: Install WDK (${{ matrix.wdk.version }})
-        run: |
-          $ver = '${{ matrix.wdk.version }}'
-          if ('${{ matrix.wdk.source }}' -eq 'nuget') {
-            $arch = '${{ matrix.target_triple.arch }}'
-            $outputDir = 'C:\WDK'
-            if ($arch -eq 'amd64') {
-              $arch = 'x64'
-            } elseif ($arch -eq 'arm64') {
-              $arch = 'ARM64'
-            } else {
-              Write-Error "Unsupported architecture: $arch"
-              exit 1
-            }
-            Write-Host "Using pre-installed NuGet to install WDK version $ver..."
-            nuget install Microsoft.Windows.WDK.$arch -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory $outputDir
-            $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.$ver\c"
-            Write-Output "WDKContentRoot=$NugetWdkContentRoot" >> $env:GITHUB_ENV
-            $WDKBinRoot = "$NugetWdkContentRoot\bin\10.0.26100.0\$arch"
-            $SDKBinRoot = "$NugetWdkContentRoot\..\Microsoft.Windows.SDK.CPP.10.0.26100.1\c\bin\10.0.26100.0\$arch"
-            Write-Output "PATH=$WDKBinRoot;$SDKBinRoot;$env:PATH" >> $env:GITHUB_ENV
-          } else {
-            Write-Host "Using Winget to install WDK version $ver..."
-            $wdk = "Microsoft.WindowsWDK.$ver"
-            if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
-              Write-Host "$wdk is already installed. Attempting to update..."
-              Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
-            } else {
-              Write-Host "Installing $wdk..."
-              Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
-            }
-          }
+        uses: ./.github/actions/install-wdk
+        with:
+          version: ${{ matrix.wdk.version }}
+          source: ${{ matrix.wdk.source }}
+          arch: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master

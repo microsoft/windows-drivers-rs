@@ -1,0 +1,68 @@
+name: Install WDK
+
+inputs:
+  version:
+    description: WDK version to install.
+    required: true
+  source:
+    description: Source to install WDK from (nuget or winget).
+    required: true
+  arch:
+    description: Target architecture (x64 or ARM64).
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install WDK
+      shell: pwsh
+      run: |
+        $ver = '${{ inputs.version }}'
+        $source = '${{ inputs.source }}'
+        $arch = '${{ inputs.arch }}'
+        $outputDir = "C:\WDK.$ver.$arch"
+
+        if ($ver -notmatch '^10\.0\.\d{5}\.\d{0,4}$') {
+          Write-Error "Invalid version format: $ver. Expected format: 10.0.[5 digit number].[0-4 digit number]"
+          exit 1
+        }
+
+        if ($source -ne 'nuget' -and $source -ne 'winget') {
+          Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
+          exit 1
+        }
+
+        if (Test-Path $outputDir) {
+          Write-Host "Output directory $outputDir already exists. Removing it..."
+          Remove-Item -Recurse -Force $outputDir
+        }
+
+        if ($arch -eq 'amd64') {
+          $arch = 'x64'
+        } elseif ($arch -eq 'arm64') {
+          $arch = 'ARM64'
+        } else {
+          Write-Error "Unsupported architecture: $arch"
+          exit 1
+        }
+
+        if ($source -eq 'nuget') {
+          Write-Host "Trying to install WDK version $ver using nuget CLI..."
+          nuget install Microsoft.Windows.WDK.$arch -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory $outputDir
+          $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.$ver\c"
+          $sdk_version = ($ver.Split('.')[0..2]) -join '.'
+          $WDKBinRoot = "$NugetWdkContentRoot\bin\$sdk_version.0\$arch"
+          $SDKBinRoot = "$outdir\Microsoft.Windows.SDK.CPP.$sdk_version.1\c\bin\$sdk_version.0\$arch"
+          Write-Output "WDKContentRoot=$NugetWdkContentRoot" >> $env:GITHUB_ENV
+          Write-Output "PATH=$WDKBinRoot;$SDKBinRoot;$env:PATH" >> $env:GITHUB_ENV
+        } else {
+          Write-Host "Using Winget to install WDK version $ver..."
+          $wdk = "Microsoft.WindowsWDK.$ver"
+          if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
+            Write-Host "$wdk is already installed. Attempting to update..."
+            Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          } else {
+            Write-Host "Installing $wdk..."
+            Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          }
+        }
