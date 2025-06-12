@@ -22,7 +22,7 @@ runs:
         $arch = '${{ inputs.arch }}'
         $outputDir = "C:\WDK.$ver.$arch"
 
-        if ($ver -notmatch '^10\.0\.\d{5}\.\d{0,4}$') {
+        if ($ver -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
           Write-Error "Invalid version format: $ver. Expected format: 10.0.[5 digit number].[0-4 digit number]"
           exit 1
         }
