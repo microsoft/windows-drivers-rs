@@ -49,7 +49,7 @@ runs:
         if ($source -eq 'nuget') {
           Write-Host "Trying to install WDK version $ver using nuget CLI..."
           nuget install Microsoft.Windows.WDK.$arch -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory $outputDir
-          $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.$ver\c"
+          $NugetWdkContentRoot = "$outdir\Microsoft.Windows.WDK.x64.$ver\c"
           $sdk_version = ($ver.Split('.')[0..2]) -join '.'
           $WDKBinRoot = "$NugetWdkContentRoot\bin\$sdk_version.0\$arch"
           $SDKBinRoot = "$outdir\Microsoft.Windows.SDK.CPP.$sdk_version.1\c\bin\$sdk_version.0\$arch"
