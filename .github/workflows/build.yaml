@@ -79,6 +79,9 @@ jobs:
             nuget install Microsoft.Windows.WDK.$arch -Version $ver -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory $outputDir
             $NugetWdkContentRoot = "C:\WDK\Microsoft.Windows.WDK.x64.$ver\c"
             Write-Output "WDKContentRoot=$NugetWdkContentRoot" >> $env:GITHUB_ENV
+            $WDKBinRoot = "$NugetWdkContentRoot\bin\10.0.26100.0\$arch"
+            $SDKBinRoot = "$NugetWdkContentRoot\..\Microsoft.Windows.SDK.CPP.10.0.26100.1\c\bin\10.0.26100.0\$arch"
+            Write-Output "PATH=$WDKBinRoot;$SDKBinRoot;$env:PATH" >> $env:GITHUB_ENV
           } else {
             Write-Host "Using Winget to install WDK version $ver..."
             $wdk = "Microsoft.WindowsWDK.$ver"
