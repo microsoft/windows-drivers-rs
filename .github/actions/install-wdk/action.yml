@@ -55,8 +55,8 @@ runs:
             exit 1
           }
           Write-Host "Setting WDKContentRoot environment variable..."
-          $env:WDKContentRoot = $wdkDir\Microsoft.Windows.WDK.$arch.$version\c
-          Write-Output "WDKContentRoot=$env:WDKContentRoot" >> $env:GITHUB_ENV
+          $WDKContentRoot = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c"
+          Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
         } else {
           Write-Host "Using Winget to install WDK version $version..."
           $wdk = "Microsoft.WindowsWDK.$version"
