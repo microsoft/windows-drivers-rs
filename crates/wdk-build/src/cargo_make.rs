@@ -545,6 +545,57 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .to_string(),
     };
 
+    let makecert_path = PathBuf::from(&host_windows_sdk_ver_bin_path).join("MakeCert.exe");
+
+    // check if makecert.exe exists in the host path, if not, assume that this is a
+    // nuget wdk package and look for sdk bin paths in the parent directories
+    if !makecert_path.exists() {
+        let parent_wdk_dir = wdk_content_root
+            .parent()
+            .expect("wdk_content_root should have a parent")
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?;
+
+        // version string without QFE version, e.g. 10.0.26100
+        let version = parent_wdk_dir
+            .to_string_lossy()
+            .split('.')
+            .take(3)
+            .collect::<Vec<_>>()
+            .join(".");
+
+        let nuget_package_root = parent_wdk_dir
+            .parent()
+            .expect("parent_wdk_dir should have a parent")
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?;
+
+        let sdk_bin_path = nuget_package_root
+            .join(format!(
+                "Microsoft.Windows.SDK.CPP.{version}.1/c/bin/{version}.0/{arch}",
+                arch = host_arch.as_windows_str()
+            ))
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?;
+
+        // check if makecert.exe exists in sdk_bin_path
+        if !sdk_bin_path.join("makecert.exe").exists() {
+            eprintln!(
+                "makecert.exe not found in {}. Please check WDK installation",
+                sdk_bin_path.display()
+            );
+            return Err(ConfigError::WdkContentRootDetectionError);
+        }
+
+        // prepend the sdk_bin_path to the PATH environment variable
+        prepend_to_semicolon_delimited_env_var(
+            PATH_ENV_VAR,
+            sdk_bin_path
+                .to_str()
+                .expect("sdk_bin_path should only contain valid UTF8"),
+        );
+    }
+
     // Some tools (ex. inf2cat) are only available in the x86 folder
     let x86_windows_sdk_ver_bin_path = wdk_bin_root
         .join("x86")
