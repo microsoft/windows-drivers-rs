@@ -578,10 +578,10 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .canonicalize()?
             .strip_extended_length_path_prefix()?;
 
-        // check if makecert.exe exists in sdk_bin_path
-        if !sdk_bin_path.join("makecert.exe").exists() {
+        // check if MakeCert.exe exists in sdk_bin_path
+        if !sdk_bin_path.join("MakeCert.exe").exists() {
             eprintln!(
-                "makecert.exe not found in {}. Please check WDK installation",
+                "MakeCert.exe not found in {}. Please check WDK installation",
                 sdk_bin_path.display()
             );
             return Err(ConfigError::WdkContentRootDetectionError);
