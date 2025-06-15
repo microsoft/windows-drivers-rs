@@ -18,19 +18,19 @@ runs:
       shell: pwsh
       run: |
         $version = '${{ inputs.version }}'
-        $source = '${{ inputs.source }}'
-        $arch = '${{ inputs.arch }}'
-
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
           Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
           exit 1
         }
-
+        $sdk_version = ($version.Split('.')[0..2]) -join '.'
+        
+        $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
           Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
           exit 1
         }
-
+        
+        $arch = '${{ inputs.arch }}'
         if ($arch -eq 'amd64') {
           $arch = 'x64'
         } elseif ($arch -eq 'arm64') {
@@ -40,6 +40,7 @@ runs:
           exit 1
         }
 
+        
         if ($source -eq 'nuget') {
           $wdkDir = "C:\WDK.$version.$arch"
           if (Test-Path $wdkDir) {
@@ -48,7 +49,6 @@ runs:
           }
           Write-Host "Trying to install WDK version $version using nuget CLI..."
           nuget install Microsoft.Windows.WDK.$arch -Version $version -Source https://api.nuget.org/v3/index.json -NonInteractive -OutputDirectory $wdkDir
-          $sdk_version = ($version.Split('.')[0..2]) -join '.'
           Write-Host "WDK installed to $wdkDir"
           if (-not (Test-Path $wdkDir)) {
             Write-Error "Failed to install dependencies to $wdkDir. Please check the WDK version and source."
@@ -57,6 +57,19 @@ runs:
           Write-Host "Setting WDKContentRoot environment variable..."
           $WDKContentRoot = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c"
           Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
+          
+          Write-Host "Setting WDK_BUILD_INCLUDE_PATH environment variable..."
+          $includePath = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\Include\$sdk_version.0"
+          Write-Output "WDK_BUILD_INCLUDE_PATH=$includePath" >> $env:GITHUB_ENV
+          
+          Write-Host "Setting WDK_BUILD_LIBRARY_PATH environment variable..."
+          $libPath = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\Lib\$sdk_version.0"
+          Write-Output "WDK_BUILD_LIBRARY_PATH=$libPath" >> $env:GITHUB_ENV
+
+          Write-Host "Setting WDK_BUILD_BIN_PATH environment variable..."
+          $binPath = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\tools\10.0.$sdk_version.0\$arch;$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\bin\10.0.$sdk_version.0\$arch;$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\bin\10.0.$sdk_version.0\x86;$wdkDir\Microsoft.Windows.SDK.CPP.10.0.$sdk_version.1\c\bin\10.0.$sdk_version.0\$arch"
+          Write-Output "WDK_BUILD_BIN_PATH=$binPath" >> $env:GITHUB_ENV
+
         } else {
           Write-Host "Using Winget to install WDK version $version..."
           $wdk = "Microsoft.WindowsWDK.$version"
@@ -67,4 +80,18 @@ runs:
             Write-Host "Installing $wdk..."
             Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
           }
+          $WDKContentRoot = "C:\Program Files (x86)\Windows Kits\10"
+          Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
+
+          Write-Host "Setting WDK_BUILD_INCLUDE_PATH environment variable..."
+          $includePath = "C:\Program Files (x86)\Windows Kits\10\Include\$sdk_version.0"
+          Write-Output "WDK_BUILD_INCLUDE_PATH=$includePath" >> $env:GITHUB_ENV
+
+          Write-Host "Setting WDK_BUILD_LIBRARY_PATH environment variable..."
+          $libPath = "C:\Program Files (x86)\Windows Kits\10\Lib\$sdk_version.0"
+          Write-Output "WDK_BUILD_LIBRARY_PATH=$libPath" >> $env:GITHUB_ENV
+
+          Write-Host "Setting WDK_BUILD_BIN_PATH environment variable..."
+          $binPath = "C:\Program Files (x86)\Windows Kits\10\Tools\$sdk_version.0\$arch;C:\Program Files (x86)\Windows Kits\10\bin\$sdk_version.0\$arch;$WDKContentRoot\bin\$sdk_version.0\x86;"
+          Write-Output "WDK_BUILD_BIN_PATH=$binPath" >> $env:GITHUB_ENV
         }

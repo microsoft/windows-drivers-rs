@@ -514,6 +514,11 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 /// [`env::consts::ARCH`] or if the PATH variable contains non-UTF8
 /// characters.
 pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
+    if let Some(bin_paths) = env::var_os("WDK_BUILD_BIN_PATH") {
+        println!("Using WDK_BUILD_BIN_PATH: {bin_paths:?}");
+        prepend_to_semicolon_delimited_env_var("PATH", bin_paths.to_string_lossy().to_owned());
+        return Ok([PATH_ENV_VAR].map(std::string::ToString::to_string));
+    }
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
@@ -545,56 +550,64 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .to_string(),
     };
 
-    let makecert_path = PathBuf::from(&host_windows_sdk_ver_bin_path).join("MakeCert.exe");
+    // let makecert_path = PathBuf::from(&host_windows_sdk_ver_bin_path).join("MakeCert.exe");
 
-    // check if makecert.exe exists in the host path, if not, assume that this is a
-    // nuget wdk package and look for sdk bin paths in the parent directories
-    if !makecert_path.exists() {
-        let parent_wdk_dir = wdk_content_root
-            .parent()
-            .expect("wdk_content_root should have a parent")
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?;
+    // // check if makecert.exe exists in the host path, if not, assume that this is a
+    // // nuget wdk package and look for sdk bin paths in the parent directories
+    // if !makecert_path.exists() {
+    //     let parent_wdk_dir = wdk_content_root
+    //         .parent()
+    //         .expect("wdk_content_root should have a parent")
+    //         .canonicalize()?
+    //         .strip_extended_length_path_prefix()?;
 
-        // version string without QFE version, e.g. 10.0.26100
-        let version = parent_wdk_dir
-            .to_string_lossy()
-            .split('.')
-            .take(3)
-            .collect::<Vec<_>>()
-            .join(".");
-
-        let nuget_package_root = parent_wdk_dir
-            .parent()
-            .expect("parent_wdk_dir should have a parent")
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?;
-
-        let sdk_bin_path = nuget_package_root
-            .join(format!(
-                "Microsoft.Windows.SDK.CPP.{version}.1/c/bin/{version}.0/{arch}",
-                arch = host_arch.as_windows_str()
-            ))
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?;
-
-        // check if MakeCert.exe exists in sdk_bin_path
-        if !sdk_bin_path.join("MakeCert.exe").exists() {
-            eprintln!(
-                "MakeCert.exe not found in {}. Please check WDK installation",
-                sdk_bin_path.display()
-            );
-            return Err(ConfigError::WdkContentRootDetectionError);
-        }
-
-        // prepend the sdk_bin_path to the PATH environment variable
-        prepend_to_semicolon_delimited_env_var(
-            PATH_ENV_VAR,
-            sdk_bin_path
-                .to_str()
-                .expect("sdk_bin_path should only contain valid UTF8"),
-        );
-    }
+    //     // Example: Microsoft.Windows.WDK.x64.10.0.26100.3323
+    //     let parent_dir_file_name = parent_wdk_dir
+    //         .file_name()
+    //         .expect("parent_wdk_dir should have a file name")
+    //         .to_string_lossy()
+    //         .to_string();
+    //     let parts = parent_dir_file_name
+    //         .split('.')
+    //         .collect::<Vec<_>>();
+    //     if parts.len() < 8 || parts[0] != "Microsoft" || parts[1] != "Windows" || parts[2] != "WDK" {
+    //         eprintln!(
+    //             "Invalid WDK content root directory: {}. Please check WDK installation",
+    //             parent_wdk_dir.display()
+    //         );
+    //         return Err(ConfigError::WdkContentRootDetectionError);
+    //     }
+    //     let Some(arch) = parts.get(3) else {
+    //       return Err(ConfigError::WdkContentRootDetectionError);
+    //     };
+    //     let version = parts[4..parts.len()-1].join(".");
+    //     let nuget_package_root = parent_wdk_dir
+    //         .parent()
+    //         .expect("parent_wdk_dir should have a parent")
+    //         .canonicalize()?
+    //         .strip_extended_length_path_prefix()?;
+    //     let sdk_bin_path = nuget_package_root
+    //         .join(format!(
+    //             "Microsoft.Windows.SDK.CPP.{version}.1/c/bin/{version}.0/{arch}",
+    //         ))
+    //         .canonicalize()?
+    //         .strip_extended_length_path_prefix()?;
+    //     // check if MakeCert.exe exists in sdk_bin_path
+    //     // TODO: similar checks for signtool and certmgr as these 3 executables are in SDK bin path for nuget packages
+    //     if !sdk_bin_path.join("MakeCert.exe").exists() {
+    //         eprintln!(
+    //             "MakeCert.exe not found in {}. Please check WDK installation",
+    //             sdk_bin_path.display()
+    //         );
+    //         return Err(ConfigError::WdkContentRootDetectionError);
+    //     }
+    //     prepend_to_semicolon_delimited_env_var(
+    //         PATH_ENV_VAR,
+    //         sdk_bin_path
+    //             .to_str()
+    //             .expect("sdk_bin_path should only contain valid UTF8"),
+    //     );
+    // }
 
     // Some tools (ex. inf2cat) are only available in the x86 folder
     let x86_windows_sdk_ver_bin_path = wdk_bin_root
@@ -604,6 +617,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .to_str()
         .expect("x86_windows_sdk_ver_bin_path should only contain valid UTF8")
         .to_string();
+    
     prepend_to_semicolon_delimited_env_var(
         PATH_ENV_VAR,
         // By putting host path first, host versions of tools are prioritized over
