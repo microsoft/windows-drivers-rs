@@ -40,9 +40,8 @@ runs:
           exit 1
         }
 
-        
         if ($source -eq 'nuget') {
-          $wdkDir = "C:\WDK.$version.$arch"
+          $wdkDir = "C:\NugetContentRoot"
           if (Test-Path $wdkDir) {
             Write-Host "Output directory $wdkDir already exists. Removing it..."
             Remove-Item -Recurse -Force $wdkDir

@@ -518,19 +518,23 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
+    println!("WDK content root: {}", wdk_content_root.display());
 
     let version = env::var("WDK_BUILD_SDK_VERSION")
         .or_else(|_| get_latest_windows_sdk_version(&wdk_content_root.join("Lib")))?
         .trim()
         .to_string();
+    println!("WDK version: {version}");
 
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
+    println!("Host architecture: {}", host_arch.as_windows_str());
 
     let wdk_bin_root = wdk_content_root
         .join(format!("bin/{version}"))
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
+    println!("WDK bin root: {}", wdk_bin_root.display());
 
     let host_windows_sdk_ver_bin_path = match host_arch {
         CpuArchitecture::Amd64 => wdk_bin_root
@@ -548,6 +552,10 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .expect("ARM64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
             .to_string(),
     };
+    println!(
+        "Host Windows SDK version bin path: {}",
+        host_windows_sdk_ver_bin_path
+    );
 
     // Some tools (ex. inf2cat) are only available in the x86 folder
     let x86_windows_sdk_ver_bin_path = wdk_bin_root
@@ -557,7 +565,10 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .to_str()
         .expect("x86_windows_sdk_ver_bin_path should only contain valid UTF8")
         .to_string();
-
+    println!(
+        "x86 Windows SDK version bin path: {}",
+        x86_windows_sdk_ver_bin_path
+    );
     if !makecert_exists_in_paths([
         Path::new(&host_windows_sdk_ver_bin_path),
         Path::new(&x86_windows_sdk_ver_bin_path),
@@ -605,21 +616,31 @@ fn check_nuget_content_root_and_set_sdk_bin_path(
     if !is_nuget_content_root(wdk_content_root) {
         return Err(ConfigError::WdkContentRootDetectionError);
     }
+    println!("Detected NuGet content root: {}", wdk_content_root.display());
     let build_number = utils::get_wdk_version_number(version).map_err(|_| {
         ConfigError::WdkVersionStringFormatError {
             version: version.to_string(),
         }
     })?;
+    println!("WDK build number: {build_number}");
     let parent_wdk_dir = wdk_content_root
         .parent()
         .expect("wdk_content_root should have a parent")
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
+    println!(
+        "Parent WDK directory: {}",
+        parent_wdk_dir.display()
+    );
     let nuget_root_dir = parent_wdk_dir
         .parent()
         .expect("wdk_content_root's parent should have a parent")
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
+    println!(
+        "NuGet root directory: {}",
+        nuget_root_dir.display()
+    );
     let sdk_bin_path = nuget_root_dir
         .join("Microsoft.Windows.SDK.")
         .join(format!("10.0.{build_number}.1"))
@@ -630,6 +651,10 @@ fn check_nuget_content_root_and_set_sdk_bin_path(
         .canonicalize()?
         .strip_extended_length_path_prefix()
         .expect("sdk_bin_path should only contain valid UTF8");
+    println!(
+        "SDK bin path: {}",
+        sdk_bin_path.display()
+    );
     if !makecert_exists_in_paths([sdk_bin_path.as_path()]) {
         return Err(ConfigError::WdkContentRootDetectionError);
     }
