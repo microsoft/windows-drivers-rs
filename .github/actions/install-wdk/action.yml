@@ -18,6 +18,7 @@ runs:
       shell: pwsh
       run: |
         $version = '${{ inputs.version }}'
+        $arch = '${{ inputs.arch }}'
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
           Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
           exit 1
