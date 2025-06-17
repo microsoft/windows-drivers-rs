@@ -264,6 +264,8 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    /// Minifilters support: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/filter-manager-concepts>
+    Filesystem,
 }
 
 impl Default for Config {
@@ -738,6 +740,7 @@ impl Config {
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => self.usb_headers(),
+            ApiSubset::Filesystem => Self::filesystem_headers(),
         }
         .into_iter()
         .map(str::to_string)
@@ -887,6 +890,12 @@ impl Config {
         headers
     }
 
+    fn filesystem_headers() -> Vec<&'static str> {
+        let headers = vec!["fltkernel.h"];
+
+        headers
+    }
+
     /// Determines whether to include the ufxclient.h header based on the Clang
     /// version used by bindgen.
     ///
@@ -940,9 +949,16 @@ impl Config {
             .into_iter()
             .flat_map(|api_subset| {
                 self.headers(api_subset)
-                    .map(|header| format!("#include \"{header}\"\n"))
+                    .map(move |header| format!("#include \"{header}\"\n")).chain(
+                        std::iter::once(String::from(if api_subset == ApiSubset::Filesystem {
+                            r#"#include <initguid.h>
+#undef INITGUID
+#include <guiddef.h>
+"#
+                        } else {""})
+                    ))
             })
-            .collect::<String>()
+            .collect::<String>()        
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
@@ -1042,6 +1058,8 @@ impl Config {
                 // provides no way to set a symbol's name without also exporting the symbol:
                 // https://github.com/rust-lang/rust/issues/67399
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
+                // For the filters (available in kernel mode only)
+                println!("cargo:rustc-link-lib=FltMgr");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -1071,6 +1089,9 @@ impl Config {
                 // Ignore `LNK4257: object file was not compiled for kernel mode; the image
                 // might not run` since `rustc` has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // For the filters (available in kernel mode only)
+                println!("cargo:rustc-link-lib=FltMgr");
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
@@ -1609,6 +1630,27 @@ mod tests {
 #include "wdf.h"
 "#,
             );
+        }
+
+        #[test]
+        fn wdm_with_filesystem() {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+                driver_config: DriverConfig::Wdm,
+                ..Default::default()
+            });
+
+            assert_eq!(
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Filesystem]),
+                r#"#include "ntifs.h"
+#include "ntddk.h"
+#include "ntstrsafe.h"
+#include "fltkernel.h"
+#include <initguid.h>
+#undef INITGUID
+#include <guiddef.h>
+"#,
+            );
+
         }
     }
     mod compute_wdffunctions_symbol_name {
