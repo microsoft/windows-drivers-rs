@@ -562,7 +562,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         Path::new(&host_windows_sdk_ver_bin_path),
         Path::new(&x86_windows_sdk_ver_bin_path),
     ]) {
-        check_nuget_content_root_and_set_sdk_bin_path(&wdk_content_root, host_arch)?;
+        check_nuget_content_root_and_set_sdk_bin_path(&wdk_content_root, &version, host_arch)?;
     }
 
     prepend_to_semicolon_delimited_env_var(
@@ -599,33 +599,22 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 /// x64`.
 fn check_nuget_content_root_and_set_sdk_bin_path(
     wdk_content_root: &Path,
+    version: &str,
     host_arch: CpuArchitecture,
 ) -> Result<(), ConfigError> {
     if !is_nuget_content_root(wdk_content_root) {
         return Err(ConfigError::WdkContentRootDetectionError);
     }
+    let build_number = utils::get_wdk_version_number(version).map_err(|_| {
+        ConfigError::WdkVersionStringFormatError {
+            version: version.to_string(),
+        }
+    })?;
     let parent_wdk_dir = wdk_content_root
         .parent()
         .expect("wdk_content_root should have a parent")
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
-    let version_string = parent_wdk_dir
-        .file_name()
-        .expect("wdk_content_root's parent should have a file name")
-        .to_str()
-        .expect("wdk_content_root's parent should have a valid UTF8 file name")
-        .strip_prefix("Microsoft.Windows.WDK.")
-        .expect("wdk_content_root's parent should have a valid WDK version string");
-    if !crate::utils::validate_wdk_version_format(version_string) {
-        return Err(ConfigError::WdkVersionStringFormatError {
-            version: version_string.to_string(),
-        });
-    }
-    let build_number = utils::get_wdk_version_number(version_string).map_err(|_| {
-        ConfigError::WdkVersionStringFormatError {
-            version: version_string.to_string(),
-        }
-    })?;
     let nuget_root_dir = parent_wdk_dir
         .parent()
         .expect("wdk_content_root's parent should have a parent")
@@ -636,7 +625,7 @@ fn check_nuget_content_root_and_set_sdk_bin_path(
         .join(format!("10.0.{build_number}.1"))
         .join("c")
         .join("bin")
-        .join(format!("10.0.{build_number}.0"))
+        .join(version)
         .join(host_arch.as_windows_str())
         .canonicalize()?
         .strip_extended_length_path_prefix()
