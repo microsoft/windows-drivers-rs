@@ -642,8 +642,7 @@ fn check_nuget_content_root_and_set_sdk_bin_path(
         nuget_root_dir.display()
     );
     let sdk_bin_path = nuget_root_dir
-        .join("Microsoft.Windows.SDK.CPP")
-        .join(format!("10.0.{build_number}.1"))
+        .join(format!("Microsoft.Windows.SDK.CPP.10.0.{build_number}.1"))
         .join("c")
         .join("bin")
         .join(version.to_string())
