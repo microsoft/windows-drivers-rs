@@ -8,7 +8,7 @@ inputs:
     description: Source to install WDK from (nuget or winget).
     required: true
   arch:
-    description: Target architecture (amd64 or arm64).
+    description: Host architecture (x64 or ARM64).
     required: true
 
 runs:
@@ -27,16 +27,6 @@ runs:
         $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
           Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
-          exit 1
-        }
-        
-        $arch = '${{ inputs.arch }}'
-        if ($arch -eq 'amd64') {
-          $arch = 'x64'
-        } elseif ($arch -eq 'arm64') {
-          $arch = 'ARM64'
-        } else {
-          Write-Error "Unsupported architecture: $arch"
           exit 1
         }
 

@@ -592,7 +592,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         wdk_tool_root.display()
     );
     let arch_specific_wdk_tool_root = wdk_tool_root
-        .join(host_arch.as_windows_str().to_lowercase())
+        .join(host_arch.as_windows_str())
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
     println!(
@@ -650,7 +650,7 @@ fn check_nuget_content_root_and_set_sdk_bin_path(
         nuget_root_dir.display()
     );
     let sdk_bin_path = nuget_root_dir
-        .join(format!("Microsoft.Windows.SDK.CPP.10.0.{build_number}.1"))
+        .join(format!("Microsoft.Windows.SDK.CPP.{version}"))
         .join("c")
         .join("bin")
         .join(version.to_string())
