@@ -29,7 +29,7 @@ To install `cargo-wdk`, you need to have [Rust installed on your system](https:/
 Once you have Rust installed, you can install `cargo-wdk` as follows:
 
 ```pwsh
-cargo install --git https://github.com/microsoft/windows-drivers-rs.git --bin cargo-wdk --locked
+cargo install --git https://github.com/microsoft/windows-drivers-rs.git cargo-wdk --locked
 ```
 
 The install command compiles the `cargo-wdk` binary and copies it to Cargo's bin directory - `%USERPROFILE%.cargo\bin`.
