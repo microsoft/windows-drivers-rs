@@ -72,8 +72,9 @@ runs:
             Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
           }
           $WDKContentRoot = "C:\Program Files (x86)\Windows Kits\10"
+          Write-Host "Setting WDKContentRoot environment variable to $WDKContentRoot"
           Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
 
-          Write-Host "Setting WDK_BUILD_SDK_VERSION environment variable..."
+          Write-Host "Setting WDK_BUILD_SDK_VERSION environment variable to $sdk_version..."
           Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version" >> $env:GITHUB_ENV
         }
