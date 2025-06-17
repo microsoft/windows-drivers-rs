@@ -19,8 +19,8 @@ jobs:
     strategy:
       matrix:
         wdk:
-          - version: 10.0.22621 # NI WDK
-            source: winget
+          # - version: 10.0.22621 # NI WDK
+          #   source: winget
           - version: 10.0.26100.3323 # GE WDK
             source: nuget
 

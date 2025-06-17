@@ -587,10 +587,18 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .join(format!("tools/{version}"))
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
+    println!(
+        "WDK tool root: {}",
+        wdk_tool_root.display()
+    );
     let arch_specific_wdk_tool_root = wdk_tool_root
         .join(host_arch.as_windows_str())
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
+    println!(
+        "Architecture-specific WDK tool root: {}",
+        arch_specific_wdk_tool_root.display()
+    );
     prepend_to_semicolon_delimited_env_var(
         PATH_ENV_VAR,
         arch_specific_wdk_tool_root
