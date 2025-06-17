@@ -592,7 +592,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         wdk_tool_root.display()
     );
     let arch_specific_wdk_tool_root = wdk_tool_root
-        .join(host_arch.as_windows_str())
+        .join(host_arch.as_windows_str().to_lowercase())
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
     println!(
