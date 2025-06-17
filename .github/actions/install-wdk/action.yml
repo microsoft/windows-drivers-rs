@@ -59,7 +59,7 @@ runs:
           Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
 
           Write-Host "Setting WDK_BUILD_SDK_VERSION environment variable to $sdk_version..."
-          Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version" >> $env:GITHUB_ENV
+          Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version.0" >> $env:GITHUB_ENV
 
         } else {
           Write-Host "Using Winget to install WDK version $version..."
@@ -72,5 +72,5 @@ runs:
             Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
           }
           Write-Host "Setting WDK_BUILD_SDK_VERSION environment variable to $sdk_version..."
-          Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version" >> $env:GITHUB_ENV
+          Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version.0" >> $env:GITHUB_ENV
         }
