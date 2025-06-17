@@ -27,6 +27,7 @@ use tracing::{instrument, trace};
 use crate::{
     metadata,
     utils::{
+        self,
         detect_wdk_content_root,
         get_latest_windows_sdk_version,
         get_wdk_version_number,
@@ -514,16 +515,14 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 /// [`env::consts::ARCH`] or if the PATH variable contains non-UTF8
 /// characters.
 pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
-    if let Some(bin_paths) = env::var_os("WDK_BUILD_BIN_PATH") {
-        println!("Using WDK_BUILD_BIN_PATH: {bin_paths:?}");
-        prepend_to_semicolon_delimited_env_var("PATH", bin_paths.to_string_lossy().to_owned());
-        return Ok([PATH_ENV_VAR].map(std::string::ToString::to_string));
-    }
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
 
-    let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+    let version = env::var("WDK_BUILD_SDK_VERSION")
+        .or_else(|_| get_latest_windows_sdk_version(&wdk_content_root.join("Lib")))?
+        .trim()
+        .to_string();
 
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
@@ -550,65 +549,6 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             .to_string(),
     };
 
-    // let makecert_path = PathBuf::from(&host_windows_sdk_ver_bin_path).join("MakeCert.exe");
-
-    // // check if makecert.exe exists in the host path, if not, assume that this is a
-    // // nuget wdk package and look for sdk bin paths in the parent directories
-    // if !makecert_path.exists() {
-    //     let parent_wdk_dir = wdk_content_root
-    //         .parent()
-    //         .expect("wdk_content_root should have a parent")
-    //         .canonicalize()?
-    //         .strip_extended_length_path_prefix()?;
-
-    //     // Example: Microsoft.Windows.WDK.x64.10.0.26100.3323
-    //     let parent_dir_file_name = parent_wdk_dir
-    //         .file_name()
-    //         .expect("parent_wdk_dir should have a file name")
-    //         .to_string_lossy()
-    //         .to_string();
-    //     let parts = parent_dir_file_name
-    //         .split('.')
-    //         .collect::<Vec<_>>();
-    //     if parts.len() < 8 || parts[0] != "Microsoft" || parts[1] != "Windows" || parts[2] != "WDK" {
-    //         eprintln!(
-    //             "Invalid WDK content root directory: {}. Please check WDK installation",
-    //             parent_wdk_dir.display()
-    //         );
-    //         return Err(ConfigError::WdkContentRootDetectionError);
-    //     }
-    //     let Some(arch) = parts.get(3) else {
-    //       return Err(ConfigError::WdkContentRootDetectionError);
-    //     };
-    //     let version = parts[4..parts.len()-1].join(".");
-    //     let nuget_package_root = parent_wdk_dir
-    //         .parent()
-    //         .expect("parent_wdk_dir should have a parent")
-    //         .canonicalize()?
-    //         .strip_extended_length_path_prefix()?;
-    //     let sdk_bin_path = nuget_package_root
-    //         .join(format!(
-    //             "Microsoft.Windows.SDK.CPP.{version}.1/c/bin/{version}.0/{arch}",
-    //         ))
-    //         .canonicalize()?
-    //         .strip_extended_length_path_prefix()?;
-    //     // check if MakeCert.exe exists in sdk_bin_path
-    //     // TODO: similar checks for signtool and certmgr as these 3 executables are in SDK bin path for nuget packages
-    //     if !sdk_bin_path.join("MakeCert.exe").exists() {
-    //         eprintln!(
-    //             "MakeCert.exe not found in {}. Please check WDK installation",
-    //             sdk_bin_path.display()
-    //         );
-    //         return Err(ConfigError::WdkContentRootDetectionError);
-    //     }
-    //     prepend_to_semicolon_delimited_env_var(
-    //         PATH_ENV_VAR,
-    //         sdk_bin_path
-    //             .to_str()
-    //             .expect("sdk_bin_path should only contain valid UTF8"),
-    //     );
-    // }
-
     // Some tools (ex. inf2cat) are only available in the x86 folder
     let x86_windows_sdk_ver_bin_path = wdk_bin_root
         .join("x86")
@@ -617,7 +557,14 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .to_str()
         .expect("x86_windows_sdk_ver_bin_path should only contain valid UTF8")
         .to_string();
-    
+
+    if !makecert_exists_in_paths([
+        Path::new(&host_windows_sdk_ver_bin_path),
+        Path::new(&x86_windows_sdk_ver_bin_path),
+    ]) {
+        check_nuget_content_root_and_set_sdk_bin_path(&wdk_content_root, host_arch)?;
+    }
+
     prepend_to_semicolon_delimited_env_var(
         PATH_ENV_VAR,
         // By putting host path first, host versions of tools are prioritized over
@@ -641,6 +588,85 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     );
 
     Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
+}
+
+/// Checks if the `wdk_content_root` is a `NuGet` content root, and if so,
+/// sets the SDK bin path in the PATH environment variable. SDK bin path is
+/// determined based on the package organization. For example, if the WDK
+/// content root is `C:/NuGetPackages/Microsoft.Windows.WDK.10.0.26100.1/c`, the
+/// SDK bin path will be set to
+/// `C:/NuGetPackages/Microsoft.Windows.SDK.10.0.26100.1/c/bin/10.0.26100.0/
+/// x64`.
+fn check_nuget_content_root_and_set_sdk_bin_path(
+    wdk_content_root: &Path,
+    host_arch: CpuArchitecture,
+) -> Result<(), ConfigError> {
+    if !is_nuget_content_root(wdk_content_root) {
+        return Err(ConfigError::WdkContentRootDetectionError);
+    }
+    let parent_wdk_dir = wdk_content_root
+        .parent()
+        .expect("wdk_content_root should have a parent")
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?;
+    let version_string = parent_wdk_dir
+        .file_name()
+        .expect("wdk_content_root's parent should have a file name")
+        .to_str()
+        .expect("wdk_content_root's parent should have a valid UTF8 file name")
+        .strip_prefix("Microsoft.Windows.WDK.")
+        .expect("wdk_content_root's parent should have a valid WDK version string");
+    if !crate::utils::validate_wdk_version_format(version_string) {
+        return Err(ConfigError::WdkVersionStringFormatError {
+            version: version_string.to_string(),
+        });
+    }
+    let build_number = utils::get_wdk_version_number(version_string).map_err(|_| {
+        ConfigError::WdkVersionStringFormatError {
+            version: version_string.to_string(),
+        }
+    })?;
+    let nuget_root_dir = parent_wdk_dir
+        .parent()
+        .expect("wdk_content_root's parent should have a parent")
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?;
+    let sdk_bin_path = nuget_root_dir
+        .join("Microsoft.Windows.SDK.")
+        .join(format!("10.0.{build_number}.1"))
+        .join("c")
+        .join("bin")
+        .join(format!("10.0.{build_number}.0"))
+        .join(host_arch.as_windows_str())
+        .canonicalize()?
+        .strip_extended_length_path_prefix()
+        .expect("sdk_bin_path should only contain valid UTF8");
+    if !makecert_exists_in_paths([sdk_bin_path.as_path()]) {
+        return Err(ConfigError::WdkContentRootDetectionError);
+    }
+    prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, sdk_bin_path.to_string_lossy());
+    Ok(())
+}
+
+/// Checks if `MakeCert.exe` exists in the specified paths.
+fn makecert_exists_in_paths<'a, I>(paths: I) -> bool
+where
+    I: IntoIterator<Item = &'a Path>,
+{
+    paths
+        .into_iter()
+        .any(|path| path.join("MakeCert.exe").exists())
+}
+
+/// Checks if the specified `wdk_content_root` is a `NuGet` content root.
+fn is_nuget_content_root(wdk_content_root: &Path) -> bool {
+    wdk_content_root.ends_with("c")
+        && wdk_content_root
+            .parent()
+            .expect("wdk_content_root should have a parent")
+            .to_string_lossy()
+            .to_string()
+            .contains("Microsoft.Windows.WDK")
 }
 
 /// Forwards the specified environment variables in this process to the parent
@@ -684,29 +710,32 @@ pub fn forward_printed_env_vars(env_vars: impl IntoIterator<Item = impl AsRef<st
 /// WDK content root directory could not be found, or if the WDK version is
 /// ill-formed.
 pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigError> {
-    let Some(wdk_content_root) = detect_wdk_content_root() else {
-        return Err(ConfigError::WdkContentRootDetectionError);
-    };
-    let detected_sdk_version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
-
-    if let Ok(existing_version) = std::env::var(WDK_VERSION_ENV_VAR) {
-        if detected_sdk_version == existing_version {
-            // Skip updating.  This can happen in certain recursive
-            // cargo-make cases.
-            return Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string));
+    let wdk_version = if let Ok(val) = env::var("WDK_BUILD_SDK_VERSION") {
+        val
+    } else {
+        let wdk_content_root =
+            detect_wdk_content_root().ok_or(ConfigError::WdkContentRootDetectionError)?;
+        let detected_sdk_version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+        if let Ok(existing_version) = env::var(WDK_VERSION_ENV_VAR) {
+            if detected_sdk_version == existing_version {
+                // Skip updating.  This can happen in certain recursive
+                // cargo-make cases.
+                return Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string));
+            }
+            // We have a bad version string set somehow.  Return an error.
+            return Err(ConfigError::WdkContentRootDetectionError);
         }
-        // We have a bad version string set somehow.  Return an error.
-        return Err(ConfigError::WdkContentRootDetectionError);
-    }
+        detected_sdk_version
+    };
 
-    if !crate::utils::validate_wdk_version_format(&detected_sdk_version) {
+    if !crate::utils::validate_wdk_version_format(&wdk_version) {
         return Err(ConfigError::WdkVersionStringFormatError {
-            version: detected_sdk_version,
+            version: wdk_version,
         });
     }
 
-    env::set_var(WDK_VERSION_ENV_VAR, detected_sdk_version);
-    Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string))
+    env::set_var(WDK_VERSION_ENV_VAR, &wdk_version);
+    Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string))
 }
 
 /// Sets the `WDK_INFVERIF_SAMPLE_FLAG` environment variable to contain the

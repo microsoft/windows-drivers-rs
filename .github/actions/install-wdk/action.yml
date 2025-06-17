@@ -58,17 +58,8 @@ runs:
           $WDKContentRoot = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c"
           Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
           
-          Write-Host "Setting WDK_BUILD_INCLUDE_PATH environment variable..."
-          $includePath = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\Include\$sdk_version.0"
-          Write-Output "WDK_BUILD_INCLUDE_PATH=$includePath" >> $env:GITHUB_ENV
-          
-          Write-Host "Setting WDK_BUILD_LIBRARY_PATH environment variable..."
-          $libPath = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\Lib\$sdk_version.0"
-          Write-Output "WDK_BUILD_LIBRARY_PATH=$libPath" >> $env:GITHUB_ENV
-
-          Write-Host "Setting WDK_BUILD_BIN_PATH environment variable..."
-          $binPath = "$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\tools\10.0.$sdk_version.0\$arch;$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\bin\10.0.$sdk_version.0\$arch;$wdkDir\Microsoft.Windows.WDK.$arch.$version\c\bin\10.0.$sdk_version.0\x86;$wdkDir\Microsoft.Windows.SDK.CPP.10.0.$sdk_version.1\c\bin\10.0.$sdk_version.0\$arch"
-          Write-Output "WDK_BUILD_BIN_PATH=$binPath" >> $env:GITHUB_ENV
+          Write-Host "Setting WDK_BUILD_SDK_VERSION environment variable..."
+          Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version" >> $env:GITHUB_ENV
 
         } else {
           Write-Host "Using Winget to install WDK version $version..."
@@ -83,15 +74,6 @@ runs:
           $WDKContentRoot = "C:\Program Files (x86)\Windows Kits\10"
           Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
 
-          Write-Host "Setting WDK_BUILD_INCLUDE_PATH environment variable..."
-          $includePath = "C:\Program Files (x86)\Windows Kits\10\Include\$sdk_version.0"
-          Write-Output "WDK_BUILD_INCLUDE_PATH=$includePath" >> $env:GITHUB_ENV
-
-          Write-Host "Setting WDK_BUILD_LIBRARY_PATH environment variable..."
-          $libPath = "C:\Program Files (x86)\Windows Kits\10\Lib\$sdk_version.0"
-          Write-Output "WDK_BUILD_LIBRARY_PATH=$libPath" >> $env:GITHUB_ENV
-
-          Write-Host "Setting WDK_BUILD_BIN_PATH environment variable..."
-          $binPath = "C:\Program Files (x86)\Windows Kits\10\Tools\$sdk_version.0\$arch;C:\Program Files (x86)\Windows Kits\10\bin\$sdk_version.0\$arch;$WDKContentRoot\bin\$sdk_version.0\x86;"
-          Write-Output "WDK_BUILD_BIN_PATH=$binPath" >> $env:GITHUB_ENV
+          Write-Host "Setting WDK_BUILD_SDK_VERSION environment variable..."
+          Write-Output "WDK_BUILD_SDK_VERSION=$sdk_version" >> $env:GITHUB_ENV
         }

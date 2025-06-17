@@ -406,14 +406,16 @@ impl Config {
         // Add windows sdk include paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())?;
-        let windows_sdk_include_path = env::var_os("WDK_BUILD_INCLUDE_PATH").map_or_else(
-            || {
-                println!("WDK_BUILD_INCLUDE_PATH is not set, using default WDK include path");
-                self.wdk_content_root.join("Include").join(sdk_version)
-            },
-            |path| PathBuf::from(path),
-        );
+        let sdk_version = env::var("WDK_BUILD_SDK_VERSION").or_else(|_| {
+            println!(
+                "WDK_BUILD_SDK_VERSION is not set, using latest available SDK version in {} as \
+                 default",
+                include_directory.display()
+            );
+            utils::get_latest_windows_sdk_version(include_directory.as_path())
+        })?;
+
+        let windows_sdk_include_path = include_directory.join(sdk_version);
 
         let crt_include_path = windows_sdk_include_path.join("km/crt");
         if !crt_include_path.is_dir() {
@@ -526,23 +528,32 @@ impl Config {
         // Add windows sdk library paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let sdk_version = utils::get_latest_windows_sdk_version(library_directory.as_path())?;
-        // setting windows_sdk_library_path to path with version string will give us a way to build using specific SDK version rather than using the latest always
-        // however, library_directory is obtained based on wdk_content_root, so we need to ensure same WDKContentRoot is used for both libary directory and the paths in WDK_BUILD_LIBRARY_PATH. Otherwise, SDK and WDF libs may be picked from different WDK which can cause undefined behavior
-        let windows_sdk_library_path = env::var_os("WDK_BUILD_LIBRARY_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                println!("WDK_BUILD_LIBRARY_PATH is not set, using default WDK library path");
-                library_directory.join(sdk_version)
-            })
-            .join(match self.driver_config {
-                        DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                            format!("km/{}", self.cpu_architecture.as_windows_str(),)
-                        }
-                        DriverConfig::Umdf(_) => {
-                            format!("um/{}", self.cpu_architecture.as_windows_str(),)
-                        }
-                    });
+        let sdk_version = env::var("WDK_BUILD_SDK_VERSION").or_else(|_| {
+            println!(
+                "WDK_BUILD_SDK_VERSION is not set, using latest available SDK version in {} as \
+                 default",
+                library_directory.display()
+            );
+            utils::get_latest_windows_sdk_version(library_directory.as_path())
+        })?;
+
+        // setting windows_sdk_library_path to path with version string will give us a
+        // way to build using specific SDK version rather than using the latest always
+        // however, library_directory is obtained based on wdk_content_root, so we need
+        // to ensure same WDKContentRoot is used for both libary directory and the paths
+        // in WDK_BUILD_LIBRARY_PATH. Otherwise, SDK and WDF libs may be picked from
+        // different WDK which can cause undefined behavior
+        let windows_sdk_library_path =
+            library_directory
+                .join(sdk_version)
+                .join(match self.driver_config {
+                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                    DriverConfig::Umdf(_) => {
+                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                });
         if !windows_sdk_library_path.is_dir() {
             return Err(ConfigError::DirectoryNotFound {
                 directory: windows_sdk_library_path.to_string_lossy().into(),
