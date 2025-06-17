@@ -573,7 +573,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     );
 
     let wdk_tool_root = wdk_content_root
-        .join(format!("Tools/{version}"))
+        .join(format!("tools/{version}"))
         .canonicalize()?
         .strip_extended_length_path_prefix()?;
     let arch_specific_wdk_tool_root = wdk_tool_root
