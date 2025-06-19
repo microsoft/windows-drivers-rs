@@ -366,6 +366,16 @@ fn read_registry_key_string_value(
     None
 }
 
+/// Detects the Windows SDK version from the WDK content root directory.
+/// If the `Version_Number` environment variable is set, it uses that.
+/// Otherwise, it attempts to find the latest Windows SDK version in the
+/// `Lib` directory of the WDK content root.
+#[must_use]
+pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, ConfigError> {
+    env::var("Version_Number")
+        .or_else(|_| get_latest_windows_sdk_version(&wdk_content_root.join("Lib")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
