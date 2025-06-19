@@ -92,11 +92,7 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
             "WDKContentRoot was found in environment: {}",
             wdk_content_root
         );
-        let path = Path::new(wdk_content_root.as_str())
-        .canonicalize()
-        .expect("Failed to canonicalize WDKContentRoot path")
-        .strip_extended_length_path_prefix()
-        .expect("Failed to strip extended length path prefix from WDKContentRoot path");
+        let path = Path::new(wdk_content_root.as_str());
         if path.is_dir() {
             return Some(path.to_path_buf());
         }

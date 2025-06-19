@@ -32,7 +32,7 @@ runs:
         }
 
         if ($source -eq 'nuget') {
-          $packages = ".\packages"
+          $packages = "C:\packages"
           Write-Host "Trying nuget restore..."
           nuget restore .\packages.config -PackagesDirectory $packages
           Write-Host "WDK installed to $packages"
