@@ -88,7 +88,11 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // If WDKContentRoot is present in environment(ex. running in an eWDK prompt),
     // use it
     if let Ok(wdk_content_root) = env::var("WDKContentRoot") {
-        let path = Path::new(wdk_content_root.as_str());
+        let path = Path::new(wdk_content_root.as_str())
+        .canonicalize()
+        .expect("Failed to canonicalize WDKContentRoot path")
+        .strip_extended_length_path_prefix()
+        .expect("Failed to strip extended length path prefix from WDKContentRoot path");
         if path.is_dir() {
             return Some(path.to_path_buf());
         }
