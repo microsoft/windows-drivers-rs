@@ -22,28 +22,27 @@ runs:
     - name: Install WDK
       shell: pwsh
       run: |
-        $hostArchArch = '${{ inputs.host }}'
+        $hostArch = '${{ inputs.host }}'
         $targetArch = '${{ inputs.target }}'
+        switch ($targetArch) {
+            'amd64' { $targetArch = 'x64' }
+            'arm64' { $targetArch = 'ARM64' }
+            default {
+                Write-Error "Invalid target architecture: $targetArch. Supported architectures are 'x64' and 'arm64'."
+                exit 1
+            }
+        }
         $version = '${{ inputs.version }}'
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
-          Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
-          exit 1
+            Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
+            exit 1
         }
         $sdkVersion = ($version.Split('.')[0..2]) -join '.'
-        
+
         $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
-          Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
-          exit 1
-        }
-
-        if ($targetArch -eq 'amd64') {
-          $targetArch = 'x64'
-        } elseif ($targetArch -eq 'arm64') {
-          $targetArch = 'arm64'
-        } else {
-          Write-Error "Invalid target architecture: $targetArch. Supported architectures are 'x64' and 'arm64'."
-          exit 1
+            Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
+            exit 1
         }
 
         if ($source -eq 'nuget') {
