@@ -20,8 +20,10 @@ jobs:
     strategy:
       matrix:
         wdk:
-          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
-          - 10.0.26100.1
+          - version: 10.0.22621 # NI WDK
+            source: winget
+          - version: 10.0.26100.3323 # GE WDK
+            source: nuget
 
         llvm:
           - 17.0.6
@@ -58,27 +60,13 @@ jobs:
           }
           clang --version
 
-      - name: Install WDK (${{ matrix.wdk }})
-        if: matrix.wdk == 'Microsoft.WindowsWDK.10.0.22621'
-        run: |
-          if ((Get-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals).Id -eq '${{ matrix.wdk }}') {
-            Write-Host "${{ matrix.wdk }} is already installed. Attempting to update..."
-            Update-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing ${{ matrix.wdk }}..."
-            Install-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          }
-
-      - name: Install ${{ matrix.wdk }} (NuGet)
-        if: startsWith(matrix.wdk, '10.0.')
-        run: |
-          $wdk = '${{ matrix.wdk }}'
-          if ($wdk -match '^10\.0\.\d{5}\.\d{1,4}$') {
-            ./.github/scripts/nuget-install-wdk.ps1 -wdkVersion $wdk
-          } else {
-            Write-Host "WDK version $wdk does not match the required format 10.0.{5 digit number}.{1 to 4 digit number}"
-            exit 1
-          }
+      - name: Install WDK (${{ matrix.wdk.version }})
+        uses: ./.github/actions/install-wdk
+        with:
+          version: ${{ matrix.wdk.version }}
+          source: ${{ matrix.wdk.source }}
+          host: 'x64' # windows-latest is x64-based
+          target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
