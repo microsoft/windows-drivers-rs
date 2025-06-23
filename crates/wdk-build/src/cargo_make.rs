@@ -822,13 +822,20 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .into_iter()
         .filter(|package| package.name == "wdk-build")
         .collect::<Vec<_>>();
-    if wdk_build_package_matches.len() != 1 {
-        return Err(ConfigError::MultipleWdkBuildCratesDetected {
-            package_ids: wdk_build_package_matches
-                .iter()
-                .map(|package_info| package_info.id.clone())
-                .collect(),
-        });
+
+    match wdk_build_package_matches.len() {
+        0 => {
+            return Err(ConfigError::NoWdkBuildCrateDetected);
+        }
+        1 => {}
+        _ => {
+            return Err(ConfigError::MultipleWdkBuildCratesDetected {
+                package_ids: wdk_build_package_matches
+                    .iter()
+                    .map(|package_info| package_info.id.clone())
+                    .collect(),
+            });
+        }
     }
 
     let rust_driver_makefile_toml_path = wdk_build_package_matches[0]

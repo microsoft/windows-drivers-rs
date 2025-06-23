@@ -1,0 +1,13 @@
+use wdk_sys::{
+   PDRIVER_OBJECT,
+   NTSTATUS,
+   PCUNICODE_STRING,
+};
+
+#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
+pub unsafe extern "system" fn driver_entry(
+   _driver: PDRIVER_OBJECT,
+   _registry_path: PCUNICODE_STRING,
+) -> NTSTATUS {
+   0
+}

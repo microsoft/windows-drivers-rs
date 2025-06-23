@@ -14,12 +14,6 @@ exclude = [
 ]
 resolver = "3"
 
-[profile.dev]
-lto = true
-
-[profile.release]
-lto = true
-
 [workspace.package]
 edition = "2021"
 rust-version = "1.84.0"
@@ -38,24 +32,32 @@ wdk-sys = { path = "crates/wdk-sys", version = "0.4.0" }
 
 # External Crates
 anyhow = "1.0.97"
+assert_cmd = "2.0.14"
+assert_fs = "1.1.2"
 bindgen = "0.71.0"
 camino = "1.1.9"
 cargo_metadata = "0.19.2"
 cc = "1.2.17"
 cfg-if = "1.0.0"
-clap = "4.5.13"
-clap-cargo = "0.14.1"
-fs4 = "0.12.0"
+clap = "4.5.40"
+clap-cargo = "0.15.2"
+clap-verbosity-flag = "3.0.2"
+fs4 = "0.13.1"
+include_dir = "0.7.4"
 itertools = "0.13.0"
+mockall = "0.13.1"
+mockall_double = "0.3.1"
 paste = "1.0.15"
+predicates = "3.1.0"
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.94"
 quote = "1.0.40"
 rustversion = "1.0.20"
 scratch = "1.0"
+semver = "1.0.26"
 serde = "1.0"
 serde_json = "1.0"
-semver = "1.0.26"
+sha2 = "0.10.8"
 syn = "2.0.100"
 thiserror = "2.0.12"
 tracing = "0.1.40"
@@ -111,3 +113,6 @@ missing_crate_level_docs = "warn"
 private_intra_doc_links = "warn"
 redundant_explicit_links = "warn"
 unescaped_backticks = "warn"
+
+[profile.release]
+lto = true

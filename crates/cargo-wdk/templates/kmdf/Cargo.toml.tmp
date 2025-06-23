@@ -1,0 +1,27 @@
+[package.metadata.wdk.driver-model]
+driver-type = "KMDF"
+kmdf-version-major = 1
+target-kmdf-version-minor = 33
+
+[lib]
+crate-type = ["cdylib"]
+
+[build-dependencies]
+wdk-build = "0.3.0"
+
+[dependencies]
+wdk = "0.3.0"
+wdk-alloc = "0.3.0"
+wdk-panic = "0.3.0"
+wdk-sys = "0.3.0"
+
+[features]
+default = []
+nightly = ["wdk/nightly", "wdk-sys/nightly"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+lto = true
+panic = "abort"
