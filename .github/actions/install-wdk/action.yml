@@ -22,8 +22,8 @@ runs:
     - name: Install WDK
       shell: pwsh
       run: |
-        $host = '${{ inputs.host-arch }}'
-        $target = '${{ inputs.target-arch }}'
+        $host = '${{ inputs.host }}'
+        $target = '${{ inputs.target }}'
         $version = '${{ inputs.version }}'
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
           Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
