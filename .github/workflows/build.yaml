@@ -66,7 +66,8 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          arch: "x64" # windows-latest runner runs on x64 architecture
+          host: "x64" # windows-latest is x64-based
+          target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master

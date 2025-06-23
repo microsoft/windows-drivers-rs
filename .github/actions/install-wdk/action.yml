@@ -7,10 +7,12 @@ inputs:
   source:
     description: Source to install WDK from (nuget or winget).
     required: true
-  host-arch:
+  # required to set WDKBinRoot and WDKToolRoot based on the host architecture when using nuget
+  host:
     description: Host architecture (x64 or ARM64).
     required: true
-  target-arch:
+  # required to set WDKContentRoot based on the target architecture when using nuget
+  target:
     description: Target architecture (x64 or ARM64).
     required: true
 
