@@ -26,8 +26,11 @@ jobs:
           - 17.0.6
 
         target_triple:
-          - x86_64-pc-windows-msvc
-          # - aarch64-pc-windows-msvc FIXME: find a way to validate the local makefile on aarch64
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          # - name: aarch64-pc-windows-msvc FIXME: find a way to validate on aarch64
+          #   arch: arm64
+          
 
     steps:
       - name: Checkout Repository
