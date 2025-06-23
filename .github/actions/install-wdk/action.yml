@@ -7,8 +7,11 @@ inputs:
   source:
     description: Source to install WDK from (nuget or winget).
     required: true
-  arch:
+  host-arch:
     description: Host architecture (x64 or ARM64).
+    required: true
+  target-arch:
+    description: Target architecture (x64 or ARM64).
     required: true
 
 runs:
@@ -17,7 +20,8 @@ runs:
     - name: Install WDK
       shell: pwsh
       run: |
-        $arch = '${{ inputs.arch }}'
+        $host = '${{ inputs.host-arch }}'
+        $target = '${{ inputs.target-arch }}'
         $version = '${{ inputs.version }}'
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
           Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
@@ -40,14 +44,19 @@ runs:
             Write-Error "Failed to install dependencies to $packages. Please check the WDK version and source."
             exit 1
           }
-          Write-Host "Setting WDKContentRoot environment variable to $WDKContentRoot..."
-          $WDKContentRoot = "$packages\Microsoft.Windows.WDK.$arch.$version\c"
-          Write-Output "WDKContentRoot=$WDKContentRoot" >> $env:GITHUB_ENV
+          Write-Host "Setting WDKContentRoot environment variable..."
+          Write-Output "WDKContentRoot=$packages\Microsoft.Windows.WDK.$target.$version\c\" >> $env:GITHUB_ENV
 
-          Write-Host "Setting Version_Number environment variable to $sdk_version..."
+          Write-Host "Setting Version_Number environment variable..."
           Write-Output "Version_Number=$sdk_version.0" >> $env:GITHUB_ENV
 
-          Write-Host "Setting WindowsSdkBinPath environment variable to $WindowsSdkBinPath..."
+          Write-Host "Setting WDKBinRoot environment variable..."
+          Write-Output "WDKBinRoot=$packages\Microsoft.Windows.WDK.$host.$version\c\bin" >> $env:GITHUB_ENV
+
+          Write-Host "Setting WDKToolRoot environment variable..."
+          Write-Output "WDKToolRoot=$packages\Microsoft.Windows.WDK.$host.$version\c\tools" >> $env:GITHUB_ENV
+
+          Write-Host "Setting WindowsSdkBinPath environment variable..."
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
         } else {
           Write-Host "Using Winget to install WDK version $version..."

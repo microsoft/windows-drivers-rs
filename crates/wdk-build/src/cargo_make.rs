@@ -17,6 +17,7 @@ use std::{
     panic::UnwindSafe,
     path::{Path, PathBuf},
     process::Command,
+    string,
 };
 
 use anyhow::Context;
@@ -26,9 +27,7 @@ use tracing::{instrument, trace};
 
 use crate::{
     metadata,
-    utils::{
-        detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number, PathExt
-    },
+    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number, PathExt},
     ConfigError,
     CpuArchitecture,
 };
@@ -524,32 +523,20 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .expect("The rust standard library should always set env::consts::ARCH");
     println!("Host architecture: {}", host_arch.as_windows_str());
 
-    let wdk_bin_root = wdk_content_root
-        .join(format!("bin/{sdk_version}"))
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?;
+    let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version)?;
     println!("WDK bin root: {}", wdk_bin_root.display());
 
-    let host_windows_sdk_ver_bin_path = match host_arch {
-        CpuArchitecture::Amd64 => wdk_bin_root
-            .join(host_arch.as_windows_str())
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?
-            .to_str()
-            .expect("x64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
-            .to_string(),
-        CpuArchitecture::Arm64 => wdk_bin_root
-            .join(host_arch.as_windows_str())
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?
-            .to_str()
-            .expect("ARM64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
-            .to_string(),
-    };
-    println!(
-        "Host Windows SDK version bin path: {}",
-        host_windows_sdk_ver_bin_path
-    );
+    let host_windows_sdk_ver_bin_path = wdk_bin_root
+        .join(host_arch.as_windows_str())
+        .canonicalize()?
+        .strip_extended_length_path_prefix()?
+        .to_str()
+        .expect(&format!(
+            "{} host_windows_sdk_ver_bin_path should only contain valid UTF8",
+            host_arch.as_windows_str()
+        ))
+        .to_string();
+    println!("Host Windows SDK version bin path: {host_windows_sdk_ver_bin_path}");
 
     // Some tools (ex. inf2cat) are only available in the x86 folder
     let x86_windows_sdk_ver_bin_path = wdk_bin_root
@@ -559,13 +546,11 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .to_str()
         .expect("x86_windows_sdk_ver_bin_path should only contain valid UTF8")
         .to_string();
-    println!(
-        "x86 Windows SDK version bin path: {}",
-        x86_windows_sdk_ver_bin_path
-    );
+    println!("x86 Windows SDK version bin path: {x86_windows_sdk_ver_bin_path}");
 
     // If the WindowsSdkBinPath environment variable is set, prepend it to the
-    // PATH before adding WDK bin and tools directories.
+    // PATH before adding WDK bin and tools directories. Used in eWDK cmd prompt and
+    // when nuget WDK packages are used
     if let Ok(sdk_bin_path) = env::var("WindowsSdkBinPath") {
         // Validate the path by canonicalizing it
         let sdk_bin_path = PathBuf::from(sdk_bin_path)
@@ -586,27 +571,43 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
     );
 
-    let wdk_tool_root = wdk_content_root
-        .join(format!("tools/{sdk_version}"))
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?;
+    let wdk_tool_root = get_wdk_tools_root(wdk_content_root, sdk_version)?;
     println!("WDK tool root: {}", wdk_tool_root.display());
-    let arch_specific_wdk_tool_root = wdk_tool_root
+    let host_windows_sdk_version_tool_path = wdk_tool_root
         .join(host_arch.as_windows_str())
         .canonicalize()?
-        .strip_extended_length_path_prefix()?;
-    println!(
-        "Architecture-specific WDK tool root: {}",
-        arch_specific_wdk_tool_root.display()
-    );
-    prepend_to_semicolon_delimited_env_var(
-        PATH_ENV_VAR,
-        arch_specific_wdk_tool_root
-            .to_str()
-            .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
-    );
+        .strip_extended_length_path_prefix()?
+        .to_str()
+        .expect("arch_specific_wdk_tool_root should only contain valid UTF8")
+        .to_string();
+    println!("Architecture-specific WDK tool root: {host_windows_sdk_version_tool_path}");
+    prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
-    Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([PATH_ENV_VAR].map(string::ToString::to_string))
+}
+
+fn get_wdk_tools_root(
+    wdk_content_root: PathBuf,
+    sdk_version: String,
+) -> Result<PathBuf, ConfigError> {
+    env::var("WDKToolRoot")
+        .map(PathBuf::from)
+        .or(Ok(wdk_content_root
+            .join(format!("tools/{sdk_version}"))
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?))
+}
+
+fn get_wdk_bin_root(
+    wdk_content_root: &PathBuf,
+    sdk_version: &String,
+) -> Result<PathBuf, ConfigError> {
+    env::var("WDKBinRoot")
+        .map(PathBuf::from)
+        .or(Ok(wdk_content_root
+            .join(format!("bin/{sdk_version}"))
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?))
 }
 
 /// Forwards the specified environment variables in this process to the parent
@@ -653,7 +654,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
-    
+
     let detected_sdk_version = detect_windows_sdk_version(&wdk_content_root)?;
 
     if let Ok(existing_version) = std::env::var(WDK_VERSION_ENV_VAR) {
