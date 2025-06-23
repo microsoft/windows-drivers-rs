@@ -37,6 +37,15 @@ runs:
           exit 1
         }
 
+        if ($targetArch -eq 'amd64') {
+          $targetArch = 'x64'
+        } elseif ($targetArch -eq 'arm64') {
+          $targetArch = 'arm64'
+        } else {
+          Write-Error "Invalid target architecture: $targetArch. Supported architectures are 'x64' and 'arm64'."
+          exit 1
+        }
+
         if ($source -eq 'nuget') {
           $packages = "C:\packages"
           Write-Host "Trying nuget restore..."
