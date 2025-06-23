@@ -71,11 +71,11 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Doc
         # proc-macro crates must be excluded to avoid cargo doc bug: https://github.com/rust-lang/cargo/issues/10368
-        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-macros --all-features
+        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --exclude wdk-macros --all-features
 
       - name: Run Cargo Doc w/ proc-macro crates
         if: matrix.target_triple == 'x86_64-pc-windows-msvc'

@@ -28,7 +28,7 @@ jobs:
         target_triple:
           - name: x86_64-pc-windows-msvc
             arch: amd64
-          # - name: aarch64-pc-windows-msvc FIXME: find a way to validate on aarch64
+          # - name: aarch64-pc-windows-msvc FIXME: validate on aarch64
           #   arch: arm64
           
 
@@ -59,23 +59,23 @@ jobs:
           host: 'x64' # windows-latest is x64-based
           target: ${{ matrix.target_triple.arch }}
 
-      - name: Install Nightly Rust Toolchain (${{ matrix.target_triple }})
+      - name: Install Nightly Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Beta Rust Toolchain (${{ matrix.target_triple }})
+      - name: Install Beta Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@beta
         with:
           components: clippy
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Stable Rust Toolchain (${{ matrix.target_triple }})
+      - name: Install Stable Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2

@@ -75,10 +75,10 @@ jobs:
         with:
           toolchain: ${{ matrix.rust_toolchain }}
           components: clippy
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Clippy
-        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-targets --all-features
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features
 
   unused_deps:
     name: Detect Unused Cargo Dependencies
