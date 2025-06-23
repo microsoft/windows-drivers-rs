@@ -88,10 +88,6 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
     // If WDKContentRoot is present in environment(ex. running in an eWDK prompt),
     // use it
     if let Ok(wdk_content_root) = env::var("WDKContentRoot") {
-        println!(
-            "WDKContentRoot was found in environment: {}",
-            wdk_content_root
-        );
         let path = Path::new(wdk_content_root.as_str());
         if path.is_dir() {
             return Some(path.to_path_buf());
@@ -371,10 +367,15 @@ fn read_registry_key_string_value(
 }
 
 /// Detects the Windows SDK version from the WDK content root directory.
-/// If the `Version_Number` environment variable is set, it uses that.
-/// Otherwise, it attempts to find the latest Windows SDK version in the
-/// `Lib` directory of the WDK content root.
-#[must_use]
+///
+/// # Arguments
+/// * `wdk_content_root` - A reference to the path where the WDK content root is
+///   located.
+///
+/// # Errors
+///
+/// Returns a `ConfigError::DirectoryNotFound` error if the directory provided
+/// does not exist.
 pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, ConfigError> {
     env::var("Version_Number")
         .or_else(|_| get_latest_windows_sdk_version(&wdk_content_root.join("Lib")))
