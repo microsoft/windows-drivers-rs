@@ -22,14 +22,14 @@ runs:
     - name: Install WDK
       shell: pwsh
       run: |
-        $host = '${{ inputs.host }}'
-        $target = '${{ inputs.target }}'
+        $hostArchArch = '${{ inputs.host }}'
+        $targetArch = '${{ inputs.target }}'
         $version = '${{ inputs.version }}'
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
           Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
           exit 1
         }
-        $sdk_version = ($version.Split('.')[0..2]) -join '.'
+        $sdkVersion = ($version.Split('.')[0..2]) -join '.'
         
         $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
@@ -47,16 +47,16 @@ runs:
             exit 1
           }
           Write-Host "Setting WDKContentRoot environment variable..."
-          Write-Output "WDKContentRoot=$packages\Microsoft.Windows.WDK.$target.$version\c\" >> $env:GITHUB_ENV
+          Write-Output "WDKContentRoot=$packages\Microsoft.Windows.WDK.$targetArch.$version\c\" >> $env:GITHUB_ENV
 
           Write-Host "Setting Version_Number environment variable..."
-          Write-Output "Version_Number=$sdk_version.0" >> $env:GITHUB_ENV
+          Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV
 
           Write-Host "Setting WDKBinRoot environment variable..."
-          Write-Output "WDKBinRoot=$packages\Microsoft.Windows.WDK.$host.$version\c\bin" >> $env:GITHUB_ENV
+          Write-Output "WDKBinRoot=$packages\Microsoft.Windows.WDK.$hostArch.$version\c\bin" >> $env:GITHUB_ENV
 
           Write-Host "Setting WDKToolRoot environment variable..."
-          Write-Output "WDKToolRoot=$packages\Microsoft.Windows.WDK.$host.$version\c\tools" >> $env:GITHUB_ENV
+          Write-Output "WDKToolRoot=$packages\Microsoft.Windows.WDK.$hostArch.$version\c\tools" >> $env:GITHUB_ENV
 
           Write-Host "Setting WindowsSdkBinPath environment variable..."
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
@@ -70,6 +70,6 @@ runs:
             Write-Host "Installing $wdk..."
             Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
           }
-          Write-Host "Setting Version_Number environment variable to $sdk_version..."
-          Write-Output "Version_Number=$sdk_version.0" >> $env:GITHUB_ENV
+          Write-Host "Setting Version_Number environment variable to $sdkVersion..."
+          Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV
         }
