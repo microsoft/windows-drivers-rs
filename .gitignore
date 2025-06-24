@@ -1,4 +1,3 @@
 target/
-packages/
 # ignore lock file created during cargo-wdk's integration test runs
 crates/cargo-wdk/cargo-wdk-test.lock
