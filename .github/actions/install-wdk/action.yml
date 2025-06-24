@@ -23,6 +23,7 @@ runs:
       shell: pwsh
       run: |
         $hostArch = '${{ inputs.host }}'
+        
         $targetArch = '${{ inputs.target }}'
         switch ($targetArch) {
             'amd64' { $targetArch = 'x64' }
@@ -32,28 +33,38 @@ runs:
                 exit 1
             }
         }
+        
         $version = '${{ inputs.version }}'
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
             Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
             exit 1
         }
         $sdkVersion = ($version.Split('.')[0..2]) -join '.'
-
+        
         $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
             Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
             exit 1
         }
-
+        
         if ($source -eq 'nuget') {
+        
           $packages = "C:\packages"
-          Write-Host "Trying nuget restore..."
-          nuget restore .\packages.config -PackagesDirectory $packages
-          Write-Host "WDK installed to $packages"
+        
+          Write-Host "Trying nuget restore..."    
+          try {
+              nuget install Microsoft.Windows.SDK.CPP -Version $version -OutputDirectory $packages
+              nuget install Microsoft.Windows.WDK.x64 -Version $version -OutputDirectory $packages
+              nuget install Microsoft.Windows.WDK.arm64 -Version $version -OutputDirectory $packages
+          } catch {
+              Write-Error "Failed to install NuGet packages: $_"
+              exit 1
+          }
           if (-not (Test-Path $packages)) {
-            Write-Error "Failed to install dependencies to $packages. Please check the WDK version and source."
+            Write-Error "$packages path could not be found. Please check the WDK version and source."
             exit 1
           }
+        
           Write-Host "Setting WDKContentRoot environment variable..."
           Write-Output "WDKContentRoot=$packages\Microsoft.Windows.WDK.$targetArch.$version\c\" >> $env:GITHUB_ENV
 
@@ -68,9 +79,12 @@ runs:
 
           Write-Host "Setting WindowsSdkBinPath environment variable..."
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
+        
         } else {
+        
           Write-Host "Using Winget to install WDK version $version..."
           $wdk = "Microsoft.WindowsWDK.$version"
+        
           if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
             Write-Host "$wdk is already installed. Attempting to update..."
             Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
@@ -78,6 +92,8 @@ runs:
             Write-Host "Installing $wdk..."
             Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
           }
+        
           Write-Host "Setting Version_Number environment variable to $sdkVersion..."
           Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV
+          
         }
