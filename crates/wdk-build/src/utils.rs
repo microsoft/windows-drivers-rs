@@ -396,7 +396,7 @@ pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, Con
 ///
 /// # Examples
 /// Given a directory structure:
-/// ```
+/// ```text
 /// /some/path/
 /// ├── 1.4/
 /// ├── 1.5/
