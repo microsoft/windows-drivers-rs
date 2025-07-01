@@ -37,6 +37,7 @@ windows = { workspace = true, features = [
 rustversion.workspace = true
 
 [dev-dependencies]
+assert_fs.workspace = true
 windows = { workspace = true, features = ["Win32_UI_Shell"] }
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157

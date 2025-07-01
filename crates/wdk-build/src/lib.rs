@@ -520,30 +520,12 @@ impl Config {
     /// exist.
     pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
-
-        let library_directory = self.wdk_content_root.join("Lib");
-
         let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
+
         // Add windows sdk library paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
-
-        let windows_sdk_library_path =
-            library_directory
-                .join(sdk_version)
-                .join(match self.driver_config {
-                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
-                    }
-                    DriverConfig::Umdf(_) => {
-                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
-                    }
-                });
-        if !windows_sdk_library_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: windows_sdk_library_path.to_string_lossy().into(),
-            });
-        }
+        let windows_sdk_library_path = self.arch_sdk_library_path(sdk_version)?;
         library_paths.push(
             windows_sdk_library_path
                 .canonicalize()?
@@ -551,6 +533,7 @@ impl Config {
         );
 
         // Add other driver type-specific library paths
+        let library_directory = self.wdk_content_root.join("Lib");
         match &self.driver_config {
             DriverConfig::Wdm => (),
             DriverConfig::Kmdf(kmdf_config) => {
@@ -595,6 +578,46 @@ impl Config {
         // precedence
         library_paths.reverse();
         Ok(library_paths.into_iter())
+    }
+
+    /// Constructs the architecture-specific Windows SDK library path using the
+    /// provided SDK Version.
+    ///
+    /// Builds the library path following the Windows SDK convention:
+    /// `{library_directory}/{sdk_version}/{km|um}/{architecture}/`
+    ///
+    /// # Arguments
+    ///
+    /// * `sdk_version` - Windows SDK version string (e.g., "10.0.22621.0")
+    ///
+    /// # Returns
+    ///
+    /// The constructed library path if it exists, otherwise
+    /// `ConfigError::DirectoryNotFound`.
+    ///
+    /// # Examples
+    ///
+    /// KMDF/AMD64: `C:\...\Lib\10.0.22621.0\km\x64`
+    /// UMDF/ARM64: `C:\...\Lib\10.0.22621.0\um\arm64`
+    fn arch_sdk_library_path(&self, sdk_version: String) -> Result<PathBuf, ConfigError> {
+        let windows_sdk_library_path =
+            self.wdk_content_root
+                .join("Lib")
+                .join(sdk_version)
+                .join(match self.driver_config {
+                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                    DriverConfig::Umdf(_) => {
+                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                });
+        if !windows_sdk_library_path.is_dir() {
+            return Err(ConfigError::DirectoryNotFound {
+                directory: windows_sdk_library_path.to_string_lossy().into(),
+            });
+        }
+        Ok(windows_sdk_library_path)
     }
 
     /// Return an iterator of strings that represent compiler definitions
@@ -871,11 +894,19 @@ impl Config {
         }
 
         if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
+            let ucx_header_path = self
+                .latest_ucx_header_path()
+                .map_err(|e| {
+                    tracing::error!("Failed to get latest UCX header: {e}");
+                    e
+                })
+                .expect("Failed to get UCX header. Please verify WDK installation");
+
             headers.extend([
                 "ucm/1.0/UcmCx.h",
                 "UcmTcpci/1.0/UcmTcpciCx.h",
                 "UcmUcsi/1.0/UcmucsiCx.h",
-                "ucx/1.6/ucxclass.h",
+                ucx_header_path,
                 "ude/1.1/UdeCx.h",
                 "ufx/1.1/ufxbase.h",
                 "ufxproprietarycharger.h",
@@ -887,6 +918,29 @@ impl Config {
             }
         }
         headers
+    }
+
+    fn latest_ucx_header_path(&self) -> Result<&'static str, ConfigError> {
+        let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
+        let ucx_header_root_dir = self
+            .arch_sdk_library_path(sdk_version)?
+            .join("ucx")
+            .canonicalize()?
+            .strip_extended_length_path_prefix()?;
+
+        // Find the latest version of UCX headers in the directory
+        let max_version =
+            utils::find_max_version_in_directory(&ucx_header_root_dir).ok_or_else(|| {
+                ConfigError::DirectoryNotFound {
+                    directory: format!(
+                        "No UCX version directories found in {}",
+                        ucx_header_root_dir.display()
+                    ),
+                }
+            })?;
+
+        let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
+        Ok(Box::leak(path.into_boxed_str()))
     }
 
     /// Determines whether to include the ufxclient.h header based on the Clang
