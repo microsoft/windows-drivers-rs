@@ -1165,10 +1165,7 @@ impl Config {
         let max_version =
             utils::find_max_version_in_directory(&ucx_header_root_dir).ok_or_else(|| {
                 ConfigError::DirectoryNotFound {
-                    directory: format!(
-                        "No UCX version directories found in {}",
-                        ucx_header_root_dir.display()
-                    ),
+                    directory: ucx_header_root_dir.to_string_lossy().into(),
                 }
             })?;
 
