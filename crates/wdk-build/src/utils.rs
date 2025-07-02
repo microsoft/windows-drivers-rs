@@ -366,6 +366,43 @@ fn read_registry_key_string_value(
     None
 }
 
+/// Finds the maximum version in a directory where subdirectories are named with
+/// version format "x.y"
+///
+/// # Arguments
+/// * `directory_path` - The path to the directory to search for version
+///   subdirectories
+///
+/// # Returns
+/// * `Some((major, minor))` - The maximum version found as a tuple of (major,
+///   minor)
+/// * `None` - If no valid version directories are found or if the directory
+///   cannot be read
+///
+/// # Examples
+/// Given a directory structure:
+/// ```text
+/// /some/path/
+/// ├── 1.4/
+/// ├── 1.5/
+/// └── 1.6/
+/// ```
+/// This function will return `Some((1, 6))`
+pub fn find_max_version_in_directory<P: AsRef<Path>>(directory_path: P) -> Option<(u32, u32)> {
+    std::fs::read_dir(directory_path.as_ref())
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let dir_name = entry.file_name();
+            let dir_name = dir_name.to_str()?;
+            let (major_str, minor_str) = dir_name.split_once('.')?;
+            let major = major_str.parse::<u32>().ok()?;
+            let minor = minor_str.parse::<u32>().ok()?;
+            Some((major, minor))
+        })
+        .max()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -514,5 +551,25 @@ mod tests {
                 test_string
             )
         );
+    }
+
+    #[test]
+    fn test_find_max_version_in_directory() {
+        use assert_fs::prelude::*;
+        let temp_dir = assert_fs::TempDir::new().unwrap();
+        temp_dir.child("1.2").create_dir_all().unwrap();
+        temp_dir.child("1.10").create_dir_all().unwrap();
+        temp_dir.child("2.0").create_dir_all().unwrap();
+        temp_dir.child("not_a_version").create_dir_all().unwrap();
+        assert_eq!(find_max_version_in_directory(temp_dir.path()), Some((2, 0)));
+    }
+
+    #[test]
+    fn test_find_max_version_in_directory_no_versions() {
+        use assert_fs::prelude::*;
+        let temp_dir = assert_fs::TempDir::new().unwrap();
+        temp_dir.child("folder1").create_dir_all().unwrap();
+        temp_dir.child("folder2").create_dir_all().unwrap();
+        assert_eq!(find_max_version_in_directory(temp_dir.path()), None);
     }
 }

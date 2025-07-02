@@ -1165,6 +1165,7 @@ name = "wdk-build"
 version = "0.4.0"
 dependencies = [
  "anyhow",
+ "assert_fs",
  "bindgen",
  "camino",
  "cargo_metadata",
