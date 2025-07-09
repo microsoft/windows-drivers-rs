@@ -26,6 +26,30 @@ use windows::{
 
 use crate::{ConfigError, CpuArchitecture};
 
+/// Type for versions of the format "major.minor"
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BasicVersion {
+    /// The major version number
+    pub major: u32,
+    /// The minor version number
+    pub minor: u32,
+}
+
+impl BasicVersion {
+    /// Create a new BasicVersion from major and minor components
+    pub fn new(major: u32, minor: u32) -> Self {
+        Self { major, minor }
+    }
+
+    /// Parse a version in the "x.y" format
+    pub fn parse(s: &str) -> Option<Self> {
+        let (major_str, minor_str) = s.split_once('.')?;
+        let major = major_str.parse::<u32>().ok()?;
+        let minor = minor_str.parse::<u32>().ok()?;
+        Some(Self::new(major, minor))
+    }
+}
+
 /// Errors that may occur when stripping the extended path prefix from a path
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum StripExtendedPathPrefixError {
@@ -374,38 +398,151 @@ fn read_registry_key_string_value(
 ///   subdirectories
 ///
 /// # Returns
-/// * `Some((major, minor))` - The maximum version found as a tuple of (major,
-///   minor)
+/// * `Some(BasicVersion)` - The maximum version found
 /// * `None` - If no valid version directories are found or if the directory
 ///   cannot be read
-///
-/// # Examples
-/// Given a directory structure:
-/// ```text
-/// /some/path/
-/// ├── 1.4/
-/// ├── 1.5/
-/// └── 1.6/
-/// ```
-/// This function will return `Some((1, 6))`
-pub fn find_max_version_in_directory<P: AsRef<Path>>(directory_path: P) -> Option<(u32, u32)> {
+pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
+    directory_path: P,
+) -> Option<BasicVersion> {
     std::fs::read_dir(directory_path.as_ref())
         .ok()?
         .flatten()
-        .filter_map(|entry| {
-            let dir_name = entry.file_name();
-            let dir_name = dir_name.to_str()?;
-            let (major_str, minor_str) = dir_name.split_once('.')?;
-            let major = major_str.parse::<u32>().ok()?;
-            let minor = minor_str.parse::<u32>().ok()?;
-            Some((major, minor))
-        })
+        .filter_map(|entry| BasicVersion::parse(entry.file_name().to_str()?))
         .max()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod basic_version {
+        use super::*;
+
+        #[test]
+        fn test_new() {
+            let version = BasicVersion::new(1, 2);
+            assert_eq!(version.major, 1);
+            assert_eq!(version.minor, 2);
+        }
+
+        #[test]
+        fn test_parse_valid_versions() {
+            assert_eq!(BasicVersion::parse("1.2"), Some(BasicVersion::new(1, 2)));
+            assert_eq!(BasicVersion::parse("0.0"), Some(BasicVersion::new(0, 0)));
+            assert_eq!(
+                BasicVersion::parse("10.15"),
+                Some(BasicVersion::new(10, 15))
+            );
+            assert_eq!(
+                BasicVersion::parse("999.1"),
+                Some(BasicVersion::new(999, 1))
+            );
+            assert_eq!(
+                BasicVersion::parse("1.999"),
+                Some(BasicVersion::new(1, 999))
+            );
+            assert_eq!(BasicVersion::parse("01.02"), Some(BasicVersion::new(1, 2)));
+            assert_eq!(BasicVersion::parse("1.02"), Some(BasicVersion::new(1, 2)));
+            assert_eq!(BasicVersion::parse("01.2"), Some(BasicVersion::new(1, 2)));
+        }
+
+        #[test]
+        fn test_parse_invalid_versions() {
+            // No dot
+            assert_eq!(BasicVersion::parse("1"), None);
+            assert_eq!(BasicVersion::parse("123"), None);
+
+            // Multiple dots
+            assert_eq!(BasicVersion::parse("1.2.3"), None);
+            assert_eq!(BasicVersion::parse("1.2.3.4"), None);
+
+            // Empty string
+            assert_eq!(BasicVersion::parse(""), None);
+
+            // Only dot
+            assert_eq!(BasicVersion::parse("."), None);
+
+            // Missing major or minor
+            assert_eq!(BasicVersion::parse(".2"), None);
+            assert_eq!(BasicVersion::parse("1."), None);
+
+            // Non-numeric values
+            assert_eq!(BasicVersion::parse("a.b"), None);
+            assert_eq!(BasicVersion::parse("1.b"), None);
+            assert_eq!(BasicVersion::parse("a.2"), None);
+            assert_eq!(BasicVersion::parse("1.2a"), None);
+            assert_eq!(BasicVersion::parse("1a.2"), None);
+
+            // Negative numbers
+            assert_eq!(BasicVersion::parse("-1.2"), None);
+            assert_eq!(BasicVersion::parse("1.-2"), None);
+            assert_eq!(BasicVersion::parse("-1.-2"), None);
+
+            // Whitespace
+            assert_eq!(BasicVersion::parse(" 1.2"), None);
+            assert_eq!(BasicVersion::parse("1.2 "), None);
+            assert_eq!(BasicVersion::parse("1 .2"), None);
+            assert_eq!(BasicVersion::parse("1. 2"), None);
+        }
+
+        #[test]
+        fn test_version_ordering() {
+            let v1_0 = BasicVersion::new(1, 0);
+            let v1_1 = BasicVersion::new(1, 1);
+            let v1_999 = BasicVersion::new(1, 999);
+            let v2_0 = BasicVersion::new(2, 0);
+            let v2_1 = BasicVersion::new(2, 1);
+
+            // Test ordering
+            assert!(v1_0 < v1_1);
+            assert!(v1_1 < v1_999);
+            assert!(v1_999 < v2_0);
+            assert!(v2_0 < v2_1);
+        }
+
+        #[test]
+        fn test_equality() {
+            let v1 = BasicVersion::new(1, 2);
+            let v2 = BasicVersion::new(1, 2);
+            let v3 = BasicVersion::new(1, 3);
+
+            assert_eq!(v1, v2);
+            assert_ne!(v1, v3);
+        }
+
+        #[test]
+        fn test_clone_and_copy() {
+            let v1 = BasicVersion::new(1, 2);
+            let v2 = v1;
+            let v3 = v1.clone();
+
+            assert_eq!(v1, v2);
+            assert_eq!(v1, v3);
+            assert_eq!(v2, v3);
+        }
+
+        #[test]
+        fn test_debug_formatting() {
+            let version = BasicVersion::new(1, 2);
+            let debug_str = format!("{:?}", version);
+            assert!(debug_str.contains("BasicVersion"));
+            assert!(debug_str.contains("major: 1"));
+            assert!(debug_str.contains("minor: 2"));
+        }
+
+        #[test]
+        fn test_max_selection() {
+            let versions = vec![
+                BasicVersion::new(1, 2),
+                BasicVersion::new(1, 10),
+                BasicVersion::new(2, 0),
+                BasicVersion::new(1, 5),
+            ];
+
+            let max_version = versions.iter().max().unwrap();
+            assert_eq!(*max_version, BasicVersion::new(2, 0));
+        }
+    }
 
     mod strip_extended_length_path_prefix {
         use super::*;
@@ -561,7 +698,10 @@ mod tests {
         temp_dir.child("1.10").create_dir_all().unwrap();
         temp_dir.child("2.0").create_dir_all().unwrap();
         temp_dir.child("not_a_version").create_dir_all().unwrap();
-        assert_eq!(find_max_version_in_directory(temp_dir.path()), Some((2, 0)));
+        assert_eq!(
+            find_max_version_in_directory(temp_dir.path()),
+            Some(BasicVersion::new(2, 0))
+        );
     }
 
     #[test]

@@ -525,7 +525,7 @@ impl Config {
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
         let sdk_version = utils::get_latest_windows_sdk_version(library_directory.as_path())?;
-        let windows_sdk_library_path = self.arch_sdk_library_path(sdk_version)?;
+        let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
         library_paths.push(
             windows_sdk_library_path
                 .canonicalize()?
@@ -1131,7 +1131,7 @@ impl Config {
     ///
     /// KMDF/AMD64: `C:\...\Lib\10.0.22621.0\km\x64`
     /// UMDF/ARM64: `C:\...\Lib\10.0.22621.0\um\arm64`
-    fn arch_sdk_library_path(&self, sdk_version: String) -> Result<PathBuf, ConfigError> {
+    fn sdk_library_path(&self, sdk_version: String) -> Result<PathBuf, ConfigError> {
         let windows_sdk_library_path =
             self.wdk_content_root
                 .join("Lib")
@@ -1156,7 +1156,7 @@ impl Config {
         let sdk_version =
             utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
         let ucx_header_root_dir = self
-            .arch_sdk_library_path(sdk_version)?
+            .sdk_library_path(sdk_version)?
             .join("ucx")
             .canonicalize()?
             .strip_extended_length_path_prefix()?;
@@ -1169,7 +1169,7 @@ impl Config {
                 }
             })?;
 
-        let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
+        let path = format!("ucx/{}.{}/ucxclass.h", max_version.major, max_version.minor);
         Ok(Box::leak(path.into_boxed_str()))
     }
 }
