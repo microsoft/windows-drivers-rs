@@ -413,6 +413,8 @@ pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
 
 #[cfg(test)]
 mod tests {
+    use assert_fs::prelude::*;
+
     use super::*;
 
     mod basic_version {
@@ -690,26 +692,107 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_find_max_version_in_directory() {
-        use assert_fs::prelude::*;
-        let temp_dir = assert_fs::TempDir::new().unwrap();
-        temp_dir.child("1.2").create_dir_all().unwrap();
-        temp_dir.child("1.10").create_dir_all().unwrap();
-        temp_dir.child("2.0").create_dir_all().unwrap();
-        temp_dir.child("not_a_version").create_dir_all().unwrap();
-        assert_eq!(
-            find_max_version_in_directory(temp_dir.path()),
-            Some(BasicVersion::new(2, 0))
-        );
-    }
+    mod find_max_version_in_directory {
+        use super::*;
 
-    #[test]
-    fn test_find_max_version_in_directory_no_versions() {
-        use assert_fs::prelude::*;
-        let temp_dir = assert_fs::TempDir::new().unwrap();
-        temp_dir.child("folder1").create_dir_all().unwrap();
-        temp_dir.child("folder2").create_dir_all().unwrap();
-        assert_eq!(find_max_version_in_directory(temp_dir.path()), None);
+        #[test]
+        fn empty_directory() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            assert_eq!(find_max_version_in_directory(temp_dir.path()), None);
+        }
+
+        #[test]
+        fn nonexistent_directory() {
+            let nonexistent_path = std::path::Path::new("/this/path/does/not/exist");
+            assert_eq!(find_max_version_in_directory(nonexistent_path), None);
+        }
+
+        #[test]
+        fn no_valid_version_directories() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            temp_dir.child("1.2.3").create_dir_all().unwrap(); // Too many dots
+            temp_dir.child("a.b").create_dir_all().unwrap(); // Non-numeric
+            temp_dir.child("1").create_dir_all().unwrap(); // No dot
+            temp_dir.child("1.").create_dir_all().unwrap(); // Missing minor
+            temp_dir.child(".5").create_dir_all().unwrap(); // Missing major
+            assert_eq!(find_max_version_in_directory(temp_dir.path()), None);
+        }
+
+        #[test]
+        fn valid_version_directories() {
+            // Single valid version directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("3.14").create_dir_all().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(BasicVersion::new(3, 14))
+            );
+            // Multiple valid version directories
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("not_a_version").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(BasicVersion::new(2, 0))
+            );
+        }
+
+        #[test]
+        fn major_version_priority() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.999").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("1.1000").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(BasicVersion::new(2, 0))
+            );
+        }
+
+        #[test]
+        fn minor_version_comparison() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.5").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            // 1.10 should be greater than 1.5 and 1.2
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(BasicVersion::new(1, 10))
+            );
+        }
+
+        #[test]
+        fn zero_versions() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("0.0").create_dir_all().unwrap();
+            temp_dir.child("0.1").create_dir_all().unwrap();
+            temp_dir.child("1.0").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(BasicVersion::new(1, 0))
+            );
+        }
+
+        #[test]
+        fn mixed_valid_and_invalid_entries() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.5").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("invalid").create_dir_all().unwrap();
+            temp_dir.child("1.2.3").create_dir_all().unwrap(); // Invalid: too many dots
+            temp_dir.child("a.b").create_dir_all().unwrap(); // Invalid: non-numeric
+            temp_dir.child("not_version").touch().unwrap(); // File: ignored
+            temp_dir.child("3.0").touch().unwrap(); // File: ignored
+                                                    // Should find the maximum among valid version directories only
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(BasicVersion::new(2, 0))
+            );
+        }
     }
 }

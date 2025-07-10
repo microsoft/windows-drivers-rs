@@ -853,8 +853,8 @@ impl Config {
         }
 
         if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
-            let ucx_header_path = self
-                .latest_ucx_header_path()
+            let latest_ucx_header_path = self
+                .ucx_header_path()
                 .map_err(|e| {
                     tracing::error!("Failed to get latest UCX header: {e}");
                     e
@@ -864,7 +864,7 @@ impl Config {
                 "ucm/1.0/UcmCx.h",
                 "UcmTcpci/1.0/UcmTcpciCx.h",
                 "UcmUcsi/1.0/UcmucsiCx.h",
-                ucx_header_path,
+                latest_ucx_header_path,
                 "ude/1.1/UdeCx.h",
                 "ufx/1.1/ufxbase.h",
                 "ufxproprietarycharger.h",
@@ -1113,7 +1113,7 @@ impl Config {
     }
 
     /// Constructs the architecture-specific Windows SDK library path using the
-    /// provided SDK Version.
+    /// provided SDK Version and the driver configuration.
     ///
     /// Builds the library path following the Windows SDK convention:
     /// `{library_directory}/{sdk_version}/{km|um}/{architecture}/`
@@ -1152,23 +1152,19 @@ impl Config {
         Ok(windows_sdk_library_path)
     }
 
-    fn latest_ucx_header_path(&self) -> Result<&'static str, ConfigError> {
+    /// Returns the path to the latest available UCX header file present in the
+    /// Lib folder of the WDK content root
+    // TODO: SDK and UCX version should be configurable
+    fn ucx_header_path(&self) -> Result<&'static str, ConfigError> {
         let sdk_version =
             utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
-        let ucx_header_root_dir = self
-            .sdk_library_path(sdk_version)?
-            .join("ucx")
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?;
-
-        // Find the latest version of UCX headers in the directory
+        let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
         let max_version =
             utils::find_max_version_in_directory(&ucx_header_root_dir).ok_or_else(|| {
                 ConfigError::DirectoryNotFound {
                     directory: ucx_header_root_dir.to_string_lossy().into(),
                 }
             })?;
-
         let path = format!("ucx/{}.{}/ucxclass.h", max_version.major, max_version.minor);
         Ok(Box::leak(path.into_boxed_str()))
     }
