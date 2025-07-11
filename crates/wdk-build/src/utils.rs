@@ -36,12 +36,14 @@ pub struct BasicVersion {
 }
 
 impl BasicVersion {
-    /// Create a new BasicVersion from major and minor components
-    pub fn new(major: u32, minor: u32) -> Self {
+    /// Create a new `BasicVersion` from major and minor components
+    #[must_use]
+    pub const fn new(major: u32, minor: u32) -> Self {
         Self { major, minor }
     }
 
     /// Parse a version in the "x.y" format
+    #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         let (major_str, minor_str) = s.split_once('.')?;
         let major = major_str.parse::<u32>().ok()?;
@@ -407,6 +409,7 @@ pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
     std::fs::read_dir(directory_path.as_ref())
         .ok()?
         .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| BasicVersion::parse(entry.file_name().to_str()?))
         .max()
 }
@@ -513,20 +516,16 @@ mod tests {
         }
 
         #[test]
-        fn test_clone_and_copy() {
+        fn test_copy() {
             let v1 = BasicVersion::new(1, 2);
             let v2 = v1;
-            let v3 = v1.clone();
-
             assert_eq!(v1, v2);
-            assert_eq!(v1, v3);
-            assert_eq!(v2, v3);
         }
 
         #[test]
         fn test_debug_formatting() {
             let version = BasicVersion::new(1, 2);
-            let debug_str = format!("{:?}", version);
+            let debug_str = format!("{version:?}");
             assert!(debug_str.contains("BasicVersion"));
             assert!(debug_str.contains("major: 1"));
             assert!(debug_str.contains("minor: 2"));
@@ -534,7 +533,7 @@ mod tests {
 
         #[test]
         fn test_max_selection() {
-            let versions = vec![
+            let versions = [
                 BasicVersion::new(1, 2),
                 BasicVersion::new(1, 10),
                 BasicVersion::new(2, 0),
