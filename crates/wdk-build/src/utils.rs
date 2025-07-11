@@ -27,28 +27,17 @@ use windows::{
 use crate::{ConfigError, CpuArchitecture};
 
 /// Type for versions of the format "major.minor"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BasicVersion {
-    /// The major version number
-    pub major: u32,
-    /// The minor version number
-    pub minor: u32,
-}
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct TwoPartVersion(pub(crate) u32, pub(crate) u32);
 
-impl BasicVersion {
-    /// Create a new `BasicVersion` from major and minor components
-    #[must_use]
-    pub const fn new(major: u32, minor: u32) -> Self {
-        Self { major, minor }
-    }
-
+impl TwoPartVersion {
     /// Parse a version in the "x.y" format
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         let (major_str, minor_str) = s.split_once('.')?;
         let major = major_str.parse::<u32>().ok()?;
         let minor = minor_str.parse::<u32>().ok()?;
-        Some(Self::new(major, minor))
+        Some(Self(major, minor))
     }
 }
 
@@ -405,12 +394,12 @@ fn read_registry_key_string_value(
 ///   cannot be read
 pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
     directory_path: P,
-) -> Option<BasicVersion> {
+) -> Option<TwoPartVersion> {
     std::fs::read_dir(directory_path.as_ref())
         .ok()?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
-        .filter_map(|entry| BasicVersion::parse(entry.file_name().to_str()?))
+        .filter_map(|entry| TwoPartVersion::parse(entry.file_name().to_str()?))
         .max()
 }
 
@@ -420,83 +409,68 @@ mod tests {
 
     use super::*;
 
-    mod basic_version {
+    mod two_part_version {
         use super::*;
 
         #[test]
-        fn test_new() {
-            let version = BasicVersion::new(1, 2);
-            assert_eq!(version.major, 1);
-            assert_eq!(version.minor, 2);
+        fn parse_valid_versions() {
+            assert_eq!(TwoPartVersion::parse("1.2"), Some(TwoPartVersion(1, 2)));
+            assert_eq!(TwoPartVersion::parse("0.0"), Some(TwoPartVersion(0, 0)));
+            assert_eq!(TwoPartVersion::parse("10.15"), Some(TwoPartVersion(10, 15)));
+            assert_eq!(TwoPartVersion::parse("999.1"), Some(TwoPartVersion(999, 1)));
+            assert_eq!(TwoPartVersion::parse("1.999"), Some(TwoPartVersion(1, 999)));
+            assert_eq!(TwoPartVersion::parse("01.02"), Some(TwoPartVersion(1, 2)));
+            assert_eq!(TwoPartVersion::parse("1.02"), Some(TwoPartVersion(1, 2)));
+            assert_eq!(TwoPartVersion::parse("01.2"), Some(TwoPartVersion(1, 2)));
         }
 
         #[test]
-        fn test_parse_valid_versions() {
-            assert_eq!(BasicVersion::parse("1.2"), Some(BasicVersion::new(1, 2)));
-            assert_eq!(BasicVersion::parse("0.0"), Some(BasicVersion::new(0, 0)));
-            assert_eq!(
-                BasicVersion::parse("10.15"),
-                Some(BasicVersion::new(10, 15))
-            );
-            assert_eq!(
-                BasicVersion::parse("999.1"),
-                Some(BasicVersion::new(999, 1))
-            );
-            assert_eq!(
-                BasicVersion::parse("1.999"),
-                Some(BasicVersion::new(1, 999))
-            );
-            assert_eq!(BasicVersion::parse("01.02"), Some(BasicVersion::new(1, 2)));
-            assert_eq!(BasicVersion::parse("1.02"), Some(BasicVersion::new(1, 2)));
-            assert_eq!(BasicVersion::parse("01.2"), Some(BasicVersion::new(1, 2)));
-        }
-
-        #[test]
-        fn test_parse_invalid_versions() {
+        fn parse_invalid_versions() {
             // No dot
-            assert_eq!(BasicVersion::parse("1"), None);
-            assert_eq!(BasicVersion::parse("123"), None);
+            assert_eq!(TwoPartVersion::parse("1"), None);
+            assert_eq!(TwoPartVersion::parse("123"), None);
 
             // Multiple dots
-            assert_eq!(BasicVersion::parse("1.2.3"), None);
-            assert_eq!(BasicVersion::parse("1.2.3.4"), None);
+            assert_eq!(TwoPartVersion::parse("1.2.3"), None);
+            assert_eq!(TwoPartVersion::parse("1.2.3.4"), None);
 
             // Empty string
-            assert_eq!(BasicVersion::parse(""), None);
+            assert_eq!(TwoPartVersion::parse(""), None);
 
             // Only dot
-            assert_eq!(BasicVersion::parse("."), None);
+            assert_eq!(TwoPartVersion::parse("."), None);
 
             // Missing major or minor
-            assert_eq!(BasicVersion::parse(".2"), None);
-            assert_eq!(BasicVersion::parse("1."), None);
+            assert_eq!(TwoPartVersion::parse(".2"), None);
+            assert_eq!(TwoPartVersion::parse("1."), None);
 
             // Non-numeric values
-            assert_eq!(BasicVersion::parse("a.b"), None);
-            assert_eq!(BasicVersion::parse("1.b"), None);
-            assert_eq!(BasicVersion::parse("a.2"), None);
-            assert_eq!(BasicVersion::parse("1.2a"), None);
-            assert_eq!(BasicVersion::parse("1a.2"), None);
+            assert_eq!(TwoPartVersion::parse("a.b"), None);
+            assert_eq!(TwoPartVersion::parse("1.b"), None);
+            assert_eq!(TwoPartVersion::parse("a.2"), None);
+            assert_eq!(TwoPartVersion::parse("1.2a"), None);
+            assert_eq!(TwoPartVersion::parse("1a.2"), None);
+            assert_eq!(TwoPartVersion::parse("myfolder"), None);
 
             // Negative numbers
-            assert_eq!(BasicVersion::parse("-1.2"), None);
-            assert_eq!(BasicVersion::parse("1.-2"), None);
-            assert_eq!(BasicVersion::parse("-1.-2"), None);
+            assert_eq!(TwoPartVersion::parse("-1.2"), None);
+            assert_eq!(TwoPartVersion::parse("1.-2"), None);
+            assert_eq!(TwoPartVersion::parse("-1.-2"), None);
 
             // Whitespace
-            assert_eq!(BasicVersion::parse(" 1.2"), None);
-            assert_eq!(BasicVersion::parse("1.2 "), None);
-            assert_eq!(BasicVersion::parse("1 .2"), None);
-            assert_eq!(BasicVersion::parse("1. 2"), None);
+            assert_eq!(TwoPartVersion::parse(" 1.2"), None);
+            assert_eq!(TwoPartVersion::parse("1.2 "), None);
+            assert_eq!(TwoPartVersion::parse("1 .2"), None);
+            assert_eq!(TwoPartVersion::parse("1. 2"), None);
         }
 
         #[test]
-        fn test_version_ordering() {
-            let v1_0 = BasicVersion::new(1, 0);
-            let v1_1 = BasicVersion::new(1, 1);
-            let v1_999 = BasicVersion::new(1, 999);
-            let v2_0 = BasicVersion::new(2, 0);
-            let v2_1 = BasicVersion::new(2, 1);
+        fn version_ordering() {
+            let v1_0 = TwoPartVersion(1, 0);
+            let v1_1 = TwoPartVersion(1, 1);
+            let v1_999 = TwoPartVersion(1, 999);
+            let v2_0 = TwoPartVersion(2, 0);
+            let v2_1 = TwoPartVersion(2, 1);
 
             // Test ordering
             assert!(v1_0 < v1_1);
@@ -506,42 +480,52 @@ mod tests {
         }
 
         #[test]
-        fn test_equality() {
-            let v1 = BasicVersion::new(1, 2);
-            let v2 = BasicVersion::new(1, 2);
-            let v3 = BasicVersion::new(1, 3);
+        fn equality() {
+            let v1 = TwoPartVersion(1, 2);
+            let v2 = TwoPartVersion(1, 2);
+            let v3 = TwoPartVersion(1, 3);
 
             assert_eq!(v1, v2);
             assert_ne!(v1, v3);
         }
 
         #[test]
-        fn test_copy() {
-            let v1 = BasicVersion::new(1, 2);
-            let v2 = v1;
-            assert_eq!(v1, v2);
-        }
-
-        #[test]
-        fn test_debug_formatting() {
-            let version = BasicVersion::new(1, 2);
+        fn debug_formatting() {
+            let version = TwoPartVersion(1, 2);
             let debug_str = format!("{version:?}");
-            assert!(debug_str.contains("BasicVersion"));
-            assert!(debug_str.contains("major: 1"));
-            assert!(debug_str.contains("minor: 2"));
+            assert_eq!(debug_str, "TwoPartVersion(1, 2)");
         }
 
         #[test]
-        fn test_max_selection() {
+        fn max_selection() {
             let versions = [
-                BasicVersion::new(1, 2),
-                BasicVersion::new(1, 10),
-                BasicVersion::new(2, 0),
-                BasicVersion::new(1, 5),
+                TwoPartVersion(1, 2),
+                TwoPartVersion(1, 10),
+                TwoPartVersion(2, 0),
+                TwoPartVersion(1, 5),
+                TwoPartVersion(2, 1),
+                TwoPartVersion(1, 999),
             ];
 
             let max_version = versions.iter().max().unwrap();
-            assert_eq!(*max_version, BasicVersion::new(2, 0));
+            assert_eq!(*max_version, TwoPartVersion(2, 1));
+        }
+
+        #[test]
+        fn u32_max_and_overflow() {
+            // Test that parsing numbers greater than u32::MAX fails gracefully
+            // u32::MAX is 4294967295, so test values that exceed this
+            assert_eq!(TwoPartVersion::parse("4294967296.0"), None); // Major overflow
+            assert_eq!(TwoPartVersion::parse("0.4294967296"), None); // Minor overflow
+            assert_eq!(TwoPartVersion::parse("4294967296.4294967296"), None); // Both overflow
+            assert_eq!(TwoPartVersion::parse("99999999999999999999.0"), None); // Much larger major
+            assert_eq!(TwoPartVersion::parse("0.99999999999999999999"), None); // Much larger minor
+
+            // Test that u32::MAX values still work
+            assert_eq!(
+                TwoPartVersion::parse("4294967295.4294967295"),
+                Some(TwoPartVersion(4_294_967_295, 4_294_967_295))
+            );
         }
     }
 
@@ -707,7 +691,35 @@ mod tests {
         }
 
         #[test]
+        fn valid_version_directories() {
+            // Single valid version directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("3.14").create_dir_all().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(TwoPartVersion(3, 14))
+            );
+            // Multiple valid version directories
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("not_a_version").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()),
+                Some(TwoPartVersion(2, 0))
+            );
+        }
+
+        #[test]
         fn no_valid_version_directories() {
+            // Single invalid directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            assert_eq!(find_max_version_in_directory(temp_dir.path()), None);
+
+            // Multiple invalid directories
             let temp_dir = assert_fs::TempDir::new().unwrap();
             temp_dir.child("folder1").create_dir_all().unwrap();
             temp_dir.child("1.2.3").create_dir_all().unwrap(); // Too many dots
@@ -719,28 +731,6 @@ mod tests {
         }
 
         #[test]
-        fn valid_version_directories() {
-            // Single valid version directory
-            let temp_dir = assert_fs::TempDir::new().unwrap();
-            temp_dir.child("3.14").create_dir_all().unwrap();
-            temp_dir.child("folder1").create_dir_all().unwrap();
-            assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Some(BasicVersion::new(3, 14))
-            );
-            // Multiple valid version directories
-            let temp_dir = assert_fs::TempDir::new().unwrap();
-            temp_dir.child("1.2").create_dir_all().unwrap();
-            temp_dir.child("1.10").create_dir_all().unwrap();
-            temp_dir.child("2.0").create_dir_all().unwrap();
-            temp_dir.child("not_a_version").create_dir_all().unwrap();
-            assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Some(BasicVersion::new(2, 0))
-            );
-        }
-
-        #[test]
         fn major_version_priority() {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             temp_dir.child("1.999").create_dir_all().unwrap();
@@ -748,7 +738,7 @@ mod tests {
             temp_dir.child("1.1000").create_dir_all().unwrap();
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()),
-                Some(BasicVersion::new(2, 0))
+                Some(TwoPartVersion(2, 0))
             );
         }
 
@@ -761,7 +751,7 @@ mod tests {
             // 1.10 should be greater than 1.5 and 1.2
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()),
-                Some(BasicVersion::new(1, 10))
+                Some(TwoPartVersion(1, 10))
             );
         }
 
@@ -773,7 +763,7 @@ mod tests {
             temp_dir.child("1.0").create_dir_all().unwrap();
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()),
-                Some(BasicVersion::new(1, 0))
+                Some(TwoPartVersion(1, 0))
             );
         }
 
@@ -790,7 +780,7 @@ mod tests {
                                                     // Should find the maximum among valid version directories only
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()),
-                Some(BasicVersion::new(2, 0))
+                Some(TwoPartVersion(2, 0))
             );
         }
     }

@@ -1165,7 +1165,7 @@ impl Config {
                     directory: ucx_header_root_dir.to_string_lossy().into(),
                 }
             })?;
-        let path = format!("ucx/{}.{}/ucxclass.h", max_version.major, max_version.minor);
+        let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
         Ok(Box::leak(path.into_boxed_str()))
     }
 }
