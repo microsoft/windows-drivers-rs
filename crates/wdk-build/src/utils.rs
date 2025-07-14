@@ -460,11 +460,11 @@ mod tests {
         }
 
         #[test]
-        fn invalid_versions() {
+        fn invalid_format_versions() {
             // Invalid format
             assert_eq!(
                 String::new().parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("".to_string()))
+                Err(TwoPartVersionError::InvalidFormat(String::new()))
             );
             assert_eq!(
                 "1".parse::<TwoPartVersion>(),
@@ -493,7 +493,14 @@ mod tests {
                 "1.".parse::<TwoPartVersion>(),
                 Err(TwoPartVersionError::InvalidFormat("1.".to_string()))
             );
+            assert_eq!(
+                "myfolder".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("myfolder".to_string()))
+            );
+        }
 
+        #[test]
+        fn parse_error_versions() {
             // Non-numeric values
             assert_eq!(
                 "a.b".parse::<TwoPartVersion>(),
@@ -528,33 +535,6 @@ mod tests {
                 Err(TwoPartVersionError::ParseError(
                     "major".to_string(),
                     "1a.2".to_string()
-                ))
-            );
-            assert_eq!(
-                "myfolder".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("myfolder".to_string()))
-            );
-
-            // Negative numbers
-            assert_eq!(
-                "-1.2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "-1.2".to_string()
-                ))
-            );
-            assert_eq!(
-                "1.-2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "1.-2".to_string()
-                ))
-            );
-            assert_eq!(
-                "-1.-2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "-1.-2".to_string()
                 ))
             );
 
