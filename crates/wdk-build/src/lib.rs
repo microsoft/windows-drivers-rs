@@ -1160,7 +1160,7 @@ impl Config {
             utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
         let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
         let max_version =
-            utils::find_max_version_in_directory(&ucx_header_root_dir).ok_or_else(|| {
+            utils::find_max_version_in_directory(&ucx_header_root_dir).map_err(|_| {
                 ConfigError::DirectoryNotFound {
                     directory: ucx_header_root_dir.to_string_lossy().into(),
                 }
