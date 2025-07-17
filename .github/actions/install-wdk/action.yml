@@ -2,7 +2,7 @@ name: Install WDK
 
 inputs:
   version:
-    description: WDK version to install.
+    description: WDK version to install. Format: 10.0.XXXXX or 10.0.XXXXX.YYYY. If QFE (4th component) is omitted, the latest available QFE is selected.
     required: true
   source:
     description: Source to install WDK from (nuget or winget).
@@ -34,11 +34,69 @@ runs:
             }
         }
         
-        $version = '${{ inputs.version }}'
-        if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
-            Write-Error "Invalid version format: $version. Expected format: 10.0.[5 digit number].[0-4 digit number]"
+        $inputVersion = '${{ inputs.version }}'
+        if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
+            Write-Error "Invalid version format: $inputVersion"
             exit 1
         }
+        
+        # Determine if QFE is specified or if we need to find the latest
+        $versionParts = $inputVersion.Split('.')
+        if ($versionParts.Length -eq 3) {
+            # No QFE specified, find the latest QFE for this base version
+            Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
+            $baseVersion = $inputVersion
+            
+            try {
+                # Query available versions from NuGet using PowerShell NuGet commands
+                Write-Host "Querying NuGet for available WDK versions..."
+                
+                # Use Find-Package to get all available versions
+                $availableVersions = @()
+                try {
+                    $packages = Find-Package -Name "Microsoft.Windows.WDK.x64" -Source "nuget.org" -AllVersions -ErrorAction SilentlyContinue
+                    $availableVersions = $packages | ForEach-Object { $_.Version }
+                    Write-Host "Found $($availableVersions.Count) versions using Find-Package"
+                } catch {
+                    Write-Host "Find-Package failed, trying alternative approach..."
+                }
+                
+                # Fallback: try NuGet API directly
+                if ($availableVersions.Count -eq 0) {
+                    Write-Host "Trying NuGet API directly..."
+                    try {
+                        $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
+                        $response = Invoke-RestMethod -Uri $nugetApiUrl -ErrorAction SilentlyContinue
+                        if ($response -and $response.versions) {
+                            $availableVersions = $response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }
+                            Write-Host "Found $($availableVersions.Count) versions using NuGet API"
+                        }
+                    } catch {
+                        Write-Host "NuGet API query failed: $_"
+                    }
+                }
+                
+                # Filter versions that match the base version and find the latest QFE
+                $matchingVersions = $availableVersions | Where-Object { $_.StartsWith("$baseVersion.") }
+                if ($matchingVersions.Count -eq 0) {
+                    Write-Warning "No QFE versions found for base version $baseVersion, trying without QFE..."
+                    $version = $inputVersion
+                } else {
+                    # Sort versions and get the latest
+                    $version = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
+                    Write-Host "Found latest QFE version: $version"
+                }
+            } catch {
+                Write-Warning "Failed to query NuGet for latest QFE version: $_"
+                Write-Host "Falling back to using base version: $inputVersion"
+                $version = $inputVersion
+            }
+        } else {
+            # QFE is already specified
+            $version = $inputVersion
+            Write-Host "Using specified version: $version"
+        }
+        
         $sdkVersion = ($version.Split('.')[0..2]) -join '.'
         
         $source = '${{ inputs.source }}'
@@ -51,13 +109,23 @@ runs:
         
           $packages = "C:\packages"
         
-          Write-Host "Trying nuget restore..."    
+          Write-Host "Trying nuget restore for version $version..."    
           try {
+              Write-Host "Installing Microsoft.Windows.SDK.CPP version $version..."
               nuget install Microsoft.Windows.SDK.CPP -Version $version -OutputDirectory $packages
+              if ($LASTEXITCODE -ne 0) { throw "Microsoft.Windows.SDK.CPP" }
+              
+              Write-Host "Installing Microsoft.Windows.WDK.x64 version $version..."
               nuget install Microsoft.Windows.WDK.x64 -Version $version -OutputDirectory $packages
+              if ($LASTEXITCODE -ne 0) { throw "Microsoft.Windows.WDK.x64" }
+
+              Write-Host "Installing Microsoft.Windows.WDK.arm64 version $version..."
               nuget install Microsoft.Windows.WDK.arm64 -Version $version -OutputDirectory $packages
+              if ($LASTEXITCODE -ne 0) { throw "Microsoft.Windows.WDK.arm64" }
+
+              Write-Host "Successfully installed all WDK packages for version $version"
           } catch {
-              Write-Error "Failed to install NuGet packages: $_"
+              Write-Error "Failed to install $_ version $version"
               exit 1
           }
           if (-not (Test-Path $packages)) {
