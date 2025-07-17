@@ -720,8 +720,11 @@ impl Config {
         .map(std::string::ToString::to_string)
     }
 
-    /// Returns an iterator over the headers as [`String`]s  based on the
-    /// [`Config`] for a given [`ApiSubset`].
+    /// Returns a [`String`] iterator over all the headers for a given
+    /// [`ApiSubset`]
+    ///
+    /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
+    /// determine which headers to yield
     ///
     /// # Errors
     /// [`ConfigError`] - if the headers for the given [`ApiSubset`] could not
@@ -947,8 +950,9 @@ impl Config {
     /// Returns a [`String`] containing the contents of a header file designed
     /// for [`bindgen`](https://docs.rs/bindgen) to process
     ///
-    /// The contents contain `#include`'ed headers based on the provided
-    /// [`ApiSubset`]s and the [`Config`].
+    /// The contents contain `#include`'ed headers based off the [`ApiSubset`]
+    /// and [`Config`], as well as any additional definitions required for the
+    /// headers to be processed successfully.
     ///
     /// # Errors
     /// [`ConfigError`] - if the headers for a [`ApiSubset`] could not be
@@ -959,13 +963,11 @@ impl Config {
     ) -> Result<String, ConfigError> {
         api_subsets
             .into_iter()
-            .map(|api_subset| self.headers(api_subset))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .try_fold(String::new(), |mut acc, header| {
-                writeln!(acc, "#include \"{header}\"")
-                    .map_err(ConfigError::BindgenHeaderContents)?;
+            .try_fold(String::new(), |mut acc, api_subset| {
+                for header in self.headers(api_subset)? {
+                    writeln!(acc, "#include \"{header}\"")
+                        .map_err(ConfigError::BindgenHeaderContents)?;
+                }
                 Ok(acc)
             })
     }
