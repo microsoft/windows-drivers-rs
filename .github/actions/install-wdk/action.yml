@@ -2,18 +2,18 @@ name: Install WDK
 
 inputs:
   version:
-    description: WDK version to install. Format: 10.0.XXXXX or 10.0.XXXXX.YYYY. If QFE (4th component) is omitted, the latest available QFE is selected.
+    description: "WDK version to install. Format: 10.0.XXXXX or 10.0.XXXXX.YYYY. If QFE (4th component) is omitted, the latest available QFE is selected."
     required: true
   source:
-    description: Source to install WDK from (nuget or winget).
+    description: "Source to install WDK from (nuget or winget)."
     required: true
   # required to set WDKBinRoot and WDKToolRoot based on the host architecture when using nuget
   host:
-    description: Host architecture (x64 or ARM64).
+    description: "Host architecture (x64 or ARM64)."
     required: true
   # required to set WDKContentRoot based on the target architecture when using nuget
   target:
-    description: Target architecture (x64 or ARM64).
+    description: "Target architecture (x64 or ARM64)."
     required: true
 
 runs:
