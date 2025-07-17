@@ -7,6 +7,7 @@
 use std::{
     env,
     ffi::CStr,
+    io,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -403,14 +404,6 @@ fn read_registry_key_string_value(
     None
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
-pub(crate) enum MaxVersionInDirectoryError {
-    #[error("Error reading directory. Path: {0}")]
-    DirectoryReadFailure(PathBuf),
-    #[error("No valid version directories found. Path: {0}")]
-    MaxVersionNotFound(PathBuf),
-}
-
 /// Finds the maximum version in a directory where subdirectories are named with
 /// version format "x.y"
 ///
@@ -424,17 +417,20 @@ pub(crate) enum MaxVersionInDirectoryError {
 ///   cannot be read
 pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
     directory_path: P,
-) -> Result<TwoPartVersion, MaxVersionInDirectoryError> {
-    std::fs::read_dir(directory_path.as_ref())
-        .map_err(|_| {
-            MaxVersionInDirectoryError::DirectoryReadFailure(directory_path.as_ref().to_path_buf())
-        })?
+) -> Result<TwoPartVersion, io::Error> {
+    std::fs::read_dir(directory_path.as_ref())?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
         .max()
         .ok_or_else(|| {
-            MaxVersionInDirectoryError::MaxVersionNotFound(directory_path.as_ref().to_path_buf())
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Maximum version in {} not found",
+                    directory_path.as_ref().display()
+                ),
+            )
         })
 }
 
@@ -819,23 +815,15 @@ mod tests {
         fn empty_directory() {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             let result = find_max_version_in_directory(temp_dir.path());
-            assert_eq!(
-                result,
-                Err(MaxVersionInDirectoryError::MaxVersionNotFound(
-                    temp_dir.path().to_path_buf()
-                ))
-            );
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
         }
 
         #[test]
         fn nonexistent_directory() {
             let nonexistent_path = std::path::Path::new("/this/path/does/not/exist");
-            assert_eq!(
-                find_max_version_in_directory(nonexistent_path),
-                Err(MaxVersionInDirectoryError::DirectoryReadFailure(
-                    nonexistent_path.to_path_buf()
-                ))
-            );
+            let result = find_max_version_in_directory(nonexistent_path);
+            assert!(result.is_err());
         }
 
         #[test]
@@ -845,8 +833,8 @@ mod tests {
             temp_dir.child("3.14").create_dir_all().unwrap();
             temp_dir.child("folder1").create_dir_all().unwrap();
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(3, 14))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(3, 14)
             );
             // Multiple valid version directories
             let temp_dir = assert_fs::TempDir::new().unwrap();
@@ -855,8 +843,8 @@ mod tests {
             temp_dir.child("2.0").create_dir_all().unwrap();
             temp_dir.child("not_a_version").create_dir_all().unwrap();
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(2, 0))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
             );
         }
 
@@ -865,12 +853,9 @@ mod tests {
             // Single invalid directory
             let temp_dir = assert_fs::TempDir::new().unwrap();
             temp_dir.child("folder1").create_dir_all().unwrap();
-            assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Err(MaxVersionInDirectoryError::MaxVersionNotFound(
-                    temp_dir.path().to_path_buf()
-                ))
-            );
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
 
             // Multiple invalid directories
             let temp_dir = assert_fs::TempDir::new().unwrap();
@@ -880,12 +865,9 @@ mod tests {
             temp_dir.child("1").create_dir_all().unwrap(); // No dot
             temp_dir.child("1.").create_dir_all().unwrap(); // Missing minor
             temp_dir.child(".5").create_dir_all().unwrap(); // Missing major
-            assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Err(MaxVersionInDirectoryError::MaxVersionNotFound(
-                    temp_dir.path().to_path_buf()
-                ))
-            );
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
         }
 
         #[test]
@@ -895,8 +877,8 @@ mod tests {
             temp_dir.child("2.0").create_dir_all().unwrap();
             temp_dir.child("1.1000").create_dir_all().unwrap();
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(2, 0))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
             );
         }
 
@@ -907,8 +889,8 @@ mod tests {
             temp_dir.child("1.10").create_dir_all().unwrap();
             temp_dir.child("1.2").create_dir_all().unwrap();
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(1, 10))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(1, 10)
             );
         }
 
@@ -918,13 +900,13 @@ mod tests {
             temp_dir.child("0.0").create_dir_all().unwrap();
             temp_dir.child("0.1").create_dir_all().unwrap();
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(0, 1))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(0, 1)
             );
             temp_dir.child("1.0").create_dir_all().unwrap();
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(1, 0))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(1, 0)
             );
         }
 
@@ -940,8 +922,8 @@ mod tests {
             temp_dir.child("3.0").touch().unwrap(); // File: ignored
                                                     // Should find the maximum among valid version directories only
             assert_eq!(
-                find_max_version_in_directory(temp_dir.path()),
-                Ok(TwoPartVersion(2, 0))
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
             );
         }
     }

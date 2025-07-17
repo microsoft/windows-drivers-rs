@@ -60,19 +60,19 @@ jobs:
 
     - name: Install WDK (${{ matrix.wdk }})
       run: |
-        # Delete the Ge WDK (10.0.26100) Include and Lib folders if present on the system.
-        # Ni WDK (10.0.22621) will be the latest available Kit on the system.
-        # FIXME: Remove once issues with Ge WDK are resolved.
-        $wdkGePaths = @(
+        # Delete the latest WDK (10.0.26100) Include and Lib folders if present on the system.
+        # Older WDK (10.0.22621) will be the latest available Kit on the system once installed.
+        # FIXME: Remove once issues with using latest WDK are resolved.
+        $latestWdkPaths = @(
           "C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0",
           "C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0"
         )
-        foreach ($path in $wdkGePaths) {
+        foreach ($path in $latestWdkPaths) {
           if (Test-Path $path) {
             Write-Host "Deleting folder: $path"
             Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
           } else {
-            Write-Host "Ge WDK folder not found, skipping deletion: $path"
+            Write-Host "WDK folder not found, skipping deletion: $path"
           }
         }
         
