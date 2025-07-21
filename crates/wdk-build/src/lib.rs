@@ -11,7 +11,7 @@
 //! models (WDM, KMDF, UMDF).
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
-use std::{fmt, fmt::Write, str::FromStr};
+use std::{fmt, str::FromStr};
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
@@ -243,15 +243,6 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
-
-    /// Error returned when constructing header contents for `bindgen` fails in
-    /// `bindgen_header_contents` function.
-    #[error("failed to construct header contents")]
-    BindgenHeaderContents(
-        /// [`std::fmt::Error`] that caused formatting to fail
-        #[source]
-        std::fmt::Error,
-    ),
 
     /// Error returned when the UCX header file is not found
     #[error("failed to find ucx header file")]
@@ -956,20 +947,18 @@ impl Config {
     ///
     /// # Errors
     /// [`ConfigError`] - if the headers for a [`ApiSubset`] could not be
-    /// determined, or if formatting the header contents fails
+    /// determined
     pub fn bindgen_header_contents(
         &self,
         api_subsets: impl IntoIterator<Item = ApiSubset>,
     ) -> Result<String, ConfigError> {
-        api_subsets
+        Ok(api_subsets
             .into_iter()
-            .try_fold(String::new(), |mut acc, api_subset| {
-                for header in self.headers(api_subset)? {
-                    writeln!(acc, "#include \"{header}\"")
-                        .map_err(ConfigError::BindgenHeaderContents)?;
-                }
-                Ok(acc)
-            })
+            .map(|api_subset| self.headers(api_subset))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flat_map(|iter| iter.map(|header| format!("#include \"{header}\"\n")))
+            .collect())
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
