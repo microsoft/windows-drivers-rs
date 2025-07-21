@@ -164,7 +164,7 @@ for (key, value) in &serialized_wdk_metadata_map {
 wdk_build::cargo_make::forward_printed_env_vars(
     serialized_wdk_metadata_map
         .into_iter()
-        .map(|(key, _)| (key)),
+        .map(|(key, _)| key),
 );
 '''
 
