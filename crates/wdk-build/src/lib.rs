@@ -245,8 +245,8 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     SerdeError(#[from] metadata::Error),
 
     /// Error returned when the UCX header file is not found
-    #[error("failed to find ucx header file")]
-    UCXHeaderNotFound(#[source] std::io::Error),
+    #[error("failed to find {0} header file: {1}")]
+    HeaderNotFound(String, #[source] std::io::Error),
 }
 
 /// Subset of APIs in the Windows Driver Kit
@@ -1184,7 +1184,7 @@ impl Config {
             utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
         let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
         let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)
-            .map_err(ConfigError::UCXHeaderNotFound)?;
+            .map_err(|e| ConfigError::HeaderNotFound("ucxclass.h".into(), e))?;
         let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
         Ok(path)
     }
