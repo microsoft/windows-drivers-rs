@@ -245,7 +245,7 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     SerdeError(#[from] metadata::Error),
 
     /// Error returned when the UCX header file is not found
-    #[error("failed to find {0} header file: {1}")]
+    #[error("failed to find {0} header file.")]
     HeaderNotFound(String, #[source] std::io::Error),
 }
 
