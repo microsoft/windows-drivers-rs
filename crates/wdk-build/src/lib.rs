@@ -1179,7 +1179,6 @@ impl Config {
 
     /// Returns the path to the latest available UCX header file present in the
     /// Lib folder of the WDK content root
-    // TODO: SDK and UCX version should be configurable
     fn ucx_header(&self) -> Result<String, ConfigError> {
         let sdk_version =
             utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
@@ -1710,8 +1709,17 @@ mod tests {
             // WDM: kernel-mode USB headers but no WDF or UCX
             let required_headers = ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"];
 
-            let excluded_headers = ["wdfusb.h"];
-            let excluded_header_paths = ["ucx/", "ucm/"];
+            let excluded_headers = [
+                "wdfusb.h",
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+                "ucx/1.2/ucxclass.h",
+            ];
 
             for header in required_headers {
                 assert!(
@@ -1724,13 +1732,6 @@ mod tests {
                 assert!(
                     !header_contents.contains(&format!("#include \"{header}\"")),
                     "{header} should not be included"
-                );
-            }
-
-            for path in excluded_header_paths {
-                assert!(
-                    !header_contents.contains(path),
-                    "{path} headers should not be included"
                 );
             }
         }
@@ -1775,7 +1776,16 @@ mod tests {
                 ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"];
 
             let required_headers = ["wdfusb.h"];
-            let excluded_header_paths = ["ucx/", "ucm/", "ude/"];
+            let excluded_kmdf_headers = [
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+                "ucx/1.2/ucxclass.h",
+            ];
 
             for header in excluded_kernel_headers {
                 assert!(
@@ -1791,25 +1801,21 @@ mod tests {
                 );
             }
 
-            for path in excluded_header_paths {
+            for header in excluded_kmdf_headers {
                 assert!(
-                    !header_contents.contains(path),
-                    "{path} headers should not be included"
+                    !header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} should not be included"
                 );
             }
         }
 
         /// Tests USB header generation for a specific driver configuration
         fn test_usb_headers_with(driver_config: &DriverConfig, cpu_architecture: CpuArchitecture) {
-            // Create a temporary directory structure that mimics a WDK installation
+            // Set up mock WDK directory structure
             let temp_dir = TempDir::new().unwrap();
             let wdk_content_root = temp_dir.path().to_path_buf();
-
-            // Set up mock WDK directory structure
             let lib_dir = wdk_content_root.join("Lib").join("10.0.22621.0");
             let include_dir = wdk_content_root.join("Include").join("10.0.22621.0");
-
-            // Create the necessary directories based on driver config
             match &driver_config {
                 DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
                     std::fs::create_dir_all(
@@ -1841,10 +1847,8 @@ mod tests {
             assert!(result.is_ok(), "Expected USB test to succeed");
             let header_contents = result.unwrap();
 
-            // All driver configs should include common USB headers
             assert_common_usb_headers_present(&header_contents);
 
-            // Verify driver-specific logic branches
             match &driver_config {
                 DriverConfig::Wdm => assert_wdm_usb_headers(&header_contents),
                 DriverConfig::Kmdf(_) => assert_kmdf_usb_headers(&header_contents),
@@ -1854,7 +1858,7 @@ mod tests {
 
         #[test]
         fn usb_success() {
-            // Test cases covering usb_headers() logic branches:
+            // Test cases covering branches in usb_headers():
             // 1. WDM - Common headers + kernel-mode headers, no WDF/UCX
             // 2. KMDF - All headers including WDF, UCX, and KMDF-specific USB
             // 3. UMDF - Common headers + WDF, no kernel-mode or UCX
