@@ -16,10 +16,14 @@ use wdk_alloc::WdkAllocator;
 #[global_allocator]
 static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 
+extern crate alloc;
+use alloc::ffi::CString;
+
 #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
    _driver: PDRIVER_OBJECT,
    _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
+   let _string = CString::new("Hello World!\n").unwrap();
    0
 }
