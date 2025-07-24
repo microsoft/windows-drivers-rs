@@ -7,7 +7,9 @@
 use std::{
     env,
     ffi::CStr,
+    io,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use thiserror::Error;
@@ -78,6 +80,42 @@ where
         path_without_prefix.push(path_components.as_path());
 
         Ok(path_without_prefix)
+    }
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub(crate) enum TwoPartVersionError {
+    #[error("Invalid version: {0}. Expected format is 'major.minor'")]
+    InvalidFormat(String),
+    #[error("Error parsing {0} version to 'u32'. Version string: {1}")]
+    ParseError(String, String),
+}
+
+/// Type for versions of the format "major.minor"
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct TwoPartVersion(pub(crate) u32, pub(crate) u32);
+
+impl FromStr for TwoPartVersion {
+    type Err = TwoPartVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let dot_count = s.matches('.').count();
+        if dot_count != 1 {
+            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
+        }
+        let (major_str, minor_str) = s
+            .split_once('.')
+            .ok_or_else(|| TwoPartVersionError::InvalidFormat(s.to_string()))?;
+        if major_str.is_empty() || minor_str.is_empty() {
+            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
+        }
+        let major = major_str
+            .parse::<u32>()
+            .map_err(|_| TwoPartVersionError::ParseError("major".to_string(), s.to_string()))?;
+        let minor = minor_str
+            .parse::<u32>()
+            .map_err(|_| TwoPartVersionError::ParseError("minor".to_string(), s.to_string()))?;
+        Ok(Self(major, minor))
     }
 }
 
@@ -366,9 +404,263 @@ fn read_registry_key_string_value(
     None
 }
 
+/// Finds the maximum version in a directory where subdirectories are named with
+/// version format "x.y"
+///
+/// # Arguments
+/// * `directory_path` - The path to the directory to search for version
+///   subdirectories
+///
+/// # Returns
+/// * `Some(BasicVersion)` - The maximum version found
+/// * `None` - If no valid version directories are found or if the directory
+///   cannot be read
+pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
+    directory_path: P,
+) -> Result<TwoPartVersion, io::Error> {
+    std::fs::read_dir(directory_path.as_ref())?
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
+        .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
+        .max()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Maximum version in {} not found",
+                    directory_path.as_ref().display()
+                ),
+            )
+        })
+}
+
 #[cfg(test)]
 mod tests {
+    use assert_fs::prelude::*;
+
     use super::*;
+
+    mod two_part_version {
+        use super::*;
+
+        #[test]
+        fn valid_versions() {
+            assert_eq!("1.2".parse(), Ok(TwoPartVersion(1, 2)));
+            assert_eq!("0.0".parse(), Ok(TwoPartVersion(0, 0)));
+            assert_eq!("10.15".parse(), Ok(TwoPartVersion(10, 15)));
+            assert_eq!("999.1".parse(), Ok(TwoPartVersion(999, 1)));
+            assert_eq!("1.999".parse(), Ok(TwoPartVersion(1, 999)));
+            assert_eq!("01.02".parse(), Ok(TwoPartVersion(1, 2)));
+            assert_eq!("1.02".parse(), Ok(TwoPartVersion(1, 2)));
+            assert_eq!("01.2".parse(), Ok(TwoPartVersion(1, 2)));
+        }
+
+        #[test]
+        fn invalid_format_versions() {
+            // Invalid format
+            assert_eq!(
+                String::new().parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat(String::new()))
+            );
+            assert_eq!(
+                "1".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("1".to_string()))
+            );
+            assert_eq!(
+                "123".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("123".to_string()))
+            );
+            assert_eq!(
+                "1.2.3.4".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("1.2.3.4".to_string()))
+            );
+            assert_eq!(
+                ".".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat(".".to_string()))
+            );
+
+            // Missing major version
+            assert_eq!(
+                ".2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat(".2".to_string()))
+            );
+            // Missing minor version
+            assert_eq!(
+                "1.".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("1.".to_string()))
+            );
+            assert_eq!(
+                "myfolder".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("myfolder".to_string()))
+            );
+        }
+
+        #[test]
+        fn parse_error_versions() {
+            // Non-numeric values
+            assert_eq!(
+                "a.b".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "a.b".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.b".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.b".to_string()
+                ))
+            );
+            assert_eq!(
+                "a.2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "a.2".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.2a".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.2a".to_string()
+                ))
+            );
+            assert_eq!(
+                "1a.2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "1a.2".to_string()
+                ))
+            );
+
+            // Whitespace
+            assert_eq!(
+                " 1.2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    " 1.2".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.2 ".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.2 ".to_string()
+                ))
+            );
+            assert_eq!(
+                "1 .2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "1 .2".to_string()
+                ))
+            );
+            assert_eq!(
+                "1. 2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1. 2".to_string()
+                ))
+            );
+        }
+
+        #[test]
+        fn version_ordering() {
+            let v1_0 = TwoPartVersion(1, 0);
+            let v1_1 = TwoPartVersion(1, 1);
+            let v1_999 = TwoPartVersion(1, 999);
+            let v2_0 = TwoPartVersion(2, 0);
+            let v2_1 = TwoPartVersion(2, 1);
+
+            // Test ordering
+            assert!(v1_0 < v1_1);
+            assert!(v1_1 < v1_999);
+            assert!(v1_999 < v2_0);
+            assert!(v2_0 < v2_1);
+        }
+
+        #[test]
+        fn equality() {
+            let v1 = TwoPartVersion(1, 2);
+            let v2 = TwoPartVersion(1, 2);
+            let v3 = TwoPartVersion(1, 3);
+
+            assert_eq!(v1, v2);
+            assert_ne!(v1, v3);
+        }
+
+        #[test]
+        fn debug_formatting() {
+            let version = TwoPartVersion(1, 2);
+            let debug_str = format!("{version:?}");
+            assert_eq!(debug_str, "TwoPartVersion(1, 2)");
+        }
+
+        #[test]
+        fn max_selection() {
+            let versions = [
+                TwoPartVersion(1, 2),
+                TwoPartVersion(1, 10),
+                TwoPartVersion(2, 0),
+                TwoPartVersion(1, 5),
+                TwoPartVersion(2, 1),
+                TwoPartVersion(1, 999),
+            ];
+
+            let max_version = versions.iter().max().unwrap();
+            assert_eq!(*max_version, TwoPartVersion(2, 1));
+        }
+
+        #[test]
+        fn u32_max_and_overflow() {
+            // Test u32::MAX
+            assert_eq!(
+                "4294967295.4294967295".parse::<TwoPartVersion>(),
+                Ok(TwoPartVersion(4_294_967_295, 4_294_967_295))
+            );
+            // Test that parsing numbers greater than u32::MAX fails gracefully
+            // u32::MAX is 4294967295, so test values that exceed this
+            // Major overflow
+            assert_eq!(
+                "4294967296.0".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "4294967296.0".to_string()
+                ))
+            );
+            assert_eq!(
+                "99999999999999999999.0".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "99999999999999999999.0".to_string()
+                ))
+            );
+            // Minor overflow
+            assert_eq!(
+                "0.4294967296".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "0.4294967296".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.99999999999999999999".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.99999999999999999999".to_string()
+                ))
+            );
+            // Both overflow
+            assert_eq!(
+                "4294967296.4294967296".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "4294967296.4294967296".to_string()
+                ))
+            );
+        }
+    }
 
     mod strip_extended_length_path_prefix {
         use super::*;
@@ -514,5 +806,125 @@ mod tests {
                 test_string
             )
         );
+    }
+
+    mod find_max_version_in_directory {
+        use super::*;
+
+        #[test]
+        fn empty_directory() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+        }
+
+        #[test]
+        fn nonexistent_directory() {
+            let nonexistent_path = std::path::Path::new("/this/path/does/not/exist");
+            let result = find_max_version_in_directory(nonexistent_path);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn valid_version_directories() {
+            // Single valid version directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("3.14").create_dir_all().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(3, 14)
+            );
+            // Multiple valid version directories
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("not_a_version").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
+            );
+        }
+
+        #[test]
+        fn invalid_version_directories() {
+            // Single invalid directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+
+            // Multiple invalid directories
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            temp_dir.child("1.2.3").create_dir_all().unwrap(); // Too many dots
+            temp_dir.child("a.b").create_dir_all().unwrap(); // Non-numeric
+            temp_dir.child("1").create_dir_all().unwrap(); // No dot
+            temp_dir.child("1.").create_dir_all().unwrap(); // Missing minor
+            temp_dir.child(".5").create_dir_all().unwrap(); // Missing major
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+        }
+
+        #[test]
+        fn major_version_priority() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.999").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("1.1000").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
+            );
+        }
+
+        #[test]
+        fn minor_version_comparison() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.5").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(1, 10)
+            );
+        }
+
+        #[test]
+        fn zero_versions() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("0.0").create_dir_all().unwrap();
+            temp_dir.child("0.1").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(0, 1)
+            );
+            temp_dir.child("1.0").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(1, 0)
+            );
+        }
+
+        #[test]
+        fn mixed_valid_and_invalid_entries() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.5").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("invalid").create_dir_all().unwrap();
+            temp_dir.child("1.2.3").create_dir_all().unwrap(); // Invalid: too many dots
+            temp_dir.child("a.b").create_dir_all().unwrap(); // Invalid: non-numeric
+            temp_dir.child("not_version").touch().unwrap(); // File: ignored
+            temp_dir.child("3.0").touch().unwrap(); // File: ignored
+                                                    // Should find the maximum among valid version directories only
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
+            );
+        }
     }
 }

@@ -212,7 +212,7 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
-    ]);
+    ])?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -244,7 +244,7 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
-    ]);
+    ])?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -265,7 +265,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     };
     info!("Generating bindings to WDK: {outfile_name}.rs");
 
-    let header_contents = config.bindgen_header_contents([ApiSubset::Base]);
+    let header_contents = config.bindgen_header_contents([ApiSubset::Base])?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -283,7 +283,7 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
         info!("Generating bindings to WDK: wdf.rs");
 
-        let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]);
+        let header_contents = config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf])?;
         trace!(header_contents = ?header_contents);
 
         let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -313,7 +313,7 @@ fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             info!("Generating bindings to WDK: gpio.rs");
 
             let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Gpio]);
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Gpio])?;
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -323,7 +323,7 @@ fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
                 // Only allowlist files in the gpio-specific files to avoid
                 // duplicate definitions
-                for header_file in config.headers(ApiSubset::Gpio) {
+                for header_file in config.headers(ApiSubset::Gpio)? {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -349,7 +349,7 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             info!("Generating bindings to WDK: hid.rs");
 
             let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid]);
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid])?;
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -359,7 +359,7 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
                 // Only allowlist files in the hid-specific files to avoid
                 // duplicate definitions
-                for header_file in config.headers(ApiSubset::Hid) {
+                for header_file in config.headers(ApiSubset::Hid)? {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -388,7 +388,7 @@ fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), Confi
                 ApiSubset::Base,
                 ApiSubset::Wdf,
                 ApiSubset::ParallelPorts,
-            ]);
+            ])?;
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -398,7 +398,7 @@ fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), Confi
 
                 // Only allowlist files in the parallel-ports-specific files to
                 // avoid duplicate definitions
-                for header_file in config.headers(ApiSubset::ParallelPorts) {
+                for header_file in config.headers(ApiSubset::ParallelPorts)? {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -426,7 +426,7 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             info!("Generating bindings to WDK: spb.rs");
 
             let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb]);
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb])?;
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -436,7 +436,7 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
                 // Only allowlist files in the spb-specific files to avoid
                 // duplicate definitions
-                for header_file in config.headers(ApiSubset::Spb) {
+                for header_file in config.headers(ApiSubset::Spb)? {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -465,7 +465,7 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
                 ApiSubset::Base,
                 ApiSubset::Wdf,
                 ApiSubset::Storage,
-            ]);
+            ])?;
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -475,7 +475,7 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
 
                 // Only allowlist files in the storage-specific files to avoid
                 // duplicate definitions
-                for header_file in config.headers(ApiSubset::Storage) {
+                for header_file in config.headers(ApiSubset::Storage)? {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -501,7 +501,7 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             info!("Generating bindings to WDK: usb.rs");
 
             let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb]);
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb])?;
             trace!(header_contents = ?header_contents);
 
             let bindgen_builder = {
@@ -511,7 +511,7 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 
                 // Only allowlist files in the usb-specific files to avoid
                 // duplicate definitions
-                for header_file in config.headers(ApiSubset::Usb) {
+                for header_file in config.headers(ApiSubset::Usb)? {
                     builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
                 }
                 builder
@@ -692,7 +692,7 @@ fn main() -> anyhow::Result<()> {
                                                 ApiSubset::Hid,
                                                 #[cfg(feature = "spb")]
                                                 ApiSubset::Spb,
-                                            ])
+                                            ])?
                                             .as_bytes(),
                                     )?;
 
