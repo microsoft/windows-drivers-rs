@@ -57,34 +57,19 @@ pub struct NewArgs {
 
 impl NewArgs {
     /// Returns the variant of `DriverType` based on which of the `driver_type`
-    /// flags, `--kmdf || --umdf || --wdm` was passed to the `new` command.
-    /// The field corresponding to the flag will be set to `true` in `NewArgs`.
-    /// This method checks which of the flags is set and returns the
-    /// corresponding `DriverType`.
+    /// flags, `--kmdf`, `--umdf` or `--wdm` was passed to the `new` command.
     ///
     /// # Returns
     ///
     /// * `DriverType`
-    ///
-    /// # Panics
-    ///
-    /// * If none of more than one of the `driver_type` flags is set to `true`.
-    ///   This is guaranteed by Clap's `ArgGroup` validation.
-    fn driver_type(&self) -> DriverType {
-        let number_of_flags_set =
-            usize::from(self.kmdf) + usize::from(self.umdf) + usize::from(self.wdm);
-        assert!(
-            (number_of_flags_set == 1),
-            "Expected exactly one of `driver_type` ArgGroup to be passed, but found \
-             {number_of_flags_set}. Possibly a bug.",
-        );
+    const fn driver_type(&self) -> DriverType {
+        // `ArgGroup` setting on `NewArgs` ensures
+        // exactly one of these flags is set
         if self.kmdf {
             DriverType::Kmdf
         } else if self.umdf {
             DriverType::Umdf
         } else {
-            // At this point, we know that `self.wdm` must be true, because
-            // `number_of_flags_set` is guaranteed to be 1
             DriverType::Wdm
         }
     }
@@ -491,35 +476,5 @@ mod tests {
             path: None,
         };
         assert_eq!(args.driver_type(), DriverType::Wdm);
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Expected exactly one of `driver_type` ArgGroup to be passed, but found 0. \
-                    Possibly a bug."
-    )]
-    fn test_new_args_driver_type_no_selection() {
-        let args = NewArgs {
-            kmdf: false,
-            umdf: false,
-            wdm: false,
-            path: None,
-        };
-        args.driver_type();
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Expected exactly one of `driver_type` ArgGroup to be passed, but found 2. \
-                    Possibly a bug."
-    )]
-    fn test_new_args_driver_type_multiple_selections() {
-        let args = NewArgs {
-            kmdf: true,
-            umdf: true,
-            wdm: false,
-            path: None,
-        };
-        args.driver_type();
     }
 }

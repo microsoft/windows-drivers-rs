@@ -245,6 +245,10 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
+
+    /// Error returned when the UCX header file is not found
+    #[error("failed to find {0} header file.")]
+    HeaderNotFound(String, #[source] std::io::Error),
 }
 
 /// Subset of APIs in the Windows Driver Kit
@@ -525,7 +529,7 @@ impl Config {
         // Add windows sdk library paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let windows_sdk_library_path = self.arch_sdk_library_path(sdk_version)?;
+        let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
         library_paths.push(
             windows_sdk_library_path
                 .canonicalize()?
@@ -578,46 +582,6 @@ impl Config {
         // precedence
         library_paths.reverse();
         Ok(library_paths.into_iter())
-    }
-
-    /// Constructs the architecture-specific Windows SDK library path using the
-    /// provided SDK Version.
-    ///
-    /// Builds the library path following the Windows SDK convention:
-    /// `{library_directory}/{sdk_version}/{km|um}/{architecture}/`
-    ///
-    /// # Arguments
-    ///
-    /// * `sdk_version` - Windows SDK version string (e.g., "10.0.22621.0")
-    ///
-    /// # Returns
-    ///
-    /// The constructed library path if it exists, otherwise
-    /// `ConfigError::DirectoryNotFound`.
-    ///
-    /// # Examples
-    ///
-    /// KMDF/AMD64: `C:\...\Lib\10.0.22621.0\km\x64`
-    /// UMDF/ARM64: `C:\...\Lib\10.0.22621.0\um\arm64`
-    fn arch_sdk_library_path(&self, sdk_version: String) -> Result<PathBuf, ConfigError> {
-        let windows_sdk_library_path =
-            self.wdk_content_root
-                .join("Lib")
-                .join(sdk_version)
-                .join(match self.driver_config {
-                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
-                    }
-                    DriverConfig::Umdf(_) => {
-                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
-                    }
-                });
-        if !windows_sdk_library_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: windows_sdk_library_path.to_string_lossy().into(),
-            });
-        }
-        Ok(windows_sdk_library_path)
     }
 
     /// Return an iterator of strings that represent compiler definitions
@@ -753,8 +717,15 @@ impl Config {
     ///
     /// The iterator considers both the [`ApiSubset`] and the [`Config`] to
     /// determine which headers to yield
-    pub fn headers(&self, api_subset: ApiSubset) -> impl Iterator<Item = String> {
-        match api_subset {
+    ///
+    /// # Errors
+    /// [`ConfigError`] - if the headers for the given [`ApiSubset`] could not
+    /// be determined
+    pub fn headers(
+        &self,
+        api_subset: ApiSubset,
+    ) -> Result<impl Iterator<Item = String>, ConfigError> {
+        let headers = match api_subset {
             ApiSubset::Base => self.base_headers(),
             ApiSubset::Wdf => self.wdf_headers(),
             ApiSubset::Gpio => self.gpio_headers(),
@@ -762,10 +733,13 @@ impl Config {
             ApiSubset::ParallelPorts => self.parallel_ports_headers(),
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
-            ApiSubset::Usb => self.usb_headers(),
-        }
-        .into_iter()
-        .map(str::to_string)
+            ApiSubset::Usb => return self.usb_headers().map(std::iter::IntoIterator::into_iter),
+        };
+        Ok(headers
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>()
+            .into_iter())
     }
 
     fn base_headers(&self) -> Vec<&'static str> {
@@ -870,77 +844,60 @@ impl Config {
         headers
     }
 
-    fn usb_headers(&self) -> Vec<&'static str> {
-        let mut headers = vec![
-            "usb.h",
-            "usbfnbase.h",
-            "usbioctl.h",
-            "usbspec.h",
-            "Usbpmapi.h",
-        ];
-
+    fn usb_headers(&self) -> Result<Vec<String>, ConfigError> {
+        let mut headers = Vec::new();
+        headers.extend(
+            [
+                "usb.h",
+                "usbfnbase.h",
+                "usbioctl.h",
+                "usbspec.h",
+                "Usbpmapi.h",
+            ]
+            .iter()
+            .map(std::string::ToString::to_string),
+        );
         if matches!(
             self.driver_config,
             DriverConfig::Wdm | DriverConfig::Kmdf(_)
         ) {
-            headers.extend(["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]);
+            headers.extend(
+                ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]
+                    .iter()
+                    .map(std::string::ToString::to_string),
+            );
         }
 
         if matches!(
             self.driver_config,
             DriverConfig::Kmdf(_) | DriverConfig::Umdf(_)
         ) {
-            headers.extend(["wdfusb.h"]);
+            headers.extend(["wdfusb.h".to_string()]);
         }
 
         if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
-            let ucx_header_path = self
-                .latest_ucx_header_path()
-                .map_err(|e| {
-                    tracing::error!("Failed to get latest UCX header: {e}");
-                    e
-                })
-                .expect("Failed to get UCX header. Please verify WDK installation");
+            headers.extend(
+                [
+                    "ucm/1.0/UcmCx.h",
+                    "UcmTcpci/1.0/UcmTcpciCx.h",
+                    "UcmUcsi/1.0/UcmucsiCx.h",
+                    "ude/1.1/UdeCx.h",
+                    "ufx/1.1/ufxbase.h",
+                    "ufxproprietarycharger.h",
+                    "urs/1.0/UrsCx.h",
+                ]
+                .iter()
+                .map(std::string::ToString::to_string),
+            );
 
-            headers.extend([
-                "ucm/1.0/UcmCx.h",
-                "UcmTcpci/1.0/UcmTcpciCx.h",
-                "UcmUcsi/1.0/UcmucsiCx.h",
-                ucx_header_path,
-                "ude/1.1/UdeCx.h",
-                "ufx/1.1/ufxbase.h",
-                "ufxproprietarycharger.h",
-                "urs/1.0/UrsCx.h",
-            ]);
+            let latest_ucx_header_path = self.ucx_header()?;
+            headers.push(latest_ucx_header_path);
 
             if Self::should_include_ufxclient() {
-                headers.extend(["ufx/1.1/ufxclient.h"]);
+                headers.push("ufx/1.1/ufxclient.h".to_string());
             }
         }
-        headers
-    }
-
-    fn latest_ucx_header_path(&self) -> Result<&'static str, ConfigError> {
-        let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
-        let ucx_header_root_dir = self
-            .arch_sdk_library_path(sdk_version)?
-            .join("ucx")
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?;
-
-        // Find the latest version of UCX headers in the directory
-        let max_version =
-            utils::find_max_version_in_directory(&ucx_header_root_dir).ok_or_else(|| {
-                ConfigError::DirectoryNotFound {
-                    directory: format!(
-                        "No UCX version directories found in {}",
-                        ucx_header_root_dir.display()
-                    ),
-                }
-            })?;
-
-        let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
-        Ok(Box::leak(path.into_boxed_str()))
+        Ok(headers)
     }
 
     /// Determines whether to include the ufxclient.h header based on the Clang
@@ -987,18 +944,22 @@ impl Config {
     ///
     /// The contents contain `#include`'ed headers based off the [`ApiSubset`]
     /// and [`Config`], as well as any additional definitions required for the
-    /// headers to be processed successfully
+    /// headers to be processed successfully.
+    ///
+    /// # Errors
+    /// [`ConfigError`] - if the headers for a [`ApiSubset`] could not be
+    /// determined
     pub fn bindgen_header_contents(
         &self,
         api_subsets: impl IntoIterator<Item = ApiSubset>,
-    ) -> String {
-        api_subsets
+    ) -> Result<String, ConfigError> {
+        Ok(api_subsets
             .into_iter()
-            .flat_map(|api_subset| {
-                self.headers(api_subset)
-                    .map(|header| format!("#include \"{header}\"\n"))
-            })
-            .collect::<String>()
+            .map(|api_subset| self.headers(api_subset))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flat_map(|iter| iter.map(|header| format!("#include \"{header}\"\n")))
+            .collect())
     }
 
     /// Configure a Cargo build of a library that depends on the WDK. This
@@ -1175,6 +1136,58 @@ impl Config {
             .expect("CARGO_CFG_TARGET_FEATURE should be set by Cargo");
 
         enabled_cpu_target_features.contains(STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME)
+    }
+
+    /// Constructs the architecture-specific Windows SDK library path using the
+    /// provided SDK Version and the driver configuration.
+    ///
+    /// Builds the library path following the Windows SDK convention:
+    /// `{library_directory}/{sdk_version}/{km|um}/{architecture}/`
+    ///
+    /// # Arguments
+    ///
+    /// * `sdk_version` - Windows SDK version string (e.g., "10.0.22621.0")
+    ///
+    /// # Returns
+    ///
+    /// The constructed library path if it exists, otherwise
+    /// `ConfigError::DirectoryNotFound`.
+    ///
+    /// # Examples
+    ///
+    /// KMDF/AMD64: `C:\...\Lib\10.0.22621.0\km\x64`
+    /// UMDF/ARM64: `C:\...\Lib\10.0.22621.0\um\arm64`
+    fn sdk_library_path(&self, sdk_version: String) -> Result<PathBuf, ConfigError> {
+        let windows_sdk_library_path =
+            self.wdk_content_root
+                .join("Lib")
+                .join(sdk_version)
+                .join(match self.driver_config {
+                    DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                    DriverConfig::Umdf(_) => {
+                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
+                    }
+                });
+        if !windows_sdk_library_path.is_dir() {
+            return Err(ConfigError::DirectoryNotFound {
+                directory: windows_sdk_library_path.to_string_lossy().into(),
+            });
+        }
+        Ok(windows_sdk_library_path)
+    }
+
+    /// Returns the path to the latest available UCX header file present in the
+    /// Lib folder of the WDK content root
+    fn ucx_header(&self) -> Result<String, ConfigError> {
+        let sdk_version =
+            utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
+        let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
+        let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)
+            .map_err(|e| ConfigError::HeaderNotFound("ucxclass.h".into(), e))?;
+        let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
+        Ok(path)
     }
 }
 
@@ -1432,6 +1445,8 @@ mod tests {
     use std::assert_matches::assert_matches;
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
+    use assert_fs::TempDir;
+
     use super::*;
 
     /// Runs function after modifying environment variables, and returns the
@@ -1618,7 +1633,7 @@ mod tests {
             });
 
             assert_eq!(
-                config.bindgen_header_contents([ApiSubset::Base]),
+                config.bindgen_header_contents([ApiSubset::Base]).unwrap(),
                 r#"#include "ntifs.h"
 #include "ntddk.h"
 #include "ntstrsafe.h"
@@ -1638,7 +1653,9 @@ mod tests {
             });
 
             assert_eq!(
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
+                config
+                    .bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf])
+                    .unwrap(),
                 r#"#include "ntifs.h"
 #include "ntddk.h"
 #include "ntstrsafe.h"
@@ -1659,10 +1676,249 @@ mod tests {
             });
 
             assert_eq!(
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf]),
+                config
+                    .bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf])
+                    .unwrap(),
                 r#"#include "windows.h"
 #include "wdf.h"
 "#,
+            );
+        }
+
+        /// Verifies that common USB headers are present in all driver
+        /// configurations
+        fn assert_common_usb_headers_present(header_contents: &str) {
+            let required_headers = [
+                "usb.h",
+                "usbfnbase.h",
+                "usbioctl.h",
+                "usbspec.h",
+                "Usbpmapi.h",
+            ];
+
+            for header in required_headers {
+                assert!(
+                    header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} missing"
+                );
+            }
+        }
+
+        /// Verifies WDM-specific USB header inclusions and exclusions
+        fn assert_wdm_usb_headers(header_contents: &str) {
+            // WDM: kernel-mode USB headers but no WDF or UCX
+            let required_headers = ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"];
+
+            let excluded_headers = [
+                "wdfusb.h",
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+                "ucx/1.2/ucxclass.h",
+            ];
+
+            for header in required_headers {
+                assert!(
+                    header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} missing"
+                );
+            }
+
+            for header in excluded_headers {
+                assert!(
+                    !header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} should not be included"
+                );
+            }
+        }
+
+        /// Verifies KMDF-specific USB header inclusions
+        fn assert_kmdf_usb_headers(header_contents: &str) {
+            // KMDF: all headers including kernel-mode, WDF, UCX, and KMDF-specific
+            let kernel_mode_headers = ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"];
+
+            let wdf_headers = ["wdfusb.h"];
+
+            let kmdf_specific_headers = [
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+                "ucx/1.2/ucxclass.h",
+            ];
+
+            // Check all required headers
+            for headers in [
+                &kernel_mode_headers[..],
+                &wdf_headers[..],
+                &kmdf_specific_headers[..],
+            ] {
+                for header in headers {
+                    assert!(
+                        header_contents.contains(&format!("#include \"{header}\"")),
+                        "{header} missing"
+                    );
+                }
+            }
+        }
+
+        /// Verifies UMDF-specific USB header inclusions and exclusions
+        fn assert_umdf_usb_headers(header_contents: &str) {
+            // UMDF: common headers + WDF, but no kernel-mode or KMDF-specific
+            let excluded_kernel_headers =
+                ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"];
+
+            let required_headers = ["wdfusb.h"];
+            let excluded_kmdf_headers = [
+                "ucm/1.0/UcmCx.h",
+                "UcmTcpci/1.0/UcmTcpciCx.h",
+                "UcmUcsi/1.0/UcmucsiCx.h",
+                "ude/1.1/UdeCx.h",
+                "ufx/1.1/ufxbase.h",
+                "ufxproprietarycharger.h",
+                "urs/1.0/UrsCx.h",
+                "ucx/1.2/ucxclass.h",
+            ];
+
+            for header in excluded_kernel_headers {
+                assert!(
+                    !header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} should not be included"
+                );
+            }
+
+            for header in required_headers {
+                assert!(
+                    header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} missing"
+                );
+            }
+
+            for header in excluded_kmdf_headers {
+                assert!(
+                    !header_contents.contains(&format!("#include \"{header}\"")),
+                    "{header} should not be included"
+                );
+            }
+        }
+
+        /// Tests USB header generation for a specific driver configuration
+        fn test_usb_headers_with(driver_config: &DriverConfig, cpu_architecture: CpuArchitecture) {
+            // Set up mock WDK directory structure
+            let temp_dir = TempDir::new().unwrap();
+            let wdk_content_root = temp_dir.path().to_path_buf();
+            let lib_dir = wdk_content_root.join("Lib").join("10.0.22621.0");
+            let include_dir = wdk_content_root.join("Include").join("10.0.22621.0");
+            match &driver_config {
+                DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                    std::fs::create_dir_all(
+                        lib_dir
+                            .join("km")
+                            .join(cpu_architecture.as_windows_str())
+                            .join("ucx")
+                            .join("1.2"),
+                    )
+                    .unwrap();
+                }
+                DriverConfig::Umdf(_) => {
+                    std::fs::create_dir_all(
+                        lib_dir.join("um").join(cpu_architecture.as_windows_str()),
+                    )
+                    .unwrap();
+                }
+            }
+            std::fs::create_dir_all(include_dir.join("km").join("crt")).unwrap();
+            std::fs::create_dir_all(include_dir.join("shared")).unwrap();
+
+            let config = Config {
+                wdk_content_root,
+                cpu_architecture,
+                driver_config: driver_config.clone(),
+            };
+
+            let result = config.bindgen_header_contents([ApiSubset::Usb]);
+            assert!(result.is_ok(), "Expected USB test to succeed");
+            let header_contents = result.unwrap();
+
+            assert_common_usb_headers_present(&header_contents);
+
+            match &driver_config {
+                DriverConfig::Wdm => assert_wdm_usb_headers(&header_contents),
+                DriverConfig::Kmdf(_) => assert_kmdf_usb_headers(&header_contents),
+                DriverConfig::Umdf(_) => assert_umdf_usb_headers(&header_contents),
+            }
+        }
+
+        #[test]
+        fn usb_success() {
+            // Test cases covering branches in usb_headers():
+            // 1. WDM - Common headers + kernel-mode headers, no WDF/UCX
+            // 2. KMDF - All headers including WDF, UCX, and KMDF-specific USB
+            // 3. UMDF - Common headers + WDF, no kernel-mode or UCX
+            let test_cases = [
+                (DriverConfig::Wdm, CpuArchitecture::Amd64),
+                (
+                    DriverConfig::Kmdf(KmdfConfig {
+                        kmdf_version_major: 1,
+                        target_kmdf_version_minor: 33,
+                        minimum_kmdf_version_minor: None,
+                    }),
+                    CpuArchitecture::Arm64,
+                ),
+                (
+                    DriverConfig::Umdf(UmdfConfig {
+                        umdf_version_major: 2,
+                        target_umdf_version_minor: 33,
+                        minimum_umdf_version_minor: None,
+                    }),
+                    CpuArchitecture::Amd64,
+                ),
+            ];
+
+            for (driver_config, cpu_architecture) in test_cases {
+                test_usb_headers_with(&driver_config, cpu_architecture);
+            }
+        }
+
+        #[test]
+        fn usb_failure() {
+            // Test KMDF failure case: KMDF drivers require UCX headers, so they fail
+            // when the WDK directory structure is missing or invalid
+            let driver_config = DriverConfig::Kmdf(KmdfConfig {
+                kmdf_version_major: 1,
+                target_kmdf_version_minor: 33,
+                minimum_kmdf_version_minor: None,
+            });
+            let cpu_architecture = CpuArchitecture::Amd64;
+
+            // Create config with nonexistent WDK path to trigger UCX header resolution
+            // failure
+            let config = Config {
+                wdk_content_root: PathBuf::from("/nonexistent/wdk/path"),
+                cpu_architecture,
+                driver_config,
+            };
+
+            let result = config.bindgen_header_contents([ApiSubset::Usb]);
+
+            // KMDF should fail due to UCX header path resolution
+            assert!(
+                result.is_err(),
+                "Expected KMDF USB test to fail with nonexistent WDK path"
+            );
+
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
+                result.unwrap_err(),
+                ConfigError::IoError(_),
+                "Expected IoError due to nonexistent WDK path during UCX header resolution"
             );
         }
     }
