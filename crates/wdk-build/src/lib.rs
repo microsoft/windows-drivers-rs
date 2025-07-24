@@ -30,6 +30,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utils::PathExt;
 
+use crate::utils::detect_windows_sdk_version;
+
 /// Configuration parameters for a build dependent on the WDK
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -409,13 +411,12 @@ impl Config {
     /// exist.
     pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut include_paths = vec![];
-
+        let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
         let include_directory = self.wdk_content_root.join("Include");
 
         // Add windows sdk include paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())?;
         let windows_sdk_include_path = include_directory.join(sdk_version);
 
         let crt_include_path = windows_sdk_include_path.join("km/crt");
@@ -523,12 +524,11 @@ impl Config {
     /// exist.
     pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
-        let library_directory = self.wdk_content_root.join("Lib");
+        let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
 
         // Add windows sdk library paths
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
-        let sdk_version = utils::get_latest_windows_sdk_version(library_directory.as_path())?;
         let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
         library_paths.push(
             windows_sdk_library_path
@@ -537,6 +537,7 @@ impl Config {
         );
 
         // Add other driver type-specific library paths
+        let library_directory = self.wdk_content_root.join("Lib");
         match &self.driver_config {
             DriverConfig::Wdm => (),
             DriverConfig::Kmdf(kmdf_config) => {
@@ -1422,8 +1423,7 @@ static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
 pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
     let wdk_content_root =
         utils::detect_wdk_content_root().ok_or(ConfigError::WdkContentRootDetectionError)?;
-    let detected_sdk_version =
-        utils::get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+    let detected_sdk_version = detect_windows_sdk_version(&wdk_content_root)?;
 
     if !utils::validate_wdk_version_format(&detected_sdk_version) {
         return Err(ConfigError::WdkVersionStringFormatError {

@@ -17,7 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         wdk:
-          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+          - version: 10.0.22621 # NI WDK
+            source: winget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
 
         llvm:
           - 17.0.6
@@ -32,8 +35,10 @@ jobs:
           - release
 
         target_triple:
-          - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
 
         include:
         - language: c-cpp
@@ -58,45 +63,20 @@ jobs:
         }
         clang --version
 
-    - name: Install WDK (${{ matrix.wdk }})
-      run: |
-        # Delete the latest WDK (10.0.26100) Include and Lib folders if present on the system.
-        # Older WDK (10.0.22621) will be the latest available Kit on the system once installed.
-        # FIXME: Remove once issues with using latest WDK are resolved.
-        $latestWdkPaths = @(
-          "C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0",
-          "C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0"
-        )
-        foreach ($path in $latestWdkPaths) {
-          if (Test-Path $path) {
-            Write-Host "Deleting folder: $path"
-            Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
-          } else {
-            Write-Host "WDK folder not found, skipping deletion: $path"
-          }
-        }
-        
-        # Install or update the target WDK
-        try {
-          $targetWdk = Get-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -ErrorAction SilentlyContinue
-          if ($targetWdk) {
-            Write-Host "${{ matrix.wdk }} is already installed. Attempting to update..."
-            Update-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing ${{ matrix.wdk }}..."
-            Install-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          }
-        } catch {
-          Write-Host "Error installing ${{ matrix.wdk }}: $($_.Exception.Message)"
-          exit 1
-        }
+    - name: Install WDK (${{ matrix.wdk.version }})
+      uses: ./.github/actions/install-wdk
+      with:
+        version: ${{ matrix.wdk.version }}
+        source: ${{ matrix.wdk.source }}
+        host: 'x64' # windows-latest is x64-based
+        target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust_toolchain }}
         components: clippy
-        targets: ${{ matrix.target_triple }}
+        targets: ${{ matrix.target_triple.name }}
     
     - name: Install Cargo Make
       uses: taiki-e/install-action@v2
@@ -112,7 +92,7 @@ jobs:
 
     - if: matrix.build-mode == 'manual'
       working-directory: ./examples
-      run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --all-features
+      run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3

@@ -404,6 +404,21 @@ fn read_registry_key_string_value(
     None
 }
 
+/// Detects the Windows SDK version from the WDK content root directory.
+///
+/// # Arguments
+/// * `wdk_content_root` - A reference to the path where the WDK content root is
+///   located.
+///
+/// # Errors
+///
+/// Returns a `ConfigError::DirectoryNotFound` error if the directory provided
+/// does not exist.
+pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, ConfigError> {
+    env::var("Version_Number")
+        .or_else(|_| get_latest_windows_sdk_version(&wdk_content_root.join("Lib")))
+}
+
 /// Finds the maximum version in a directory where subdirectories are named with
 /// version format "x.y"
 ///

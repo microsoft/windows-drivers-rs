@@ -17,14 +17,20 @@ jobs:
     strategy:
       matrix:
         wdk:
-          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+          - version: 10.0.22621 # NI WDK
+            source: winget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
 
         llvm:
           - 17.0.6
 
         target_triple:
-          - x86_64-pc-windows-msvc
-          # - aarch64-pc-windows-msvc FIXME: find a way to validate the local makefile on aarch64
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          # - name: aarch64-pc-windows-msvc FIXME: validate on aarch64
+          #   arch: arm64
+          
 
     steps:
       - name: Checkout Repository
@@ -45,33 +51,31 @@ jobs:
           }
           clang --version
 
-      - name: Install WDK (${{ matrix.wdk }})
-        run: |
-          if ((Get-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals).Id -eq '${{ matrix.wdk }}') {
-            Write-Host "${{ matrix.wdk }} is already installed. Attempting to update..."
-            Update-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing ${{ matrix.wdk }}..."
-            Install-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          }
+      - name: Install WDK (${{ matrix.wdk.version }})
+        uses: ./.github/actions/install-wdk
+        with:
+          version: ${{ matrix.wdk.version }}
+          source: ${{ matrix.wdk.source }}
+          host: 'x64' # windows-latest is x64-based
+          target: ${{ matrix.target_triple.arch }}
 
-      - name: Install Nightly Rust Toolchain (${{ matrix.target_triple }})
+      - name: Install Nightly Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Beta Rust Toolchain (${{ matrix.target_triple }})
+      - name: Install Beta Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@beta
         with:
           components: clippy
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Stable Rust Toolchain (${{ matrix.target_triple }})
+      - name: Install Stable Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
