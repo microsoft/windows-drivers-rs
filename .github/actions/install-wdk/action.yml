@@ -32,19 +32,23 @@ runs:
                 exit 1
             }
         }
+        
         $inputVersion = '${{ inputs.version }}'
         if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
             Write-Error "Invalid version format: $inputVersion"
             exit 1
         }
+        $versionParts = $inputVersion.Split('.')
+        $sdkVersion = $versionParts[0..2] -join '.'
+        
         $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
             Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
             exit 1
         }
-        
+
         if ($source -eq 'nuget') {
-          $versionParts = $inputVersion.Split('.')
+
           if ($versionParts.Length -eq 3) {
               # No QFE specified, find the latest QFE for this base version
               Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
@@ -53,7 +57,7 @@ runs:
                   $availableVersions = @()
                   Write-Host "Trying NuGet API..."
                   try {
-                      $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
+                      $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.$targetArch/index.json"
                       $response = Invoke-RestMethod -Uri $nugetApiUrl -ErrorAction SilentlyContinue
                       if ($response -and $response.versions) {
                           $availableVersions = $response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }
@@ -61,6 +65,7 @@ runs:
                       }
                   } catch {
                       Write-Host "NuGet API query failed: $_"
+                      exit 1
                   }
                   
                   # Filter versions that match the base version and find the latest QFE
@@ -107,7 +112,7 @@ runs:
             Write-Error "$packages path could not be found. Please check the WDK version and source."
             exit 1
           }
-        
+
           Write-Host "Setting WDKContentRoot environment variable..."
           Write-Output "WDKContentRoot=$packages\Microsoft.Windows.WDK.$targetArch.$version\c\" >> $env:GITHUB_ENV
 
@@ -124,8 +129,8 @@ runs:
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
         } else {
 
-          Write-Host "Using Winget to install WDK version $version..."
-          $wdk = "Microsoft.WindowsWDK.$version"
+          Write-Host "Using Winget to install WDK version $inputVersion..."
+          $wdk = "Microsoft.WindowsWDK.$inputVersion"
           if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
             Write-Host "$wdk is already installed. Attempting to update..."
             Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
