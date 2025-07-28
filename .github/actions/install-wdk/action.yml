@@ -57,7 +57,8 @@ runs:
                   $availableVersions = @()
                   Write-Host "Trying NuGet API..."
                   try {
-                      $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.$targetArch/index.json"
+                      # Check available `x64` versions. `arm64` and `x64` kits are released together almost always
+                      $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
                       $response = Invoke-RestMethod -Uri $nugetApiUrl -ErrorAction SilentlyContinue
                       if ($response -and $response.versions) {
                           $availableVersions = $response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }
