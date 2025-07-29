@@ -153,7 +153,7 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
             );
         } else {
             let wdk_kit_version =
-                env::var("WDKKitVersion").map_or("10.0".to_string(), |version| version);
+                env::var("WDKKitVersion").map_or_else(|_| "10.0".to_string(), |version| version);
             let path = path.join("Windows Kits").join(wdk_kit_version);
             if path.is_dir() {
                 return Some(path);
@@ -404,7 +404,8 @@ fn read_registry_key_string_value(
     None
 }
 
-/// Detects the Windows SDK version from the WDK content root directory.
+/// Detects the Windows SDK version from the `Version_Number` env var or from
+/// the WDK content's `Lib` directory.
 ///
 /// # Arguments
 /// * `wdk_content_root` - A reference to the path where the WDK content root is

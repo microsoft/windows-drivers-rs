@@ -1181,8 +1181,7 @@ impl Config {
     /// Returns the path to the latest available UCX header file present in the
     /// Lib folder of the WDK content root
     fn ucx_header(&self) -> Result<String, ConfigError> {
-        let sdk_version =
-            utils::get_latest_windows_sdk_version(&self.wdk_content_root.join("Lib"))?;
+        let sdk_version = utils::detect_windows_sdk_version(&self.wdk_content_root)?;
         let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
         let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)
             .map_err(|e| ConfigError::HeaderNotFound("ucxclass.h".into(), e))?;
