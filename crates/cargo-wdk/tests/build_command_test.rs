@@ -11,100 +11,26 @@ use assert_cmd::prelude::*;
 use common::{set_crt_static_flag, with_file_lock};
 use sha2::{Digest, Sha256};
 
-// Helper to hash a file
-fn digest_file<P: AsRef<Path>>(path: P) -> String {
-    let file_contents = fs::read(path).expect("Failed to read file");
-    let result = Sha256::digest(&file_contents);
-    format!("{result:x}")
-}
-
 #[test]
-fn given_a_mixed_package_kmdf_workspace_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
-) {
+fn mixed_package_kmdf_workspace_builds_successfully() {
     with_file_lock(|| {
-        set_crt_static_flag();
+        let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
 
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args([
-            "build",
-            "--cwd",
-            "tests/mixed-package-kmdf-workspace", // Root dir for tests is cargo-wdk
-        ]);
-
-        // assert command output
-        let cmd_assertion = cmd.assert().success();
-        let output = cmd_assertion.get_output();
-        let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.contains("Processing completed for package: driver"));
         assert!(stdout.contains(
             "No package.metadata.wdk section found. Skipping driver build workflow for package: \
              non_driver_crate"
         ));
 
-        // assert driver package
-        assert!(
-            PathBuf::from("tests/mixed-package-kmdf-workspace/target/debug/driver_package")
-                .exists()
-        );
-        assert!(PathBuf::from(
-            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.cat"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.inf"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.map"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.pdb"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.sys"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/mixed-package-kmdf-workspace/target/debug/driver_package/WDRLocalTestCert.cer"
-        )
-        .exists());
-
-        // assert if the files are copied properly
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.map"
-            )),
-            digest_file(Path::new(
-                "tests/mixed-package-kmdf-workspace/target/debug/deps/driver.map"
-            ))
-        );
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/mixed-package-kmdf-workspace/target/debug/driver_package/driver.pdb"
-            )),
-            digest_file(Path::new(
-                "tests/mixed-package-kmdf-workspace/target/debug/driver.pdb"
-            ))
-        );
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/mixed-package-kmdf-workspace/target/debug/driver_package/WDRLocalTestCert.\
-                 cer"
-            )),
-            digest_file(Path::new(
-                "tests/mixed-package-kmdf-workspace/target/debug/WDRLocalTestCert.cer"
-            ))
-        );
+        verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
     });
 }
 
 #[test]
-fn given_a_kmdf_driver_with_cert_available_in_store_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
-) {
+fn kmdf_driver_builds_successfully() {
     // Setup for executables
     wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
+
     // Create a self signed certificate in store if not already present
     let output = Command::new("certmgr.exe")
         .args(["-s", "WDRTestCertStore"])
@@ -127,6 +53,7 @@ fn given_a_kmdf_driver_with_cert_available_in_store_when_cargo_wdk_is_executed_t
             "-n",
             "CN=WDRLocalTestCert",
         ];
+
         let output = Command::new("makecert").args(args).output().unwrap();
         assert!(output.status.success());
     }
@@ -135,134 +62,20 @@ fn given_a_kmdf_driver_with_cert_available_in_store_when_cargo_wdk_is_executed_t
 }
 
 #[test]
-fn given_a_umdf_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
-) {
+fn umdf_driver_builds_successfully() {
     with_file_lock(|| build_driver_project("umdf"));
 }
 
 #[test]
-fn given_a_wdm_driver_when_cargo_wdk_is_executed_then_driver_package_folder_is_created_with_expected_files(
-) {
+fn wdm_driver_builds_successfully() {
     with_file_lock(|| build_driver_project("wdm"));
 }
 
-fn build_driver_project(driver_type: &str) {
-    set_crt_static_flag();
-
-    let driver_folder = format!("{driver_type}-driver");
-    let driver_folder_underscored = format!("{driver_type}_driver");
-
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args([
-        "build",
-        "--cwd",
-        &format!("tests/{driver_folder}"), // Root dir for tests is cargo-wdk
-    ]);
-
-    // assert command output
-    let cmd_assertion = cmd.assert().success();
-    let output = cmd_assertion.get_output();
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!(
-        "Processing completed for package: {driver_folder}"
-    )));
-
-    // assert driver package
-    assert!(PathBuf::from(format!(
-        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package"
-    ))
-    .exists());
-    assert!(PathBuf::from(format!(
-        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-         {driver_folder_underscored}.cat"
-    ))
-    .exists());
-    assert!(PathBuf::from(format!(
-        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-         {driver_folder_underscored}.inf"
-    ))
-    .exists());
-    assert!(PathBuf::from(format!(
-        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-         {driver_folder_underscored}.map"
-    ))
-    .exists());
-    assert!(PathBuf::from(format!(
-        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-         {driver_folder_underscored}.pdb"
-    ))
-    .exists());
-
-    if matches!(driver_type, "kmdf" | "wdm") {
-        assert!(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-             {driver_folder_underscored}.sys"
-        ))
-        .exists());
-    } else {
-        assert!(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-             {driver_folder_underscored}.dll"
-        ))
-        .exists());
-    }
-
-    assert!(PathBuf::from(format!(
-        "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/WDRLocalTestCert.\
-         cer"
-    ))
-    .exists());
-
-    // assert if the files are copied properly
-    assert_eq!(
-        digest_file(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-             {driver_folder_underscored}.map"
-        ))),
-        digest_file(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/deps/{driver_folder_underscored}.map"
-        ))),
-    );
-
-    assert_eq!(
-        digest_file(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-             {driver_folder_underscored}.pdb"
-        ))),
-        digest_file(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/{driver_folder_underscored}.pdb"
-        )))
-    );
-
-    assert_eq!(
-        digest_file(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/{driver_folder_underscored}_package/\
-             WDRLocalTestCert.cer"
-        ))),
-        digest_file(PathBuf::from(format!(
-            "tests/{driver_folder}/target/debug/WDRLocalTestCert.cer"
-        )))
-    );
-}
-
 #[test]
-#[allow(clippy::too_many_lines)]
-fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_and_non_driver_projects_are_built_and_packaged_successfully(
-) {
+fn emulated_workspace_builds_successfully() {
     with_file_lock(|| {
-        set_crt_static_flag();
-
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args([
-            "build",
-            "--cwd",
-            "tests/emulated-workspace", // Root dir for tests is cargo-wdk
-        ]);
-
-        // assert command output
-        let cmd_assertion = cmd.assert().success();
-        let output = cmd_assertion.get_output();
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let emulated_workspace_path = "tests/emulated-workspace";
+        let stdout = run_build_cmd(emulated_workspace_path);
 
         // Matches warning about WDK metadata not being available for non driver project
         // but a valid rust project
@@ -275,136 +88,107 @@ fn given_an_emulated_workspace_when_cargo_wdk_is_executed_then_all_driver_and_no
         assert!(stdout.contains("Processing completed for package: driver_2"));
         assert!(stdout.contains(r"Build completed successfully"));
 
-        // assert umdf-driver-workspace driver package
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-             driver_1.cat"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-             driver_1.inf"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-             driver_1.map"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-             driver_1.pdb"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-             driver_1.dll"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-             WDRLocalTestCert.cer"
-        )
-        .exists());
-
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-             driver_2.cat"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-             driver_2.inf"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-             driver_2.map"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-             driver_2.pdb"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-             driver_2.dll"
-        )
-        .exists());
-        assert!(PathBuf::from(
-            "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-             WDRLocalTestCert.cer"
-        )
-        .exists());
-
-        // assert if the files are copied properly
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-                 driver_1.map"
-            )),
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/deps/driver_1.map"
-            ))
-        );
-
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-                 driver_1.pdb"
-            )),
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1.pdb"
-            ))
-        );
-
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_1_package/\
-                 WDRLocalTestCert.cer"
-            )),
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/WDRLocalTestCert.cer"
-            ))
-        );
-
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-                 driver_2.map"
-            )),
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/deps/driver_2.map"
-            ))
-        );
-
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-                 driver_2.pdb"
-            )),
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2.pdb"
-            ))
-        );
-
-        assert_eq!(
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/driver_2_package/\
-                 WDRLocalTestCert.cer"
-            )),
-            digest_file(Path::new(
-                "tests/emulated-workspace/umdf-driver-workspace/target/debug/WDRLocalTestCert.cer"
-            ))
-        );
+        let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
+        verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll");
+        verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll");
     });
+}
+
+fn build_driver_project(driver_type: &str) {
+    let driver_name = format!("{driver_type}-driver");
+    let driver_path = format!("tests/{driver_name}");
+
+    let stdout = run_build_cmd(&driver_path);
+
+    assert!(stdout.contains(&format!("Processing completed for package: {driver_name}")));
+
+    let driver_binary_extension = match driver_type {
+        "kmdf" | "wdm" => "sys",
+        "umdf" => "dll",
+        _ => panic!("Unsupported driver type: {driver_type}"),
+    };
+
+    verify_driver_package_files(&driver_path, &driver_name, driver_binary_extension);
+}
+
+fn run_build_cmd(driver_path: &str) -> String {
+    set_crt_static_flag();
+
+    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+    cmd.args(["build", "--cwd", driver_path]);
+
+    // assert command output
+    let cmd_assertion = cmd.assert().success();
+    let output = cmd_assertion.get_output();
+
+    String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+fn verify_driver_package_files(
+    driver_or_workspace_path: &str,
+    driver_name: &str,
+    driver_binary_extension: &str,
+) {
+    let driver_name = driver_name.replace('-', "_");
+    let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
+    let package_path = format!("{debug_folder_path}/{driver_name}_package");
+
+    // Verify files exist in package folder
+    assert_dir_exists(&package_path);
+
+    for ext in ["cat", "inf", "map", "pdb", driver_binary_extension] {
+        assert_file_exists(&format!("{package_path}/{driver_name}.{ext}"));
+    }
+
+    assert_file_exists(&format!("{package_path}/WDRLocalTestCert.cer"));
+
+    // Verify hashes of files copied from debug to package folder
+    assert_file_hash(
+        &format!("{package_path}/{driver_name}.map"),
+        &format!("{debug_folder_path}/deps/{driver_name}.map"),
+    );
+
+    assert_file_hash(
+        &format!("{package_path}/{driver_name}.pdb"),
+        &format!("{debug_folder_path}/{driver_name}.pdb"),
+    );
+
+    assert_file_hash(
+        &format!("{package_path}/WDRLocalTestCert.cer"),
+        &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
+    );
+}
+
+fn assert_dir_exists(path: &str) {
+    let path = PathBuf::from(path);
+    assert!(path.exists(), "Expected {} to exist", path.display());
+    assert!(
+        path.is_dir(),
+        "Expected {} to be a directory",
+        path.display()
+    );
+}
+
+fn assert_file_exists(path: &str) {
+    let path = PathBuf::from(path);
+    assert!(path.exists(), "Expected {} to exist", path.display());
+    assert!(path.is_file(), "Expected {} to be a file", path.display());
+}
+
+fn assert_file_hash(path1: &str, path2: &str) {
+    assert_file_exists(path1);
+    assert_file_exists(path2);
+
+    assert_eq!(
+        digest_file(PathBuf::from(path1)),
+        digest_file(PathBuf::from(path2)),
+        "Hash mismatch between {path1} and {path2}"
+    );
+}
+
+// Helper to hash a file
+fn digest_file<P: AsRef<Path>>(path: P) -> String {
+    let file_contents = fs::read(path).expect("Failed to read file");
+    let result = Sha256::digest(&file_contents);
+    format!("{result:x}")
 }
