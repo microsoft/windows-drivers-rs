@@ -26,6 +26,7 @@ runs:
         $targetArch = '${{ inputs.target }}'
         switch ($targetArch) {
             'amd64' { $targetArch = 'x64' }
+            'x64' { $targetArch = 'x64' }
             'arm64' { $targetArch = 'ARM64' }
             default {
                 Write-Error "Invalid target architecture: $targetArch. Supported architectures are 'x64' and 'arm64'."
