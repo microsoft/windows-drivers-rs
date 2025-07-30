@@ -23,8 +23,10 @@ jobs:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         runner:
-          - windows-latest
-          - windows-11-arm
+          - name: windows-latest
+            arch: x64
+          - name: windows-11-arm
+            arch: arm64
 
         wdk:
           - version: 10.0.22621 # NI WDK
@@ -50,16 +52,26 @@ jobs:
           - name: aarch64-pc-windows-msvc
             arch: arm64
     
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - uses: msys2/setup-msys2@v2
+        id: setup-msys2
+
       - name: Install Winget
         uses: ./.github/actions/winget-install
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+          msys2-location: ${{ steps.setup-msys2.outputs.msys2-location }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
@@ -82,7 +94,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'x64' # windows-latest is x64-based
+          host: ${{ matrix.runner.arch }}
           target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
@@ -109,7 +121,7 @@ jobs:
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
-      # Run cargo-wdk on examples
+      # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
