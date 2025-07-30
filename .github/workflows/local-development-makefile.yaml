@@ -17,8 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - windows-latest
-          - windows-11-arm
+          - name: windows-latest
+            arch: x64
+          - name: windows-11-arm
+            arch: arm64
 
         wdk:
           - version: 10.0.22621 # NI WDK
@@ -32,11 +34,10 @@ jobs:
         target_triple:
           - name: x86_64-pc-windows-msvc
             arch: amd64
-          # - name: aarch64-pc-windows-msvc FIXME: validate on aarch64
-          #   arch: arm64
-          
-    
-    runs-on: ${{ matrix.runner }}
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
+
+    runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
@@ -68,7 +69,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'x64' # windows-latest is x64-based
+          host: ${{ matrix.runner.arch }}
           target: ${{ matrix.target_triple.arch }}
 
       - name: Install Nightly Rust Toolchain (${{ matrix.target_triple.name }})

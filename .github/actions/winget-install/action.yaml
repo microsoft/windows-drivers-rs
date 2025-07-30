@@ -54,8 +54,10 @@ runs:
       run: |
         # Use architecture-specific dependency paths
         if ($env:Architecture -eq "arm64") {
+          Write-Host "Starting ARM64 winget installation..."
           Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.arm64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.arm64.14.00.Desktop.appx
         } else {
+          Write-Host "Starting x64 winget installation..."
           Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
         }
 

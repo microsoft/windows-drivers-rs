@@ -14,8 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - windows-latest
-          - windows-11-arm
+          - name: windows-latest
+            arch: x64
+          - name: windows-11-arm
+            arch: arm64
 
         wdk:
           - version: 10.0.22621 # NI WDK
@@ -38,9 +40,10 @@ jobs:
         target_triple:
           - name: x86_64-pc-windows-msvc
             arch: amd64
-          # - aarch64-pc-windows-msvc FIXME: Add support for executing ARM64 tests. Maybe use target specific test runner in emulator: https://doc.rust-lang.org/cargo/reference/config.html#target
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
 
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
@@ -72,7 +75,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'x64' # windows-latest is x64-based
+          host: ${{ matrix.runner.arch }}
           target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
