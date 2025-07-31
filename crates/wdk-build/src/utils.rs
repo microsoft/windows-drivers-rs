@@ -152,8 +152,7 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
                 path.display()
             );
         } else {
-            let wdk_kit_version =
-                env::var("WDKKitVersion").map_or("10.0".to_string(), |version| version);
+            let wdk_kit_version = env::var("WDKKitVersion").unwrap_or_else(|_| "10.0".to_string());
             let path = path.join("Windows Kits").join(wdk_kit_version);
             if path.is_dir() {
                 return Some(path);

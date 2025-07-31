@@ -9,105 +9,41 @@ use common::{set_crt_static_flag, with_file_lock};
 use mockall::PredicateBooleanExt;
 
 #[test]
-fn given_a_cargo_wdk_new_command_when_driver_type_is_kmdf_then_it_creates_valid_driver_project() {
-    with_file_lock(|| {
-        let (stdout, _stderr) = create_and_build_new_driver_project("kmdf");
-        assert!(stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
-        ));
-        assert!(stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-        assert!(stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-        assert!(stdout.contains("INF is NOT VALID"));
-    });
+fn kmdf_driver_is_created_successfully() {
+    project_is_created("kmdf");
 }
 
 #[test]
-fn given_a_cargo_wdk_new_command_when_driver_type_is_umdf_then_it_creates_valid_driver_project() {
-    with_file_lock(|| {
-        let (stdout, _stderr) = create_and_build_new_driver_project("umdf");
-        assert!(stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
-        ));
-        assert!(stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-        assert!(stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-        assert!(stdout.contains("INF is NOT VALID"));
-    });
+fn umdf_driver_is_created_successfully() {
+    project_is_created("umdf");
 }
 
 #[test]
-fn given_a_cargo_wdk_new_command_when_driver_type_is_wdm_then_it_creates_valid_driver_project() {
-    with_file_lock(|| {
-        let (stdout, _stderr) = create_and_build_new_driver_project("wdm");
-        assert!(stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
-        ));
-        assert!(stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-        assert!(stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-        assert!(stdout.contains("INF is NOT VALID"));
-    });
+fn wdm_driver_is_created_successfully() {
+    project_is_created("wdm");
 }
 
 #[test]
-fn given_a_cargo_wdk_new_command_when_no_driver_type_is_provided_then_it_fails() {
-    with_file_lock(|| {
-        let driver_name = "test-invalid-driver";
-        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-        println!("Temp dir: {}", tmp_dir.path().display());
-        let driver_path = tmp_dir.join(driver_name);
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args(["new", driver_path.to_string_lossy().as_ref()]);
-        let cmd_assertion = cmd.assert().failure();
-        let output = cmd_assertion.get_output();
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("stdout: {stdout}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("stderr: {stderr}");
+fn if_no_driver_type_given_command_fails() {
+    test_command_invocation(&[], true, false, |stdout, stderr| {
+        assert!(stdout.is_empty());
         assert!(stderr.contains("error: the following required arguments were not provided:"));
         assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
     });
 }
 
 #[test]
-fn given_cargo_wdk_new_command_when_multiple_driver_types_are_provided_then_it_fails() {
-    with_file_lock(|| {
-        let driver_name = "test-invalid-driver";
-        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-        println!("Temp dir: {}", tmp_dir.path().display());
-        let driver_path = tmp_dir.join(driver_name);
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args([
-            "new",
-            "--kmdf",
-            "--umdf",
-            driver_path.to_string_lossy().as_ref(),
-        ]);
-        let cmd_assertion = cmd.assert().failure();
-        let output = cmd_assertion.get_output();
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("stdout: {stdout}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("stderr: {stderr}");
+fn if_multiple_driver_types_given_command_fails() {
+    test_command_invocation(&["--kmdf", "--umdf"], true, false, |stdout, stderr| {
+        assert!(stdout.is_empty());
         assert!(stderr.contains("error: the argument '--kmdf' cannot be used with '--umdf'"));
     });
 }
 
 #[test]
-fn given_cargo_wdk_new_command_and_required_arguments_are_not_provided_then_it_fails() {
-    with_file_lock(|| {
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.arg("new");
-        let cmd_assertion = cmd.assert().failure();
-        let output = cmd_assertion.get_output();
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("stdout: {stdout}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("stderr: {stderr}");
+fn if_missing_required_arguments_command_fails() {
+    test_command_invocation(&[], false, false, |stdout, stderr| {
+        assert!(stdout.is_empty());
         assert!(stderr.contains("error: the following required arguments were not provided:"));
         assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
         assert!(stderr.contains("<PATH>"));
@@ -115,18 +51,65 @@ fn given_cargo_wdk_new_command_and_required_arguments_are_not_provided_then_it_f
 }
 
 #[test]
-fn test_cargo_wdk_new_help() {
+fn help_works() {
+    test_command_invocation(&["--help"], false, true, |stdout, stderr| {
+        assert!(stdout.contains("Create a new Windows Driver Kit project"));
+        assert!(stdout.contains("Usage: cargo wdk new [OPTIONS] <--kmdf|--umdf|--wdm> <PATH>"));
+        assert!(stderr.is_empty());
+    });
+}
+
+fn project_is_created(driver_type: &str) {
     with_file_lock(|| {
+        let (stdout, _stderr) = create_and_build_new_driver_project(driver_type);
+        assert!(stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        ));
+        assert!(stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
+        assert!(stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
+        assert!(stdout.contains("INF is NOT VALID"));
+    });
+}
+
+fn test_command_invocation<F: FnOnce(&str, &str)>(
+    args: &[&str],
+    add_path_arg: bool,
+    command_succeeds: bool,
+    assert: F,
+) {
+    with_file_lock(|| {
+        let mut args = args
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<String>>();
+        args.insert(0, String::from("new"));
+
+        if add_path_arg {
+            let driver_name = "test-driver";
+            let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+            println!("Temp dir: {}", tmp_dir.path().display());
+            let driver_path = tmp_dir.join(driver_name);
+            args.push(driver_path.to_string_lossy().to_string());
+        }
+
         let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args(["new", "--help"]);
-        let cmd_assertion = cmd.assert().success();
+        cmd.args(args);
+
+        let cmd_assertion = cmd.assert();
+        let cmd_assertion = if command_succeeds {
+            cmd_assertion.success()
+        } else {
+            cmd_assertion.failure()
+        };
         let output = cmd_assertion.get_output();
         let stdout = String::from_utf8_lossy(&output.stdout);
         println!("stdout: {stdout}");
         let stderr = String::from_utf8_lossy(&output.stderr);
         println!("stderr: {stderr}");
-        assert!(stdout.contains("Create a new Windows Driver Kit project"));
-        assert!(stdout.contains("Usage: cargo wdk new [OPTIONS] <--kmdf|--umdf|--wdm> <PATH>"));
+
+        assert(&stdout, &stderr);
     });
 }
 
