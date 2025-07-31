@@ -51,11 +51,6 @@ cli_args = array_join ${flow.cli.args} " "
 combined_args = concat ${cli_args} " " ${task_args}
 combined_args = trim ${combined_args}
 
-# Debug: Print PATH before executing rust-script
-echo "=== DEBUG: PATH Before rust-script execution ==="
-echo "PATH: ${PATH}"
-echo "=============================================="
-
 # Execute rust-script
 out = exec --fail-on-error rust-script --base-path ${taskjson.env.CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY} ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/rust-env-update.rs %{combined_args}
 assert_eq ${out.code} 0 "[tasks.${task.name}]'s script failed with exit code: ${out.code}\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}\nThe temporary rust-script file is located at ${CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY}/cargo-make-script/${task.name}/rust-env-update.rs"
@@ -96,13 +91,7 @@ if not is_empty ${script_output}
             end
         end
     end
-    
     assert ${looking_for_start_delimiter} "A matching \"END OF FORWARDING ARGS TO CARGO-MAKE\" for a \"FORWARDING ARGS TO CARGO-MAKE:\" was not found in script output."
-    
-    # Debug: Print final PATH state after all env var updates
-    echo "=== DEBUG: Final PATH State ==="
-    echo "PATH: ${PATH}"
-    echo "=============================="
 end
 '''
 
