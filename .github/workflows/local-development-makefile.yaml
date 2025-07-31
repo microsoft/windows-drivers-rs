@@ -35,16 +35,20 @@ jobs:
         llvm:
           - 17.0.6
 
+        # Exclude WDK 10.0.22621 with ARM64 runner as it doesn't ship certmgr and makecert binaries
+        exclude:
+          - runner:
+              name: windows-11-arm
+              arch: arm64
+            wdk:
+              version: 10.0.22621
+              source: winget
+
     runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-        # - name: Install Winget
-      #   uses: ./.github/actions/winget-install
-      #   with:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Winget
         run: |
