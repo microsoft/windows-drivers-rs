@@ -62,10 +62,39 @@ jobs:
       - uses: msys2/setup-msys2@v2
         id: setup-msys2
 
+      # - name: Install Winget
+      #   run: |
+      #     Install-Script winget-install -Force
+      #     winget-install -Force
+
       - name: Install Winget
+        if: ${{ matrix.runner.arch == 'arm64' }}
         run: |
-          Install-Script winget-install -Force
-          winget-install -Force
+          $progressPreference = 'silentlyContinue'
+          Write-Host "Request WinGet registration..."
+          Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
+          Write-Host "Installing WinGet PowerShell module from PSGallery..."
+          Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+          Write-Host "Using Repair-WinGetPackageManager cmdlet to bootstrap WinGet..."
+          Repair-WinGetPackageManager -AllUsers
+          Write-Host "Done."
+      
+      - name: Install Winget
+        if: ${{ matrix.runner.arch == 'x64' }}
+        run: |
+          $progressPreference = 'silentlyContinue'
+          Write-Host "Installing WinGet PowerShell module from PSGallery..."
+          Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
+          Write-Host "Using Repair-WinGetPackageManager cmdlet to bootstrap WinGet..."
+          Repair-WinGetPackageManager -AllUsers
+          Write-Host "Done."
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+          msys2-location: ${{ steps.setup-msys2.outputs.msys2-location }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
@@ -114,13 +143,6 @@ jobs:
 
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
-
-      - name: Setup tmate session
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true
-          msys2-location: ${{ steps.setup-msys2.outputs.msys2-location }}
 
       # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
