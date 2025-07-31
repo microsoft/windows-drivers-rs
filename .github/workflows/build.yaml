@@ -63,6 +63,9 @@ jobs:
       #   with:
       #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: msys2/setup-msys2@v2
+        id: setup-msys2
+
       - name: Install Winget
         run: |
           Install-Script winget-install -Force
@@ -115,6 +118,13 @@ jobs:
 
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+          msys2-location: ${{ steps.setup-msys2.outputs.msys2-location }}
 
       # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
