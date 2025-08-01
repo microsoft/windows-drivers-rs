@@ -563,7 +563,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .to_string();
     prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
-    Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([PATH_ENV_VAR].map(ToString::to_string))
 }
 
 fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: String) -> PathBuf {
@@ -629,7 +629,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
         if detected_sdk_version == existing_version {
             // Skip updating.  This can happen in certain recursive
             // cargo-make cases.
-            return Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string));
+            return Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string));
         }
         // We have a bad version string set somehow.  Return an error.
         return Err(ConfigError::WdkContentRootDetectionError);
@@ -642,7 +642,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
     }
 
     env::set_var(WDK_VERSION_ENV_VAR, detected_sdk_version);
-    Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string))
 }
 
 /// Sets the `WDK_INFVERIF_SAMPLE_FLAG` environment variable to contain the
@@ -676,7 +676,7 @@ pub fn setup_infverif_for_samples<S: AsRef<str> + ToString + ?Sized>(
     };
     append_to_space_delimited_env_var(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR, sample_flag);
 
-    Ok([WDK_INF_ADDITIONAL_FLAGS_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([WDK_INF_ADDITIONAL_FLAGS_ENV_VAR].map(ToString::to_string))
 }
 
 /// Returns the path to the WDK build output directory for the current
