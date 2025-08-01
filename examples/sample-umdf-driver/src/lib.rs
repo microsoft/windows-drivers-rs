@@ -33,7 +33,7 @@ use wdk_sys::{
 ///
 /// # Safety
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
-#[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: PDRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,

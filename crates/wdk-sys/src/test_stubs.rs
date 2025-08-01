@@ -27,7 +27,7 @@ use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
     driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF"
 ))]
-#[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub const unsafe extern "system" fn driver_entry_stub(
     _driver: &mut DRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
@@ -41,7 +41,7 @@ mod wdf {
 
     /// Stubbed version of `WdfFunctionCount` Symbol so that test targets will
     /// compile
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub static mut WdfFunctionCount: ULONG = 0;
 
     include!(concat!(env!("OUT_DIR"), "/test_stubs.rs"));

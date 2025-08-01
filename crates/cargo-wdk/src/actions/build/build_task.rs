@@ -15,7 +15,7 @@ use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{
-    actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
+    actions::{Profile, TargetArch, build::error::BuildTaskError, to_target_triple},
     trace,
 };
 

@@ -15,7 +15,7 @@ use std::{
 
 use clap_verbosity_flag::Verbosity;
 use error::NewActionError;
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use mockall_double::double;
 use tracing::{debug, info};
 

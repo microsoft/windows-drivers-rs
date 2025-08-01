@@ -14,16 +14,16 @@ use std::{
 
 use thiserror::Error;
 use windows::{
-    core::{s, PCSTR},
     Win32::System::Registry::{
-        RegCloseKey,
-        RegGetValueA,
-        RegOpenKeyExA,
         HKEY,
         HKEY_LOCAL_MACHINE,
         KEY_READ,
         RRF_RT_REG_SZ,
+        RegCloseKey,
+        RegGetValueA,
+        RegOpenKeyExA,
     },
+    core::{PCSTR, s},
 };
 
 use crate::{ConfigError, CpuArchitecture};
@@ -719,8 +719,8 @@ mod tests {
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
             FOLDERID_ProgramFiles,
-            SHGetKnownFolderPath,
             KF_FLAG_DEFAULT,
+            SHGetKnownFolderPath,
         };
 
         use super::*;
@@ -935,7 +935,7 @@ mod tests {
             temp_dir.child("a.b").create_dir_all().unwrap(); // Invalid: non-numeric
             temp_dir.child("not_version").touch().unwrap(); // File: ignored
             temp_dir.child("3.0").touch().unwrap(); // File: ignored
-                                                    // Should find the maximum among valid version directories only
+            // Should find the maximum among valid version directories only
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()).unwrap(),
                 TwoPartVersion(2, 0)
