@@ -493,7 +493,7 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     ]
     .into_iter()
     .filter(|env_var_name| env::var_os(env_var_name).is_some())
-    .map(std::string::ToString::to_string)
+    .map(ToString::to_string)
 }
 
 /// Prepends the path variable with the necessary paths to access WDK(+SDK)
