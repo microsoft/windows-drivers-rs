@@ -14,10 +14,18 @@ use fs4::fs_std::FileExt;
 pub fn set_crt_static_flag() {
     if let Ok(rustflags) = std::env::var("RUSTFLAGS") {
         let updated_rust_flags = format!("{rustflags} -C target-feature=+crt-static");
-        std::env::set_var("RUSTFLAGS", updated_rust_flags);
+        // SAFETY: env::set_var is always safe on Windows according to documentation,
+        // and this code runs in a WDK environment which is always Windows.
+        unsafe {
+            std::env::set_var("RUSTFLAGS", updated_rust_flags);
+        }
         println!("RUSTFLAGS set, adding the +crt-static: {rustflags:?}");
     } else {
-        std::env::set_var("RUSTFLAGS", "-C target-feature=+crt-static");
+        // SAFETY: env::set_var is always safe on Windows according to documentation,
+        // and this code runs in a WDK environment which is always Windows.
+        unsafe {
+            std::env::set_var("RUSTFLAGS", "-C target-feature=+crt-static");
+        }
         println!(
             "No RUSTFLAGS set, setting it to: {:?}",
             std::env::var("RUSTFLAGS").expect("RUSTFLAGS not set")

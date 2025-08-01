@@ -30,7 +30,7 @@ static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 ///
 /// # Safety
 /// Function is unsafe since it dereferences raw pointers passed to it from WDM
-#[export_name = "DriverEntry"]
+#[unsafe(export_name = "DriverEntry")]
 pub unsafe extern "system" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,

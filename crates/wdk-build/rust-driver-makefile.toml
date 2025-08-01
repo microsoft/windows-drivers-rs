@@ -158,7 +158,10 @@ let serialized_wdk_metadata_map = wdk_build::metadata::to_map_with_prefix::<std:
 )?;
 
 for (key, value) in &serialized_wdk_metadata_map {
-    std::env::set_var(key, value);
+    // SAFETY: env::set_var is always safe on Windows according to documentation, and this code runs in a WDK environment which is always Windows.
+    unsafe {
+        std::env::set_var(key, value);
+    }
 }
 
 wdk_build::cargo_make::forward_printed_env_vars(

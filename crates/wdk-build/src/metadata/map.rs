@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 
 use std::{
-    collections::{btree_map, hash_map, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, btree_map, hash_map},
     hash::{BuildHasher, Hash},
 };
 

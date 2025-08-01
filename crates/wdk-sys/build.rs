@@ -18,13 +18,12 @@ use std::{
 
 use anyhow::Context;
 use bindgen::CodegenConfig;
-use tracing::{info, info_span, trace, Span};
+use tracing::{Span, info, info_span, trace};
 use tracing_subscriber::{
-    filter::{LevelFilter, ParseError},
     EnvFilter,
+    filter::{LevelFilter, ParseError},
 };
 use wdk_build::{
-    configure_wdk_library_build_and_then,
     ApiSubset,
     BuilderExt,
     Config,
@@ -32,6 +31,7 @@ use wdk_build::{
     DriverConfig,
     KmdfConfig,
     UmdfConfig,
+    configure_wdk_library_build_and_then,
 };
 
 const OUT_DIR_PLACEHOLDER: &str =
@@ -120,7 +120,7 @@ static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
 use crate::WDFFUNC;
 
 /// Stubbed version of the symbol that `WdfFunctions` links to so that test targets will compile
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
 ",
     )
