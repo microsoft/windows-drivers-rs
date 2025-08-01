@@ -234,129 +234,68 @@ mod tests {
     };
 
     #[test]
-    pub fn given_toolchain_host_tuple_is_x86_64_when_detect_default_arch_from_rustc_is_called_then_it_returns_arch(
-    ) {
-        let mut mock_command_exec = CommandExec::default();
+    pub fn arch_detection_works_for_supported_toolchains() {
+        fn run_test(toolchain: &str, arch: CpuArchitecture) {
+            let result = run_arch_detection(Ok(Output {
+                status: ExitStatus::default(),
+                stdout: toolchain.bytes().collect::<Vec<_>>(),
+                stderr: vec![],
+            }));
 
-        let expected_rustc_command = "rustc";
-        let expected_rustc_args = vec!["--print", "host-tuple"];
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), arch);
+        }
 
-        mock_command_exec
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
-                      -> bool {
-                    println!("command: {command}, args: {args:?}");
-                    println!(
-                        "expected_command: {expected_rustc_command}, expected_args: \
-                         {expected_rustc_args:?}"
-                    );
-                    command == expected_rustc_command && args == expected_rustc_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: b"x86_64-pc-windows-msvc".to_vec(),
-                    stderr: vec![],
-                })
-            });
-
-        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
-
-        assert_eq!(result.unwrap(), CpuArchitecture::Amd64);
+        run_test("x86_64-pc-windows-msvc", CpuArchitecture::Amd64);
+        run_test("aarch64-pc-windows-msvc", CpuArchitecture::Arm64);
     }
 
     #[test]
-    pub fn given_toolchain_host_tuple_is_aarch64_when_detect_default_arch_from_rustc_is_called_then_it_returns_arch(
-    ) {
-        let mut mock_command_exec = CommandExec::default();
+    pub fn arch_detection_fails_for_unsupported_toolchains() {
+        fn run_test(toolchain: &str) {
+            let result = run_arch_detection(Ok(Output {
+                status: ExitStatus::default(),
+                stdout: toolchain.bytes().collect::<Vec<_>>(),
+                stderr: vec![],
+            }));
 
-        let expected_rustc_command = "rustc";
-        let expected_rustc_args = vec!["--print", "host-tuple"];
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap().to_string(),
+                format!(
+                    "Unsupported default target: {toolchain}. Only x86_64-pc-windows-msvc and \
+                     aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and \
+                     switch the default target to one of the above two using `rustup.exe`. You \
+                     can also use the --target-arch option to explicitly specify a CPU \
+                     architecture instead of relying on the default target."
+                )
+            );
+        }
 
-        mock_command_exec
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
-                      -> bool {
-                    println!("command: {command}, args: {args:?}");
-                    println!(
-                        "expected_command: {expected_rustc_command}, expected_args: \
-                         {expected_rustc_args:?}"
-                    );
-                    command == expected_rustc_command && args == expected_rustc_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: b"aarch64-pc-windows-msvc".to_vec(),
-                    stderr: vec![],
-                })
-            });
-
-        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
-
-        assert_eq!(result.unwrap(), CpuArchitecture::Arm64);
+        run_test("i686-pc-windows-msvc");
+        run_test("x86_64-win7-windows-msvc");
     }
 
     #[test]
-    pub fn given_toolchain_host_tuple_is_i686_pc_windows_msvc_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
-    ) {
-        let mut mock_command_exec = CommandExec::default();
+    pub fn arch_detection_fails_if_rustc_fails() {
+        let result =
+            run_arch_detection(Err(crate::providers::error::CommandError::CommandFailed {
+                command: "rustc".to_string(),
+                args: vec!["--print".to_string(), "host-tuple".to_string()],
+                stdout: "command error".to_string(),
+            }));
 
-        let expected_rustc_command = "rustc";
-        let expected_rustc_args = vec!["--print", "host-tuple"];
-
-        mock_command_exec
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
-                      -> bool {
-                    println!("command: {command}, args: {args:?}");
-                    println!(
-                        "expected_command: {expected_rustc_command}, expected_args: \
-                         {expected_rustc_args:?}"
-                    );
-                    command == expected_rustc_command && args == expected_rustc_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: b"i686-pc-windows-msvc".to_vec(),
-                    stderr: vec![],
-                })
-            });
-
-        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
-
+        assert!(result.is_err());
         assert_eq!(
             result.err().unwrap().to_string(),
-            format!(
-                "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                 aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and switch \
-                 the default target to one of the above two using `rustup.exe`. You can also use \
-                 the --target-arch option to explicitly specify a CPU architecture instead of \
-                 relying on the default target.",
-                "i686-pc-windows-msvc"
-            )
+            "Unable to read rustc host tuple: Command 'rustc' with args [\"--print\", \
+             \"host-tuple\"] failed \n STDOUT: command error",
         );
     }
 
-    #[test]
-    pub fn given_toolchain_host_tuple_is_x86_64_win7_windows_msvc_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
-    ) {
+    pub fn run_arch_detection(
+        expected_cli_result: Result<Output, crate::providers::error::CommandError>,
+    ) -> core::result::Result<CpuArchitecture, anyhow::Error> {
         let mut mock_command_exec = CommandExec::default();
 
         let expected_rustc_command = "rustc";
@@ -378,75 +317,13 @@ mod tests {
                 },
             )
             .once()
-            .returning(move |_, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: b"x86_64-win7-windows-msvc".to_vec(),
-                    stderr: vec![],
-                })
-            });
+            .return_once(|_, _, _| expected_cli_result);
 
-        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
-
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            format!(
-                "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                 aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and switch \
-                 the default target to one of the above two using `rustup.exe`. You can also use \
-                 the --target-arch option to explicitly specify a CPU architecture instead of \
-                 relying on the default target.",
-                "x86_64-win7-windows-msvc"
-            )
-        );
+        Cli::detect_default_target_arch_using_rustc(&mock_command_exec)
     }
 
     #[test]
-    pub fn given_rustc_command_fails_when_detect_default_arch_from_rustc_is_called_then_it_returns_error(
-    ) {
-        let mut mock_command_exec = CommandExec::default();
-
-        let expected_rustc_command = "rustc";
-        let expected_rustc_args = vec!["--print", "host-tuple"];
-
-        mock_command_exec
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
-                      -> bool {
-                    println!("command: {command}, args: {args:?}");
-                    println!(
-                        "expected_command: {expected_rustc_command}, expected_args: \
-                         {expected_rustc_args:?}"
-                    );
-                    command == expected_rustc_command && args == expected_rustc_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _| {
-                Err(crate::providers::error::CommandError::CommandFailed {
-                    command: "rustc".to_string(),
-                    args: vec!["--print".to_string(), "host-tuple".to_string()],
-                    stdout: "command error".to_string(),
-                })
-            });
-
-        let result = Cli::detect_default_target_arch_using_rustc(&mock_command_exec);
-
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            format!(
-                "Unable to read rustc host tuple: Command 'rustc' with args [\"--print\", \
-                 \"host-tuple\"] failed \n STDOUT: {}",
-                "command error"
-            )
-        );
-    }
-
-    #[test]
-    fn test_new_args_driver_type_kmdf() {
+    fn new_args_driver_type_kmdf() {
         let args = NewArgs {
             kmdf: true,
             umdf: false,
@@ -457,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_new_args_driver_type_umdf() {
+    fn new_args_driver_type_umdf() {
         let args = NewArgs {
             kmdf: false,
             umdf: true,
@@ -468,7 +345,7 @@ mod tests {
     }
 
     #[test]
-    fn test_new_args_driver_type_wdm() {
+    fn new_args_driver_type_wdm() {
         let args = NewArgs {
             kmdf: false,
             umdf: false,
