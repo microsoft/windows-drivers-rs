@@ -21,6 +21,5 @@
     "./tests/wdk-macros-tests/Cargo.toml",
     "./tests/wdk-sys-tests/Cargo.toml",
   ],
-  "rust-analyzer.cargo.features": "all",
-  "rust-analyzer.checkOnSave": false
+  "rust-analyzer.cargo.features": "all"
 }
