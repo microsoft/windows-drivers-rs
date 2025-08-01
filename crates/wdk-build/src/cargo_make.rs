@@ -17,7 +17,6 @@ use std::{
     panic::UnwindSafe,
     path::{Path, PathBuf},
     process::Command,
-    string,
 };
 
 use anyhow::Context;
@@ -564,7 +563,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         .to_string();
     prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
-    Ok([PATH_ENV_VAR].map(string::ToString::to_string))
+    Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
 }
 
 fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: String) -> PathBuf {
