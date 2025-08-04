@@ -14,22 +14,17 @@ use cargo_metadata::Metadata as CargoMetadata;
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
-    CpuArchitecture,
-    DriverConfig,
+    CpuArchitecture, DriverConfig,
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
 #[double]
 use crate::providers::{
-    exec::CommandExec,
-    fs::Fs,
-    metadata::Metadata as MetadataProvider,
-    wdk_build::WdkBuild,
+    exec::CommandExec, fs::Fs, metadata::Metadata as MetadataProvider, wdk_build::WdkBuild,
 };
 use crate::{
     actions::{
-        Profile,
-        TargetArch,
+        Profile, TargetArch,
         build::{BuildAction, BuildActionError, BuildActionParams},
         to_target_triple,
     },
