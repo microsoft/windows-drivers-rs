@@ -135,7 +135,7 @@ pub extern "system" fn __CxxFrameHandler3() -> i32 {
 #[no_mangle]
 pub extern "system" fn __CxxFrameHandler4() -> i32 {
     // This is a stub for the C++ exception handling frame handler. It's never called but it needs to be distinct
-    // from __CxxFrameHandler3 to not confuse binary analysis tools. We return a different value to prevent folding. 
+    // from __CxxFrameHandler3 to not confuse binary analysis tools. We return a different value to prevent folding.
     1
 }
 
