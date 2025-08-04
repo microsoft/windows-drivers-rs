@@ -31,7 +31,9 @@ mod kernel_mode {
     use core::alloc::{GlobalAlloc, Layout};
 
     use wdk_sys::{
-        POOL_FLAG_NON_PAGED, SIZE_T, ULONG,
+        POOL_FLAG_NON_PAGED,
+        SIZE_T,
+        ULONG,
         ntddk::{ExAllocatePool2, ExFreePool},
     };
 

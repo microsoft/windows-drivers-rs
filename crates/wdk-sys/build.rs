@@ -24,7 +24,13 @@ use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
 };
 use wdk_build::{
-    ApiSubset, BuilderExt, Config, ConfigError, DriverConfig, KmdfConfig, UmdfConfig,
+    ApiSubset,
+    BuilderExt,
+    Config,
+    ConfigError,
+    DriverConfig,
+    KmdfConfig,
+    UmdfConfig,
     configure_wdk_library_build_and_then,
 };
 
