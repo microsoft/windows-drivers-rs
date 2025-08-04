@@ -7,11 +7,16 @@ on:
 
 name: Test
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Test
     runs-on: windows-latest
     strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK
