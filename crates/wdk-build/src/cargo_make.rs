@@ -25,9 +25,14 @@ use clap::{Args, Parser};
 use tracing::{instrument, trace};
 
 use crate::{
-    ConfigError, CpuArchitecture, metadata,
+    ConfigError,
+    CpuArchitecture,
+    metadata,
     utils::{
-        PathExt, detect_wdk_content_root, get_latest_windows_sdk_version, get_wdk_version_number,
+        PathExt,
+        detect_wdk_content_root,
+        get_latest_windows_sdk_version,
+        get_wdk_version_number,
         set_var,
     },
 };

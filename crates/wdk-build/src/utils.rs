@@ -15,7 +15,13 @@ use std::{
 use thiserror::Error;
 use windows::{
     Win32::System::Registry::{
-        HKEY, HKEY_LOCAL_MACHINE, KEY_READ, RRF_RT_REG_SZ, RegCloseKey, RegGetValueA, RegOpenKeyExA,
+        HKEY,
+        HKEY_LOCAL_MACHINE,
+        KEY_READ,
+        RRF_RT_REG_SZ,
+        RegCloseKey,
+        RegGetValueA,
+        RegOpenKeyExA,
     },
     core::{PCSTR, s},
 };
@@ -796,7 +802,9 @@ mod tests {
 
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
-            FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, SHGetKnownFolderPath,
+            FOLDERID_ProgramFiles,
+            KF_FLAG_DEFAULT,
+            SHGetKnownFolderPath,
         };
 
         use super::*;
