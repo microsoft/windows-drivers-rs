@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 
 //! Any library dependency that depends on `wdk-sys` requires these stubs to
-//! provide symobols to successfully compile and run tests.
+//! provide symbols to successfully compile and run tests.
 //!
 //! These stubs can be brought into scope by introducing `wdk-sys` with the
 //! `test-stubs` feature in the `dev-dependencies` of the crate's `Cargo.toml`
@@ -41,6 +41,8 @@ mod wdf {
 
     /// Stubbed version of `WdfFunctionCount` Symbol so that test targets will
     /// compile
+    // SAFETY: WdfFunctionCount is a required WDF symbol for test compilation.
+    // No other symbols in this crate export this name, preventing linker conflicts.
     #[unsafe(no_mangle)]
     pub static mut WdfFunctionCount: ULONG = 0;
 

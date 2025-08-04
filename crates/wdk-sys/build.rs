@@ -24,13 +24,7 @@ use tracing_subscriber::{
     filter::{LevelFilter, ParseError},
 };
 use wdk_build::{
-    ApiSubset,
-    BuilderExt,
-    Config,
-    ConfigError,
-    DriverConfig,
-    KmdfConfig,
-    UmdfConfig,
+    ApiSubset, BuilderExt, Config, ConfigError, DriverConfig, KmdfConfig, UmdfConfig,
     configure_wdk_library_build_and_then,
 };
 
@@ -120,6 +114,8 @@ static TEST_STUBS_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
 use crate::WDFFUNC;
 
 /// Stubbed version of the symbol that `WdfFunctions` links to so that test targets will compile
+// SAFETY: Generated WDF symbol name is required for test compilation and is unique per build.
+// No other symbols in this crate export this name, preventing linker conflicts.
 #[unsafe(no_mangle)]
 pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::ptr::null();
 ",

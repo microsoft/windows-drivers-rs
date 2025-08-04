@@ -277,8 +277,7 @@ mod dbg_print_buf_writer {
 
         #[test]
         fn write_that_exceeds_buffer() {
-            const TEST_STRING: &str =
-                "This is a test string that exceeds the buffer size limit set for \
+            const TEST_STRING: &str = "This is a test string that exceeds the buffer size limit set for \
                  DbgPrintBufWriter. It should trigger multiple flushes to handle the overflow \
                  correctly. The buffer has a limited capacity of 511 bytes (512 minus 1 for null \
                  terminator), and this string is intentionally much longer. When writing this \
@@ -333,8 +332,7 @@ mod dbg_print_buf_writer {
 
         #[test]
         fn write_that_exceeds_buffer_prints_all() {
-            const TEST_STRING: &str =
-                "This is a test string that exceeds the buffer size limit set for \
+            const TEST_STRING: &str = "This is a test string that exceeds the buffer size limit set for \
                  DbgPrintBufWriter. It should trigger multiple flushes to handle the overflow \
                  correctly. The buffer has a limited capacity of 511 bytes (512 minus 1 for null \
                  terminator), and this string is intentionally much longer. When writing this \

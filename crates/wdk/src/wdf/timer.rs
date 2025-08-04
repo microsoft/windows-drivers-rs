@@ -2,11 +2,7 @@
 // License: MIT OR Apache-2.0
 
 use wdk_sys::{
-    NTSTATUS,
-    WDF_OBJECT_ATTRIBUTES,
-    WDF_TIMER_CONFIG,
-    WDFTIMER,
-    call_unsafe_wdf_function_binding,
+    NTSTATUS, WDF_OBJECT_ATTRIBUTES, WDF_TIMER_CONFIG, WDFTIMER, call_unsafe_wdf_function_binding,
 };
 
 use crate::nt_success;

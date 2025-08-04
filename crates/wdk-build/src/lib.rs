@@ -1445,6 +1445,7 @@ mod tests {
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
     use super::*;
+    use crate::utils::{remove_var, set_var};
 
     /// Runs function after modifying environment variables, and returns the
     /// function's return value.
@@ -1480,11 +1481,7 @@ mod tests {
                     "Duplicate environment variable keys were provided"
                 );
             }
-            // SAFETY: env::set_var is always safe on Windows according to documentation,
-            // and this code runs in a WDK environment which is always Windows.
-            unsafe {
-                std::env::set_var(key, value);
-            }
+            set_var(key, value);
         }
 
         let f_return_value = f();
@@ -1493,18 +1490,10 @@ mod tests {
         for (key, _) in env_vars_key_value_pairs {
             original_env_vars.get(key).map_or_else(
                 || {
-                    // SAFETY: env::remove_var is always safe on Windows according to documentation,
-                    // and this code runs in a WDK environment which is always Windows.
-                    unsafe {
-                        std::env::remove_var(key);
-                    }
+                    remove_var(key);
                 },
                 |value| {
-                    // SAFETY: env::set_var is always safe on Windows according to documentation,
-                    // and this code runs in a WDK environment which is always Windows.
-                    unsafe {
-                        std::env::set_var(key, value);
-                    }
+                    set_var(key, value);
                 },
             );
         }

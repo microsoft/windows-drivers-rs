@@ -33,6 +33,8 @@ use wdk_sys::{
 ///
 /// # Safety
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
+// SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
+// No other function in this compilation unit exports this name, preventing symbol conflicts.
 #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: PDRIVER_OBJECT,
