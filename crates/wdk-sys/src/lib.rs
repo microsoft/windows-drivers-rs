@@ -146,7 +146,7 @@ pub extern "system" fn __CxxFrameHandler4() -> i32 {
 pub extern "system" fn __GSHandlerCheck_EH4() -> i32 {
     // This is a stub for the C++ exception handling frame handler. It's never called but it needs to be distinct
     // from __CxxFrameHandler3 and __CxxFrameHandler4 to not confuse binary analysis tools. We return a different
-    // value to prevent folding. 
+    // value to prevent folding.
     2
 }
 
