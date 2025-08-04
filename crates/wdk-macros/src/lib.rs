@@ -52,7 +52,7 @@ const WDF_FUNC_ENUM_MOD_NAME: &str = "_WDFFUNCENUM";
 ///
 /// This macro is only intended to be used in the
 /// [`wdk_sys`](../wdk_sys/index.html) crate. Users wanting to call WDF
-/// functions should use the macro in [`wdk_sys`](../wdk_sys/index.html). This
+/// [`wdk_sys`](../wdk_sys/index.html) as an argument to the macro.
 /// macro differs from the one in [`wdk_sys`](../wdk_sys/index.html) in that it
 /// must pass in the generated types from `wdk-sys` as an argument to the macro.
 #[proc_macro]
