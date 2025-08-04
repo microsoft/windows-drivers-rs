@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! The [`wdk-build`][crate] crate is a library that is used within Cargo build scripts to
-//! configure any build that depends on the WDK (Windows Driver Kit). This is
-//! especially useful for crates that generate FFI bindings to the WDK,
+//! The [`wdk-build`][crate] crate is a library that is used within Cargo build
+//! scripts to configure any build that depends on the WDK (Windows Driver Kit).
+//! This is especially useful for crates that generate FFI bindings to the WDK,
 //! WDK-dependent libraries, and programs built on top of the WDK (ex. Drivers).
 //! This library is built to be able to accommodate different WDK releases, as
 //! well strives to allow for all the configuration the WDK allows. This
