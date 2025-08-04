@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! [`wdk-build`] is a library that is used within Cargo build scripts to
+//! The [`wdk-build`][crate] crate is a library that is used within Cargo build scripts to
 //! configure any build that depends on the WDK (Windows Driver Kit). This is
 //! especially useful for crates that generate FFI bindings to the WDK,
 //! WDK-dependent libraries, and programs built on top of the WDK (ex. Drivers).
@@ -139,7 +139,7 @@ pub struct UmdfConfig {
     pub minimum_umdf_version_minor: Option<u8>,
 }
 
-/// Errors that could result from configuring a build via [`wdk-build`]
+/// Errors that could result from configuring a build via [`wdk_build`][crate]
 #[derive(Debug, Error)]
 pub enum ConfigError {
     /// Error returned when an [`std::io`] operation fails
