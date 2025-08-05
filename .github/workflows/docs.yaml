@@ -17,7 +17,10 @@ jobs:
     strategy:
       matrix:
         wdk:
-          - Microsoft.WindowsWDK.10.0.22621 # NI WDK
+          - version: 10.0.22621 # NI WDK
+            source: winget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
 
         llvm:
           - 17.0.6
@@ -32,8 +35,10 @@ jobs:
           - release
 
         target_triple:
-          - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-msvc
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
 
     steps:
       - name: Checkout Repository
@@ -54,27 +59,25 @@ jobs:
           }
           clang --version
 
-      - name: Install WDK (${{ matrix.wdk }})
-        run: |
-          if ((Get-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals).Id -eq '${{ matrix.wdk }}') {
-            Write-Host "${{ matrix.wdk }} is already installed. Attempting to update..."
-            Update-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing ${{ matrix.wdk }}..."
-            Install-WinGetPackage -Id ${{ matrix.wdk }} -Source winget -MatchOption Equals -Mode Silent -Force
-          }
+      - name: Install WDK (${{ matrix.wdk.version }})
+        uses: ./.github/actions/install-wdk
+        with:
+          version: ${{ matrix.wdk.version }}
+          source: ${{ matrix.wdk.source }}
+          host: 'x64' # windows-latest is x64-based
+          target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
-          targets: ${{ matrix.target_triple }}
+          targets: ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Doc
         # proc-macro crates must be excluded to avoid cargo doc bug: https://github.com/rust-lang/cargo/issues/10368
-        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --workspace --exclude wdk-macros --all-features
+        run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --exclude wdk-macros --all-features
 
       - name: Run Cargo Doc w/ proc-macro crates
-        if: matrix.target_triple == 'x86_64-pc-windows-msvc'
+        if: matrix.target_triple.name == 'x86_64-pc-windows-msvc'
         # cargo doc can only generate documentation for proc-macro crates when --target is not specified due to a cargo doc bug: https://github.com/rust-lang/cargo/issues/7677
         run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --all-features
