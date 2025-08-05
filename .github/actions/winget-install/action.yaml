@@ -16,49 +16,52 @@ runs:
         $Architecture = if ($env:RUNNER_ARCH -eq "ARM64") { "arm64" } else { "x64" }
         Write-Host "Detected architecture: $Architecture"
 
-        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/164835566'
+        # winget-cli release v1.8.1911
+        # $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/164835566'
+
+        # winget-cli release v1.11.400
+        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/226250169'
         $WingetDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
         $WingetLicenseDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('License1.xml') }
+        $WingetDependenciesZipUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('DesktopAppInstaller_Dependencies.zip') }
 
         # Print to logs
         Write-Host "WingetDownloadUri=$WingetDownloadUri"
         Write-Host "WingetLicenseDownloadUri=$WingetLicenseDownloadUri"
+        Write-Host "WingetDependenciesZipUri=$WingetDependenciesZipUri"
 
         # Save output for next step
         Write-Output "WingetDownloadUri=$WingetDownloadUri" >> $env:GITHUB_ENV
         Write-Output "WingetLicenseDownloadUri=$WingetLicenseDownloadUri" >> $env:GITHUB_ENV
         Write-Output "Architecture=$Architecture" >> $env:GITHUB_ENV
+        Write-Output "WingetDependenciesZipUri=$WingetDependenciesZipUri" >> $env:GITHUB_ENV
 
     - name: Download Winget Assets and Dependencies
       shell: pwsh
       run: |
         New-Item -Type Directory $env:RUNNER_TEMP/winget-install
         
-        # Download architecture-specific dependencies
-        if ($env:Architecture -eq "arm64") {
-          Write-Host "Downloading ARM64 dependencies..."
-          Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.arm64.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.arm64.appx
-          Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.arm64.14.00.Desktop.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.arm64.14.00.Desktop.appx
-        } else {
-          Write-Host "Downloading x64 dependencies..."
-          Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx
-          Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
-        }
-        
         # Download winget and license (architecture-agnostic)
         Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/winget.msixbundle
         Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetLicenseDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/license.xml
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDependenciesZipUri -OutFile $env:RUNNER_TEMP/winget-install/DesktopAppInstaller_Dependencies.zip
+
+        Expand-Archive -Path "$env:RUNNER_TEMP/winget-install/DesktopAppInstaller_Dependencies.zip" -DestinationPath $env:RUNNER_TEMP/winget-install/ -Force
 
     - name: Start Winget Installation for all Users
       shell: pwsh
       run: |
         # Use architecture-specific dependency paths
         if ($env:Architecture -eq "arm64") {
-          Write-Host "Starting ARM64 winget installation..."
-          Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.arm64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.arm64.14.00.Desktop.appx
+          [string[]]$DependencyPaths = (Get-ChildItem -Path "$env:RUNNER_TEMP/winget-install/arm64" -Filter '*.appx' -File -Force).FullName
+          Write-Host "Found Dependency $($DependencyPaths[0])"
+          Write-Host "Found Dependency $($DependencyPaths[1])"
+          Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath "$($DependencyPaths[0])", "$($DependencyPaths[1])"
         } else {
-          Write-Host "Starting x64 winget installation..."
-          Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
+          [string[]]$DependencyPaths = (Get-ChildItem -Path "$env:RUNNER_TEMP/winget-install/x64" -Filter '*.appx' -File -Force).FullName
+          Write-Host "Found Dependency $($DependencyPaths[0])"
+          Write-Host "Found Dependency $($DependencyPaths[1])"
+          Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath "$($DependencyPaths[0])", "$($DependencyPaths[1])"
         }
 
     - name: Install Winget for Current User (for better install diagnostics)
