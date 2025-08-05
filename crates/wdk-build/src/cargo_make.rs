@@ -31,7 +31,7 @@ use crate::{
     utils::{
         PathExt,
         detect_wdk_content_root,
-        get_latest_windows_sdk_version,
+        detect_windows_sdk_version,
         get_wdk_version_number,
         set_var,
     },
