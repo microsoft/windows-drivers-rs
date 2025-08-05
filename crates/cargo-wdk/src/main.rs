@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-//! [`cargo-wdk`] is a Cargo extension that can be used to create build and
-//! package Windows driver projects.
+//! The [`cargo-wdk`][crate] crate is a Cargo extension that can be used to
+//! create build and package Windows driver projects.
 
 #![allow(clippy::multiple_crate_versions)]
 /// The `regex-syntax` and `regex-automata` crates have multiple version
@@ -16,7 +16,7 @@ use clap::Parser;
 use cli::Cli;
 use tracing::error;
 
-/// Main function for the cargo-wdk CLI application.
+/// Main function for the [`cargo-wdk`][crate] CLI application.
 ///
 /// The main function parses the CLI input, sets up tracing and executes the
 /// command. If an error occurs during execution, it logs the error and exits
