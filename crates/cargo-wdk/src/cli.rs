@@ -12,14 +12,14 @@ use mockall_double::double;
 use wdk_build::CpuArchitecture;
 
 use crate::actions::{
-    build::{BuildAction, BuildActionParams},
-    new::NewAction,
     DriverType,
+    KMDF_STR,
     Profile,
     TargetArch,
-    KMDF_STR,
     UMDF_STR,
     WDM_STR,
+    build::{BuildAction, BuildActionParams},
+    new::NewAction,
 };
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};

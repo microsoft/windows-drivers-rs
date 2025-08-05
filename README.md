@@ -127,7 +127,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
       PCUNICODE_STRING,
    };
 
-   #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+   #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
    pub unsafe extern "system" fn driver_entry(
       driver: PDRIVER_OBJECT,
       registry_path: PCUNICODE_STRING,

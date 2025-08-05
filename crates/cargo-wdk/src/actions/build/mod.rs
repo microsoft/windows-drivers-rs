@@ -26,7 +26,7 @@ use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
 use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
-use crate::actions::{to_target_triple, Profile, TargetArch};
+use crate::actions::{Profile, TargetArch, to_target_triple};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 

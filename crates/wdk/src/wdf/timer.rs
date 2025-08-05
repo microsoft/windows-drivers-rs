@@ -2,11 +2,11 @@
 // License: MIT OR Apache-2.0
 
 use wdk_sys::{
-    call_unsafe_wdf_function_binding,
     NTSTATUS,
-    WDFTIMER,
     WDF_OBJECT_ATTRIBUTES,
     WDF_TIMER_CONFIG,
+    WDFTIMER,
+    call_unsafe_wdf_function_binding,
 };
 
 use crate::nt_success;
@@ -38,7 +38,7 @@ impl Timer {
                 WdfTimerCreate,
                 timer_config,
                 attributes,
-                &mut timer.wdf_timer,
+                &raw mut timer.wdf_timer,
             );
         }
         nt_success(nt_status).then_some(timer).ok_or(nt_status)

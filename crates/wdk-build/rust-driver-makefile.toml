@@ -158,7 +158,7 @@ let serialized_wdk_metadata_map = wdk_build::metadata::to_map_with_prefix::<std:
 )?;
 
 for (key, value) in &serialized_wdk_metadata_map {
-    std::env::set_var(key, value);
+    wdk_build::utils::set_var(key, value);
 }
 
 wdk_build::cargo_make::forward_printed_env_vars(

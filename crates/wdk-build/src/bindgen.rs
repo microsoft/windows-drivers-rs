@@ -4,8 +4,8 @@
 use std::borrow::Borrow;
 
 use bindgen::{
-    callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
+    callbacks::{ItemInfo, ItemKind, ParseCallbacks},
 };
 use cargo_metadata::MetadataCommand;
 
