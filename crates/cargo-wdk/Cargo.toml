@@ -5,11 +5,11 @@ version = "0.0.1"
 authors = ["Microsoft"]
 # set to false until the tool is stable and ready to be published
 publish = false
-description = "A Cargo subcommand for building Windows drivers using the Windows Driver Kit (WDK)"
+description = "A Cargo extension for building Windows drivers using the Windows Driver Kit (WDK)"
 repository.workspace = true
 license.workspace = true
 keywords = ["wdk", "windows", "cargo"]
-categories = ["build-tools"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 
 [dependencies]
 anyhow.workspace = true
