@@ -14,12 +14,17 @@ concurrency:
 jobs:
   analyze:
     name: Analyze
-    runs-on: windows-latest
     permissions:
       security-events: write
     strategy:
       fail-fast: false
       matrix:
+        runner:
+          - name: windows-latest
+            arch: x64
+          - name: windows-11-arm
+            arch: arm64
+
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -50,6 +55,8 @@ jobs:
           - language: rust
             build-mode: none
 
+    runs-on: ${{ matrix.runner.name }}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -59,28 +66,28 @@ jobs:
       with:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install LLVM ${{ matrix.llvm }}
-        run: |
-          # Use native winget.exe instead of PowerShell module for ARM64 compatibility
-          Write-Host "Checking for existing LLVM installation..."
-          winget list --id LLVM.LLVM --exact --accept-source-agreements --disable-interactivity
+    - name: Install LLVM ${{ matrix.llvm }}
+      run: |
+        # Use native winget.exe instead of PowerShell module for ARM64 compatibility
+        Write-Host "Checking for existing LLVM installation..."
+        winget list --id LLVM.LLVM --exact --accept-source-agreements --disable-interactivity
 
-          Write-Host "Force Installing LLVM ${{ matrix.llvm }}..."
-          winget install --id LLVM.LLVM --version ${{ matrix.llvm }} --source winget --force --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+        Write-Host "Force Installing LLVM ${{ matrix.llvm }}..."
+        winget install --id LLVM.LLVM --version ${{ matrix.llvm }} --source winget --force --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "LLVM ${{ matrix.llvm }} force installation failed with exit code: $LASTEXITCODE"
-            exit 1
-          }
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "LLVM ${{ matrix.llvm }} force installation failed with exit code: $LASTEXITCODE"
+          exit 1
+        }
 
-          clang --version
+        clang --version
 
     - name: Install WDK (${{ matrix.wdk.version }})
       uses: ./.github/actions/install-wdk
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: 'x64' # windows-latest is x64-based
+        host: ${{ matrix.runner.arch }}
         target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
