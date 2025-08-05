@@ -13,9 +13,14 @@ env:
 jobs:
   docs:
     name: Docs
-    runs-on: windows-latest
     strategy:
       matrix:
+        runner:
+          - name: windows-latest
+            arch: x64
+          - name: windows-11-arm
+            arch: arm64
+
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -39,6 +44,8 @@ jobs:
             arch: amd64
           - name: aarch64-pc-windows-msvc
             arch: arm64
+
+    runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
@@ -70,7 +77,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'x64' # windows-latest is x64-based
+          host: ${{ matrix.runner.arch }}
           target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
@@ -84,6 +91,5 @@ jobs:
         run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --exclude wdk-macros --all-features
 
       - name: Run Cargo Doc w/ proc-macro crates
-        if: matrix.target_triple.name == 'x86_64-pc-windows-msvc'
         # cargo doc can only generate documentation for proc-macro crates when --target is not specified due to a cargo doc bug: https://github.com/rust-lang/cargo/issues/7677
         run: cargo +${{ matrix.rust_toolchain }} doc --locked --profile ${{ matrix.cargo_profile }} --all-features
