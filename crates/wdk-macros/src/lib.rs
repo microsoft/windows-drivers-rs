@@ -2,7 +2,8 @@
 // License: MIT OR Apache-2.0
 
 //! A collection of macros that help make it easier to interact with
-//! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
+//! [`wdk_sys`](../wdk_sys/index.html)'s direct bindings to the Windows Driver
+//! Kit (WDK).
 
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
@@ -49,10 +50,11 @@ const WDF_FUNC_ENUM_MOD_NAME: &str = "_WDFFUNCENUM";
 
 /// A procedural macro that allows WDF functions to be called by name.
 ///
-/// This macro is only intended to be used in the `wdk-sys` crate. Users wanting
-/// to call WDF functions should use the macro in `wdk-sys`. This macro differs
-/// from the one in [`wdk-sys`] in that it must pass in the generated types from
-/// `wdk-sys` as an argument to the macro.
+/// This macro is only intended to be used in the
+/// [`wdk_sys`](../wdk_sys/index.html) crate. Users wanting to call WDF
+/// [`wdk_sys`](../wdk_sys/index.html) as an argument to the macro.
+/// macro differs from the one in [`wdk_sys`](../wdk_sys/index.html) in that it
+/// must pass in the generated types from `wdk-sys` as an argument to the macro.
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
