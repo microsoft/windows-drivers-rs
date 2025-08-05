@@ -1,3 +1,5 @@
+name: Docs
+
 on:
   push:
   pull_request:
@@ -5,7 +7,9 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: "0 11 * * *"
 
-name: Docs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   RUSTDOCFLAGS: -D warnings
@@ -15,6 +19,7 @@ jobs:
     name: Docs
     runs-on: windows-latest
     strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK

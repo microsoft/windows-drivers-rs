@@ -1,3 +1,5 @@
+name: Lint
+
 on:
   push:
   pull_request:
@@ -5,7 +7,9 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: "0 11 * * *"
 
-name: Lint
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   RUSTFLAGS: >-
@@ -18,6 +22,7 @@ jobs:
     permissions:
       checks: write
     strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         wdk:
           - Microsoft.WindowsWDK.10.0.22621 # NI WDK
