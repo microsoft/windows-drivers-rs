@@ -53,19 +53,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Winget
-        run: |
-          Install-Script winget-install -Force
-          winget-install -Force
+        uses: ./.github/actions/winget-install
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
           # Use native winget.exe instead of PowerShell module for ARM64 compatibility
           Write-Host "Checking for existing LLVM installation..."
           winget list --id LLVM.LLVM --exact --accept-source-agreements --disable-interactivity
-          
+
           Write-Host "Force Installing LLVM ${{ matrix.llvm }}..."
           winget install --id LLVM.LLVM --version ${{ matrix.llvm }} --source winget --force --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
-          
+
           if ($LASTEXITCODE -ne 0) {
             Write-Error "LLVM ${{ matrix.llvm }} force installation failed with exit code: $LASTEXITCODE"
             exit 1

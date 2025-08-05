@@ -55,9 +55,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Winget
-        run: |
-          Install-Script winget-install -Force
-          winget-install -Force
+        uses: ./.github/actions/winget-install
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |
