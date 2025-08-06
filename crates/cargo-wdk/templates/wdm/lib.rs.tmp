@@ -24,6 +24,6 @@ pub unsafe extern "system" fn driver_entry(
    _driver: PDRIVER_OBJECT,
    _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-   let _string = CString::new("Hello World!\n").unwrap();
+   let _ = CString::new("Hello World!\n").unwrap();
    0
 }
