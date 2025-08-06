@@ -14,7 +14,7 @@ runs:
 
         # Detect runner architecture
         $Architecture = if ($env:RUNNER_ARCH -eq "ARM64") { "arm64" } else { "x64" }
-        Write-Host "Detected architecture: $Architecture"
+        Write-Host "Runner architecture: $Architecture"
 
         # winget-cli release v1.11.400
         $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/226250169'
