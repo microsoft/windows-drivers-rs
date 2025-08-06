@@ -16,9 +16,6 @@ runs:
         $Architecture = if ($env:RUNNER_ARCH -eq "ARM64") { "arm64" } else { "x64" }
         Write-Host "Detected architecture: $Architecture"
 
-        # winget-cli release v1.8.1911
-        # $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/164835566'
-
         # winget-cli release v1.11.400
         $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/226250169'
         $WingetDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
