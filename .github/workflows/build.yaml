@@ -50,6 +50,10 @@ jobs:
     
     runs-on: ${{ matrix.runner.name }}
 
+    env:
+      # WDK 10.0.22621 installed via winget channel on ARM64 runner doesn't ship certmgr and makecert binaries
+      CERT_TOOLS_PRESENT: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -105,8 +109,7 @@ jobs:
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
-        # Skip this step when WDK 10.0.22621 is used with ARM64 runner as it doesn't ship certmgr and makecert binaries
-        if: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
+        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
@@ -114,11 +117,9 @@ jobs:
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
-        # Skip this step when WDK 10.0.22621 is used with ARM64 runner as it doesn't ship certmgr and makecert binaries
-        if: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
+        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
 
       - name: Run build on tests folder (via cargo-wdk)
-        # Skip this step when WDK 10.0.22621 is used with ARM64 runner as it doesn't ship certmgr and makecert binaries
-        if: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
+        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
