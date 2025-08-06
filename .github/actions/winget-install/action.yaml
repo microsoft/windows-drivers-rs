@@ -7,7 +7,26 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Check if Winget is already available
+      id: check-winget
+      shell: pwsh
+      run: |
+        try {
+          $wingetVersion = winget --version 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Winget is already available: $wingetVersion"
+            Write-Host "Skipping winget installation."
+            Write-Output "skip-install=true" >> $env:GITHUB_OUTPUT
+            return
+          }
+        }
+        catch {
+          Write-Host "Winget not found, proceeding with installation..."
+        }
+        Write-Output "skip-install=false" >> $env:GITHUB_OUTPUT
+
     - name: Get URIs for Winget v1.8.1911 assets
+      if: steps.check-winget.outputs.skip-install == 'false'
       shell: pwsh
       run: |
         $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
@@ -34,6 +53,7 @@ runs:
         Write-Output "WingetDependenciesZipDownloadUri=$WingetDependenciesZipDownloadUri" >> $env:GITHUB_ENV
 
     - name: Download Winget Assets and Dependencies
+      if: steps.check-winget.outputs.skip-install == 'false'
       shell: pwsh
       run: |
         New-Item -Type Directory $env:RUNNER_TEMP/winget-install
@@ -46,6 +66,7 @@ runs:
         Expand-Archive -Path "$env:RUNNER_TEMP/winget-install/DesktopAppInstaller_Dependencies.zip" -DestinationPath $env:RUNNER_TEMP/winget-install/ -Force
 
     - name: Start Winget Installation for all Users
+      if: steps.check-winget.outputs.skip-install == 'false'
       shell: pwsh
       run: |
         # Use architecture-specific dependency paths
@@ -60,11 +81,13 @@ runs:
         Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath "$MicrosoftUIXamlDep", "$MicrosoftVCLibsDep"
 
     - name: Install Winget for Current User (for better install diagnostics)
+      if: steps.check-winget.outputs.skip-install == 'false'
       shell: powershell
       run: |
         Add-AppxPackage $env:RUNNER_TEMP/winget-install/winget.msixbundle
 
     - name: Wait for Completion of Winget Installation
+      if: steps.check-winget.outputs.skip-install == 'false'
       shell: pwsh
       run: |
         while ((Get-Command * | Select-String winget)?.ToString() -ne "winget.exe") {
