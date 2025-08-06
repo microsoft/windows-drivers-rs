@@ -12,7 +12,7 @@ on:
 jobs:
   cargo_audit:
     name: Cargo Audit
-    runs-on: windows-latest
+    runs-on: windows-2025
     permissions:
       issues: write
       checks: write

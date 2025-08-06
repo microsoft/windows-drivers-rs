@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         runner:
-          - name: windows-latest
+          - name: windows-2025
             arch: amd64
           - name: windows-11-arm
             arch: arm64
