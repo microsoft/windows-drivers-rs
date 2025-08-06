@@ -14,17 +14,12 @@ concurrency:
 jobs:
   analyze:
     name: Analyze
+    runs-on: windows-latest
     permissions:
       security-events: write
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - name: windows-latest
-            arch: x64
-          - name: windows-11-arm
-            arch: arm64
-
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -54,8 +49,6 @@ jobs:
             build-mode: manual
           - language: rust
             build-mode: none
-
-    runs-on: ${{ matrix.runner.name }}
 
     steps:
     - name: Checkout repository
@@ -87,7 +80,7 @@ jobs:
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: ${{ matrix.runner.arch }}
+        host: 'x64' # windows-latest is x64-based
         target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
