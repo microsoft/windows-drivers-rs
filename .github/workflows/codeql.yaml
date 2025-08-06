@@ -44,7 +44,7 @@ jobs:
           - language: c-cpp
             build-mode: manual
           - language: rust
-            build-mode: autobuild
+            build-mode: none
 
     steps:
     - name: Checkout repository
