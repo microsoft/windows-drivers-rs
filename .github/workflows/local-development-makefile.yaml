@@ -31,6 +31,12 @@ jobs:
         llvm:
           - 17.0.6
 
+        target_triple:
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
+
         # Exclude WDK 10.0.22621 with ARM64 runner as it doesn't ship certmgr and makecert binaries
         exclude:
           - runner:
@@ -73,22 +79,28 @@ jobs:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
           host: ${{ matrix.runner.arch }}
-          target: ${{ matrix.runner.arch }}
+          target: ${{ matrix.target_triple.arch }}
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
+          targets: |
+            ${{ matrix.target_triple.name }}
 
       - name: Install Beta Rust Toolchain
         uses: dtolnay/rust-toolchain@beta
         with:
           components: clippy
+          targets: |
+            ${{ matrix.target_triple.name }}
 
       - name: Install Stable Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: |
+            ${{ matrix.target_triple.name }}
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
