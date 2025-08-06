@@ -43,7 +43,9 @@ jobs:
         include:
         - language: c-cpp
           build-mode: manual
-  
+        - language: rust
+          build-mode: autobuild
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
