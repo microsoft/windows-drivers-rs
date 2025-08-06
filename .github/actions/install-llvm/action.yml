@@ -1,0 +1,27 @@
+name: Install LLVM
+
+inputs:
+  version:
+    description: "LLVM version to install"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install LLVM ${{ inputs.version }}
+      shell: pwsh
+      run: |
+        # Use native winget.exe instead of PowerShell module for ARM64 compatibility
+        Write-Host "Existing LLVM installation(s):..."
+        winget list --id LLVM.LLVM --exact --accept-source-agreements --disable-interactivity
+        
+        Write-Host "Force Installing LLVM ${{ inputs.version }}..."
+        winget install --id LLVM.LLVM --version ${{ inputs.version }} --source winget --force --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "LLVM ${{ inputs.version }} force installation failed with exit code: $LASTEXITCODE"
+          exit 1
+        }
+
+        Write-Host "Verifying LLVM installation..."
+        clang --version
