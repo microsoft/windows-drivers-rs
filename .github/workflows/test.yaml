@@ -19,7 +19,7 @@ jobs:
       matrix:
         runner:
           - name: windows-latest
-            arch: x64
+            arch: amd64
           - name: windows-11-arm
             arch: arm64
 
