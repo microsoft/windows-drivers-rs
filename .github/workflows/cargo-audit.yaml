@@ -1,4 +1,5 @@
 name: Cargo Audit
+
 on:
   push:
     paths:
@@ -8,6 +9,10 @@ on:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   cargo_audit:

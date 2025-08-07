@@ -1,3 +1,5 @@
+name: Build
+
 on:
   push:
   pull_request:
@@ -5,7 +7,9 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: "0 11 * * *"
 
-name: Build
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   RUSTFLAGS: >-
@@ -17,6 +21,7 @@ jobs:
     name: Build
     runs-on: windows-latest
     strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         wdk:
           - version: 10.0.22621 # NI WDK
