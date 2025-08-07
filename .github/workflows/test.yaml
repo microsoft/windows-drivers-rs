@@ -20,10 +20,10 @@ jobs:
         runner:
           - name: windows-latest
             arch: amd64
-            rust_target_triple: x86_64-pc-windows-msvc
+            # rust_target_triple: x86_64-pc-windows-msvc
           - name: windows-11-arm
             arch: arm64
-            rust_target_triple: aarch64-pc-windows-msvc
+            # rust_target_triple: aarch64-pc-windows-msvc
 
         wdk:
           - version: 10.0.22621 # NI WDK
@@ -80,7 +80,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
-          targets: ${{ matrix.runner.rust_target_triple }}
+          # targets: ${{ matrix.runner.rust_target_triple }}
 
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
@@ -88,4 +88,5 @@ jobs:
           tool: cargo-expand@1.0.85
 
       - name: Run Cargo Test
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.runner.rust_target_triple }} --all-features
+        # run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.runner.rust_target_triple }} --all-features
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
