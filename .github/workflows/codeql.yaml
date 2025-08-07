@@ -14,7 +14,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze
-    runs-on: windows-2025
+    runs-on: windows-latest
     permissions:
       security-events: write
     strategy:
@@ -69,7 +69,7 @@ jobs:
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: 'amd64' # windows-2025 is x64-based
+        host: 'amd64' # windows-latest is x64-based
         target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})

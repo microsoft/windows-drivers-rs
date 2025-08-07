@@ -24,7 +24,7 @@ jobs:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         runner:
-          - name: windows-2025
+          - name: windows-latest
             arch: amd64
           - name: windows-11-arm
             arch: arm64
@@ -89,7 +89,7 @@ jobs:
 
   unused_deps:
     name: Detect Unused Cargo Dependencies
-    runs-on: windows-2025
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository

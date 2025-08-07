@@ -17,7 +17,7 @@ concurrency:
 jobs:
   cargo_audit:
     name: Cargo Audit
-    runs-on: windows-2025
+    runs-on: windows-latest
     permissions:
       issues: write
       checks: write
