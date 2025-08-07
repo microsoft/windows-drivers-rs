@@ -16,9 +16,9 @@ use wdk_alloc::WdkAllocator;
 #[global_allocator]
 static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 
-extern crate alloc;
-use alloc::ffi::CString;
-use core::hint::black_box;
+// extern crate alloc;
+// use alloc::ffi::CString;
+// use core::hint::black_box;
 
 #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
@@ -26,6 +26,6 @@ pub unsafe extern "system" fn driver_entry(
    _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
    // Prevent optimization: ensure allocator is linked (workaround for ARM64 linker issues)
-   black_box(CString::new("Hello World!\n").unwrap());
+   // black_box(CString::new("Hello World!\n").unwrap());
    0
 }
