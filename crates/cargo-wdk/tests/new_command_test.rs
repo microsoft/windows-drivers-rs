@@ -193,11 +193,8 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     set_crt_static_flag();
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args([
-        "build",
-        "--cwd",
-        &tmp_dir.join(&driver_name).to_string_lossy(), // Root dir for tests is cargo-wdk
-    ]);
+    let driver_path = tmp_dir.join(&driver_name); // Root dir for tests
+    cmd.args(["build"]).current_dir(&driver_path);
 
     let cmd_assertion = cmd.assert().failure();
     tmp_dir
