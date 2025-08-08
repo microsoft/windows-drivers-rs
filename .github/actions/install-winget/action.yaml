@@ -7,7 +7,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Get URIs for Winget v1.8.1911 assets
+    - name: Get URIs for Winget v1.11.400 assets
       shell: pwsh
       run: |
         $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
@@ -32,24 +32,25 @@ runs:
         Write-Output "WingetLicenseDownloadUri=$WingetLicenseDownloadUri" >> $env:GITHUB_ENV
         Write-Output "Architecture=$Architecture" >> $env:GITHUB_ENV
         Write-Output "WingetDependenciesZipDownloadUri=$WingetDependenciesZipDownloadUri" >> $env:GITHUB_ENV
+        Write-Output "InstallWingetTempDir=$env:RUNNER_TEMP/install-winget" >> $env:GITHUB_ENV
 
     - name: Download Winget Assets and Dependencies
       shell: pwsh
       run: |
-        New-Item -Type Directory $env:RUNNER_TEMP/winget-install
+        New-Item -Type Directory $env:InstallWingetTempDir
         
         # Download winget and license (architecture-agnostic)
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/winget.msixbundle
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetLicenseDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/license.xml
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDependenciesZipDownloadUri -OutFile $env:RUNNER_TEMP/winget-install/DesktopAppInstaller_Dependencies.zip
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDownloadUri -OutFile $env:InstallWingetTempDir/winget.msixbundle
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetLicenseDownloadUri -OutFile $env:InstallWingetTempDir/license.xml
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDependenciesZipDownloadUri -OutFile $env:InstallWingetTempDir/DesktopAppInstaller_Dependencies.zip
 
-        Expand-Archive -Path "$env:RUNNER_TEMP/winget-install/DesktopAppInstaller_Dependencies.zip" -DestinationPath $env:RUNNER_TEMP/winget-install/ -Force
+        Expand-Archive -Path "$env:InstallWingetTempDir/DesktopAppInstaller_Dependencies.zip" -DestinationPath $env:InstallWingetTempDir/ -Force
 
     - name: Start Winget Installation for all Users
       shell: pwsh
       run: |
         # Use architecture-specific dependency paths
-        [string[]]$DependencyPaths = (Get-ChildItem -Path "$env:RUNNER_TEMP/winget-install/$env:Architecture" -Filter '*.appx' -File -Force).FullName
+        [string[]]$DependencyPaths = (Get-ChildItem -Path "$env:InstallWingetTempDir/$env:Architecture" -Filter '*.appx' -File -Force).FullName
 
         $MicrosoftUIXamlDep = $($DependencyPaths[0])
         $MicrosoftVCLibsDep = $($DependencyPaths[1])
@@ -57,12 +58,12 @@ runs:
         Write-Host "Found Dependency $MicrosoftUIXamlDep"
         Write-Host "Found Dependency $MicrosoftVCLibsDep"
 
-        Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath "$MicrosoftUIXamlDep", "$MicrosoftVCLibsDep"
+        Add-AppxProvisionedPackage -Online -PackagePath $env:InstallWingetTempDir/winget.msixbundle -LicensePath $env:InstallWingetTempDir/license.xml -DependencyPackagePath "$MicrosoftUIXamlDep", "$MicrosoftVCLibsDep"
 
     - name: Install Winget for Current User (for better install diagnostics)
       shell: powershell
       run: |
-        Add-AppxPackage $env:RUNNER_TEMP/winget-install/winget.msixbundle
+        Add-AppxPackage $env:InstallWingetTempDir/winget.msixbundle
 
     - name: Wait for Completion of Winget Installation
       shell: pwsh
