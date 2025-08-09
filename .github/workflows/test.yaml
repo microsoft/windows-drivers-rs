@@ -74,6 +74,11 @@ jobs:
         with:
           tool: cargo-expand@1.0.85
 
+      - name: Install Cargo Make
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
+
       - name: Run Cargo Test (workspace)
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-features
 
