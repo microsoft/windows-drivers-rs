@@ -272,7 +272,8 @@ pub enum ApiSubset {
     Usb,
     /// API subset for Network drivers <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_netvista/>
     ///
-    /// Currently only supports the WSK (Winsock Kernel) portion of the Network API subset.
+    /// Currently only supports the WSK (Winsock Kernel) portion of the Network
+    /// API subset.
     Network,
 }
 

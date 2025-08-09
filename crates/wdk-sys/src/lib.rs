@@ -90,10 +90,7 @@ pub mod storage;
 pub mod usb;
 
 #[cfg(all(
-    any(
-        driver_model__driver_type = "WDM",
-        driver_model__driver_type = "KMDF"
-    ),
+    any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
     feature = "network",
 ))]
 pub mod network;
