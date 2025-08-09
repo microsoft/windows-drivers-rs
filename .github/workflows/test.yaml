@@ -72,5 +72,8 @@ jobs:
         with:
           tool: cargo-expand@1.0.85
 
-      - name: Run Cargo Test
+      - name: Run Cargo Test (workspace)
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple }} --all-features
+
+      - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
+        run: cargo make --cwd ./tests test +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
