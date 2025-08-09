@@ -1,0 +1,14 @@
+[package]
+name = "lib-crate"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# This crate name does not exist on crates.io and must be provided by the config.toml patch table
+config-toml-patched-dep = "0.0.1"
+
+[build-dependencies]
+wdk-build = { path = "../../../crates/wdk-build" }
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"
