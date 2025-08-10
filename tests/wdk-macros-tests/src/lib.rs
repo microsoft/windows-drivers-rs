@@ -41,7 +41,7 @@ pub static TRYBUILD_OUTPUT_FOLDER_PATH: LazyLock<PathBuf> =
 /// reside in the `tests/inputs/macrotest` folder, and may be a path to
 /// a file relative to the `tests/inputs/macrotest` folder. This macro is
 /// designed to use one test file per generated test to fully take advantage of
-/// parallization of tests in cargo.
+/// parallelization of tests in cargo.
 ///
 /// Note: Due to limitations in `trybuild`, a successful compilation
 /// test will include output that looks similar to the following:
