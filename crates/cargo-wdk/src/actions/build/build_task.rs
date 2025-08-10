@@ -27,6 +27,7 @@ pub struct BuildTask<'a> {
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
+    working_dir: &'a Path,
 }
 
 impl<'a> BuildTask<'a> {
@@ -70,6 +71,7 @@ impl<'a> BuildTask<'a> {
             verbosity_level,
             manifest_path,
             command_exec,
+            working_dir,
         })
     }
 
@@ -106,7 +108,10 @@ impl<'a> BuildTask<'a> {
             .iter()
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
-        self.command_exec.run("cargo", &args, None)?;
+        // Run cargo build from the provided working directory so that workspace
+        // resolution and relative paths behave as expected for the selected package
+        self.command_exec
+            .run("cargo", &args, None, Some(self.working_dir))?;
         debug!("Done");
         Ok(())
     }
