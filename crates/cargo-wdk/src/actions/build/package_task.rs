@@ -38,7 +38,7 @@ pub struct PackageTaskParams<'a> {
     pub driver_model: DriverConfig,
 }
 
-/// Suports low level driver packaging operations
+/// Supports low level driver packaging operations
 pub struct PackageTask<'a> {
     package_name: String,
     verify_signature: bool,
@@ -394,7 +394,7 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    /// Signs the specified file using signtool command using cerificate from
+    /// Signs the specified file using signtool command using certificate from
     /// certificate store.
     ///
     /// # Arguments

@@ -140,6 +140,13 @@ To maintain the quality of code, tests and tools are required to pass before con
 * Check for sorted sections and dependencies listed in the `Cargo.toml` files: `cargo sort -w -g -n --check`
   * Running `cargo sort -w -g -n` resolves any formatting inconsistencies.
 
+**_Spelling (typos-cli):_**
+
+* Check spelling with typos-cli: `typos`
+  * Auto-fix locally before committing: `typos --write-changes`
+  * CI runs `typos` on every PR to `main` and will fail on findings
+  * Configuration lives in `.typos.toml`; we intentionally ignore Windows API identifiers (e.g., `STATUS_*`, `TPM_*`) to preserve upstream names and binding compatibility
+
 **_Dependency Analysis:_**
 
 * Scan for security advisories in dependent crates: `cargo audit --deny warnings`
