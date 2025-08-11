@@ -26,7 +26,7 @@ impl SpinLock {
     ///
     /// # Errors
     ///
-    /// This function will return an error if WDF fails to construct a timer.
+    /// This function will return an error if WDF fails to construct a spinlock.
     /// The error variant will contain a [`NTSTATUS`] of the failure. Full error
     /// documentation is available in the [WDFSpinLock Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfsync/nf-wdfsync-wdfspinlockcreate#return-value)
     pub fn try_new(attributes: &mut WDF_OBJECT_ATTRIBUTES) -> Result<Self, NTSTATUS> {
@@ -53,7 +53,7 @@ impl SpinLock {
     ///
     /// # Errors
     ///
-    /// This function will return an error if WDF fails to construct a timer.
+    /// This function will return an error if WDF fails to construct a spinlock.
     /// The error variant will contain a [`NTSTATUS`] of the failure. Full error
     /// documentation is available in the [WDFSpinLock Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfsync/nf-wdfsync-wdfspinlockcreate#return-value)
     pub fn create(attributes: &mut WDF_OBJECT_ATTRIBUTES) -> Result<Self, NTSTATUS> {
