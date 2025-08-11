@@ -1,3 +1,5 @@
+name: Local Development Makefile
+
 on:
   push:
   pull_request:
@@ -5,7 +7,9 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: "0 11 * * *"
 
-name: Local Development Makefile
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   RUSTFLAGS: -D warnings
@@ -15,6 +19,7 @@ jobs:
     name: Test WDR's local cargo-make Makefile
     runs-on: windows-latest
     strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         wdk:
           - version: 10.0.22621 # NI WDK
