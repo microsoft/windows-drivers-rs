@@ -10,10 +10,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use mockall_double::double;
 use tracing::{debug, info};
-use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs};
+use crate::providers::exec::CommandExec;
 use crate::{
     actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
     trace,
@@ -30,22 +29,18 @@ pub struct BuildTask<'a> {
 }
 
 impl<'a> BuildTask<'a> {
-    /// Creates a new instance of `BuildTask`
-    /// # Arguments
-    /// * `package_name` - The name of the package to build
-    /// * `working_dir` - The working directory for the build
-    /// * `profile` - An optional profile for the build
-    /// * `target_arch` - The target architecture for the build
-    /// * `verbosity_level` - The verbosity level for logging
-    /// * `command_exec` - The command execution provider
-    /// * `fs` - The file system provider
-    /// # Returns
-    /// * `Result<Self, BuildTaskError>` - A result containing the new instance
-    ///   of `BuildTask` or an error
-    /// # Errors
-    /// * `BuildTaskError::CanonicalizeManifestPath` - If there is an IO error
-    ///   while canonicalizing the working dir
-    /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty
+    /// Factory method for `BuildTask`.
+    ///
+    /// Arguments:
+    /// * `package_name`  – Name of the package (used for `-p <name>`).
+    /// * `working_dir`   – Absolute path to the package root directory.
+    /// * `profile`       – Optional cargo profile (e.g. `Release`).
+    /// * `target_arch`   – Selected or default target architecture wrapper.
+    /// * `verbosity_level` – Verbosity flags propagated to cargo.
+    /// * `command_exec`  – Command execution provider.
+    ///
+    /// Returns:
+    /// * `Self` - A new instance of `BuildTask`.
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
@@ -53,24 +48,16 @@ impl<'a> BuildTask<'a> {
         target_arch: TargetArch,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
-        fs: &'a Fs,
-    ) -> Result<Self, BuildTaskError> {
-        let manifest_path = fs.canonicalize_path(&working_dir.join("Cargo.toml"))?;
-        let manifest_path = match manifest_path.strip_extended_length_path_prefix() {
-            Ok(path) => path,
-            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => manifest_path,
-            Err(StripExtendedPathPrefixError::EmptyPath) => {
-                return Err(BuildTaskError::EmptyManifestPath);
-            }
-        };
-        Ok(Self {
+    ) -> Self {
+        debug_assert!(working_dir.is_absolute(), "working_dir should be absolute");
+        Self {
             package_name,
             profile,
             target_arch,
             verbosity_level,
-            manifest_path,
+            manifest_path: working_dir.join("Cargo.toml"),
             command_exec,
-        })
+        }
     }
 
     /// Entry point method to run the build task

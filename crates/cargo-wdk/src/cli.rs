@@ -158,7 +158,7 @@ impl Cli {
                         Self::detect_default_target_arch_using_rustc(&command_exec)?;
                     TargetArch::Default(detected_arch)
                 };
-                let build_action = BuildAction::new(
+                BuildAction::new(
                     &BuildActionParams {
                         working_dir: &cli_args.cwd,
                         profile: cli_args.profile.as_ref(),
@@ -171,8 +171,8 @@ impl Cli {
                     &command_exec,
                     &fs,
                     &metadata,
-                )?;
-                build_action.run()?;
+                )
+                .run()?;
                 Ok(())
             }
         }

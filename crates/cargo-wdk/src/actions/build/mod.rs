@@ -13,7 +13,7 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
     result::Result::Ok,
 };
 
@@ -57,31 +57,27 @@ pub struct BuildAction<'a> {
 }
 
 impl<'a> BuildAction<'a> {
-    /// Creates a new instance of `BuildAction`
-    /// # Arguments
-    /// * `params` - The `BuildActionParams` struct containing the parameters
-    ///   for the build action
-    /// * `wdk_build` - The WDK build provider instance
-    /// * `command_exec` - The command execution provider instance
-    /// * `fs` - The file system provider instance
-    /// * `metadata` - The metadata provider instance
-    /// # Returns
-    /// * `Result<Self>` - A result containing the new instance of `BuildAction`
-    ///   or an error
-    /// # Errors
-    /// * `BuildActionError::IoError` - If there is an IO error while
-    ///   canonicalizing the working dir
+    /// Factory method for `BuildAction`.
+    ///
+    /// Args:
+    /// * `params` – build inputs
+    /// * `wdk_build` – WDK helper
+    /// * `command_exec` – command runner
+    /// * `fs` – filesystem provider
+    /// * `metadata` – cargo metadata provider
+    ///
+    /// Returns:
+    /// * `Self` – a new instance of `BuildAction`.
     pub fn new(
         params: &BuildActionParams<'a>,
         wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
         metadata: &'a Metadata,
-    ) -> Result<Self> {
-        // TODO: validate and init attrs here
-        let working_dir = fs.canonicalize_path(params.working_dir)?;
-        Ok(Self {
-            working_dir,
+    ) -> Self {
+        // TODO: validate params and return errors.
+        Self {
+            working_dir: params.working_dir.to_path_buf(),
             profile: params.profile,
             target_arch: params.target_arch,
             verify_signature: params.verify_signature,
@@ -91,7 +87,7 @@ impl<'a> BuildAction<'a> {
             command_exec,
             fs,
             metadata,
-        })
+        }
     }
 
     /// Entry point method to execute the packaging action flow.
@@ -127,21 +123,22 @@ impl<'a> BuildAction<'a> {
             "Initialized build for project at: {}",
             self.working_dir.display()
         );
-        wdk_build::cargo_make::setup_path()?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
         let build_number = self.wdk_build.detect_wdk_build_number()?;
         debug!("WDK build number: {}", build_number);
+        wdk_build::cargo_make::setup_path()?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
+        let working_dir = absolute(&self.working_dir)?;
 
         // Standalone driver/driver workspace support
-        if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
-            return self.run_from_workspace_root(&self.working_dir);
+        if self.fs.exists(&working_dir.join("Cargo.toml")) {
+            return self.run_from_workspace_root(&working_dir);
         }
 
         // Emulated workspaces support
-        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
+        let dirs = self.fs.read_dir_entries(&working_dir)?;
         info!(
             "Checking for valid Rust projects in the working directory: {}",
-            self.working_dir.display()
+            working_dir.display()
         );
 
         let mut is_valid_dir_with_rust_projects = false;
@@ -166,7 +163,7 @@ impl<'a> BuildAction<'a> {
 
         if !is_valid_dir_with_rust_projects {
             return Err(BuildActionError::NoValidRustProjectsInTheDirectory(
-                self.working_dir.clone(),
+                working_dir,
             ));
         }
 
@@ -209,7 +206,7 @@ impl<'a> BuildAction<'a> {
         debug!("Done checking for valid Rust(possibly driver) projects in the working directory");
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
-                self.working_dir.clone(),
+                working_dir,
             ));
         }
 
@@ -217,17 +214,15 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Method to initiate the build and package process for the given working
+    // Method to initiate the build and package tasks for the given working
     // directory and the cargo metadata
     fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
-        let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
-        let workspace_root = self
-            .fs
-            .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
-        if workspace_root.eq(working_dir) {
+        let workspace_root = absolute(cargo_metadata.workspace_root.as_std_path())?;
+        let target_directory = absolute(cargo_metadata.target_directory.as_std_path())?;
+        if workspace_root.eq(&working_dir) {
             // If the working directory is root of a standalone project or a
             // workspace
             debug!(
@@ -242,7 +237,7 @@ impl<'a> BuildAction<'a> {
                     .expect("Unable to find package path from Cargo manifest path")
                     .into();
 
-                let package_root_path = self.fs.canonicalize_path(package_root_path.as_path())?;
+                let package_root_path = absolute(package_root_path.as_path())?;
                 debug!(
                     "Processing workspace member package: {}",
                     package_root_path.display()
@@ -286,15 +281,10 @@ impl<'a> BuildAction<'a> {
                     .parent()
                     .expect("Unable to find package path from Cargo manifest path")
                     .into();
-                self.fs
-                    .canonicalize_path(package_root_path.as_path())
-                    .is_ok_and(|package_root_path| {
-                        debug!(
-                            "Processing workspace member package: {}",
-                            package_root_path.display()
-                        );
-                        package_root_path.eq(working_dir)
-                    })
+                absolute(package_root_path.as_path()).is_ok_and(|p| {
+                    debug!("Processing workspace member package: {}", p.display());
+                    p.eq(&working_dir)
+                })
             });
 
             let package = package
@@ -352,8 +342,7 @@ impl<'a> BuildAction<'a> {
             self.target_arch,
             self.verbosity_level,
             self.command_exec,
-            self.fs,
-        )?
+        )
         .run()?;
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
