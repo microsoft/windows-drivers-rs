@@ -1404,15 +1404,16 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
 ///
 /// This function will return an error if the [`Config`] fails to be
 /// serialized
-#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug", skip(f))]
 pub fn configure_wdk_library_build_and_then<F, E>(mut f: F) -> Result<(), E>
 where
-    F: FnMut(Config) -> Result<(), E> + fmt::Debug,
+    F: FnMut(Config) -> Result<(), E>,
     E: std::convert::From<ConfigError>,
 {
     match Config::from_env_auto() {
         Ok(config) => {
             config.configure_library_build()?;
+            debug!("Calling closure with {config:#?}");
             Ok(f(config)?)
         }
         Err(ConfigError::TryFromCargoMetadataError(

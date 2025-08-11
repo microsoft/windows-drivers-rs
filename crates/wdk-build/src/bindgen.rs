@@ -22,9 +22,7 @@ pub trait BuilderExt {
     ///
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
-    fn wdk_default(
-        config: impl Borrow<Config> + fmt::Debug,
-    ) -> Result<Builder, ConfigError>;
+    fn wdk_default(config: impl Borrow<Config> + fmt::Debug) -> Result<Builder, ConfigError>;
 }
 
 #[derive(Debug)]
@@ -67,9 +65,7 @@ impl BuilderExt for Builder {
     /// Will return `wdk_build::ConfigError` if any of the resolved include or
     /// library paths do not exist
     #[tracing::instrument(level = "debug")]
-    fn wdk_default(
-        config: impl Borrow<Config> + fmt::Debug,
-    ) -> Result<Self, ConfigError> {
+    fn wdk_default(config: impl Borrow<Config> + fmt::Debug) -> Result<Self, ConfigError> {
         let config = config.borrow();
 
         let mut builder = Self::default()
