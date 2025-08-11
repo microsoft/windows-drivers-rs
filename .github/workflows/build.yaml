@@ -19,8 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - name: windows-latest
-            arch: amd64
+          # - name: windows-latest
+          #   arch: amd64
           - name: windows-11-arm
             arch: arm64
 
