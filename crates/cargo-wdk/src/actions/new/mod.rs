@@ -41,10 +41,9 @@ impl<'a> NewAction<'a> {
     ///
     /// # Arguments
     ///
-    /// * `driver_project_name` - The name of the driver project to be created.
+    /// * `path` - The path to the new driver project. The last part of the path
+    ///   is used as the package name.
     /// * `driver_type` - The type of the driver project to be created.
-    /// * `cwd` - The current working directory inside which driver project will
-    ///   be created.
     /// * `verbosity_level` - The verbosity level for logging.
     /// * `command_exec` - The provider for command exection.
     /// * `fs` - The provider for file system operations.

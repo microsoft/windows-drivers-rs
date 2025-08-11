@@ -3,7 +3,7 @@
 //! This module defines the top-level CLI layer, its argument types and
 //! structures used for parsing and validating arguments for various
 //! subcommands.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand};
@@ -78,10 +78,6 @@ impl NewArgs {
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
 pub struct BuildArgs {
-    /// Path to the project
-    #[arg(long, default_value = ".")]
-    pub cwd: PathBuf,
-
     /// Build artifacts with the specified profile
     #[arg(long, ignore_case = true)]
     pub profile: Option<Profile>,
@@ -160,7 +156,7 @@ impl Cli {
                 };
                 let build_action = BuildAction::new(
                     &BuildActionParams {
-                        working_dir: &cli_args.cwd,
+                        working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
                         target_arch,
                         verify_signature: cli_args.verify_signature,
