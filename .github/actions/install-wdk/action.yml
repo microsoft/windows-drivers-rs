@@ -34,6 +34,17 @@ runs:
             }
         }
 
+        # Function to install or update a WinGet package
+        function Install-WinGetPackageIfNeeded($packageId, $packageName) {
+            if ((Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction SilentlyContinue).Id -eq $packageId) {
+                Write-Host "$packageName ($packageId) is already installed. Attempting to update..."
+                Update-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -Mode Silent -Force
+            } else {
+                Write-Host "Installing $packageName ($packageId)..."
+                Install-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -Mode Silent -Force
+            }
+        }
+
         $hostArch = Normalize-Architecture '${{ inputs.host }}'
         $targetArch = Normalize-Architecture '${{ inputs.target }}'
         
@@ -134,15 +145,15 @@ runs:
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
         } else {
 
-          Write-Host "Using Winget to install WDK version $inputVersion..."
+          Write-Host "Using Winget to install WDK and SDK version $inputVersion..."
+          
+          # Install Windows SDK first
+          $sdk = "Microsoft.WindowsSDK.$inputVersion"
+          Install-WinGetPackageIfNeeded $sdk "Windows SDK"
+          
+          # Install Windows WDK
           $wdk = "Microsoft.WindowsWDK.$inputVersion"
-          if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
-            Write-Host "$wdk is already installed. Attempting to update..."
-            Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing $wdk..."
-            Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
-          }
+          Install-WinGetPackageIfNeeded $wdk "Windows WDK"
 
           Write-Host "Setting Version_Number environment variable to $sdkVersion..."
           Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV

@@ -19,16 +19,16 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          # - name: windows-latest
-          #   arch: amd64
+          - name: windows-latest
+            arch: amd64
           - name: windows-11-arm
             arch: arm64
 
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
-          # - version: 10.0.26100 # GE WDK
-          #   source: nuget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
 
         llvm:
           - 17.0.6
@@ -50,16 +50,16 @@ jobs:
     
     runs-on: ${{ matrix.runner.name }}
 
-    env:
-      # WDK 10.0.22621 installed via winget channel on ARM64 runner doesn't ship certmgr and makecert binaries
-      CERT_TOOLS_PRESENT: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
+    # env:
+    #   # WDK 10.0.22621 installed via winget channel on ARM64 runner doesn't ship certmgr and makecert binaries
+    #   CERT_TOOLS_PRESENT: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - uses: msys2/setup-msys2@v2
-        id: setup-msys2
+      # - uses: msys2/setup-msys2@v2
+      #   id: setup-msys2
 
       - name: Install Winget
         uses: ./.github/actions/install-winget
@@ -71,11 +71,11 @@ jobs:
         with:
           version: ${{ matrix.llvm }}
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true
-          msys2-location: ${{ steps.setup-msys2.outputs.msys2-location }}
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   with:
+      #     limit-access-to-actor: true
+      #     msys2-location: ${{ steps.setup-msys2.outputs.msys2-location }}
 
       - name: Install WDK (${{ matrix.wdk.version }})
         uses: ./.github/actions/install-wdk
@@ -107,7 +107,7 @@ jobs:
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
+        # if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
@@ -115,9 +115,9 @@ jobs:
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
+        # if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
 
       - name: Run build on tests folder (via cargo-wdk)
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
+        # if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
