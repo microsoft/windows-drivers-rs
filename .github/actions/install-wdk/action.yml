@@ -132,14 +132,14 @@ runs:
 
           Write-Host "Using Winget to install WDK version $inputVersion..."
           
-          # Import the WinGet PowerShell module  
+          # Import the WinGet PowerShell module
           Write-Host "Importing WinGet PowerShell module..."
           Import-Module Microsoft.WinGet.Client -Force
           
-          # Detect and uninstall any existing Windows SDK packages to avoid conflicts  
+          # Detect and uninstall any existing Windows SDK packages to avoid conflicts
           Write-Host "Detecting and removing existing Windows SDK packages..."
           try {
-            $existingSDKs = Get-WinGetPackage | Where-Object { $_.Name -like "*Windows Software Development Kit*" }
+            $existingSDKs = Get-WinGetPackage | Where-Object { $_.Name -like "*Windows Software Development Kit*" -or $_.Id -like "Microsoft.WindowsSDK*" }
           } catch {
             Write-Host "No existing SDK packages found or error querying: ${_}"
             $existingSDKs = @()
@@ -157,7 +157,7 @@ runs:
           # Detect and uninstall any existing WDK packages to avoid header conflicts
           Write-Host "Detecting and removing existing WDK packages..."
           try {
-            $existingWDKs = Get-WinGetPackage | Where-Object { $_.Name -like "*Windows Driver Kit*" }
+            $existingWDKs = Get-WinGetPackage | Where-Object { $_.Name -like "*Windows Driver Kit*" -or $_.Id -like "Microsoft.WindowsWDK*" }
           } catch {
             Write-Host "No existing WDK packages found or error querying: ${_}"
             $existingWDKs = @()
@@ -179,16 +179,8 @@ runs:
             Install-WinGetPackage -Id $sdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
             Write-Host "Successfully installed SDK: $sdkPackageId"
           } catch {
-            Write-Warning "Failed to install SDK $sdkPackageId, trying alternative SDK naming..."
-            # Try alternative SDK package naming if the primary fails
-            $altSdkPackageId = "Microsoft.WindowsSDK.$inputVersion"
-            try {
-              Install-WinGetPackage -Id $altSdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
-              Write-Host "Successfully installed alternative SDK: $altSdkPackageId"
-            } catch {
-              Write-Warning "Failed to install alternative SDK $altSdkPackageId`: ${_}"
-              Write-Warning "Continuing without explicit SDK installation - WDK may include required components"
-            }
+            Write-Warning "Failed to install SDK $sdkPackageId`: ${_}"
+            Write-Warning "Continuing without explicit SDK installation - WDK may include required components"
           }
           
           # Install the specific WDK version
