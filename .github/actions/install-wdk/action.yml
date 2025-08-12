@@ -148,8 +148,23 @@ runs:
           Write-Host "Using Winget to install WDK and SDK version $inputVersion..."
           
           # Install Windows SDK first
-          $sdk = "Microsoft.WindowsSDK.$inputVersion"
-          Install-WinGetPackageIfNeeded $sdk "Windows SDK"
+          if ($sdkVersion -eq "10.0.22621") {
+            Write-Host "Installing Windows SDK 10.0.22621 from Microsoft download link..."
+            $sdkInstallerUrl = "https://go.microsoft.com/fwlink/?linkid=2311806"
+            $installerPath = "$env:TEMP\winsdksetup.exe"
+            
+            Write-Host "Downloading SDK installer from $sdkInstallerUrl..."
+            Invoke-WebRequest -Uri $sdkInstallerUrl -OutFile $installerPath -UseBasicParsing
+            
+            Write-Host "Running SDK installer with all features..."
+            Start-Process -FilePath $installerPath -ArgumentList "/quiet", "/features", "+" -Wait -NoNewWindow
+            
+            Write-Host "Cleaning up installer..."
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+          } else {
+            $sdk = "Microsoft.WindowsSDK.$inputVersion"
+            Install-WinGetPackageIfNeeded $sdk "Windows SDK"
+          }
           
           # Install Windows WDK
           $wdk = "Microsoft.WindowsWDK.$inputVersion"
