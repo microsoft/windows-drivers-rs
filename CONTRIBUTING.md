@@ -145,7 +145,7 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 * Check spelling with typos-cli: `typos`
   * Auto-fix locally before committing: `typos --write-changes`
-  * CI runs `typos` on every PR to `main` and will fail on findings
+  * CI runs `typos` on every PR to `main` and will fail on finding any typos
   * Configuration lives in `.typos.toml`; we allowlist specific Windows API identifiers flagged by typos to preserve upstream names and binding compatibility (no file-level excludes)
 
 **_Dependency Analysis:_**
