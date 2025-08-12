@@ -1,0 +1,26 @@
+on:
+  push:
+  pull_request:
+  merge_group:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: "0 11 * * *"
+
+name: Typos
+
+jobs:
+  typos:
+    name: Spell check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # We explicitly install typos instead the typos GitHub Action due to:
+      # https://github.com/crate-ci/typos/issues/1191
+      - name: Install typos (taiki-e/install-action)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: typos
+
+      - name: Run typos (check)
+        run: typos

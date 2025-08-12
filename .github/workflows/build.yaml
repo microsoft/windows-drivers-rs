@@ -1,3 +1,5 @@
+name: Build
+
 on:
   push:
   pull_request:
@@ -5,7 +7,9 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: "0 11 * * *"
 
-name: Build
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   RUSTFLAGS: >-
@@ -16,7 +20,7 @@ jobs:
   build:
     name: Build
     strategy:
-      fail-fast: false
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         runner:
           - name: windows-latest
@@ -116,8 +120,10 @@ jobs:
 
       - name: Build & Package Examples (via cargo-wdk)
         # if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
+        working-directory: ./examples
 
       - name: Run build on tests folder (via cargo-wdk)
         # if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
+        working-directory: ./tests

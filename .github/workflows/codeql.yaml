@@ -7,6 +7,10 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   analyze:
     name: Analyze
@@ -40,9 +44,11 @@ jobs:
           - name: aarch64-pc-windows-msvc
             arch: arm64
 
-        include:
-        - language: c-cpp
-          build-mode: manual
+        codeql:
+          - language: c-cpp
+            build-mode: manual
+          - language: rust
+            build-mode: none
 
     steps:
     - name: Checkout repository
@@ -81,15 +87,15 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
-        languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
+        languages: ${{ matrix.codeql.language }}
+        build-mode: ${{ matrix.codeql.build-mode }}
         queries: security-extended,security-and-quality
 
-    - if: matrix.build-mode == 'manual'
+    - if: matrix.codeql.build-mode == 'manual'
       working-directory: ./examples
       run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
-        category: "/language:${{matrix.language}}"
+        category: "/language:${{matrix.codeql.language}}"

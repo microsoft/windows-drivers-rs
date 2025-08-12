@@ -7,11 +7,15 @@ on:
 
 name: Test
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   test:
     name: Test
     strategy:
-      fail-fast: false
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         runner:
           - name: windows-latest
