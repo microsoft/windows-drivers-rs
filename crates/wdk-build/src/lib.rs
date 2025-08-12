@@ -1086,6 +1086,8 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
 
+                println!("cargo::rustc-link-lib=static=netio");
+
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props
                 if self.cpu_architecture == CpuArchitecture::Arm64 {
