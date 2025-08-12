@@ -17,7 +17,10 @@ runs:
         Write-Host "Runner architecture: $Architecture"
 
         # winget-cli release v1.11.400
-        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders 'https://api.github.com/repos/microsoft/winget-cli/releases/226250169'
+        # Define the winget-cli release tag to use
+        $WingetReleaseTag = "v1.11.400"
+        # Fetch release info by tag instead of magic number release ID
+        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders "https://api.github.com/repos/microsoft/winget-cli/releases/tags/$WingetReleaseTag"
         $WingetDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
         $WingetLicenseDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('License1.xml') }
         $WingetDependenciesZipDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('DesktopAppInstaller_Dependencies.zip') }
