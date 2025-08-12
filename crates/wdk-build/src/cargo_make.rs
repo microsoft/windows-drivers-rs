@@ -708,7 +708,7 @@ pub fn get_current_package_name() -> String {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::IoError`] if the it encouters IO
+/// This function returns a [`ConfigError::IoError`] if the it encounters IO
 /// errors while copying the file or creating the directory
 ///
 /// # Panics

@@ -918,12 +918,12 @@ impl Config {
     /// where the issue was fixed. See
     /// <https://github.com/llvm/llvm-project/issues/124869> for details.
     fn should_include_ufxclient() -> bool {
-        const MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX: u32 = 20;
+        const MINIMUM_CLANG_MAJOR_VERSION_WITH_INVALID_INLINE_FIX: u32 = 20;
 
         let clang_version = ::bindgen::clang_version();
         match clang_version.parsed {
             Some((major, _minor))
-                if major >= MINIMUM_CLANG_MAJOR_VERISON_WITH_INVALID_INLINE_FIX =>
+                if major >= MINIMUM_CLANG_MAJOR_VERSION_WITH_INVALID_INLINE_FIX =>
             {
                 true
             }
