@@ -65,7 +65,7 @@ runs:
                           Write-Host "Found $($availableVersions.Count) versions using NuGet API"
                       }
                   } catch {
-                      Write-Host "NuGet API query failed: $_"
+                      Write-Host "NuGet API query failed: ${_}"
                       exit 1
                   }
                   
@@ -80,7 +80,7 @@ runs:
                       Write-Host "Found latest QFE version: $version"
                   }
               } catch {
-                  Write-Warning "Failed to query NuGet for latest QFE version: $_"
+                  Write-Warning "Failed to query NuGet for latest QFE version: ${_}"
                   exit 1
               }
           } else {
@@ -141,7 +141,7 @@ runs:
           try {
             $existingWDKs = Get-WinGetPackage -Source winget | Where-Object { $_.Id -like "Microsoft.WindowsWDK*" }
           } catch {
-            Write-Host "No existing WDK packages found or error querying: $_"
+            Write-Host "No existing WDK packages found or error querying: ${_}"
             $existingWDKs = @()
           }
           foreach ($wdk in $existingWDKs) {
@@ -150,7 +150,7 @@ runs:
               Uninstall-WinGetPackage -Id $wdk.Id -Source winget -Mode Silent -Force
               Write-Host "Successfully uninstalled $($wdk.Id)"
             } catch {
-              Write-Warning "Failed to uninstall $($wdk.Id): $_"
+              Write-Warning "Failed to uninstall $($wdk.Id): ${_}"
             }
           }
           
@@ -159,7 +159,7 @@ runs:
           try {
             $existingSDKs = Get-WinGetPackage -Source winget | Where-Object { $_.Id -like "Microsoft.WindowsSDK*" }
           } catch {
-            Write-Host "No existing SDK packages found or error querying: $_"
+            Write-Host "No existing SDK packages found or error querying: ${_}"
             $existingSDKs = @()
           }
           foreach ($sdk in $existingSDKs) {
@@ -168,7 +168,7 @@ runs:
               Uninstall-WinGetPackage -Id $sdk.Id -Source winget -Mode Silent -Force
               Write-Host "Successfully uninstalled $($sdk.Id)"
             } catch {
-              Write-Warning "Failed to uninstall $($sdk.Id): $_"
+              Write-Warning "Failed to uninstall $($sdk.Id): ${_}"
             }
           }
           
@@ -179,7 +179,7 @@ runs:
             Install-WinGetPackage -Id $wdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
             Write-Host "Successfully installed WDK: $wdkPackageId"
           } catch {
-            Write-Error "Failed to install WDK $wdkPackageId : $_"
+            Write-Error "Failed to install WDK $wdkPackageId : ${_}"
             exit 1
           }
           
@@ -197,7 +197,7 @@ runs:
               Install-WinGetPackage -Id $altSdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
               Write-Host "Successfully installed alternative SDK: $altSdkPackageId"
             } catch {
-              Write-Warning "Failed to install alternative SDK $altSdkPackageId: $_"
+              Write-Warning "Failed to install alternative SDK $altSdkPackageId`: ${_}"
               Write-Warning "Continuing without explicit SDK installation - WDK may include required components"
             }
           }
