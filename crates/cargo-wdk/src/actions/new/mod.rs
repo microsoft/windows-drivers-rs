@@ -45,7 +45,7 @@ impl<'a> NewAction<'a> {
     ///   is used as the package name.
     /// * `driver_type` - The type of the driver project to be created.
     /// * `verbosity_level` - The verbosity level for logging.
-    /// * `command_exec` - The provider for command exection.
+    /// * `command_exec` - The provider for command execution.
     /// * `fs` - The provider for file system operations.
     ///
     /// # Returns
