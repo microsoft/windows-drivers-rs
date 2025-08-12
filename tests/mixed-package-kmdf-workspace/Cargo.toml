@@ -9,12 +9,12 @@ kmdf-version-major = 1
 target-kmdf-version-minor = 33
 
 [workspace.dependencies]
-wdk = { path = "../../crates/wdk", version = "0.3.1" }
-wdk-alloc = { path = "../../crates/wdk-alloc", version = "0.3.1" }
-wdk-build = { path = "../../crates/wdk-build", version = "0.4.0" }
-wdk-macros = { path = "../../crates/wdk-macros", version = "0.4.0" }
-wdk-panic = { path = "../../crates/wdk-panic", version = "0.3.1" }
-wdk-sys = { path = "../../crates/wdk-sys", version = "0.4.0" }
+wdk.path = "../../crates/wdk"
+wdk-alloc.path = "../../crates/wdk-alloc"
+wdk-build.path = "../../crates/wdk-build"
+wdk-macros.path = "../../crates/wdk-macros"
+wdk-panic.path = "../../crates/wdk-panic"
+wdk-sys.path = "../../crates/wdk-sys"
 
 [profile.dev]
 panic = "abort"

@@ -1,0 +1,5 @@
+[patch.crates-io]
+# Patch a specific crate name to a local path so only config-aware cargo metadata resolves.
+# Without running cargo_metadata from the workspace root (respecting config.toml),
+# this dependency will not be found and metadata/build should fail.
+config-toml-patched-dep = { path = "path-dep" }

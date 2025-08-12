@@ -9,6 +9,8 @@ publish = false
 
 [lib]
 crate-type = ["cdylib"]
+# Windows Server 2022 (used in CI) has issues running driver tests
+test = false
 
 [build-dependencies]
 wdk-build.workspace = true

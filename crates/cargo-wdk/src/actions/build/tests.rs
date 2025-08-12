@@ -2429,13 +2429,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_cargo_command && args == expected_cargo_build_args
                 },
             )
             .once()
-            .returning(move |_, _, _| Ok(expected_output.clone()));
+            .returning(move |_, _, _, _| Ok(expected_output.clone()));
         self
     }
 
@@ -2720,7 +2721,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .withf(
                     move |command: &str,
                           args: &[&str],
-                          _env_vars: &Option<&HashMap<&str, &str>>|
+                          _env_vars: &Option<&HashMap<&str, &str>>,
+                          _working_dir: &Option<&Path>|
                           -> bool {
                         println!("command: {command}, args: {args:?}");
                         println!(
@@ -2731,7 +2733,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     },
                 )
                 .once()
-                .returning(move |_, _, _| match override_output.clone() {
+                .returning(move |_, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
                         Some(0) => Ok(Output {
                             status: ExitStatus::from_raw(0),
@@ -2786,7 +2788,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
@@ -2797,7 +2800,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2825,13 +2828,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2875,13 +2879,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2923,13 +2928,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_makecert_command && args == expected_makecert_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2983,13 +2989,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3042,13 +3049,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3094,13 +3102,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_verify_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3146,13 +3155,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_verify_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3208,13 +3218,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_infverif_command && args == expected_infverif_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),

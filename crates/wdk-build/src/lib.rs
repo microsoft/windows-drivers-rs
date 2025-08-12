@@ -15,6 +15,7 @@ use std::{fmt, str::FromStr};
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
+use tracing::debug;
 
 pub mod cargo_make;
 pub mod metadata;
@@ -288,6 +289,7 @@ impl Default for Config {
 impl Config {
     /// Create a new [`Config`] with default values
     #[must_use]
+    #[tracing::instrument(level = "debug")]
     pub fn new() -> Self {
         Self::default()
     }
@@ -308,10 +310,25 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the resolved top-level Cargo manifest path is not valid UTF-8
+    #[tracing::instrument(level = "debug")]
     pub fn from_env_auto() -> Result<Self, ConfigError> {
-        let top_level_manifest = find_top_level_cargo_manifest();
+        let top_level_cargo_manifest_path = find_top_level_cargo_manifest();
+        debug!(
+            "Top level Cargo manifest path: {:?}",
+            top_level_cargo_manifest_path
+        );
+
+        let cwd = top_level_cargo_manifest_path
+            .parent()
+            .expect("Cargo manifest should have a valid parent directory");
+
         let cargo_metadata = MetadataCommand::new()
-            .manifest_path(&top_level_manifest)
+            // Run `cargo_metadata` in the same working directory as the top level manifest in order
+            // to respect `config.toml` overrides
+            .current_dir(cwd)
+            // top-level manifest path must be used in order for metadata from the top-level crates
+            // to be discovered
+            .manifest_path(&top_level_cargo_manifest_path)
             .exec()?;
         let wdk_metadata = metadata::Wdk::try_from(&cargo_metadata)?;
 
@@ -320,7 +337,7 @@ impl Config {
         for manifest_path in metadata::iter_manifest_paths(cargo_metadata)
             .into_iter()
             .chain(std::iter::once(
-                top_level_manifest
+                top_level_cargo_manifest_path
                     .try_into()
                     .expect("Path to Cargo manifests should always be valid UTF8"),
             ))
@@ -342,6 +359,7 @@ impl Config {
     /// was already configured via [`configure_wdk_binary_build`],
     /// [`configure_wdk_library_build`], or
     /// [`configure_wdk_library_build_and_then`]
+    #[tracing::instrument(level = "debug")]
     pub fn emit_check_cfg_settings() {
         for (cfg_key, allowed_values) in EXPORTED_CFG_SETTINGS.iter() {
             let allowed_cfg_value_string =
@@ -375,6 +393,7 @@ impl Config {
     /// Expose `cfg` settings based on this [`Config`] to enable conditional
     /// compilation. This emits specially formatted prints to Cargo based on
     /// this [`Config`].
+    #[tracing::instrument(level = "trace")]
     fn emit_cfg_settings(&self) -> Result<(), ConfigError> {
         Self::emit_check_cfg_settings();
 
@@ -409,6 +428,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
+    #[tracing::instrument(level = "debug")]
     pub fn include_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut include_paths = vec![];
         let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
@@ -522,6 +542,7 @@ impl Config {
     ///
     /// This function will return an error if any of the required paths do not
     /// exist.
+    #[tracing::instrument(level = "debug")]
     pub fn library_paths(&self) -> Result<impl Iterator<Item = PathBuf>, ConfigError> {
         let mut library_paths = vec![];
         let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
@@ -586,6 +607,7 @@ impl Config {
 
     /// Return an iterator of strings that represent compiler definitions
     /// derived from the `Config`
+    #[tracing::instrument(level = "debug")]
     pub fn preprocessor_definitions(&self) -> impl Iterator<Item = (String, Option<String>)> {
         // _WIN32_WINNT=$(WIN32_WINNT_VERSION);
         // WINVER=$(WINVER_VERSION);
@@ -681,6 +703,7 @@ impl Config {
 
     /// Return an iterator of strings that represent compiler flags (i.e.
     /// warnings, settings, etc.) used by bindgen to parse WDK headers
+    #[tracing::instrument(level = "debug")]
     pub fn wdk_bindgen_compiler_flags() -> impl Iterator<Item = String> {
         vec![
             // Enable Microsoft C/C++ extensions and compatibility options (https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions)
@@ -721,6 +744,7 @@ impl Config {
     /// # Errors
     /// [`ConfigError`] - if the headers for the given [`ApiSubset`] could not
     /// be determined
+    #[tracing::instrument(level = "debug")]
     pub fn headers(
         &self,
         api_subset: ApiSubset,
@@ -742,6 +766,7 @@ impl Config {
             .into_iter())
     }
 
+    #[tracing::instrument(level = "trace")]
     fn base_headers(&self) -> Vec<&'static str> {
         match &self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
@@ -753,6 +778,7 @@ impl Config {
         }
     }
 
+    #[tracing::instrument(level = "trace")]
     fn wdf_headers(&self) -> Vec<&'static str> {
         if matches!(
             self.driver_config,
@@ -764,6 +790,7 @@ impl Config {
         }
     }
 
+    #[tracing::instrument(level = "trace")]
     fn gpio_headers(&self) -> Vec<&'static str> {
         let mut headers = vec!["gpio.h"];
         if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
@@ -772,6 +799,7 @@ impl Config {
         headers
     }
 
+    #[tracing::instrument(level = "trace")]
     fn hid_headers(&self) -> Vec<&'static str> {
         let mut headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
         if matches!(
@@ -787,6 +815,7 @@ impl Config {
         headers
     }
 
+    #[tracing::instrument(level = "trace")]
     fn parallel_ports_headers(&self) -> Vec<&'static str> {
         let mut headers = vec!["ntddpar.h", "ntddser.h"];
         if matches!(
@@ -798,6 +827,7 @@ impl Config {
         headers
     }
 
+    #[tracing::instrument(level = "trace")]
     fn spb_headers(&self) -> Vec<&'static str> {
         let mut headers = vec!["spb.h", "reshub.h"];
         if matches!(
@@ -812,6 +842,7 @@ impl Config {
         headers
     }
 
+    #[tracing::instrument(level = "trace")]
     fn storage_headers(&self) -> Vec<&'static str> {
         let mut headers = vec![
             "ehstorioctl.h",
@@ -844,6 +875,7 @@ impl Config {
         headers
     }
 
+    #[tracing::instrument(level = "trace")]
     fn usb_headers(&self) -> Result<Vec<String>, ConfigError> {
         let mut headers = Vec::new();
         headers.extend(
@@ -911,6 +943,7 @@ impl Config {
     /// This function checks if the current Clang version is 20.0 or newer,
     /// where the issue was fixed. See
     /// <https://github.com/llvm/llvm-project/issues/124869> for details.
+    #[tracing::instrument(level = "trace")]
     fn should_include_ufxclient() -> bool {
         const MINIMUM_CLANG_MAJOR_VERSION_WITH_INVALID_INLINE_FIX: u32 = 20;
 
@@ -949,9 +982,10 @@ impl Config {
     /// # Errors
     /// [`ConfigError`] - if the headers for a [`ApiSubset`] could not be
     /// determined
+    #[tracing::instrument(level = "debug")]
     pub fn bindgen_header_contents(
         &self,
-        api_subsets: impl IntoIterator<Item = ApiSubset>,
+        api_subsets: impl IntoIterator<Item = ApiSubset> + fmt::Debug,
     ) -> Result<String, ConfigError> {
         Ok(api_subsets
             .into_iter()
@@ -969,6 +1003,7 @@ impl Config {
     ///
     /// This function will return an error if the [`Config`] fails to be
     /// serialized
+    #[tracing::instrument(level = "debug")]
     pub fn configure_library_build(&self) -> Result<(), ConfigError> {
         self.emit_cfg_settings()
     }
@@ -977,6 +1012,7 @@ impl Config {
     /// dispatching based off of the [`Config`]. Returns `None` if the driver
     /// model is [`DriverConfig::Wdm`]
     #[must_use]
+    #[tracing::instrument(level = "debug")]
     pub fn compute_wdffunctions_symbol_name(&self) -> Option<String> {
         let (wdf_major_version, wdf_minor_version) = match self.driver_config {
             DriverConfig::Kmdf(config) => {
@@ -1009,6 +1045,7 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the invoked from outside a Cargo build environment
+    #[tracing::instrument(level = "debug")]
     pub fn configure_binary_build(&self) -> Result<(), ConfigError> {
         if !Self::is_crt_static_linked() {
             cfg_if::cfg_if! {
@@ -1129,6 +1166,7 @@ impl Config {
         self.emit_cfg_settings()
     }
 
+    #[tracing::instrument(level = "trace")]
     fn is_crt_static_linked() -> bool {
         const STATICALLY_LINKED_C_RUNTIME_FEATURE_NAME: &str = "crt-static";
 
@@ -1157,6 +1195,7 @@ impl Config {
     ///
     /// KMDF/AMD64: `C:\...\Lib\10.0.22621.0\km\x64`
     /// UMDF/ARM64: `C:\...\Lib\10.0.22621.0\um\arm64`
+    #[tracing::instrument(level = "trace")]
     fn sdk_library_path(&self, sdk_version: String) -> Result<PathBuf, ConfigError> {
         let windows_sdk_library_path =
             self.wdk_content_root
@@ -1180,6 +1219,7 @@ impl Config {
 
     /// Returns the path to the latest available UCX header file present in the
     /// Lib folder of the WDK content root
+    #[tracing::instrument(level = "trace")]
     fn ucx_header(&self) -> Result<String, ConfigError> {
         let sdk_version = utils::detect_windows_sdk_version(&self.wdk_content_root)?;
         let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
@@ -1281,6 +1321,7 @@ impl CpuArchitecture {
 /// Panics if a `Cargo.lock` file cannot be found in any of the ancestors of
 /// `OUT_DIR` or if this function was called outside of a `build.rs` file
 #[must_use]
+#[tracing::instrument(level = "debug")]
 pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
         PathBuf::from(std::env::var("OUT_DIR").expect(
@@ -1308,6 +1349,7 @@ pub fn find_top_level_cargo_manifest() -> PathBuf {
 ///
 /// This function will return an error if the [`Config`] fails to be
 /// serialized
+#[tracing::instrument(level = "debug")]
 pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
     match Config::from_env_auto() {
         Ok(config) => {
@@ -1347,6 +1389,7 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
 ///
 /// This function will return an error if the [`Config`] fails to be
 /// serialized
+#[tracing::instrument(level = "debug", skip(f))]
 pub fn configure_wdk_library_build_and_then<F, E>(mut f: F) -> Result<(), E>
 where
     F: FnMut(Config) -> Result<(), E>,
@@ -1355,6 +1398,7 @@ where
     match Config::from_env_auto() {
         Ok(config) => {
             config.configure_library_build()?;
+            debug!("Calling closure with {config:#?}");
             Ok(f(config)?)
         }
         Err(ConfigError::TryFromCargoMetadataError(
@@ -1386,6 +1430,7 @@ where
 /// # Panics
 ///
 /// Panics if the invoked from outside a Cargo build environment
+#[tracing::instrument(level = "debug")]
 pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
@@ -1419,6 +1464,7 @@ static EXPORTED_CFG_SETTINGS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> =
 ///
 /// Panics if the WDK version number cannot be extracted from
 /// the version string.
+#[tracing::instrument(level = "debug")]
 pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
     let wdk_content_root =
         utils::detect_wdk_content_root().ok_or(ConfigError::WdkContentRootDetectionError)?;
