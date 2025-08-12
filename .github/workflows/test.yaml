@@ -41,15 +41,6 @@ jobs:
           - dev
           - release
 
-        # Exclude WDK 10.0.22621 from the ARM64 runner, as the corresponding SDK cannot be installed
-        exclude:
-          - runner:
-              name: windows-11-arm
-              arch: arm64
-            wdk:
-              version: 10.0.22621
-              source: winget
-
     runs-on: ${{ matrix.runner.name }}
 
     steps:

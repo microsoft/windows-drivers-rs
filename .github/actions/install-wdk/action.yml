@@ -34,6 +34,17 @@ runs:
             }
         }
 
+        # Function to install or update a WinGet package
+        function Install-WinGetPackageIfNeeded($packageId, $packageName) {
+            if ((Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction SilentlyContinue).Id -eq $packageId) {
+                Write-Host "$packageName ($packageId) is already installed. Attempting to update..."
+                Update-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -Mode Silent -Force
+            } else {
+                Write-Host "Installing $packageName ($packageId)..."
+                Install-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -Mode Silent -Force
+            }
+        }
+
         $hostArch = Normalize-Architecture '${{ inputs.host }}'
         $targetArch = Normalize-Architecture '${{ inputs.target }}'
         
@@ -134,15 +145,32 @@ runs:
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
         } else {
 
-          Write-Host "Using Winget to install WDK version $inputVersion..."
-          $wdk = "Microsoft.WindowsWDK.$inputVersion"
-          if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
-            Write-Host "$wdk is already installed. Attempting to update..."
-            Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          Write-Host "Using Winget to install WDK and SDK version $inputVersion..."
+
+          # Install Windows SDK first
+          if ($sdkVersion -eq "10.0.22621") {
+            # Installing the 10.0.22621 SDK via winget is not working, so it is being installed using the winsdksetup.exe installer
+
+            Write-Host "Installing Windows SDK 10.0.22621.5040 from Microsoft download link..."
+            $sdkInstallerUrl = "https://go.microsoft.com/fwlink/?linkid=2311806"
+            $installerPath = "$env:RUNNER_TEMP\winsdksetup.exe"
+
+            Write-Host "Downloading SDK installer from $sdkInstallerUrl..."
+            Invoke-WebRequest -Uri $sdkInstallerUrl -OutFile $installerPath -UseBasicParsing
+
+            Write-Host "Running SDK installer with all features..."
+            Start-Process -FilePath $installerPath -ArgumentList "/quiet", "/features", "+" -Wait -NoNewWindow
+
+            Write-Host "Cleaning up installer..."
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
           } else {
-            Write-Host "Installing $wdk..."
-            Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+            $sdk = "Microsoft.WindowsSDK.$inputVersion"
+            Install-WinGetPackageIfNeeded $sdk "Windows SDK"
           }
+
+          # Install Windows WDK
+          $wdk = "Microsoft.WindowsWDK.$inputVersion"
+          Install-WinGetPackageIfNeeded $wdk "Windows WDK"
 
           Write-Host "Setting Version_Number environment variable to $sdkVersion..."
           Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV

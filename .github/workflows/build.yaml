@@ -54,10 +54,6 @@ jobs:
     
     runs-on: ${{ matrix.runner.name }}
 
-    env:
-      # Cert tools are unavailable because SDK 10.0.22621 cannot be installed on the ARM64 runner
-      CERT_TOOLS_PRESENT: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -102,20 +98,16 @@ jobs:
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
         working-directory: ./examples
 
       - name: Run build on tests folder (via cargo-wdk)
-        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
         working-directory: ./tests
