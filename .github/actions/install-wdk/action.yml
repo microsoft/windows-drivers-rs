@@ -176,7 +176,7 @@ runs:
           $sdkPackageId = "Microsoft.WindowsSDK.$sdkVersion"
           Write-Host "Installing matching Windows SDK: $sdkPackageId..."
           try {
-            Install-WinGetPackage -Id $sdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
+            Install-WinGetPackage $sdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
             Write-Host "Successfully installed SDK: $sdkPackageId"
           } catch {
             Write-Warning "Failed to install SDK $sdkPackageId`: ${_}"
@@ -187,7 +187,7 @@ runs:
           $wdkPackageId = "Microsoft.WindowsWDK.$inputVersion"
           Write-Host "Installing WDK: $wdkPackageId..."
           try {
-            Install-WinGetPackage -Id $wdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
+            Install-WinGetPackage $wdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
             Write-Host "Successfully installed WDK: $wdkPackageId"
           } catch {
             Write-Error "Failed to install WDK $wdkPackageId : ${_}"
