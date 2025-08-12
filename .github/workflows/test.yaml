@@ -41,7 +41,7 @@ jobs:
           - dev
           - release
 
-        # Exclude WDK 10.0.22621 with ARM64 runner as it doesn't ship certmgr and makecert binaries
+        # Exclude WDK 10.0.22621 from the ARM64 runner, as the corresponding SDK cannot be installed
         exclude:
           - runner:
               name: windows-11-arm

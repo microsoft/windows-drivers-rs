@@ -55,7 +55,7 @@ jobs:
     runs-on: ${{ matrix.runner.name }}
 
     env:
-      # WDK 10.0.22621 installed via winget channel on ARM64 runner doesn't ship certmgr and makecert binaries
+      # Cert tools are unavailable because SDK 10.0.22621 cannot be installed on the ARM64 runner
       CERT_TOOLS_PRESENT: ${{ !(matrix.wdk.version == '10.0.22621' && matrix.runner.arch == 'arm64') }}
 
     steps:
@@ -107,6 +107,7 @@ jobs:
 
       # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
+        if: ${{ env.CERT_TOOLS_PRESENT == 'true' }}
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
