@@ -14,7 +14,7 @@ env:
 jobs:
   clippy:
     name: Clippy
-    runs-on: windows-latest
+    runs-on: windows-2025
     permissions:
       checks: write
     strategy:
@@ -67,7 +67,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'x64' # windows-latest is x64-based
+          host: 'x64' # windows-2025 is x64-based
           target: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
@@ -82,7 +82,7 @@ jobs:
 
   unused_deps:
     name: Detect Unused Cargo Dependencies
-    runs-on: windows-latest
+    runs-on: windows-2025
 
     steps:
       - name: Checkout Repository
