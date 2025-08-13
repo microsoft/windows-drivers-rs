@@ -32,7 +32,7 @@ runs:
                 exit 1
             }
         }
-        
+
         $inputVersion = '${{ inputs.version }}'
         if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
             Write-Error "Invalid version format: $inputVersion"
@@ -40,7 +40,7 @@ runs:
         }
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
-        
+
         $source = '${{ inputs.source }}'
         if ($source -ne 'nuget' -and $source -ne 'winget') {
             Write-Error "Invalid source: $source. Supported sources are 'nuget' and 'winget'."
@@ -68,7 +68,7 @@ runs:
                       Write-Host "NuGet API query failed: ${_}"
                       exit 1
                   }
-                  
+
                   # Filter versions that match the base version and find the latest QFE
                   $matchingVersions = $availableVersions | Where-Object { $_.StartsWith("$baseVersion.") }
                   if ($matchingVersions.Count -eq 0) {
@@ -87,15 +87,15 @@ runs:
               $version = $inputVersion
               Write-Host "Using specified version: $version"
           }
-          
+
           $packages = "C:\packages"
-        
-          Write-Host "Trying nuget install for version $version..."    
+
+          Write-Host "Trying nuget install for version $version..."
           try {
               Write-Host "Installing Microsoft.Windows.SDK.CPP version $version..."
               nuget install Microsoft.Windows.SDK.CPP -Version $version -OutputDirectory $packages
               if ($LASTEXITCODE -ne 0) { throw "Microsoft.Windows.SDK.CPP" }
-              
+
               Write-Host "Installing Microsoft.Windows.WDK.x64 version $version..."
               nuget install Microsoft.Windows.WDK.x64 -Version $version -OutputDirectory $packages
               if ($LASTEXITCODE -ne 0) { throw "Microsoft.Windows.WDK.x64" }
@@ -131,11 +131,11 @@ runs:
         } else {
 
         Write-Host "Using Winget to install WDK version $inputVersion..."
-        
+
         # Import the WinGet PowerShell module
         Write-Host "Importing WinGet PowerShell module..."
         Import-Module Microsoft.WinGet.Client -Force
-        
+
         # Detect and uninstall any existing Windows SDK packages to avoid conflicts
         Write-Host "Detecting and removing existing Windows SDK packages..."
         try {
@@ -157,24 +157,30 @@ runs:
           Write-Host "Uninstalling existing Windows SDK: Name=$($sdk.Name), ID=$($sdk.Id), Version=$($sdk.InstalledVersion)"
           try {
             $uninstallResult = Uninstall-WinGetPackage $sdk.Id -Mode Silent -Force
-            Write-Host "Uninstall output: $uninstallResult"
+            Write-Host "Uninstall result: Status=$($uninstallResult.Status), RebootRequired=$($uninstallResult.RebootRequired)"
+            if ($uninstallResult.Status -ne 'Ok') {
+              Write-Error "Failed to uninstall Windows SDK $($sdk.Id): Uninstaller returned status $($uninstallResult.Status)"
+              Write-Host "Try manually running: winget uninstall --id '$($sdk.Id)' --silent --force for more details"
+              exit 1
+            }
             Write-Host "Successfully uninstalled Windows SDK: $($sdk.Id)"
           } catch {
             Write-Error "Failed to uninstall Windows SDK $($sdk.Id): ${_}"
-            Write-Host "Try manually running: winget uninstall --id '$($sdk.Id)' --silent --force"
+            Write-Host "Try manually running: winget uninstall --id '$($sdk.Id)' --silent --force for more details"
             exit 1
           }
         }
-        
+
         # Sanity check: Verify no Windows SDK packages remain installed
         Write-Host "Verifying all Windows SDK packages have been removed..."
         try {
           $remainingSDKs = Get-WinGetPackage | Where-Object { $_.Name -like "*Windows Software Development Kit*" -or $_.Name -like "*Windows SDK*" -or $_.Id -like "Microsoft.WindowsSDK*" }
           if ($remainingSDKs.Count -gt 0) {
-            Write-Error "Found $($remainingSDKs.Count) remaining Windows SDK packages after uninstall:"
+            Write-Host "Found $($remainingSDKs.Count) remaining Windows SDK packages after uninstall:"
             foreach ($sdk in $remainingSDKs) {
               Write-Host "  - Name: $($sdk.Name), ID: $($sdk.Id), Version: $($sdk.InstalledVersion)"
             }
+            Write-Error "Uninstall verification failed - remaining packages found"
             exit 1
           } else {
             Write-Host "Confirmed: No Windows SDK packages remain installed."
@@ -183,7 +189,7 @@ runs:
           Write-Error "Failed to verify Windows SDK removal: ${_}"
           exit 1
         }
-        
+
         # Detect and uninstall any existing WDK packages to avoid header conflicts
         Write-Host "Detecting and removing existing Windows Driver Kit packages..."
         try {
@@ -205,24 +211,30 @@ runs:
           Write-Host "Uninstalling existing Windows Driver Kit: Name=$($wdk.Name), ID=$($wdk.Id), Version=$($wdk.InstalledVersion)"
           try {
             $uninstallResult = Uninstall-WinGetPackage $wdk.Id -Mode Silent -Force
-            Write-Host "Uninstall output: $uninstallResult"
+            Write-Host "Uninstall result: Status=$($uninstallResult.Status), RebootRequired=$($uninstallResult.RebootRequired)"
+            if ($uninstallResult.Status -ne 'Ok') {
+              Write-Error "Failed to uninstall Windows Driver Kit $($wdk.Id): Uninstaller returned status $($uninstallResult.Status)"
+              Write-Host "Try manually running: winget uninstall --id '$($wdk.Id)' --silent --force for more details"
+              exit 1
+            }
             Write-Host "Successfully uninstalled Windows Driver Kit: $($wdk.Id)"
           } catch {
             Write-Error "Failed to uninstall Windows Driver Kit $($wdk.Id): ${_}"
-            Write-Host "Try manually running: winget uninstall --id '$($wdk.Id)' --silent --force"
+            Write-Host "Try manually running: winget uninstall --id '$($wdk.Id)' --silent --force for more details"
             exit 1
           }
         }
-        
+
         # Sanity check: Verify no Windows Driver Kit packages remain installed
         Write-Host "Verifying all Windows Driver Kit packages have been removed..."
         try {
           $remainingWDKs = Get-WinGetPackage | Where-Object { $_.Name -like "*Windows Driver Kit*" -or $_.Id -like "Microsoft.WindowsWDK*" }
           if ($remainingWDKs.Count -gt 0) {
-            Write-Error "Found $($remainingWDKs.Count) remaining Windows Driver Kit packages after uninstall:"
+            Write-Host "Found $($remainingWDKs.Count) remaining Windows Driver Kit packages after uninstall:"
             foreach ($wdk in $remainingWDKs) {
               Write-Host "  - Name: $($wdk.Name), ID: $($wdk.Id), Version: $($wdk.InstalledVersion)"
             }
+            Write-Error "Uninstall verification failed - remaining packages found"
             exit 1
           } else {
             Write-Host "Confirmed: No Windows Driver Kit packages remain installed."
@@ -231,7 +243,7 @@ runs:
           Write-Error "Failed to verify Windows Driver Kit removal: ${_}"
           exit 1
         }
-        
+
         # Install the matching Windows SDK first
         $sdkPackageId = "Microsoft.WindowsSDK.$sdkVersion"
         Write-Host "Installing matching Windows SDK: $sdkPackageId..."
@@ -244,7 +256,7 @@ runs:
             $installResult = Install-WinGetPackage -Id $sdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
           }
           Write-Host "Install output: $installResult"
-          
+
           # Verify installation was successful
           $installedSDK = Get-WinGetPackage | Where-Object { $_.Id -eq $sdkPackageId }
           if ($installedSDK) {
@@ -255,16 +267,16 @@ runs:
         } catch {
           Write-Error "Failed to install Windows SDK $sdkPackageId`: ${_}"
           Write-Host "Try manually running: winget install --id '$sdkPackageId' --source winget --silent --force"
-          Write-Warning "Continuing without explicit Windows SDK installation - WDK may include required components"
+          exit 1
         }
-        
+
         # Install the specific WDK version
         $wdkPackageId = "Microsoft.WindowsWDK.$inputVersion"
         Write-Host "Installing Windows Driver Kit: $wdkPackageId..."
         try {
           $installResult = Install-WinGetPackage -Id $wdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
           Write-Host "Install output: $installResult"
-          
+
           # Verify installation was successful
           $installedWDK = Get-WinGetPackage | Where-Object { $_.Id -eq $wdkPackageId }
           if ($installedWDK) {
