@@ -11,17 +11,18 @@ runs:
     - name: Install LLVM ${{ inputs.version }}
       shell: pwsh
       run: |
-        # Use native winget.exe instead of PowerShell module for ARM64 compatibility
-        Write-Host "Existing LLVM installation(s):..."
-        winget list --id LLVM.LLVM --exact --accept-source-agreements --disable-interactivity
-        
-        Write-Host "Force Installing LLVM ${{ inputs.version }}..."
-        winget install --id LLVM.LLVM --version ${{ inputs.version }} --source winget --force --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "LLVM ${{ inputs.version }} force installation failed with exit code: $LASTEXITCODE"
-          exit 1
+        if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ inputs.version }}') {
+          Write-Host "LLVM ${{ inputs.version }} is already installed."
+        } else {
+          Write-Host "Installing LLVM ${{ inputs.version }}..."
+          Install-WinGetPackage -Id LLVM.LLVM -Version ${{ inputs.version }} -Source winget -MatchOption Equals -Mode Silent -Force
+
+          # Check if WinGet installation succeeded
+          $installSuccess = $?
+          if (-not $installSuccess) {
+            Write-Error "LLVM installation failed. Last exit code: $LASTEXITCODE and success status: $installSuccess"
+            exit 1
+          }
         }
 
-        Write-Host "Verifying LLVM installation..."
         clang --version

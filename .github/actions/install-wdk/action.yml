@@ -136,21 +136,22 @@ runs:
 
           Write-Host "Using Winget to install WDK and SDK version $inputVersion..."
 
-          # Install Windows SDK 10.0.22621 explicitly when WDK 10.0.22621 is requested
-          if ($sdkVersion -eq "10.0.22621") {
-            Write-Host "Installing 10.0.22621 SDK ..."
-            $sdk = "Microsoft.WindowsSDK.$sdkVersion"
-            Install-WinGetPackage -Id $sdk -Source winget -MatchOption Equals -Mode Silent -Force -Override '/q /features +'
+          $sdk = "Microsoft.WindowsSDK.$sdkVersion"
+          $wdk = "Microsoft.WindowsWDK.$inputVersion"
+          Write-Host "Installing $sdk..."
+          Install-WinGetPackage -Id $sdk -Source winget -MatchOption Equals -Mode Silent -Force -Override '/q /features +'
+          $installSuccess = $?
+          if (-not $installSuccess) {
+            Write-Error "$sdk installation failed. Last exit code: $LASTEXITCODE and success status: $installSuccess"
+            exit 1
           }
 
-          # Install Windows WDK
-          $wdk = "Microsoft.WindowsWDK.$inputVersion"
-          if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
-            Write-Host "$wdk is already installed. Attempting to update..."
-            Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing $wdk..."
-            Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          Write-Host "Installing $wdk..."
+          Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          $installSuccess = $?
+          if (-not $installSuccess) {
+            Write-Error "$wdk installation failed. Last exit code: $LASTEXITCODE and success status: $installSuccess"
+            exit 1
           }
 
           Write-Host "Setting Version_Number environment variable to $sdkVersion..."
