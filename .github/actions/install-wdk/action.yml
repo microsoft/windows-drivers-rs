@@ -257,12 +257,31 @@ runs:
             }
             Write-Host "Install output: $installResult"
 
-            # Verify installation was successful
-            $installedSDK = Get-WinGetPackage | Where-Object { $_.Id -eq $sdkPackageId }
-            if ($installedSDK) {
-              Write-Host "Successfully installed Windows SDK: $sdkPackageId (Version: $($installedSDK.InstalledVersion))"
-            } else {
-              throw "Windows SDK installation verification failed - package not found after installation"
+            # Wait for Windows SDK installation to be complete and verify
+            Write-Host "Waiting for Windows SDK installation to complete..."
+            $maxWaitTime = 300 # 5 minutes maximum wait time
+            $waitTime = 0
+            $waitInterval = 5 # Check every 5 seconds
+            $installedSDK = $null
+            
+            while ($waitTime -lt $maxWaitTime) {
+              try {
+                $installedSDK = Get-WinGetPackage | Where-Object { $_.Id -eq $sdkPackageId }
+                if ($installedSDK) {
+                  Write-Host "Successfully installed Windows SDK: $sdkPackageId (Version: $($installedSDK.InstalledVersion))"
+                  break
+                }
+              } catch {
+                Write-Host "Still waiting for Windows SDK to be available... ($waitTime seconds elapsed)"
+              }
+              
+              Start-Sleep -Seconds $waitInterval
+              $waitTime += $waitInterval
+              Write-Host "Waiting for Windows SDK installation... ($waitTime/$maxWaitTime seconds elapsed)"
+            }
+            
+            if (-not $installedSDK) {
+              throw "Windows SDK installation verification failed - package not found after $maxWaitTime seconds"
             }
           } catch {
             Write-Error "Failed to install Windows SDK $sdkPackageId`: ${_}"
@@ -277,12 +296,31 @@ runs:
             $installResult = Install-WinGetPackage -Id $wdkPackageId -Source winget -MatchOption Equals -Mode Silent -Force
             Write-Host "Install output: $installResult"
 
-            # Verify installation was successful
-            $installedWDK = Get-WinGetPackage | Where-Object { $_.Id -eq $wdkPackageId }
-            if ($installedWDK) {
-              Write-Host "Successfully installed Windows Driver Kit: $wdkPackageId (Version: $($installedWDK.InstalledVersion))"
-            } else {
-              throw "Windows Driver Kit installation verification failed - package not found after installation"
+            # Wait for Windows Driver Kit installation to be complete and verify
+            Write-Host "Waiting for Windows Driver Kit installation to complete..."
+            $maxWaitTime = 300 # 5 minutes maximum wait time
+            $waitTime = 0
+            $waitInterval = 5 # Check every 5 seconds
+            $installedWDK = $null
+            
+            while ($waitTime -lt $maxWaitTime) {
+              try {
+                $installedWDK = Get-WinGetPackage | Where-Object { $_.Id -eq $wdkPackageId }
+                if ($installedWDK) {
+                  Write-Host "Successfully installed Windows Driver Kit: $wdkPackageId (Version: $($installedWDK.InstalledVersion))"
+                  break
+                }
+              } catch {
+                Write-Host "Still waiting for Windows Driver Kit to be available... ($waitTime seconds elapsed)"
+              }
+              
+              Start-Sleep -Seconds $waitInterval
+              $waitTime += $waitInterval
+              Write-Host "Waiting for Windows Driver Kit installation... ($waitTime/$maxWaitTime seconds elapsed)"
+            }
+            
+            if (-not $installedWDK) {
+              throw "Windows Driver Kit installation verification failed - package not found after $maxWaitTime seconds"
             }
           } catch {
             Write-Error "Failed to install Windows Driver Kit $wdkPackageId : ${_}"
