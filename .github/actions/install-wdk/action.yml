@@ -22,16 +22,31 @@ runs:
     - name: Install WDK
       shell: pwsh
       run: |
-        $hostArch = '${{ inputs.host }}'
-        $targetArch = '${{ inputs.target }}'
-        switch ($targetArch) {
-            'amd64' { $targetArch = 'x64' }
-            'arm64' { $targetArch = 'ARM64' }
-            default {
-                Write-Error "Invalid target architecture: $targetArch. Supported architectures are 'x64' and 'arm64'."
-                exit 1
+        # Function to normalize architecture names
+        function Normalize-Architecture($arch) {
+            switch ($arch.ToLower()) {
+                'amd64' { return 'x64' }
+                'arm64' { return 'arm64' }
+                default {
+                    Write-Error "Invalid architecture: $arch. Supported architectures are 'amd64' and 'arm64'."
+                    exit 1
+                }
             }
         }
+
+        # Function to install or update a WinGet package
+        function Install-WinGetPackageIfNeeded($packageId, $packageName) {
+            if ((Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction SilentlyContinue).Id -eq $packageId) {
+                Write-Host "$packageName ($packageId) is already installed. Attempting to update..."
+                Update-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -Mode Silent -Force
+            } else {
+                Write-Host "Installing $packageName ($packageId)..."
+                Install-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -Mode Silent -Force
+            }
+        }
+
+        $hostArch = Normalize-Architecture '${{ inputs.host }}'
+        $targetArch = Normalize-Architecture '${{ inputs.target }}'
         
         $inputVersion = '${{ inputs.version }}'
         if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
@@ -130,15 +145,30 @@ runs:
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
         } else {
 
-          Write-Host "Using Winget to install WDK version $inputVersion..."
-          $wdk = "Microsoft.WindowsWDK.$inputVersion"
-          if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
-            Write-Host "$wdk is already installed. Attempting to update..."
-            Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          Write-Host "Using Winget to install WDK and SDK version $inputVersion..."
+          
+          # Install Windows SDK first
+          if ($sdkVersion -eq "10.0.22621") {
+            Write-Host "Installing Windows SDK 10.0.22621 from Microsoft download link..."
+            $sdkInstallerUrl = "https://go.microsoft.com/fwlink/?linkid=2311806"
+            $installerPath = "$env:TEMP\winsdksetup.exe"
+            
+            Write-Host "Downloading SDK installer from $sdkInstallerUrl..."
+            Invoke-WebRequest -Uri $sdkInstallerUrl -OutFile $installerPath -UseBasicParsing
+            
+            Write-Host "Running SDK installer with all features..."
+            Start-Process -FilePath $installerPath -ArgumentList "/quiet", "/features", "+" -Wait -NoNewWindow
+            
+            Write-Host "Cleaning up installer..."
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
           } else {
-            Write-Host "Installing $wdk..."
-            Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+            $sdk = "Microsoft.WindowsSDK.$inputVersion"
+            Install-WinGetPackageIfNeeded $sdk "Windows SDK"
           }
+          
+          # Install Windows WDK
+          $wdk = "Microsoft.WindowsWDK.$inputVersion"
+          Install-WinGetPackageIfNeeded $wdk "Windows WDK"
 
           Write-Host "Setting Version_Number environment variable to $sdkVersion..."
           Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV
