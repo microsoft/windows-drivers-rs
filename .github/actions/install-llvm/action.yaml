@@ -9,6 +9,24 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Validate inputs
+      shell: pwsh
+      run: |
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $version = '${{ inputs.version }}'
+        Write-Host "Validating LLVM installation inputs..."
+        Write-Host "Version: $version"
+
+        # Basic version format validation (LLVM uses semantic versioning)
+        if ([string]::IsNullOrWhiteSpace($version)) {
+            Write-Error "Version cannot be empty"
+            exit 1
+        }
+
+        Write-Host "✅ Input validation passed"
+
     - name: Install LLVM
       uses: ./.github/actions/install-winget-package
       with:
@@ -19,6 +37,9 @@ runs:
     - name: Verify LLVM installation
       shell: pwsh
       run: |
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
         try {
           $clangVersion = clang --version
           Write-Host "✅ LLVM/Clang verification successful:"

@@ -15,6 +15,10 @@ inputs:
         description: "Skip installation if package is already installed (with matching version if specified)"
         required: false
         default: "true"
+    timeout-minutes:
+        description: "Maximum time in minutes to wait for package verification after installation"
+        required: false
+        default: "5"
 
 runs:
     using: "composite"
@@ -25,10 +29,14 @@ runs:
               Set-StrictMode -Version Latest
               $ErrorActionPreference = 'Stop'
 
+              # Import WinGet PowerShell module
+              Import-Module Microsoft.WinGet.Client -Force
+
               $packageId = '${{ inputs.package-id }}'
               $version = '${{ inputs.version }}'
               $overrideArgs = '${{ inputs.override-args }}'
               $skipIfInstalled = [System.Convert]::ToBoolean('${{ inputs.skip-if-installed }}')
+              $timeoutMinutes = [int]'${{ inputs.timeout-minutes }}'
 
               Write-Host "Installing WinGet package: $packageId"
               if ($version) {
@@ -107,7 +115,7 @@ runs:
               }
 
               # Verify final installation state with retry loop for async installation completion
-              $verificationTimeoutMinutes = 5
+              $verificationTimeoutMinutes = $timeoutMinutes
               $verificationStartTime = Get-Date
               $verificationTimeout = $verificationStartTime.AddMinutes($verificationTimeoutMinutes)
               $packageVerified = $false

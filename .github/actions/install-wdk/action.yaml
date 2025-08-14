@@ -65,6 +65,7 @@ runs:
         }
 
         Write-Host "✅ Input validation passed"
+
     - name: Install WDK via NuGet
       if: inputs.source == 'nuget'
       shell: pwsh
@@ -96,7 +97,7 @@ runs:
             try {
                 Write-Host "Trying NuGet API..."
                 $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
-                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
+                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30 -ErrorAction Stop
                 $availableVersions = $response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }
                 Write-Host "Found $($availableVersions.Count) versions using NuGet API"
 
@@ -111,6 +112,7 @@ runs:
                 }
             } catch {
                 Write-Warning "Failed to query NuGet for latest QFE version: $_"
+                Write-Host "Using input version $inputVersion without QFE lookup"
                 $version = $inputVersion
             }
         } else {
@@ -185,12 +187,7 @@ runs:
         $inputVersion = '${{ inputs.version }}'
         Write-Host "Processing WDK version: $inputVersion"
 
-        # Validate version format
-        if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
-            Write-Error "Invalid WDK version format: $inputVersion. Expected format: 10.0.XXXXX or 10.0.XXXXX.YYYY"
-            exit 1
-        }
-
+        # Version was already validated in the validation step, so we can proceed directly
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
         Write-Host "Calculated SDK version: $sdkVersion from input version: $inputVersion"
@@ -204,6 +201,7 @@ runs:
         package-id: Microsoft.WindowsSDK.${{ env.SDK_VERSION }}
         override-args: ${{ contains(inputs.version, '10.0.22621') && '/q /features +' || '' }}
         skip-if-installed: "true"
+        timeout-minutes: "10"
 
     - name: Install Windows Driver Kit
       if: inputs.source == 'winget'
@@ -211,3 +209,4 @@ runs:
       with:
         package-id: Microsoft.WindowsWDK.${{ inputs.version }}
         skip-if-installed: "true"
+        timeout-minutes: "10"

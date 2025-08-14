@@ -15,6 +15,9 @@ runs:
               Set-StrictMode -Version Latest
               $ErrorActionPreference = 'Stop'
 
+              # Import WinGet PowerShell module
+              Import-Module Microsoft.WinGet.Client -Force
+
               $queriesInput = '${{ inputs.queries }}'
 
               # Parse queries - support both newline and pipe separation
