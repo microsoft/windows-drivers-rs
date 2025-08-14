@@ -39,7 +39,7 @@ runs:
         Add-AppxProvisionedPackage -Online -PackagePath $env:RUNNER_TEMP/winget-install/winget.msixbundle -LicensePath $env:RUNNER_TEMP/winget-install/license.xml -DependencyPackagePath $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx, $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx
 
     - name: Install Winget for Current User (for better install diagnostics)
-      shell: powershell
+      shell: pwsh
       run: |
         Add-AppxPackage $env:RUNNER_TEMP/winget-install/winget.msixbundle
 
