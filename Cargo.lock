@@ -177,7 +177,6 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "clap-verbosity-flag",
- "fs4",
  "include_dir",
  "mockall",
  "mockall_double",
@@ -419,16 +418,6 @@ name = "fragile"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c2141d6d6c8512188a7891b4b01590a45f6dac67afb4f255c4124dbb86d4eaa"
-
-[[package]]
-name = "fs4"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c29c30684418547d476f0b48e84f4821639119c483b1eccd566c8cd0cd05f521"
-dependencies = [
- "rustix",
- "windows-sys",
-]
 
 [[package]]
 name = "generic-array"
@@ -1160,7 +1149,6 @@ name = "wdk-macros"
 version = "0.4.0"
 dependencies = [
  "cfg-if",
- "fs4",
  "itertools",
  "pretty_assertions",
  "proc-macro2",

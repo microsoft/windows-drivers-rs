@@ -6,8 +6,7 @@
 
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
-// File locking APIs are being stabilized in std::fs::File
-// This migration prepares for the stable file lock APIs
+// File locking APIs were stabilized in std::fs::File in Rust 1.89.0
 // See: https://github.com/rust-lang/rust/issues/130994
 use itertools::Itertools;
 use proc_macro::TokenStream;
