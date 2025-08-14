@@ -1,0 +1,29 @@
+name: Install LLVM
+description: "Install LLVM using WinGet with version checking and error handling"
+
+inputs:
+  version:
+    description: "LLVM version to install"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install LLVM
+      uses: ./.github/actions/install-winget-package
+      with:
+        package-id: LLVM.LLVM
+        version: ${{ inputs.version }}
+        skip-if-installed: "true"
+
+    - name: Verify LLVM installation
+      shell: pwsh
+      run: |
+        try {
+          $clangVersion = clang --version
+          Write-Host "✅ LLVM/Clang verification successful:"
+          Write-Host $clangVersion
+        } catch {
+          Write-Error "❌ LLVM/Clang verification failed: $_"
+          exit 1
+        }

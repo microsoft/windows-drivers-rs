@@ -1,0 +1,140 @@
+name: "Install WinGet Package"
+description: "Install a package using WinGet with robust error handling and verification"
+
+inputs:
+    package-id:
+        description: "WinGet package ID to install"
+        required: true
+    version:
+        description: "Specific version to install (optional)"
+        required: false
+    override-args:
+        description: "Override arguments to pass to the WinGet installer (replaces default installer arguments)"
+        required: false
+    skip-if-installed:
+        description: "Skip installation if package is already installed (with matching version if specified)"
+        required: false
+        default: "true"
+
+runs:
+    using: "composite"
+    steps:
+        - name: Install WinGet Package ${{ inputs.package-id }}
+          shell: pwsh
+          run: |
+              Set-StrictMode -Version Latest
+              $ErrorActionPreference = 'Stop'
+
+              $packageId = '${{ inputs.package-id }}'
+              $version = '${{ inputs.version }}'
+              $overrideArgs = '${{ inputs.override-args }}'
+              $skipIfInstalled = [System.Convert]::ToBoolean('${{ inputs.skip-if-installed }}')
+
+              Write-Host "Installing WinGet package: $packageId"
+              if ($version) {
+                  Write-Host "Target version: $version"
+              }
+              if ($overrideArgs) {
+                  Write-Host "Override arguments: $overrideArgs"
+              }
+
+              # Check if package is already installed and skip if appropriate
+              $shouldInstall = $true
+              if ($skipIfInstalled) {
+                  try {
+                      $existingPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction Stop
+                      if ($existingPackage) {
+                          $installedVersion = $existingPackage.InstalledVersion
+                          Write-Host "$packageId is already installed. Installed version: $installedVersion"
+                          
+                          if ($version) {
+                              # Check if installed version matches requested version
+                              if ($installedVersion -eq $version) {
+                                  Write-Host "✅ Requested version $version is already installed. Skipping installation."
+                                  $shouldInstall = $false
+                              } else {
+                                  Write-Host "Installed version ($installedVersion) differs from requested version ($version). Will install requested version."
+                              }
+                          } else {
+                              Write-Host "✅ Package is already installed and no specific version was requested. Skipping installation."
+                              $shouldInstall = $false
+                          }
+                      } else {
+                          Write-Host "Package is not currently installed. Proceeding with installation..."
+                      }
+                  } catch {
+                      # If we can't check package status, that's a critical error for reliable CI/CD
+                      Write-Error "❌ Failed to check existing package status for $packageId`: $($_.Exception.Message)"
+                      exit 1
+                  }
+              }
+
+              # Perform installation only if needed
+              if ($shouldInstall) {
+                  # Prepare installation command
+                  $installParams = @{
+                      Id = $packageId
+                      Source = 'winget'
+                      MatchOption = 'Equals'
+                      Mode = 'Silent'
+                      Force = $true
+                  }
+
+                  if ($version) {
+                      $installParams.Version = $version
+                  }
+
+                  if ($overrideArgs) {
+                      $installParams.Override = $overrideArgs
+                  }
+
+                  try {
+                      Write-Host "Installing $packageId..."
+                      Install-WinGetPackage @installParams
+                      
+                      $installSuccess = $?
+                      if (-not $installSuccess) {
+                          throw "Package operation failed with exit code: $LASTEXITCODE"
+                      }
+                      
+                      Write-Host "✅ Successfully installed $packageId"
+                      
+                  } catch {
+                      Write-Error "❌ Failed to install $packageId`: $($_.Exception.Message)"
+                      Write-Error "Last exit code: $LASTEXITCODE"
+                      exit 1
+                  }
+              }
+
+              # Verify final installation state with retry loop for async installation completion
+              $verificationTimeoutMinutes = 5
+              $verificationStartTime = Get-Date
+              $verificationTimeout = $verificationStartTime.AddMinutes($verificationTimeoutMinutes)
+              $packageVerified = $false
+
+              Write-Host "Verifying package installation (will retry for up to $verificationTimeoutMinutes minutes for async completion)..."
+
+              while ((Get-Date) -lt $verificationTimeout -and -not $packageVerified) {
+                  try {
+                      $elapsedSeconds = [math]::Round(((Get-Date) - $verificationStartTime).TotalSeconds, 1)
+                      Write-Host "Verification attempt at $elapsedSeconds seconds..."
+                      $verifyPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction Stop
+                      
+                      if ($verifyPackage) {
+                          Write-Host "✅ Final verification: $packageId is installed with version: $($verifyPackage.InstalledVersion)"
+                          $packageVerified = $true
+                      } else {
+                          throw "Package not found in WinGet package list"
+                      }
+                  } catch {
+                      $remainingSeconds = [math]::Round(($verificationTimeout - (Get-Date)).TotalSeconds, 1)
+                      if ($remainingSeconds -le 0) {
+                          Write-Error "❌ Package verification failed after $verificationTimeoutMinutes minutes - $packageId is not installed or not recognized by WinGet"
+                          Write-Error "Last verification error: $($_.Exception.Message)"
+                          exit 1
+                      } else {
+                          Write-Host "Package not yet visible to WinGet, waiting 10 seconds before retry... ($remainingSeconds seconds remaining)"
+                          Start-Sleep -Seconds 10
+                      }
+                  }
+              }
