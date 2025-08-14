@@ -78,7 +78,7 @@ impl<'a> BuildAction<'a> {
     ) -> Result<Self> {
         // TODO: validate params
         Ok(Self {
-            working_dir: absolute(params.working_dir.to_path_buf())?,
+            working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
             verify_signature: params.verify_signature,
