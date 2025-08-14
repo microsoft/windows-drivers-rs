@@ -37,7 +37,7 @@ pub struct NewAction<'a> {
 }
 
 impl<'a> NewAction<'a> {
-    /// Factory method for `NewAction`.
+    /// Creates a new instance of `NewAction`.
     ///
     /// # Arguments
     ///

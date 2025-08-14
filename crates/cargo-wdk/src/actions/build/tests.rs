@@ -106,8 +106,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
-
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(run_result.is_ok());
 }
 
@@ -176,8 +176,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
-
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(run_result.is_ok());
 }
 
@@ -246,8 +246,8 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
-
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(run_result.is_ok());
 }
 
@@ -317,8 +317,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
-
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(run_result.is_ok());
 }
 
@@ -388,7 +388,8 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -460,7 +461,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -551,7 +553,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -623,7 +626,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -668,7 +672,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -717,7 +722,8 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -776,7 +782,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -836,7 +843,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -898,7 +906,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -961,7 +970,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -1026,7 +1036,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -1093,7 +1104,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -1137,7 +1149,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_m
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1176,7 +1189,8 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
         BuildActionError::WdkMetadataParse(TryFromCargoMetadataError::WdkMetadataDeserialization {
@@ -1303,7 +1317,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1410,7 +1425,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1525,7 +1541,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1598,7 +1615,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1663,7 +1681,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
@@ -1735,7 +1754,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(matches!(
         run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
@@ -1788,7 +1808,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }
@@ -1839,7 +1860,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
-    let run_result = build_action.run();
+    assert!(build_action.is_ok());
+    let run_result = build_action.expect("Failed to init build action").run();
 
     assert!(run_result.is_ok());
 }

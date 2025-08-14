@@ -57,14 +57,15 @@ pub struct BuildAction<'a> {
 }
 
 impl<'a> BuildAction<'a> {
-    /// Factory method for `BuildAction`.
+    /// Creates a new instance of `BuildAction`.
     ///
-    /// Args:
-    /// * `params` – build inputs
-    /// * `wdk_build` – WDK helper
-    /// * `command_exec` – command runner
-    /// * `fs` – filesystem provider
-    /// * `metadata` – cargo metadata provider
+    /// # Arguments:
+    /// * `params` - The `BuildActionParams` struct containing the parameters
+    ///   for the build action
+    /// * `wdk_build` - The WDK build provider instance
+    /// * `command_exec` - The command execution provider instance
+    /// * `fs` - The file system provider instance
+    /// * `metadata` - The metadata provider instance
     ///
     /// Returns:
     /// * `Self` – a new instance of `BuildAction`.
@@ -74,10 +75,10 @@ impl<'a> BuildAction<'a> {
         command_exec: &'a CommandExec,
         fs: &'a Fs,
         metadata: &'a Metadata,
-    ) -> Self {
-        // TODO: validate params and return errors.
-        Self {
-            working_dir: params.working_dir.to_path_buf(),
+    ) -> Result<Self> {
+        // TODO: validate params
+        Ok(Self {
+            working_dir: absolute(params.working_dir.to_path_buf())?,
             profile: params.profile,
             target_arch: params.target_arch,
             verify_signature: params.verify_signature,
@@ -87,7 +88,7 @@ impl<'a> BuildAction<'a> {
             command_exec,
             fs,
             metadata,
-        }
+        })
     }
 
     /// Entry point method to execute the packaging action flow.

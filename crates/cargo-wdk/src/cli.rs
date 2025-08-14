@@ -139,7 +139,7 @@ impl Cli {
                 if let Some(path) = &cli_args.path {
                     if path.as_os_str().to_string_lossy().starts_with(r"\\?\") {
                         return Err(anyhow::anyhow!(
-                            "Extended (verbatim prefixed) paths are currently not supported"
+                            "Extended (verbatim) paths are currently not supported"
                         ));
                     }
                 }
@@ -176,7 +176,7 @@ impl Cli {
                     &command_exec,
                     &fs,
                     &metadata,
-                )
+                )?
                 .run()?;
                 Ok(())
             }
@@ -379,7 +379,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Extended (verbatim prefixed) paths are currently not supported"
+            "Extended (verbatim) paths are currently not supported"
         );
     }
 }

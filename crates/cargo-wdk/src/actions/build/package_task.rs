@@ -72,15 +72,18 @@ pub struct PackageTask<'a> {
 }
 
 impl<'a> PackageTask<'a> {
-    /// Factory method for `PackageTask`.
+    /// Creates a new instance of `PackageTask`.
+    ///
     /// # Arguments
     /// * `params` - Struct containing the parameters for the package task.
     /// * `wdk_build` - The provider for WDK build related methods.
     /// * `command_exec` - The provider for command execution.
     /// * `fs` - The provider for file system operations.
+    ///
     /// # Returns
     /// * `Result<Self, PackageTaskError>` - A result containing the new
     ///   instance or an error.
+    ///
     /// # Errors
     /// * `PackageTaskError::Io` - If there is an IO error while creating the
     ///   final package directory.

@@ -29,17 +29,17 @@ pub struct BuildTask<'a> {
 }
 
 impl<'a> BuildTask<'a> {
-    /// Factory method for `BuildTask`.
+    /// Creates a new instance of `BuildTask`.
     ///
-    /// Arguments:
-    /// * `package_name`  – Name of the package (used for `-p <name>`).
-    /// * `working_dir`   – Absolute path to the package root directory.
-    /// * `profile`       – Optional cargo profile (e.g. `Release`).
-    /// * `target_arch`   – Selected or default target architecture wrapper.
-    /// * `verbosity_level` – Verbosity flags propagated to cargo.
-    /// * `command_exec`  – Command execution provider.
+    /// # Arguments
+    /// * `package_name` - The name of the package to build
+    /// * `working_dir` - The working directory for the build
+    /// * `profile` - An optional profile for the build
+    /// * `target_arch` - The target architecture for the build
+    /// * `verbosity_level` - The verbosity level for logging
+    /// * `command_exec` - The command execution provider
     ///
-    /// Returns:
+    /// # Returns:
     /// * `Self` - A new instance of `BuildTask`.
     pub fn new(
         package_name: &'a str,
