@@ -31,13 +31,13 @@ runs:
 
         $source = '${{ inputs.source }}'
         $version = '${{ inputs.version }}'
-        $host = '${{ inputs.host }}'
+        $hostArch = '${{ inputs.host }}'
         $target = '${{ inputs.target }}'
 
         Write-Host "Validating WDK installation inputs..."
         Write-Host "Source: $source"
         Write-Host "Version: $version"
-        Write-Host "Host: $host"
+        Write-Host "Host: $hostArch"
         Write-Host "Target: $target"
 
         # Validate source
@@ -54,8 +54,8 @@ runs:
 
         # Validate architecture inputs for NuGet
         if ($source -eq 'nuget') {
-            if ($host -notin @('x64', 'ARM64')) {
-                Write-Error "Invalid host architecture: $host. Must be 'x64' or 'ARM64' when using NuGet source."
+            if ($hostArch -notin @('x64', 'ARM64')) {
+                Write-Error "Invalid host architecture: $hostArch. Must be 'x64' or 'ARM64' when using NuGet source."
                 exit 1
             }
             if ($target -notin @('x64', 'ARM64', 'amd64', 'arm64')) {
@@ -76,7 +76,6 @@ runs:
         $ProgressPreference = 'SilentlyContinue'
 
         # Input validation and normalization
-        $hostArch = '${{ inputs.host }}'
         $targetArch = switch ('${{ inputs.target }}') {
             'amd64' { 'x64' }
             'arm64' { 'ARM64' }
