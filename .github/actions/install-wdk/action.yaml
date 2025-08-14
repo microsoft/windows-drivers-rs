@@ -150,8 +150,8 @@ runs:
         $envVars = @{
             "WDKContentRoot" = "$packages\Microsoft.Windows.WDK.$targetArch.$version\c\"
             "Version_Number" = "$sdkVersion.0"
-            "WDKBinRoot" = "$packages\Microsoft.Windows.WDK.$hostArch.$version\c\bin"
-            "WDKToolRoot" = "$packages\Microsoft.Windows.WDK.$hostArch.$version\c\tools"
+            "WDKBinRoot" = "$packages\Microsoft.Windows.WDK.${{ inputs.host }}.$version\c\bin"
+            "WDKToolRoot" = "$packages\Microsoft.Windows.WDK.${{ inputs.host }}.$version\c\tools"
             "WindowsSdkBinPath" = "$packages\Microsoft.Windows.SDK.CPP.$version\c\bin"
         }
 
