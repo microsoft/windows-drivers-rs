@@ -135,6 +135,15 @@ impl Cli {
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
+                // TODO: Support extended path as cargo supports it
+                if let Some(path) = &cli_args.path {
+                    if path.as_os_str().to_string_lossy().starts_with(r"\\?\") {
+                        return Err(anyhow::anyhow!(
+                            "Extended (verbatim prefixed) paths are currently not supported"
+                        ));
+                    }
+                }
+
                 NewAction::new(
                     cli_args.path.as_ref().unwrap_or(&std::env::current_dir()?),
                     cli_args.driver_type(),
@@ -349,5 +358,28 @@ mod tests {
             path: None,
         };
         assert_eq!(args.driver_type(), DriverType::Wdm);
+    }
+
+    #[test]
+    fn verbatim_path_is_rejected() {
+        use std::path::PathBuf;
+
+        let cli = Cli {
+            cargo_command: "wdk".to_string(),
+            sub_cmd: crate::cli::Subcmd::New(NewArgs {
+                kmdf: true,
+                umdf: false,
+                wdm: false,
+                path: Some(PathBuf::from(r"\\?\C:\some\path")),
+            }),
+            verbose: clap_verbosity_flag::Verbosity::default(),
+        };
+
+        let result = cli.run();
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Extended (verbatim prefixed) paths are currently not supported"
+        );
     }
 }
