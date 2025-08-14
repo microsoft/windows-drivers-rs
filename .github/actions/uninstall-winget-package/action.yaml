@@ -21,9 +21,9 @@ runs:
               $queriesInput = '${{ inputs.queries }}'
 
               # Parse queries - support both newline and pipe separation
-              $queryList = $queriesInput -split '[|\n]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+              $queryList = @($queriesInput -split '[|\n]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
-              Write-Host "Processing $($queryList.Count) query string(s):"
+              Write-Host "Processing $(@($queryList).Count) query string(s):"
               $queryList | ForEach-Object { Write-Host "  - '$_'" }
 
               try {
@@ -34,8 +34,8 @@ runs:
                       
                       try {
                           $packages = @(Get-WinGetPackage -Query $query)
-                          if ($packages.Count -gt 0) {
-                              Write-Host "Found $($packages.Count) package(s) for query '$query'"
+                          if (@($packages).Count -gt 0) {
+                              Write-Host "Found $(@($packages).Count) package(s) for query '$query'"
                               $packages
                           } else {
                               Write-Host "No packages found for query '$query'"
@@ -46,11 +46,12 @@ runs:
                       }
                   }
                   
-                  if ($allPackages.Count -gt 0) {
+                  $allPackagesArray = @($allPackages)
+                  if ($allPackagesArray.Count -gt 0) {
                       # Deduplicate packages by ID
-                      $uniquePackages = $allPackages | Sort-Object Id -Unique
+                      $uniquePackages = $allPackagesArray | Sort-Object Id -Unique
                       Write-Host ""
-                      Write-Host "Total packages found (after deduplication): $($uniquePackages.Count)"
+                      Write-Host "Total packages found (after deduplication): $(@($uniquePackages).Count)"
                       
                       Write-Host "Packages to uninstall:"
                       $uniquePackages | ForEach-Object { Write-Host "  - $($_.Name) (ID: $($_.Id), Version: $($_.InstalledVersion))" }
