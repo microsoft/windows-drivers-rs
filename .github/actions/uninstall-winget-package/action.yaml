@@ -64,8 +64,14 @@ runs:
                           Write-Host "Uninstalling: $($package.Name) (ID: $($package.Id))..."
                           
                           try {
-                              Uninstall-WinGetPackage -Id $package.Id -MatchOption Equals -Mode Silent -Force
+                              Write-Host "Debug1"
+                              $s = Uninstall-WinGetPackage -Id $package.Id -MatchOption Equals -Mode Silent -Force
+                              Write-Host "Debug2"
                               
+                              $s
+
+                              exit 1
+
                               if ($?) {
                                   Write-Host "✅ Successfully uninstalled $($package.Id)"
                                   $successCount++
