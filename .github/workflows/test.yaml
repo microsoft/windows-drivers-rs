@@ -59,8 +59,8 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'amd64'
-          target: ${{ matrix.target_triple.arch }}
+          host: ${{ matrix.wdk.source == 'nuget' && 'amd64' || '' }}
+          target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
