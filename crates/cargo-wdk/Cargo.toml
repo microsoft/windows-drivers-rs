@@ -16,7 +16,7 @@ anyhow.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-verbosity-flag.workspace = true
-fs4.workspace = true
+
 include_dir.workspace = true
 mockall.workspace = true
 mockall_double.workspace = true
