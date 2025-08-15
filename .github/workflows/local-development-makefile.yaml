@@ -62,7 +62,7 @@ jobs:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
           host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
-          target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
+          target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
