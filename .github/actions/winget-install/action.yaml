@@ -27,6 +27,7 @@ runs:
     - name: Download Winget Assets and Dependencies
       shell: pwsh
       run: |
+        $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
         New-Item -Type Directory $env:RUNNER_TEMP/winget-install
         Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri  https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.UI.Xaml.2.8.x64.appx
         Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $env:RUNNER_TEMP/winget-install/Microsoft.VCLibs.x64.14.00.Desktop.appx # Needed per https://github.com/microsoft/winget-cli/blob/21de1607ed5c90174e6bb931406975c18681a5dd/README.md?plain=1#L35C19-L35C19

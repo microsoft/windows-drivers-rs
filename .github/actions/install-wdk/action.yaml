@@ -7,18 +7,16 @@ inputs:
     required: true
   source:
     description: "Source to install WDK from (nuget or winget)."
-    required: true
-    default: "winget"
+    required: false
+    default: "nuget"
   # required to set WDKBinRoot and WDKToolRoot based on the host architecture when using nuget
   host:
-    description: "Host architecture (x64 or ARM64). Required when using NuGet source."
+    description: "Host architecture (amd64 or arm64). Required when using NuGet source."
     required: false
-    default: "x64"
   # required to set WDKContentRoot based on the target architecture when using nuget
   target:
-    description: "Target architecture (x64 or ARM64). Required when using NuGet source."
+    description: "Target architecture (amd64 or arm64). Required when using NuGet source."
     required: false
-    default: "x64"
 
 runs:
   using: "composite"
@@ -32,13 +30,13 @@ runs:
         $source = '${{ inputs.source }}'
         $version = '${{ inputs.version }}'
         $hostArch = '${{ inputs.host }}'
-        $target = '${{ inputs.target }}'
+        $targetArch = '${{ inputs.target }}'
 
         Write-Host "Validating WDK installation inputs..."
         Write-Host "Source: $source"
         Write-Host "Version: $version"
         Write-Host "Host: $hostArch"
-        Write-Host "Target: $target"
+        Write-Host "Target: $targetArch"
 
         # Validate source
         if ($source -notin @('nuget', 'winget')) {
@@ -54,12 +52,24 @@ runs:
 
         # Validate architecture inputs for NuGet
         if ($source -eq 'nuget') {
-            if ($hostArch -notin @('x64', 'ARM64')) {
-                Write-Error "Invalid host architecture: $hostArch. Must be 'x64' or 'ARM64' when using NuGet source."
+            if ($hostArch -notin @('amd64', 'arm64')) {
+                Write-Error "Invalid host architecture: $hostArch. Must be 'amd64' or 'arm64' when using NuGet source."
                 exit 1
             }
-            if ($target -notin @('x64', 'ARM64', 'amd64', 'arm64')) {
-                Write-Error "Invalid target architecture: $target. Must be 'x64', 'ARM64', 'amd64', or 'arm64' when using NuGet source."
+            if ($targetArch -notin @('amd64', 'arm64')) {
+                Write-Error "Invalid target architecture: $targetArch. Must be 'amd64' or 'arm64' when using NuGet source."
+                exit 1
+            }
+        }
+
+        # Validate that host and target are not set when using WinGet
+        if ($source -eq 'winget') {
+            if ($hostArch -ne '' -and $hostArch -ne $null) {
+                Write-Error "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
+                exit 1
+            }
+            if ($targetArch -ne '' -and $targetArch -ne $null) {
+                Write-Error "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
                 exit 1
             }
         }
@@ -76,17 +86,15 @@ runs:
         $ProgressPreference = 'SilentlyContinue'
 
         # Input validation and normalization
+        $hostArch = switch ('${{ inputs.host }}') {
+            'amd64' { 'x64' }
+            'arm64' { 'ARM64' }
+        }
         $targetArch = switch ('${{ inputs.target }}') {
             'amd64' { 'x64' }
             'arm64' { 'ARM64' }
-            { $_ -in @('x64', 'ARM64') } { $_ }
-            default { throw "Invalid target architecture: $_. Supported: x64, arm64, amd64" }
         }
-
         $inputVersion = '${{ inputs.version }}'
-        if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
-            throw "Invalid version format: $inputVersion"
-        }
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
 
@@ -120,39 +128,51 @@ runs:
         }
 
         $packages = "C:\packages"
-        $packageList = @(
-            @{ Name = "Microsoft.Windows.SDK.CPP"; Version = $version }
-            @{ Name = "Microsoft.Windows.WDK.x64"; Version = $version }
-            @{ Name = "Microsoft.Windows.WDK.arm64"; Version = $version }
-        )
+
+        # Determine required WDK packages based on host and target architectures
+        # SDK is arch-agnostic, host arch needed for tools/bins, target arch needed for content
+        $packagesToInstall = @("Microsoft.Windows.SDK.CPP")
+        
+        # Need host architecture WDK package for build tools and binaries
+        $packagesToInstall += "Microsoft.Windows.WDK.$hostArch"
+        
+        # Need target architecture WDK package for content (libraries, headers)
+        $targetWdkPackage = "Microsoft.Windows.WDK.$targetArch"
+        if ($targetWdkPackage -notin $packagesToInstall) {
+            $packagesToInstall += $targetWdkPackage
+        }
 
         Write-Host "Installing NuGet packages for version $version..."
-        foreach ($pkg in $packageList) {
-            Write-Host "Installing $($pkg.Name) version $($pkg.Version)..."
-            try {
-                nuget install $pkg.Name -Version $pkg.Version -OutputDirectory $packages
-                if ($LASTEXITCODE -ne 0) { 
-                    throw "NuGet install failed with exit code $LASTEXITCODE"
-                }
-            } catch {
-                Write-Error "Failed to install $($pkg.Name) version $($pkg.Version): $_"
-                exit 1 
+        Write-Host "Required packages: $($packagesToInstall -join ', ')"
+
+        foreach ($packageName in $packagesToInstall) {
+            Write-Host "Installing $packageName version $version..."
+            nuget install $packageName -Version $version -OutputDirectory $packages
+            if ($LASTEXITCODE -ne 0) { 
+                Write-Error "Failed to install $packageName version $version"
+                exit 1
             }
         }
-        Write-Host "Successfully installed all WDK packages for version $version"
 
-        if (-not (Test-Path $packages)) {
-          Write-Error "$packages path could not be found. Please check the WDK version and source."
-          exit 1
-        }
+        Write-Host "Successfully installed all required WDK packages for version $version"
 
         # Set environment variables efficiently
         $envVars = @{
             "WDKContentRoot" = "$packages\Microsoft.Windows.WDK.$targetArch.$version\c\"
             "Version_Number" = "$sdkVersion.0"
-            "WDKBinRoot" = "$packages\Microsoft.Windows.WDK.${{ inputs.host }}.$version\c\bin"
-            "WDKToolRoot" = "$packages\Microsoft.Windows.WDK.${{ inputs.host }}.$version\c\tools"
+            "WDKBinRoot" = "$packages\Microsoft.Windows.WDK.$hostArch.$version\c\bin"
+            "WDKToolRoot" = "$packages\Microsoft.Windows.WDK.$hostArch.$version\c\tools"
             "WindowsSdkBinPath" = "$packages\Microsoft.Windows.SDK.CPP.$version\c\bin"
+        }
+
+        # Validate critical paths exist before setting environment variables
+        $criticalPaths = @("WDKContentRoot", "WDKBinRoot", "WDKToolRoot")
+        foreach ($pathKey in $criticalPaths) {
+            $path = $envVars[$pathKey]
+            if (-not (Test-Path $path)) {
+                Write-Error "Critical path not found: $pathKey = $path"
+                exit 1
+            }
         }
 
         $envVars.GetEnumerator() | ForEach-Object {
@@ -186,7 +206,6 @@ runs:
         $inputVersion = '${{ inputs.version }}'
         Write-Host "Processing WDK version: $inputVersion"
 
-        # Version was already validated in the validation step, so we can proceed directly
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
         Write-Host "Calculated SDK version: $sdkVersion from input version: $inputVersion"
