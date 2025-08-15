@@ -41,15 +41,15 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Winget PowerShell Module
-        shell: pwsh
-        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
-
       - name: Install Winget
         if: matrix.runner.name == 'windows-11-arm'
         uses: ./.github/actions/install-winget
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Winget PowerShell Module
+        shell: pwsh
+        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm
