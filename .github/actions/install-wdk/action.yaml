@@ -217,7 +217,7 @@ runs:
       uses: ./.github/actions/install-winget-package
       with:
         package-id: Microsoft.WindowsSDK.${{ env.SDK_VERSION }}
-        override-args: ${{ contains(inputs.version, '10.0.22621') && '/q /features +' || '' }}
+        override-args: ${{ (inputs.version == '10.0.22621' || startsWith(inputs.version, '10.0.22621.')) && '/q /features +' || '' }}
         skip-if-installed: "true"
         timeout-minutes: "10"
 
