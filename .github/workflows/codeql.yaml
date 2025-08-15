@@ -14,7 +14,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze
-    runs-on: windows-latest
+    runs-on: windows-2025
     permissions:
       security-events: write
     strategy:
@@ -54,10 +54,9 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install Winget
-      uses: ./.github/actions/install-winget
-      with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install Winget PowerShell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
 
     - name: Install LLVM ${{ matrix.llvm }}
       uses: ./.github/actions/install-llvm
@@ -69,8 +68,8 @@ jobs:
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: 'amd64' # windows-latest is x64-based
-        target: ${{ matrix.target_triple.arch }}
+        host: ${{ matrix.wdk.source == 'nuget' && 'amd64' || '' }}
+        target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
       uses: dtolnay/rust-toolchain@master

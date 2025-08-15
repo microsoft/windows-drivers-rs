@@ -40,6 +40,7 @@ runs:
     - name: Download Winget Assets and Dependencies
       shell: pwsh
       run: |
+        $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
         New-Item -Type Directory $env:InstallWingetTempDir
         
         # Download winget and license (architecture-agnostic)
@@ -64,7 +65,7 @@ runs:
         Add-AppxProvisionedPackage -Online -PackagePath $env:InstallWingetTempDir/winget.msixbundle -LicensePath $env:InstallWingetTempDir/license.xml -DependencyPackagePath "$MicrosoftUIXamlDep", "$MicrosoftVCLibsDep"
 
     - name: Install Winget for Current User (for better install diagnostics)
-      shell: powershell
+      shell: pwsh
       run: |
         Add-AppxPackage $env:InstallWingetTempDir/winget.msixbundle
 
@@ -75,7 +76,3 @@ runs:
           Start-Sleep -Seconds 1
         }
         Write-Output "Winget Version: $(winget --version)"
-
-    - name: Install winget Powershell Module
-      shell: pwsh
-      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
