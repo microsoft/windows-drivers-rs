@@ -248,7 +248,7 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
     if !link.exists() || link_needs_update() {
         // create flock based off target_file, so tests can run in parallel
         target_file
-            .lock_exclusive()
+            .lock()
             .expect("exclusive lock should be successfully acquired");
 
         if !link.exists() {

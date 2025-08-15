@@ -37,7 +37,7 @@ where
 {
     let lock_file = std::fs::File::create("cargo-wdk-test.lock")
         .expect("Unable to create lock file for cargo-wdk tests");
-    lock_file.lock_exclusive().expect("Unable to cargo-wdk-test.lock file");
+    lock_file.lock().expect("Unable to cargo-wdk-test.lock file");
     f();
     lock_file.unlock().expect("Unable to unlock cargo-wdk-test.lock file");
 }

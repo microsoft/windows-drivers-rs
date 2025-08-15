@@ -122,7 +122,7 @@ struct FileLockGuard {
 
 impl FileLockGuard {
     fn new(file: std::fs::File, span: Span) -> Result<Self> {
-        file.lock_exclusive().to_syn_result(span, "unable to obtain file lock")?;
+        file.lock().to_syn_result(span, "unable to obtain file lock")?;
         Ok(Self { file })
     }
 }
@@ -976,7 +976,7 @@ mod tests {
     {
         let test_flock: std::fs::File =
             std::fs::File::create(SCRATCH_DIR.join("test.lock")).unwrap();
-        test_flock.lock_exclusive().unwrap();
+        test_flock.lock().unwrap();
 
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
 
