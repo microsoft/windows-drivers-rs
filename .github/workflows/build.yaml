@@ -19,10 +19,15 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: windows-2025
     strategy:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
+        runner:
+          - name: windows-2025
+            arch: amd64
+          - name: windows-11-arm
+            arch: arm64
+
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -46,6 +51,8 @@ jobs:
             arch: amd64
           - name: aarch64-pc-windows-msvc
             arch: arm64
+    
+    runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
@@ -54,6 +61,12 @@ jobs:
       - name: Install Winget PowerShell Module
         shell: pwsh
         run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+      - name: Install Winget
+        if: matrix.runner.name == 'windows-11-arm'
+        uses: ./.github/actions/install-winget
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm
@@ -65,7 +78,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: ${{ matrix.wdk.source == 'nuget' && 'amd64' || '' }}
+          host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
           target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
@@ -92,7 +105,7 @@ jobs:
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
-      # Run cargo-wdk on examples
+      # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 

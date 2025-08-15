@@ -52,23 +52,23 @@ runs:
 
         # Validate architecture inputs for NuGet
         if ($source -eq 'nuget') {
-            if ($hostArch -notin @('amd64', 'arm64')) {
-                Write-Error "Invalid host architecture: $hostArch. Must be 'amd64' or 'arm64' when using NuGet source."
+            if ([string]::IsNullOrWhiteSpace($hostArch) -or $hostArch -notin @('amd64', 'arm64')) {
+                Write-Error "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when using NuGet source."
                 exit 1
             }
-            if ($targetArch -notin @('amd64', 'arm64')) {
-                Write-Error "Invalid target architecture: $targetArch. Must be 'amd64' or 'arm64' when using NuGet source."
+            if ([string]::IsNullOrWhiteSpace($targetArch) -or $targetArch -notin @('amd64', 'arm64')) {
+                Write-Error "Invalid or missing target architecture: '$targetArch'. Must be 'amd64' or 'arm64' when using NuGet source."
                 exit 1
             }
         }
 
-        # Validate that host and target are not set when using WinGet
+        # Validate that host and target are not provided when using WinGet
         if ($source -eq 'winget') {
-            if ($hostArch -ne '' -and $hostArch -ne $null) {
+            if (-not [string]::IsNullOrWhiteSpace($hostArch)) {
                 Write-Error "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
                 exit 1
             }
-            if ($targetArch -ne '' -and $targetArch -ne $null) {
+            if (-not [string]::IsNullOrWhiteSpace($targetArch)) {
                 Write-Error "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
                 exit 1
             }

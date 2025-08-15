@@ -18,12 +18,17 @@ env:
 jobs:
   clippy:
     name: Clippy
-    runs-on: windows-2025
     permissions:
       checks: write
     strategy:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
+        runner:
+          - name: windows-2025
+            arch: amd64
+          - name: windows-11-arm
+            arch: arm64
+
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -48,6 +53,8 @@ jobs:
           - name: aarch64-pc-windows-msvc
             arch: arm64
 
+    runs-on: ${{ matrix.runner.name }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -55,6 +62,12 @@ jobs:
       - name: Install Winget PowerShell Module
         shell: pwsh
         run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+      - name: Install Winget
+        if: matrix.runner.name == 'windows-11-arm'
+        uses: ./.github/actions/install-winget
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm
