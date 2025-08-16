@@ -73,14 +73,17 @@ pub struct PackageTask<'a> {
 
 impl<'a> PackageTask<'a> {
     /// Creates a new instance of `PackageTask`.
+    ///
     /// # Arguments
     /// * `params` - Struct containing the parameters for the package task.
     /// * `wdk_build` - The provider for WDK build related methods.
     /// * `command_exec` - The provider for command execution.
     /// * `fs` - The provider for file system operations.
+    ///
     /// # Returns
     /// * `Result<Self, PackageTaskError>` - A result containing the new
     ///   instance or an error.
+    ///
     /// # Errors
     /// * `PackageTaskError::Io` - If there is an IO error while creating the
     ///   final package directory.
@@ -91,6 +94,14 @@ impl<'a> PackageTask<'a> {
         fs: &'a Fs,
     ) -> Result<Self, PackageTaskError> {
         debug!("Package task params: {params:?}");
+        debug_assert!(
+            params.working_dir.is_absolute(),
+            "params.working_dir must be absolute"
+        );
+        debug_assert!(
+            params.target_dir.is_absolute(),
+            "params.target_dir must be absolute"
+        );
         let package_name = params.package_name.replace('-', "_");
         // src paths
         let src_driver_binary_extension = "dll";
