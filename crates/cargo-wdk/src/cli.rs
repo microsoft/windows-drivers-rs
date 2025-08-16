@@ -137,7 +137,12 @@ impl Cli {
             Subcmd::New(cli_args) => {
                 // TODO: Support extended path as cargo supports it
                 if let Some(path) = &cli_args.path {
-                    if path.as_os_str().to_string_lossy().starts_with(r"\\?\") {
+                    const EXTENDED_PATH_PREFIX: &str = r"\\?\";
+                    if path
+                        .as_os_str()
+                        .to_string_lossy()
+                        .starts_with(EXTENDED_PATH_PREFIX)
+                    {
                         return Err(anyhow::anyhow!(
                             "Extended (verbatim) paths are currently not supported"
                         ));

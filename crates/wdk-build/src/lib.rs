@@ -39,45 +39,6 @@ use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Error, PartialEq, Eq)]
-/// Error when parsing a [`TwoPartVersion`].
-pub enum TwoPartVersionError {
-    /// Supplied string didn't match MAJOR.MINOR format.
-    #[error("Invalid version: {0}. Expected format is 'major.minor'")]
-    InvalidFormat(String),
-    /// A numeric component failed to parse (component name, original string).
-    #[error("Error parsing {0} version to 'u32'. Version string: {1}")]
-    ParseError(String, String),
-}
-
-/// Version of the form MAJOR.MINOR (both u32). Accepts leading zeros.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct TwoPartVersion(pub u32, pub u32);
-
-impl FromStr for TwoPartVersion {
-    type Err = TwoPartVersionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let dot_count = s.matches('.').count();
-        if dot_count != 1 {
-            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
-        }
-        let (major_str, minor_str) = s
-            .split_once('.')
-            .ok_or_else(|| TwoPartVersionError::InvalidFormat(s.to_string()))?;
-        if major_str.is_empty() || minor_str.is_empty() {
-            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
-        }
-        let major = major_str
-            .parse::<u32>()
-            .map_err(|_| TwoPartVersionError::ParseError("major".to_string(), s.to_string()))?;
-        let minor = minor_str
-            .parse::<u32>()
-            .map_err(|_| TwoPartVersionError::ParseError("minor".to_string(), s.to_string()))?;
-        Ok(Self(major, minor))
-    }
-}
-
 /// Configuration parameters for a build dependent on the WDK
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -312,6 +273,58 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+/// Error when parsing a [`TwoPartVersion`].
+pub enum TwoPartVersionError {
+    /// Supplied string didn't match MAJOR.MINOR format.
+    #[error("Invalid version: {0}. Expected format is 'major.minor'")]
+    InvalidFormat(String),
+    /// A numeric component failed to parse (component name, original string).
+    #[error("Error parsing {0} version to 'u32'. Version string: {1}")]
+    ParseError(String, String),
+}
+
+/// Version of the form MAJOR.MINOR (both u32). Accepts leading zeros.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct TwoPartVersion(pub u32, pub u32);
+
+/// Parses a string of the form `MAJOR.MINOR` into a [`TwoPartVersion`].
+///
+/// # Expected format
+/// - The input string must contain exactly one dot (`.`) separating two
+///   non-empty components.
+/// - Both components must be valid unsigned 32-bit integers (`u32`). Leading
+///   zeros are accepted.
+///
+/// # Errors
+/// - Returns [`TwoPartVersionError::InvalidFormat`] if the string does not
+///   contain exactly one dot or has empty components.
+/// - Returns [`TwoPartVersionError::ParseError`] if either component cannot be
+///   parsed as a `u32`.
+impl FromStr for TwoPartVersion {
+    type Err = TwoPartVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let dot_count = s.matches('.').count();
+        if dot_count != 1 {
+            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
+        }
+        let (major_str, minor_str) = s
+            .split_once('.')
+            .ok_or_else(|| TwoPartVersionError::InvalidFormat(s.to_string()))?;
+        if major_str.is_empty() || minor_str.is_empty() {
+            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
+        }
+        let major = major_str
+            .parse::<u32>()
+            .map_err(|_| TwoPartVersionError::ParseError("major".to_string(), s.to_string()))?;
+        let minor = minor_str
+            .parse::<u32>()
+            .map_err(|_| TwoPartVersionError::ParseError("minor".to_string(), s.to_string()))?;
+        Ok(Self(major, minor))
+    }
 }
 
 impl Default for Config {
@@ -1452,8 +1465,6 @@ mod tests {
 
     use super::*;
 
-    // Tests for TwoPartVersion and TwoPartVersionError moved from utils.rs now that
-    // the type is defined in lib.rs (public API).
     mod two_part_version {
         use super::*;
 

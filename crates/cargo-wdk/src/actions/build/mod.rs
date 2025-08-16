@@ -67,8 +67,13 @@ impl<'a> BuildAction<'a> {
     /// * `fs` - The file system provider instance
     /// * `metadata` - The metadata provider instance
     ///
-    /// Returns:
-    /// * `Self` – a new instance of `BuildAction`.
+    /// # Returns
+    /// * `Result<Self>` - A result containing either a new instance of
+    ///   `BuildAction` on success, or an `anyhow::Error`.
+    ///
+    /// # Errors
+    /// This function will return an error if the `absolute` path conversion
+    /// fails.
     pub fn new(
         params: &BuildActionParams<'a>,
         wdk_build: &'a WdkBuild,
