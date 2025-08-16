@@ -55,26 +55,21 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Winget
-      uses: ./.github/actions/winget-install
+      uses: ./.github/actions/install-winget
       with:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Install LLVM ${{ matrix.llvm }}
-      run: |
-        if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
-          Write-Host "LLVM ${{ matrix.llvm }} is already installed."
-        } else {
-          Write-Host "Installing LLVM ${{ matrix.llvm }}..."
-          Install-WinGetPackage -Id LLVM.LLVM -Version ${{ matrix.llvm }} -Source winget -MatchOption Equals -Mode Silent -Force
-        }
-        clang --version
+      uses: ./.github/actions/install-llvm
+      with:
+        version: ${{ matrix.llvm }}
 
     - name: Install WDK (${{ matrix.wdk.version }})
       uses: ./.github/actions/install-wdk
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: 'x64' # windows-latest is x64-based
+        host: 'amd64' # windows-latest is x64-based
         target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})

@@ -1,0 +1,81 @@
+name: "Install Winget"
+description: "Install winget on windows runners since its not installed by default: https://github.com/actions/runner-images/issues/6472"
+inputs:
+  GITHUB_TOKEN:
+    description: "GitHub token to execute authenticated Github API requests (for higher rate limit)"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Get URIs for Winget v1.11.400 assets
+      shell: pwsh
+      run: |
+        $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
+
+        # Detect runner architecture
+        $Architecture = if ($env:RUNNER_ARCH -eq "ARM64") { "arm64" } else { "x64" }
+        Write-Host "Runner architecture: $Architecture"
+
+        # winget-cli release v1.11.400
+        # Define the winget-cli release tag to use
+        $WingetReleaseTag = "v1.11.400"
+        # Fetch release info by tag instead of magic number release ID
+        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders "https://api.github.com/repos/microsoft/winget-cli/releases/tags/$WingetReleaseTag"
+        $WingetDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
+        $WingetLicenseDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('License1.xml') }
+        $WingetDependenciesZipDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('DesktopAppInstaller_Dependencies.zip') }
+
+        # Print to logs
+        Write-Host "WingetDownloadUri=$WingetDownloadUri"
+        Write-Host "WingetLicenseDownloadUri=$WingetLicenseDownloadUri"
+        Write-Host "WingetDependenciesZipDownloadUri=$WingetDependenciesZipDownloadUri"
+
+        # Save output for next step
+        Write-Output "WingetDownloadUri=$WingetDownloadUri" >> $env:GITHUB_ENV
+        Write-Output "WingetLicenseDownloadUri=$WingetLicenseDownloadUri" >> $env:GITHUB_ENV
+        Write-Output "Architecture=$Architecture" >> $env:GITHUB_ENV
+        Write-Output "WingetDependenciesZipDownloadUri=$WingetDependenciesZipDownloadUri" >> $env:GITHUB_ENV
+        Write-Output "InstallWingetTempDir=$env:RUNNER_TEMP/install-winget" >> $env:GITHUB_ENV
+
+    - name: Download Winget Assets and Dependencies
+      shell: pwsh
+      run: |
+        New-Item -Type Directory $env:InstallWingetTempDir
+        
+        # Download winget and license (architecture-agnostic)
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDownloadUri -OutFile $env:InstallWingetTempDir/winget.msixbundle
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetLicenseDownloadUri -OutFile $env:InstallWingetTempDir/license.xml
+        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDependenciesZipDownloadUri -OutFile $env:InstallWingetTempDir/DesktopAppInstaller_Dependencies.zip
+
+        Expand-Archive -Path "$env:InstallWingetTempDir/DesktopAppInstaller_Dependencies.zip" -DestinationPath $env:InstallWingetTempDir/ -Force
+
+    - name: Start Winget Installation for all Users
+      shell: pwsh
+      run: |
+        # Use architecture-specific dependency paths
+        [string[]]$DependencyPaths = (Get-ChildItem -Path "$env:InstallWingetTempDir/$env:Architecture" -Filter '*.appx' -File -Force).FullName
+
+        $MicrosoftUIXamlDep = $($DependencyPaths[0])
+        $MicrosoftVCLibsDep = $($DependencyPaths[1])
+
+        Write-Host "Found Dependency $MicrosoftUIXamlDep"
+        Write-Host "Found Dependency $MicrosoftVCLibsDep"
+
+        Add-AppxProvisionedPackage -Online -PackagePath $env:InstallWingetTempDir/winget.msixbundle -LicensePath $env:InstallWingetTempDir/license.xml -DependencyPackagePath "$MicrosoftUIXamlDep", "$MicrosoftVCLibsDep"
+
+    - name: Install Winget for Current User (for better install diagnostics)
+      shell: powershell
+      run: |
+        Add-AppxPackage $env:InstallWingetTempDir/winget.msixbundle
+
+    - name: Wait for Completion of Winget Installation
+      shell: pwsh
+      run: |
+        while ((Get-Command * | Select-String winget)?.ToString() -ne "winget.exe") {
+          Start-Sleep -Seconds 1
+        }
+        Write-Output "Winget Version: $(winget --version)"
+
+    - name: Install winget Powershell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force

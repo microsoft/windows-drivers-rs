@@ -1,0 +1,28 @@
+name: Install LLVM
+
+inputs:
+  version:
+    description: "LLVM version to install"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install LLVM ${{ inputs.version }}
+      shell: pwsh
+      run: |
+        if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ inputs.version }}') {
+          Write-Host "LLVM ${{ inputs.version }} is already installed."
+        } else {
+          Write-Host "Installing LLVM ${{ inputs.version }}..."
+          Install-WinGetPackage -Id LLVM.LLVM -Version ${{ inputs.version }} -Source winget -MatchOption Equals -Mode Silent -Force
+
+          # Check if WinGet installation succeeded
+          $installSuccess = $?
+          if (-not $installSuccess) {
+            Write-Error "LLVM installation failed. Last exit code: $LASTEXITCODE and success status: $installSuccess"
+            exit 1
+          }
+        }
+
+        clang --version

@@ -22,16 +22,20 @@ runs:
     - name: Install WDK
       shell: pwsh
       run: |
-        $hostArch = '${{ inputs.host }}'
-        $targetArch = '${{ inputs.target }}'
-        switch ($targetArch) {
-            'amd64' { $targetArch = 'x64' }
-            'arm64' { $targetArch = 'ARM64' }
-            default {
-                Write-Error "Invalid target architecture: $targetArch. Supported architectures are 'x64' and 'arm64'."
-                exit 1
+        # Function to normalize architecture names
+        function Normalize-Architecture($arch) {
+            switch ($arch.ToLower()) {
+                'amd64' { return 'x64' }
+                'arm64' { return 'arm64' }
+                default {
+                    Write-Error "Invalid architecture: $arch. Supported architectures are 'amd64' and 'arm64'."
+                    exit 1
+                }
             }
         }
+
+        $hostArch = Normalize-Architecture '${{ inputs.host }}'
+        $targetArch = Normalize-Architecture '${{ inputs.target }}'
         
         $inputVersion = '${{ inputs.version }}'
         if ($inputVersion -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
@@ -130,14 +134,24 @@ runs:
           Write-Output "WindowsSdkBinPath=$packages\Microsoft.Windows.SDK.CPP.$version\c\bin" >> $env:GITHUB_ENV
         } else {
 
-          Write-Host "Using Winget to install WDK version $inputVersion..."
+          Write-Host "Using Winget to install WDK and SDK version $inputVersion..."
+
+          $sdk = "Microsoft.WindowsSDK.$sdkVersion"
           $wdk = "Microsoft.WindowsWDK.$inputVersion"
-          if ((Get-WinGetPackage -Id $wdk -Source winget -MatchOption Equals).Id -eq '$wdk') {
-            Write-Host "$wdk is already installed. Attempting to update..."
-            Update-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
-          } else {
-            Write-Host "Installing $wdk..."
-            Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          Write-Host "Installing $sdk..."
+          Install-WinGetPackage -Id $sdk -Source winget -MatchOption Equals -Mode Silent -Force -Override '/q /features +'
+          $installSuccess = $?
+          if (-not $installSuccess) {
+            Write-Error "$sdk installation failed. Last exit code: $LASTEXITCODE and success status: $installSuccess"
+            exit 1
+          }
+
+          Write-Host "Installing $wdk..."
+          Install-WinGetPackage -Id $wdk -Source winget -MatchOption Equals -Mode Silent -Force
+          $installSuccess = $?
+          if (-not $installSuccess) {
+            Write-Error "$wdk installation failed. Last exit code: $LASTEXITCODE and success status: $installSuccess"
+            exit 1
           }
 
           Write-Host "Setting Version_Number environment variable to $sdkVersion..."
