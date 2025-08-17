@@ -133,18 +133,17 @@ impl<'a> BuildAction<'a> {
         debug!("WDK build number: {}", build_number);
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
-        let working_dir = absolute(&self.working_dir)?;
 
         // Standalone driver/driver workspace support
-        if self.fs.exists(&working_dir.join("Cargo.toml")) {
-            return self.run_from_workspace_root(&working_dir);
+        if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
+            return self.run_from_workspace_root(&self.working_dir);
         }
 
         // Emulated workspaces support
-        let dirs = self.fs.read_dir_entries(&working_dir)?;
+        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
         info!(
             "Checking for valid Rust projects in the working directory: {}",
-            working_dir.display()
+            self.working_dir.display()
         );
 
         let mut is_valid_dir_with_rust_projects = false;
@@ -169,7 +168,7 @@ impl<'a> BuildAction<'a> {
 
         if !is_valid_dir_with_rust_projects {
             return Err(BuildActionError::NoValidRustProjectsInTheDirectory(
-                working_dir,
+                self.working_dir.clone(),
             ));
         }
 
@@ -212,7 +211,7 @@ impl<'a> BuildAction<'a> {
         debug!("Done checking for valid Rust(possibly driver) projects in the working directory");
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
-                working_dir,
+                self.working_dir.clone(),
             ));
         }
 

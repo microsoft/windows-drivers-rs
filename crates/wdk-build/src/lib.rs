@@ -11,7 +11,13 @@
 //! models (WDM, KMDF, UMDF).
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
-use std::{fmt, str::FromStr};
+use std::{
+    env,
+    fmt,
+    path::{absolute, PathBuf},
+    str::FromStr,
+    sync::LazyLock,
+};
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
@@ -28,12 +34,6 @@ pub use utils::{
 };
 
 mod bindgen;
-
-use std::{
-    env,
-    path::{absolute, PathBuf},
-    sync::LazyLock,
-};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
