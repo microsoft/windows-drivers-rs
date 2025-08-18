@@ -91,7 +91,27 @@ runs:
                   }
 
                   Write-Host "Installing $packageId..."
-                  $installResult = Install-WinGetPackage @installParams
+                  
+                  # Retry Install-WinGetPackage with up to 5 attempts and 45-second delays
+                  $installResult = $null
+                  $maxRetries = 5
+                  $delaySeconds = 45
+                  
+                  for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+                      try {
+                          Write-Host "Attempting package installation (attempt $attempt of $maxRetries)..."
+                          $installResult = Install-WinGetPackage @installParams
+                          Write-Host "✅ Package installation completed successfully on attempt $attempt"
+                          break
+                      } catch {
+                          Write-Warning "Package installation failed on attempt $attempt`: $($_.Exception.Message)"
+                          if ($attempt -eq $maxRetries) {
+                              throw "All $maxRetries installation attempts failed. Last error: $($_.Exception.Message)"
+                          }
+                          Write-Host "Waiting $delaySeconds seconds before retry..."
+                          Start-Sleep -Seconds $delaySeconds
+                      }
+                  }
                   
                   # Check for installation errors in the result object
                   if ($installResult.Status -ne 'Ok') {
