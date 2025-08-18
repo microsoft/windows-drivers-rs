@@ -21,8 +21,7 @@ runs:
 
         # Basic version format validation (LLVM uses semantic versioning)
         if ([string]::IsNullOrWhiteSpace($version)) {
-            Write-Error "Version cannot be empty"
-            exit 1
+            throw "Version cannot be empty"
         }
 
         Write-Host "✅ Input validation passed"
@@ -40,11 +39,6 @@ runs:
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
 
-        try {
-          $clangVersion = clang --version
-          Write-Host "✅ LLVM/Clang verification successful:"
-          Write-Host $clangVersion
-        } catch {
-          Write-Error "❌ LLVM/Clang verification failed: $_"
-          exit 1
-        }
+        $clangVersion = & clang --version 2>&1
+        Write-Host "✅ LLVM/Clang verification successful:"
+        Write-Host $clangVersion

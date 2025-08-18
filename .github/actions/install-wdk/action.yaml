@@ -40,37 +40,31 @@ runs:
 
         # Validate source
         if ($source -notin @('nuget', 'winget')) {
-            Write-Error "Invalid source: $source. Must be 'nuget' or 'winget'."
-            exit 1
+            throw "Invalid source: $source. Must be 'nuget' or 'winget'."
         }
 
         # Validate version format
         if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
-            Write-Error "Invalid version format: $version. Expected format: 10.0.XXXXX or 10.0.XXXXX.YYYY"
-            exit 1
+            throw "Invalid version format: $version. Expected format: 10.0.XXXXX or 10.0.XXXXX.YYYY"
         }
 
         # Validate architecture inputs for NuGet
         if ($source -eq 'nuget') {
             if ([string]::IsNullOrWhiteSpace($hostArch) -or $hostArch -notin @('amd64', 'arm64')) {
-                Write-Error "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when using NuGet source."
-                exit 1
+                throw "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when using NuGet source."
             }
             if ([string]::IsNullOrWhiteSpace($targetArch) -or $targetArch -notin @('amd64', 'arm64')) {
-                Write-Error "Invalid or missing target architecture: '$targetArch'. Must be 'amd64' or 'arm64' when using NuGet source."
-                exit 1
+                throw "Invalid or missing target architecture: '$targetArch'. Must be 'amd64' or 'arm64' when using NuGet source."
             }
         }
 
         # Validate that host and target are not provided when using WinGet
         if ($source -eq 'winget') {
             if (-not [string]::IsNullOrWhiteSpace($hostArch)) {
-                Write-Error "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
-                exit 1
+                throw "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
             }
             if (-not [string]::IsNullOrWhiteSpace($targetArch)) {
-                Write-Error "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
-                exit 1
+                throw "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
             }
         }
 
@@ -132,10 +126,10 @@ runs:
         # Determine required WDK packages based on host and target architectures
         # SDK is arch-agnostic, host arch needed for tools/bins, target arch needed for content
         $packagesToInstall = @("Microsoft.Windows.SDK.CPP")
-        
+
         # Need host architecture WDK package for build tools and binaries
         $packagesToInstall += "Microsoft.Windows.WDK.$hostArch"
-        
+
         # Need target architecture WDK package for content (libraries, headers)
         $targetWdkPackage = "Microsoft.Windows.WDK.$targetArch"
         if ($targetWdkPackage -notin $packagesToInstall) {
@@ -149,8 +143,7 @@ runs:
             Write-Host "Installing $packageName version $version..."
             nuget install $packageName -Version $version -OutputDirectory $packages
             if ($LASTEXITCODE -ne 0) { 
-                Write-Error "Failed to install $packageName version $version"
-                exit 1
+                throw "Failed to install $packageName version $version"
             }
         }
 
@@ -170,8 +163,7 @@ runs:
         foreach ($pathKey in $criticalPaths) {
             $path = $envVars[$pathKey]
             if (-not (Test-Path $path)) {
-                Write-Error "Critical path not found: $pathKey = $path"
-                exit 1
+                throw "Critical path not found: $pathKey = $path"
             }
         }
 
