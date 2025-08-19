@@ -19,6 +19,14 @@ inputs:
         description: "Maximum time in minutes to wait for package verification after installation"
         required: false
         default: "5"
+    retry-attempts:
+        description: "Maximum number of installation retry attempts"
+        required: false
+        default: "5"
+    retry-delay-seconds:
+        description: "Delay in seconds between retry attempts"
+        required: false
+        default: "30"
 
 runs:
     using: "composite"
@@ -37,6 +45,8 @@ runs:
               $overrideArgs = '${{ inputs.override-args }}'
               $skipIfInstalled = [System.Convert]::ToBoolean('${{ inputs.skip-if-installed }}')
               $timeoutMinutes = [int]'${{ inputs.timeout-minutes }}'
+              $maxRetries = [int]'${{ inputs.retry-attempts }}'
+              $delaySeconds = [int]'${{ inputs.retry-delay-seconds }}'
 
               Write-Host "Installing WinGet package: $packageId"
               if ($version) {
@@ -88,9 +98,6 @@ runs:
                   }
                   Write-Host "Installing $packageId..."
                   
-                  # Retry Install-WinGetPackage with up to 5 attempts and 45-second delays
-                  $maxRetries = 5
-                  $delaySeconds = 45
                   $installResult = $null
                   for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
                       try {
