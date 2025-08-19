@@ -98,7 +98,7 @@ runs:
             try {
                 Write-Host "Trying NuGet API..."
                 $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
-                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30 -ErrorAction Stop
+                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
                 $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
                 Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
 
@@ -209,6 +209,7 @@ runs:
       uses: ./.github/actions/install-winget-package
       with:
         package-id: Microsoft.WindowsSDK.${{ env.SDK_VERSION }}
+        # The override arguments '/q /features +' are required for version 10.0.22621 due to a known bug in the Windows SDK installer for this version.
         override-args: ${{ (inputs.version == '10.0.22621' || startsWith(inputs.version, '10.0.22621.')) && '/q /features +' || '' }}
         skip-if-installed: "true"
         timeout-minutes: "10"

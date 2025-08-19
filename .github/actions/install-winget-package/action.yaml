@@ -49,7 +49,7 @@ runs:
               # Check if package is already installed and skip if appropriate
               $shouldInstall = $true
               if ($skipIfInstalled) {
-                  $existingPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction Stop
+                  $existingPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals
                   if ($existingPackage) {
                       $installedVersion = $existingPackage.InstalledVersion
                       Write-Host "$packageId is already installed. Installed version: $installedVersion"
@@ -73,7 +73,6 @@ runs:
 
               # Perform installation only if needed
               if ($shouldInstall) {
-                  # Prepare installation command
                   $installParams = @{
                       Id = $packageId
                       Source = 'winget'
@@ -81,22 +80,18 @@ runs:
                       Mode = 'Silent'
                       Force = $true
                   }
-
                   if ($version) {
                       $installParams.Version = $version
                   }
-
                   if ($overrideArgs) {
                       $installParams.Override = $overrideArgs
                   }
-
                   Write-Host "Installing $packageId..."
                   
                   # Retry Install-WinGetPackage with up to 5 attempts and 45-second delays
-                  $installResult = $null
                   $maxRetries = 5
                   $delaySeconds = 45
-                  
+                  $installResult = $null
                   for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
                       try {
                           Write-Host "Attempting package installation (attempt $attempt of $maxRetries)..."
@@ -115,9 +110,8 @@ runs:
                   
                   # Check for installation errors in the result object
                   if ($installResult.Status -ne 'Ok') {
-                    throw "Package installation failed with status: $($installResult.Status). InstallerErrorCode: $($installResult.InstallerErrorCode)"
+                      throw "Package installation failed with status: $($installResult.Status). InstallerErrorCode: $($installResult.InstallerErrorCode)"
                   }
-
                   Write-Host "✅ Successfully initiated installation for $packageId"
               }
 
@@ -133,7 +127,7 @@ runs:
                   try {
                       $elapsedSeconds = [math]::Round(((Get-Date) - $verificationStartTime).TotalSeconds, 1)
                       Write-Host "Verification attempt at $elapsedSeconds seconds..."
-                      $verifyPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction Stop
+                      $verifyPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption
                       
                       if ($verifyPackage) {
                           Write-Host "✅ Final verification: $packageId is installed with version: $($verifyPackage.InstalledVersion)"
