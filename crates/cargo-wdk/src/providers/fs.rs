@@ -19,6 +19,13 @@ use super::error::FileError;
 pub struct Fs {}
 
 #[cfg_attr(test, mockall::automock)]
+#[cfg_attr(
+    test,
+    allow(
+        dead_code,
+        reason = "This implementation is mocked in test configuration."
+    )
+)]
 impl Fs {
     pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, FileError> {
         path.canonicalize()

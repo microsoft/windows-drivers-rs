@@ -12,6 +12,13 @@
 pub struct WdkBuild {}
 
 #[cfg_attr(test, mockall::automock)]
+#[cfg_attr(
+    test,
+    allow(
+        dead_code,
+        reason = "This implementation is mocked in test configuration."
+    )
+)]
 impl WdkBuild {
     pub fn detect_wdk_build_number(&self) -> Result<u32, wdk_build::ConfigError> {
         wdk_build::detect_wdk_build_number()

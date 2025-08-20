@@ -24,6 +24,13 @@ use super::error::CommandError;
 pub struct CommandExec {}
 
 #[cfg_attr(test, mockall::automock)]
+#[cfg_attr(
+    test,
+    allow(
+        dead_code,
+        reason = "This implementation is mocked in test configuration."
+    )
+)]
 impl CommandExec {
     pub fn run<'a>(
         &self,

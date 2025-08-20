@@ -13,6 +13,13 @@ use std::path::Path;
 pub struct Metadata {}
 
 #[cfg_attr(test, mockall::automock)]
+#[cfg_attr(
+    test,
+    allow(
+        dead_code,
+        reason = "This implementation is mocked in test configuration."
+    )
+)]
 impl Metadata {
     /// Get the Cargo metadata at a given path.
     ///
