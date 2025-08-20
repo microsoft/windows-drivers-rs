@@ -5,18 +5,12 @@
 //! operations such as reading, writing, copying, and checking file existence.
 //! It also integrates with `mockall` to enable mocking for unit tests.
 
-// Warns the methods are not used, however they are used.
-// The intellisense confusion seems to come from automock
-#![allow(dead_code)]
 #![allow(clippy::unused_self)]
-
 use std::{
     fs::{copy, create_dir, read_dir, rename, DirEntry, File, FileType, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
-
-use mockall::automock;
 
 use super::error::FileError;
 
@@ -24,7 +18,7 @@ use super::error::FileError;
 #[derive(Default)]
 pub struct Fs {}
 
-#[automock]
+#[cfg_attr(test, mockall::automock)]
 impl Fs {
     pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, FileError> {
         path.canonicalize()

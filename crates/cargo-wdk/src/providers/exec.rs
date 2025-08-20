@@ -7,9 +7,6 @@
 
 // Suppression added for mockall as it generates mocks with env_vars: &Option
 #![allow(clippy::ref_option_ref)]
-// Warns the run method is not used, however it is used.
-// The intellisense confusion seems to come from automock
-#![allow(dead_code)]
 #![allow(clippy::unused_self)]
 
 use std::{
@@ -18,7 +15,6 @@ use std::{
 };
 
 use anyhow::Result;
-use mockall::automock;
 use tracing::debug;
 
 use super::error::CommandError;
@@ -27,7 +23,7 @@ use super::error::CommandError;
 #[derive(Debug, Default)]
 pub struct CommandExec {}
 
-#[automock]
+#[cfg_attr(test, mockall::automock)]
 impl CommandExec {
     pub fn run<'a>(
         &self,
