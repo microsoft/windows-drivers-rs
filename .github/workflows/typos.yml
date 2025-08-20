@@ -10,7 +10,7 @@ name: Typos
 jobs:
   typos:
     name: Spell check
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
