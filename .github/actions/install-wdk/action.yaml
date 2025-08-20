@@ -168,7 +168,7 @@ runs:
         }
 
         $envVars.GetEnumerator() | ForEach-Object {
-            Write-Host "Setting $($_.Key) environment variable..."
+            Write-Host "Setting $($_.Key) environment variable: $($_.Value)"
             Write-Output "$($_.Key)=$($_.Value)" >> $env:GITHUB_ENV
         }
 
@@ -209,8 +209,10 @@ runs:
       uses: ./.github/actions/install-winget-package
       with:
         package-id: Microsoft.WindowsSDK.${{ env.SDK_VERSION }}
-        # The override arguments '/q /features +' are required for version 10.0.22621 due to a known bug in the Windows SDK installer for this version.
-        override-args: ${{ (inputs.version == '10.0.22621' || startsWith(inputs.version, '10.0.22621.')) && '/q /features +' || '' }}
+        # Workaround for 10.0.22621 SDK installer bug:
+        # The installer concatenates long strings to the log path provided by winget, creating paths exceeding 256 chars
+        # when winget appends `/log`. Specifying override args explicitly prevents winget from appending `/log`.
+        override-args: ${{ (inputs.version == '10.0.22621' || startsWith(inputs.version, '10.0.22621.')) && '/q' || '' }}
         skip-if-installed: "true"
         timeout-minutes: "10"
 
