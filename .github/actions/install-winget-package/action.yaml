@@ -103,6 +103,12 @@ runs:
                       try {
                           Write-Host "Attempting package installation (attempt $attempt of $maxRetries)..."
                           $installResult = Install-WinGetPackage @installParams
+                          
+                          # Check for installation errors in the result object immediately
+                          if ($installResult.Status -ne 'Ok') {
+                              throw "Package installation failed with status: $($installResult.Status). InstallerErrorCode: $($installResult.InstallerErrorCode)"
+                          }
+                          
                           Write-Host "✅ Package installation completed successfully on attempt $attempt"
                           break
                       } catch {
@@ -113,11 +119,6 @@ runs:
                           Write-Host "Waiting $delaySeconds seconds before retry..."
                           Start-Sleep -Seconds $delaySeconds
                       }
-                  }
-                  
-                  # Check for installation errors in the result object
-                  if ($installResult.Status -ne 'Ok') {
-                      throw "Package installation failed with status: $($installResult.Status). InstallerErrorCode: $($installResult.InstallerErrorCode)"
                   }
                   Write-Host "✅ Successfully initiated installation for $packageId"
               }
