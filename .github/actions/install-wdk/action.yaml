@@ -123,20 +123,19 @@ runs:
 
         $packages = "C:\packages"
 
-        # Determine required WDK packages based on host and target architectures
-        # SDK is arch-agnostic, host arch needed for tools/bins, target arch needed for content
-        $packagesToInstall = @("Microsoft.Windows.SDK.CPP")
-
-        # Need host architecture WDK package for build tools and binaries
-        $packagesToInstall += "Microsoft.Windows.WDK.$hostArch"
-
-        # Need target architecture WDK package for content (libraries, headers)
+        # Install WDK packages for both host and target architectures
+        # Host architecture needed for build tools and binaries
+        # Target architecture needed for content (libraries, headers)
+        $hostWdkPackage = "Microsoft.Windows.WDK.$hostArch"
         $targetWdkPackage = "Microsoft.Windows.WDK.$targetArch"
-        if ($targetWdkPackage -notin $packagesToInstall) {
+
+        # Determine packages to install (avoid duplicates if host == target)
+        $packagesToInstall = @($hostWdkPackage)
+        if ($targetWdkPackage -ne $hostWdkPackage) {
             $packagesToInstall += $targetWdkPackage
         }
 
-        Write-Host "Installing NuGet packages for version $version..."
+        Write-Host "Installing WDK NuGet packages for version $version..."
         Write-Host "Required packages: $($packagesToInstall -join ', ')"
 
         foreach ($packageName in $packagesToInstall) {
@@ -147,20 +146,56 @@ runs:
             }
         }
 
-        Write-Host "Successfully installed all required WDK packages for version $version"
+        Write-Host "Successfully installed all WDK packages and dependencies for version $version"
 
-        # Set environment variables efficiently
-        $envVars = @{
-            "WDKContentRoot" = "$packages\Microsoft.Windows.WDK.$targetArch.$version\c\"
-            "Version_Number" = "$sdkVersion.0"
-            "WDKBinRoot" = "$packages\Microsoft.Windows.WDK.$hostArch.$version\c\bin"
-            "WDKToolRoot" = "$packages\Microsoft.Windows.WDK.$hostArch.$version\c\tools"
-            "WindowsSdkBinPath" = "$packages\Microsoft.Windows.SDK.CPP.$version\c\bin"
+        # Discover installed package paths in packages folder
+        Write-Host "Discovering installed package paths..."
+        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
+        Write-Host "Found $($packageDirs.Count) package directories:"
+        foreach ($dir in $packageDirs) {
+            Write-Host "  - $($dir.Name)"
         }
 
-        # Validate critical paths exist before setting environment variables
-        $criticalPaths = @("WDKContentRoot", "WDKBinRoot", "WDKToolRoot")
-        foreach ($pathKey in $criticalPaths) {
+        # Find all Windows SDK nuget packages
+        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP*" })
+        Write-Host "Found $($sdkPackageDirs.Count) SDK package(s):"
+        foreach ($sdkDir in $sdkPackageDirs) {
+            Write-Host "  - $($sdkDir.Name)"
+        }
+        if ($sdkPackageDirs.Count -eq 0) {
+            throw "No SDK packages found in packages folder"
+        }
+
+        # Look for the architecture-neutral base package (i.e. without arch suffix)
+        $baseSDKPackages = @($sdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\.Windows\.SDK\.CPP\.$sdkVersion(\.\d+)?$" })
+
+        $sdkPackageDir = $null
+        if ($baseSDKPackages.Count -eq 1) {
+            $sdkPackageDir = $baseSDKPackages[0]
+            Write-Host "Using architecture-neutral SDK package: $($sdkPackageDir.Name)"
+        } elseif ($baseSDKPackages.Count -gt 1) {
+            throw "Multiple architecture-neutral SDK packages found: $($baseSDKPackages.Name -join ', '). Expected exactly one."
+        } else {
+            throw "No architecture-neutral SDK package found."
+        }
+        Write-Host "Using Windows SDK (architecture-neutral) directory: $($sdkPackageDir.FullName)"
+
+        $hostWdkPackageDir = "$packages\Microsoft.Windows.WDK.$hostArch.$sdkVersion"
+        Write-Host "Using WDK(host-architecture) directory: $hostWdkPackageDir"
+        $targetWdkPackageDir = "$packages\Microsoft.Windows.WDK.$targetArch.$sdkVersion"
+        Write-Host "Using WDK(target-architecture) directory: $targetWdkPackageDir"
+
+        $envVars = @{
+            "Version_Number" = "$sdkVersion.0"
+            "WindowsSdkBinPath" = "$($sdkPackageDir.FullName)\c\bin"
+            "WDKContentRoot" = "$targetWdkPackageDir\c\"
+            "WDKBinRoot" = "$hostWdkPackageDir\c\bin"
+            "WDKToolRoot" = "$hostWdkPackageDir\c\tools"
+        }
+
+        # Validate paths exist before setting environment variables
+        $paths = @("WindowsSdkBinPath", "WDKContentRoot", "WDKBinRoot", "WDKToolRoot")
+        foreach ($pathKey in $paths) {
             $path = $envVars[$pathKey]
             if (-not (Test-Path $path)) {
                 throw "Critical path not found: $pathKey = $path"
