@@ -5,7 +5,7 @@ on:
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
-    - cron: "0 11 * * *"
+    - cron: 0 11 * * *
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +21,7 @@ jobs:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
         runner:
-          - name: windows-latest
+          - name: windows-2025
             arch: amd64
           - name: windows-11-arm
             arch: arm64
@@ -42,9 +42,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Winget
+        if: matrix.runner.name == 'windows-11-arm'
         uses: ./.github/actions/install-winget
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Winget PowerShell Module
+        shell: pwsh
+        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm
@@ -56,8 +61,8 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: ${{ matrix.runner.arch }}
-          target: ${{ matrix.runner.arch }}
+          host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+          target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly

@@ -3,14 +3,14 @@ on:
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
-    - cron: "0 11 * * *"
+    - cron: 0 11 * * *
 
 name: Typos
 
 jobs:
   typos:
     name: Spell check
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
