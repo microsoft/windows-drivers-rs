@@ -15,7 +15,8 @@ pub struct Metadata {}
     test,
     allow(
         dead_code,
-        reason = "Tests use mocked implementation, so this implementation becomes dead code in test configuration."
+        reason = "Tests use mocked implementation, so this implementation becomes dead code in \
+                  test configuration."
     )
 )]
 #[allow(
