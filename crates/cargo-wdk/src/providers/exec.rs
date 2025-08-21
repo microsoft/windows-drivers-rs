@@ -4,11 +4,6 @@
 //! execution and error handling. It wraps the `std::process::Command` to
 //! simplify usage and ensure consistent error reporting. The use of `mockall`
 //! enables mocking the `CommandExec` struct for unit testing.
-
-// Suppression added for mockall as it generates mocks with env_vars: &Option
-#![allow(clippy::ref_option_ref)]
-#![allow(clippy::unused_self)]
-
 use std::{
     collections::HashMap,
     process::{Command, Output, Stdio},
@@ -23,15 +18,23 @@ use super::error::CommandError;
 #[derive(Debug, Default)]
 pub struct CommandExec {}
 
-#[cfg_attr(test, mockall::automock)]
 #[cfg_attr(
     test,
     allow(
         dead_code,
-        reason = "This implementation is mocked in test configuration."
+        reason = "Tests use mocked implementation, so this implementation becomes dead code in test configuration."
     )
 )]
+#[allow(
+    clippy::unused_self,
+    reason = "Mocking associated functions complicates testing; using instance methods instead"
+)]
+#[cfg_attr(test, mockall::automock)]
 impl CommandExec {
+    #[allow(
+        clippy::ref_option_ref,
+        reason = "Mock adds an extra reference to Option<HashMap<&str, &str>>."
+    )]
     pub fn run<'a>(
         &self,
         command: &'a str,

@@ -5,8 +5,6 @@
 //! `mockall` crate to enable mocking of its methods, facilitating easier unit
 //! testing.
 
-#![allow(clippy::unused_self)]
-
 use std::path::Path;
 
 #[derive(Default)]
@@ -17,8 +15,12 @@ pub struct Metadata {}
     test,
     allow(
         dead_code,
-        reason = "This implementation is mocked in test configuration."
+        reason = "Tests use mocked implementation, so this implementation becomes dead code in test configuration."
     )
+)]
+#[allow(
+    clippy::unused_self,
+    reason = "Mocking associated functions complicates testing; using instance methods instead"
 )]
 impl Metadata {
     /// Get the Cargo metadata at a given path.

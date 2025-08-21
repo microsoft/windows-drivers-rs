@@ -5,7 +5,6 @@
 //! operations such as reading, writing, copying, and checking file existence.
 //! It also integrates with `mockall` to enable mocking for unit tests.
 
-#![allow(clippy::unused_self)]
 use std::{
     fs::{copy, create_dir, read_dir, rename, DirEntry, File, FileType, OpenOptions},
     io::{Read, Write},
@@ -23,8 +22,12 @@ pub struct Fs {}
     test,
     allow(
         dead_code,
-        reason = "This implementation is mocked in test configuration."
+        reason = "Tests use mocked implementation, so this implementation becomes dead code in test configuration."
     )
+)]
+#[allow(
+    clippy::unused_self,
+    reason = "Mocking associated functions complicates testing; using instance methods instead"
 )]
 impl Fs {
     pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, FileError> {
