@@ -18,6 +18,7 @@ use super::error::CommandError;
 #[derive(Debug, Default)]
 pub struct CommandExec {}
 
+#[cfg_attr(test, mockall::automock)]
 #[cfg_attr(
     test,
     allow(
@@ -30,7 +31,6 @@ pub struct CommandExec {}
     clippy::unused_self,
     reason = "Mocking associated functions complicates testing; using instance methods instead"
 )]
-#[cfg_attr(test, mockall::automock)]
 impl CommandExec {
     #[allow(
         clippy::ref_option_ref,
