@@ -180,9 +180,41 @@ runs:
         }
         Write-Host "Using Windows SDK (architecture-neutral) directory: $($sdkPackageDir.FullName)"
 
-        $hostWdkPackageDir = "$packages\Microsoft.Windows.WDK.$hostArch.$sdkVersion"
+        # Find all Windows WDK nuget packages
+        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK*" })
+        Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
+        foreach ($wdkDir in $wdkPackageDirs) {
+            Write-Host "  - $($wdkDir.Name)"
+        }
+        if ($wdkPackageDirs.Count -eq 0) {
+            throw "No WDK packages found in packages folder"
+        }
+
+        # Find host architecture WDK package
+        $hostWdkPackages = @($wdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\.Windows\.WDK\.$hostArch\.$sdkVersion(\.\d+)?$" })
+        $hostWdkPackageDir = $null
+        if ($hostWdkPackages.Count -eq 1) {
+            $hostWdkPackageDir = $hostWdkPackages[0].FullName
+            Write-Host "Using WDK host architecture ($hostArch) package: $($hostWdkPackages[0].Name)"
+        } elseif ($hostWdkPackages.Count -gt 1) {
+            throw "Multiple WDK host packages found for $hostArch architecture: $($hostWdkPackages.Name -join ', '). Expected exactly one."
+        } else {
+            throw "No WDK host package found for $hostArch architecture."
+        }
+
+        # Find target architecture WDK package
+        $targetWdkPackages = @($wdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\.Windows\.WDK\.$targetArch\.$sdkVersion(\.\d+)?$" })
+        $targetWdkPackageDir = $null
+        if ($targetWdkPackages.Count -eq 1) {
+            $targetWdkPackageDir = $targetWdkPackages[0].FullName
+            Write-Host "Using WDK target architecture ($targetArch) package: $($targetWdkPackages[0].Name)"
+        } elseif ($targetWdkPackages.Count -gt 1) {
+            throw "Multiple WDK target packages found for $targetArch architecture: $($targetWdkPackages.Name -join ', '). Expected exactly one."
+        } else {
+            throw "No WDK target package found for $targetArch architecture."
+        }
+
         Write-Host "Using WDK(host-architecture) directory: $hostWdkPackageDir"
-        $targetWdkPackageDir = "$packages\Microsoft.Windows.WDK.$targetArch.$sdkVersion"
         Write-Host "Using WDK(target-architecture) directory: $targetWdkPackageDir"
 
         $envVars = @{
