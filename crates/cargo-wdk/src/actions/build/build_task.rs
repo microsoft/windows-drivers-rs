@@ -8,11 +8,10 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{
     actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},

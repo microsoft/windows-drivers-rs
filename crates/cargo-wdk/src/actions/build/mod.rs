@@ -21,13 +21,12 @@ use anyhow::Result;
 use build_task::BuildTask;
 use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
-use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
 use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
 use crate::actions::{to_target_triple, Profile, TargetArch};
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct BuildActionParams<'a> {

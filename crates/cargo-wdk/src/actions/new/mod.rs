@@ -16,10 +16,9 @@ use std::{
 use clap_verbosity_flag::Verbosity;
 use error::NewActionError;
 use include_dir::{include_dir, Dir};
-use mockall_double::double;
 use tracing::{debug, info};
 
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{actions::DriverType, trace};
 

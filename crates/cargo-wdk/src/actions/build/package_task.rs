@@ -13,11 +13,10 @@ use std::{
     result::Result,
 };
 
-use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 

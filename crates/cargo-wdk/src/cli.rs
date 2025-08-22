@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Ok, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
-use mockall_double::double;
 use wdk_build::CpuArchitecture;
 
 use crate::actions::{
@@ -21,7 +20,7 @@ use crate::actions::{
     UMDF_STR,
     WDM_STR,
 };
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to create and build \
