@@ -141,12 +141,55 @@ pub struct UmdfConfig {
     pub minimum_umdf_version_minor: Option<u8>,
 }
 
+/// Metadata providing additional context for [`std::io::Error`] failures
+///
+/// This enum provides structured information about the file system paths
+/// or operations that led to an I/O error. It can represent either single
+/// path operations or operations involving both source and destination paths.
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum IoErrorMetadata {
+    /// Path related to [`std::io::Error`] failure
+    #[error(r#"failed to perform an IO operation on "{path}""#)]
+    SinglePath {
+        /// The file system path where the I/O error occurred
+        path: PathBuf,
+    },
+    /// Source and destination paths related to [`std::io::Error`] failure.
+    ///
+    /// This can be provided for APIs like [`std::fs::copy`] which have both a
+    /// `from` and `to` path.
+    #[error(r#"failed to perform an IO operation from "{from_path}" to "{to_path}""#)]
+    SrcDestPaths {
+        /// The source path in a copy or move operation that failed
+        from_path: PathBuf,
+        /// The destination path in a copy or move operation that failed
+        to_path: PathBuf,
+    },
+}
+
+/// Dedicated error type for I/O operations with extra metadata context
+///
+/// This error type wraps [`std::io::Error`] with additional [`IoErrorMetadata`]
+/// to provide better context about which file system paths or operations failed.
+/// It can be used directly by functions that only perform I/O operations, and
+/// automatically converts to [`ConfigError`] when needed.
+#[derive(Debug, Error)]
+#[error("{metadata}")]
+pub struct IoError {
+    /// Extra metadata related to the error
+    pub metadata: IoErrorMetadata,
+    /// [`std::io::Error`] that caused the operation to fail
+    #[source]
+    pub source: std::io::Error,
+}
+
 /// Errors that could result from configuring a build via [`wdk_build`][crate]
 #[derive(Debug, Error)]
 pub enum ConfigError {
     /// Error returned when an [`std::io`] operation fails
     #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    IoError(#[from] IoError),
 
     /// Error returned when an expected directory does not exist
     #[error("cannot find directory: {directory}")]
@@ -248,7 +291,7 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
 
     /// Error returned when the UCX header file is not found
     #[error("failed to find {0} header file.")]
-    HeaderNotFound(String, #[source] std::io::Error),
+    HeaderNotFound(String, #[source] IoError),
 }
 
 /// Subset of APIs in the Windows Driver Kit
@@ -427,7 +470,13 @@ impl Config {
         }
         include_paths.push(
             crt_include_path
-                .canonicalize()?
+                .canonicalize()
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: crt_include_path.clone(),
+                    },
+                    source,
+                })?
                 .strip_extended_length_path_prefix()?,
         );
 
@@ -442,7 +491,13 @@ impl Config {
         }
         include_paths.push(
             km_or_um_include_path
-                .canonicalize()?
+                .canonicalize()
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: km_or_um_include_path.clone(),
+                    },
+                    source,
+                })?
                 .strip_extended_length_path_prefix()?,
         );
 
@@ -454,7 +509,13 @@ impl Config {
         }
         include_paths.push(
             kit_shared_include_path
-                .canonicalize()?
+                .canonicalize()
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: kit_shared_include_path.clone(),
+                    },
+                    source,
+                })?
                 .strip_extended_length_path_prefix()?,
         );
 
@@ -473,7 +534,13 @@ impl Config {
                 }
                 include_paths.push(
                     kmdf_include_path
-                        .canonicalize()?
+                        .canonicalize()
+                        .map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: kmdf_include_path.clone(),
+                            },
+                            source,
+                        })?
                         .strip_extended_length_path_prefix()?,
                 );
 
@@ -488,7 +555,13 @@ impl Config {
                 }
                 include_paths.push(
                     ufx_include_path
-                        .canonicalize()?
+                        .canonicalize()
+                        .map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: ufx_include_path.clone(),
+                            },
+                            source,
+                        })?
                         .strip_extended_length_path_prefix()?,
                 );
             }
@@ -504,7 +577,13 @@ impl Config {
                 }
                 include_paths.push(
                     umdf_include_path
-                        .canonicalize()?
+                        .canonicalize()
+                        .map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: umdf_include_path.clone(),
+                            },
+                            source,
+                        })?
                         .strip_extended_length_path_prefix()?,
                 );
             }
@@ -532,7 +611,13 @@ impl Config {
         let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
         library_paths.push(
             windows_sdk_library_path
-                .canonicalize()?
+                .canonicalize()
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: windows_sdk_library_path.clone(),
+                    },
+                    source,
+                })?
                 .strip_extended_length_path_prefix()?,
         );
 
@@ -554,7 +639,13 @@ impl Config {
                 }
                 library_paths.push(
                     kmdf_library_path
-                        .canonicalize()?
+                        .canonicalize()
+                        .map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: kmdf_library_path.clone(),
+                            },
+                            source,
+                        })?
                         .strip_extended_length_path_prefix()?,
                 );
             }
@@ -572,7 +663,13 @@ impl Config {
                 }
                 library_paths.push(
                     umdf_library_path
-                        .canonicalize()?
+                        .canonicalize()
+                        .map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: umdf_library_path.clone(),
+                            },
+                            source,
+                        })?
                         .strip_extended_length_path_prefix()?,
                 );
             }
@@ -1183,8 +1280,7 @@ impl Config {
     fn ucx_header(&self) -> Result<String, ConfigError> {
         let sdk_version = utils::detect_windows_sdk_version(&self.wdk_content_root)?;
         let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
-        let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)
-            .map_err(|e| ConfigError::HeaderNotFound("ucxclass.h".into(), e))?;
+        let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)?;
         let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
         Ok(path)
     }

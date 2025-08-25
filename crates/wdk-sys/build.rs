@@ -30,6 +30,8 @@ use wdk_build::{
     Config,
     ConfigError,
     DriverConfig,
+    IoError,
+    IoErrorMetadata,
     KmdfConfig,
     UmdfConfig,
 };
@@ -220,10 +222,17 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         .header_contents("constants-input.h", &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
-    Ok(bindgen_builder
+    bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("constants.rs"))?)
+        .write_to_file(out_path.join("constants.rs"))
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: out_path.join("constants.rs"),
+            },
+            source,
+        })?;
+    Ok(())
 }
 
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -255,7 +264,13 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("types.rs"))?)
+        .write_to_file(out_path.join("types.rs"))
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: out_path.join("types.rs"),
+            },
+            source,
+        })?)
 }
 
 fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -276,7 +291,13 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join(format!("{outfile_name}.rs")))?)
+        .write_to_file(out_path.join(format!("{outfile_name}.rs")))
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: out_path.join(format!("{outfile_name}.rs")),
+            },
+            source,
+        })?)
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -297,7 +318,13 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         Ok(bindgen_builder
             .generate()
             .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("wdf.rs"))?)
+            .write_to_file(out_path.join("wdf.rs"))
+            .map_err(|source| IoError {
+                metadata: IoErrorMetadata::SinglePath {
+                    path: out_path.join("wdf.rs"),
+                },
+                source,
+            })?)
     } else {
         info!(
             "Skipping wdf.rs generation since driver_config is {:#?}",
@@ -333,7 +360,13 @@ fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("gpio.rs"))?)
+                .write_to_file(out_path.join("gpio.rs"))
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: out_path.join("gpio.rs"),
+                    },
+                    source,
+                })?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when gpio feature is not enabled
 
@@ -369,7 +402,13 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("hid.rs"))?)
+                .write_to_file(out_path.join("hid.rs"))
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: out_path.join("hid.rs"),
+                    },
+                    source,
+                })?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when hid feature is not enabled
 
@@ -408,7 +447,13 @@ fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), Confi
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("parallel_ports.rs"))?)
+                .write_to_file(out_path.join("parallel_ports.rs"))
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: out_path.join("parallel_ports.rs"),
+                    },
+                    source,
+                })?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when parallel-ports feature is not enabled
 
@@ -446,7 +491,13 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("spb.rs"))?)
+                .write_to_file(out_path.join("spb.rs"))
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: out_path.join("spb.rs"),
+                    },
+                    source,
+                })?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when spb feature is not enabled
 
@@ -485,7 +536,13 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("storage.rs"))?)
+                .write_to_file(out_path.join("storage.rs"))
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: out_path.join("storage.rs"),
+                    },
+                    source,
+                })?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when storage feature is not enabled
 
@@ -521,7 +578,13 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("usb.rs"))?)
+                .write_to_file(out_path.join("usb.rs"))
+                .map_err(|source| IoError {
+                    metadata: IoErrorMetadata::SinglePath {
+                        path: out_path.join("usb.rs"),
+                    },
+                    source,
+                })?)
         } else {
             let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
 
@@ -682,7 +745,13 @@ fn main() -> anyhow::Result<()> {
                                 // (i.e. incremental rebuild), is truncated)
                                 let wdf_c_file_path = out_path.join("wdf.c");
                                 {
-                                    let mut wdf_c_file = File::create(&wdf_c_file_path)?;
+                                    let mut wdf_c_file = File::create(&wdf_c_file_path)
+                                        .map_err(|source| IoError {
+                                            metadata: IoErrorMetadata::SinglePath {
+                                                path: wdf_c_file_path.clone(),
+                                            },
+                                            source,
+                                        })?;
                                     wdf_c_file.write_all(
                                         config
                                             .bindgen_header_contents([
@@ -694,11 +763,23 @@ fn main() -> anyhow::Result<()> {
                                                 ApiSubset::Spb,
                                             ])?
                                             .as_bytes(),
-                                    )?;
+                                    )
+                                    .map_err(|source| IoError {
+                                        metadata: IoErrorMetadata::SinglePath {
+                                            path: wdf_c_file_path.clone(),
+                                        },
+                                        source,
+                                    })?;
 
                                     // Explicitly sync_all to surface any IO errors (File::drop
                                     // silently ignores close errors)
-                                    wdf_c_file.sync_all()?;
+                                    wdf_c_file.sync_all()
+                                        .map_err(|source| IoError {
+                                            metadata: IoErrorMetadata::SinglePath {
+                                                path: wdf_c_file_path.clone(),
+                                            },
+                                            source,
+                                        })?;
                                 }
 
                                 let mut cc_builder = cc::Build::new();

@@ -26,7 +26,7 @@ use windows::{
     },
 };
 
-use crate::{ConfigError, CpuArchitecture};
+use crate::{ConfigError, CpuArchitecture, IoError, IoErrorMetadata};
 
 /// Errors that may occur when stripping the extended path prefix from a path
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -201,7 +201,13 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
 /// Panics if the path provided is not valid Unicode.
 pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
     Ok(path_to_search
-        .read_dir()?
+        .read_dir()
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: path_to_search.to_path_buf(),
+            },
+            source,
+        })?
         .filter_map(std::result::Result::ok)
         .map(|valid_directory_entry| valid_directory_entry.path())
         .filter(|path| {
@@ -432,20 +438,31 @@ pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, Con
 ///   cannot be read
 pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
     directory_path: P,
-) -> Result<TwoPartVersion, io::Error> {
-    std::fs::read_dir(directory_path.as_ref())?
+) -> Result<TwoPartVersion, IoError> {
+    std::fs::read_dir(directory_path.as_ref())
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: directory_path.as_ref().to_path_buf(),
+            },
+            source,
+        })?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
         .max()
         .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "Maximum version in {} not found",
-                    directory_path.as_ref().display()
+            IoError {
+                metadata: IoErrorMetadata::SinglePath {
+                    path: directory_path.as_ref().to_path_buf(),
+                },
+                source: io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "Maximum version in {} not found",
+                        directory_path.as_ref().display()
+                    ),
                 ),
-            )
+            }
         })
 }
 
