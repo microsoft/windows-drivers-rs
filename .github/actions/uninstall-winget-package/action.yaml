@@ -1,0 +1,77 @@
+name: "Uninstall WinGet Package"
+description: "Uninstall packages using WinGet with flexible query-based matching"
+
+inputs:
+    queries:
+        description: "List of WinGet query strings to match packages for uninstallation. Can be package IDs, names, or any WinGet-supported search terms. Separate multiple queries with newlines or pipe (|) characters."
+        required: true
+
+runs:
+    using: "composite"
+    steps:
+        - name: Uninstall WinGet Package(s)
+          shell: pwsh
+          run: |
+              Set-StrictMode -Version Latest
+              $ErrorActionPreference = 'Stop'
+
+              # Import WinGet PowerShell module
+              Import-Module Microsoft.WinGet.Client -Force
+
+              $queriesInput = '${{ inputs.queries }}'
+
+              # Parse queries - support both newline and pipe separation
+              $queryList = @($queriesInput -split '[|\n]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+              Write-Host "Processing $(@($queryList).Count) query string(s):"
+              $queryList | ForEach-Object { Write-Host "  - '$_'" }
+
+              # Collect all packages from all queries using pipeline operations
+              $allPackages = $queryList | ForEach-Object {
+                  $query = $_
+                  Write-Host "Searching with query: '$query'..."
+                  
+                  $packages = @(Get-WinGetPackage -Query $query)
+                  if (@($packages).Count -gt 0) {
+                      Write-Host "Found $(@($packages).Count) package(s) for query '$query'"
+                      $packages
+                  } else {
+                      Write-Host "No packages found for query '$query'"
+                  }
+              }
+              
+              $allPackagesArray = @($allPackages)
+              if ($allPackagesArray.Count -gt 0) {
+                  # Deduplicate packages by ID
+                  $uniquePackages = $allPackagesArray | Sort-Object Id -Unique
+                  Write-Host ""
+                  Write-Host "Total packages found (after deduplication): $(@($uniquePackages).Count)"
+                  
+                  Write-Host "Packages to uninstall:"
+                  $uniquePackages | ForEach-Object { Write-Host "  - $($_.Name) (ID: $($_.Id), Version: $($_.InstalledVersion))" }
+                  
+                  # Uninstall each package - exit immediately on any failure
+                  $successCount = 0
+                  
+                  foreach ($package in $uniquePackages) {
+                      Write-Host ""
+                      Write-Host "Uninstalling: $($package.Name) (ID: $($package.Id))..."
+                      
+                      $uninstallResult = Uninstall-WinGetPackage $package.Id -MatchOption Equals -Mode Silent -Force
+                  
+                      # Check for uninstall errors in the result object
+                      if ($uninstallResult.Status -ne 'Ok') {
+                          throw "Package uninstall failed with status: $($uninstallResult.Status). InstallerErrorCode: $($uninstallResult.InstallerErrorCode)"
+                      }
+                      Write-Host "✅ Successfully uninstalled $($package.Name) (ID: $($package.Id))"
+                      $successCount++
+                  }
+
+                  # Success summary
+                  Write-Host ""
+                  Write-Host "✅ Successfully uninstalled all $successCount package(s)"
+              } else {
+                  Write-Host ""
+                  Write-Host "No packages found matching any of the query strings"
+                  Write-Host "This is not an error - packages may already be uninstalled or never installed"
+              }
