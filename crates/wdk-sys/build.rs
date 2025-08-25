@@ -222,17 +222,17 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         .header_contents("constants-input.h", &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
-    bindgen_builder
+    let output_file_path = out_path.join("constants.rs");
+    Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("constants.rs"))
+        .write_to_file(&output_file_path)
         .map_err(|source| IoError {
             metadata: IoErrorMetadata::SinglePath {
-                path: out_path.join("constants.rs"),
+                path: output_file_path,
             },
             source,
-        })?;
-    Ok(())
+        })?)
 }
 
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -261,13 +261,14 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .header_contents("types-input.h", &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
+    let output_file_path = out_path.join("types.rs");
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("types.rs"))
+        .write_to_file(&output_file_path)
         .map_err(|source| IoError {
             metadata: IoErrorMetadata::SinglePath {
-                path: out_path.join("types.rs"),
+                path: output_file_path,
             },
             source,
         })?)
@@ -288,13 +289,14 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .header_contents(&format!("{outfile_name}-input.h"), &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
+    let output_file_path = out_path.join(format!("{outfile_name}.rs"));
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join(format!("{outfile_name}.rs")))
+        .write_to_file(&output_file_path)
         .map_err(|source| IoError {
             metadata: IoErrorMetadata::SinglePath {
-                path: out_path.join(format!("{outfile_name}.rs")),
+                path: output_file_path,
             },
             source,
         })?)
@@ -315,13 +317,14 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             .allowlist_file("(?i).*wdf.*");
         trace!(bindgen_builder = ?bindgen_builder);
 
+        let output_file_path = out_path.join("wdf.rs");
         Ok(bindgen_builder
             .generate()
             .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("wdf.rs"))
+            .write_to_file(&output_file_path)
             .map_err(|source| IoError {
                 metadata: IoErrorMetadata::SinglePath {
-                    path: out_path.join("wdf.rs"),
+                    path: output_file_path,
                 },
                 source,
             })?)
@@ -357,13 +360,14 @@ fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             };
             trace!(bindgen_builder = ?bindgen_builder);
 
+            let output_file_path = out_path.join("gpio.rs");
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("gpio.rs"))
+                .write_to_file(&output_file_path)
                 .map_err(|source| IoError {
                     metadata: IoErrorMetadata::SinglePath {
-                        path: out_path.join("gpio.rs"),
+                        path: output_file_path,
                     },
                     source,
                 })?)
@@ -399,13 +403,14 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             };
             trace!(bindgen_builder = ?bindgen_builder);
 
+            let output_file_path = out_path.join("hid.rs");
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("hid.rs"))
+                .write_to_file(&output_file_path)
                 .map_err(|source| IoError {
                     metadata: IoErrorMetadata::SinglePath {
-                        path: out_path.join("hid.rs"),
+                        path: output_file_path,
                     },
                     source,
                 })?)
@@ -444,13 +449,14 @@ fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), Confi
             };
             trace!(bindgen_builder = ?bindgen_builder);
 
+            let output_file_path = out_path.join("parallel_ports.rs");
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("parallel_ports.rs"))
+                .write_to_file(&output_file_path)
                 .map_err(|source| IoError {
                     metadata: IoErrorMetadata::SinglePath {
-                        path: out_path.join("parallel_ports.rs"),
+                        path: output_file_path,
                     },
                     source,
                 })?)
@@ -488,13 +494,14 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             };
             trace!(bindgen_builder = ?bindgen_builder);
 
+            let output_file_path = out_path.join("spb.rs");
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("spb.rs"))
+                .write_to_file(&output_file_path)
                 .map_err(|source| IoError {
                     metadata: IoErrorMetadata::SinglePath {
-                        path: out_path.join("spb.rs"),
+                        path: output_file_path,
                     },
                     source,
                 })?)
@@ -533,13 +540,14 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
             };
             trace!(bindgen_builder = ?bindgen_builder);
 
+            let output_file_path = out_path.join("storage.rs");
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("storage.rs"))
+                .write_to_file(&output_file_path)
                 .map_err(|source| IoError {
                     metadata: IoErrorMetadata::SinglePath {
-                        path: out_path.join("storage.rs"),
+                        path: output_file_path,
                     },
                     source,
                 })?)
@@ -575,13 +583,14 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             };
             trace!(bindgen_builder = ?bindgen_builder);
 
+            let output_file_path = out_path.join("usb.rs");
             Ok(bindgen_builder
                 .generate()
                 .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("usb.rs"))
+                .write_to_file(&output_file_path)
                 .map_err(|source| IoError {
                     metadata: IoErrorMetadata::SinglePath {
-                        path: out_path.join("usb.rs"),
+                        path: output_file_path,
                     },
                     source,
                 })?)
@@ -745,41 +754,43 @@ fn main() -> anyhow::Result<()> {
                                 // (i.e. incremental rebuild), is truncated)
                                 let wdf_c_file_path = out_path.join("wdf.c");
                                 {
-                                    let mut wdf_c_file = File::create(&wdf_c_file_path)
+                                    let mut wdf_c_file =
+                                        File::create(&wdf_c_file_path).map_err(|source| {
+                                            IoError {
+                                                metadata: IoErrorMetadata::SinglePath {
+                                                    path: wdf_c_file_path.clone(),
+                                                },
+                                                source,
+                                            }
+                                        })?;
+                                    wdf_c_file
+                                        .write_all(
+                                            config
+                                                .bindgen_header_contents([
+                                                    ApiSubset::Base,
+                                                    ApiSubset::Wdf,
+                                                    #[cfg(feature = "hid")]
+                                                    ApiSubset::Hid,
+                                                    #[cfg(feature = "spb")]
+                                                    ApiSubset::Spb,
+                                                ])?
+                                                .as_bytes(),
+                                        )
                                         .map_err(|source| IoError {
                                             metadata: IoErrorMetadata::SinglePath {
                                                 path: wdf_c_file_path.clone(),
                                             },
                                             source,
                                         })?;
-                                    wdf_c_file.write_all(
-                                        config
-                                            .bindgen_header_contents([
-                                                ApiSubset::Base,
-                                                ApiSubset::Wdf,
-                                                #[cfg(feature = "hid")]
-                                                ApiSubset::Hid,
-                                                #[cfg(feature = "spb")]
-                                                ApiSubset::Spb,
-                                            ])?
-                                            .as_bytes(),
-                                    )
-                                    .map_err(|source| IoError {
+
+                                    // Explicitly sync_all to surface any IO errors (File::drop
+                                    // silently ignores close errors)
+                                    wdf_c_file.sync_all().map_err(|source| IoError {
                                         metadata: IoErrorMetadata::SinglePath {
                                             path: wdf_c_file_path.clone(),
                                         },
                                         source,
                                     })?;
-
-                                    // Explicitly sync_all to surface any IO errors (File::drop
-                                    // silently ignores close errors)
-                                    wdf_c_file.sync_all()
-                                        .map_err(|source| IoError {
-                                            metadata: IoErrorMetadata::SinglePath {
-                                                path: wdf_c_file_path.clone(),
-                                            },
-                                            source,
-                                        })?;
                                 }
 
                                 let mut cc_builder = cc::Build::new();

@@ -171,9 +171,9 @@ pub enum IoErrorMetadata {
 /// Dedicated error type for I/O operations with extra metadata context
 ///
 /// This error type wraps [`std::io::Error`] with additional [`IoErrorMetadata`]
-/// to provide better context about which file system paths or operations failed.
-/// It can be used directly by functions that only perform I/O operations, and
-/// automatically converts to [`ConfigError`] when needed.
+/// to provide better context about which file system paths or operations
+/// failed. It can be used directly by functions that only perform I/O
+/// operations, and automatically converts to [`ConfigError`] when needed.
 #[derive(Debug, Error)]
 #[error("{metadata}")]
 pub struct IoError {

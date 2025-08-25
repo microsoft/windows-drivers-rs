@@ -450,19 +450,17 @@ pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
         .max()
-        .ok_or_else(|| {
-            IoError {
-                metadata: IoErrorMetadata::SinglePath {
-                    path: directory_path.as_ref().to_path_buf(),
-                },
-                source: io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!(
-                        "Maximum version in {} not found",
-                        directory_path.as_ref().display()
-                    ),
+        .ok_or_else(|| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: directory_path.as_ref().to_path_buf(),
+            },
+            source: io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Maximum version in {} not found",
+                    directory_path.as_ref().display()
                 ),
-            }
+            ),
         })
 }
 
