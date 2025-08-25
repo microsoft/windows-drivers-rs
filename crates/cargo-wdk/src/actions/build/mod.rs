@@ -72,8 +72,8 @@ impl<'a> BuildAction<'a> {
     ///   `BuildAction` on success, or an `anyhow::Error`.
     ///
     /// # Errors
-    /// Returns an error if the provided working directory path cannot be
-    /// resolved to an absolute path using `std::path::absolute`.
+    /// * [`anyhow::Error`] -  If `params.working_dir` is not a syntactically
+    ///   valid path, e.g. it is empty
     pub fn new(
         params: &BuildActionParams<'a>,
         wdk_build: &'a WdkBuild,
