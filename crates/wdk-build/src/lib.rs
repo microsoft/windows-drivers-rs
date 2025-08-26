@@ -23,7 +23,7 @@ pub mod utils;
 
 mod bindgen;
 
-use std::{env, path::PathBuf, sync::LazyLock};
+use std::{env, path::{Path, PathBuf}, sync::LazyLock};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
@@ -463,61 +463,16 @@ impl Config {
         let windows_sdk_include_path = include_directory.join(sdk_version);
 
         let crt_include_path = windows_sdk_include_path.join("km/crt");
-        if !crt_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: crt_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            crt_include_path
-                .canonicalize()
-                .map_err(|source| IoError {
-                    metadata: IoErrorMetadata::SinglePath {
-                        path: crt_include_path.clone(),
-                    },
-                    source,
-                })?
-                .strip_extended_length_path_prefix()?,
-        );
+        Self::validate_and_add_include_path(&mut include_paths, &crt_include_path)?;
 
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
         });
-        if !km_or_um_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: km_or_um_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            km_or_um_include_path
-                .canonicalize()
-                .map_err(|source| IoError {
-                    metadata: IoErrorMetadata::SinglePath {
-                        path: km_or_um_include_path.clone(),
-                    },
-                    source,
-                })?
-                .strip_extended_length_path_prefix()?,
-        );
+        Self::validate_and_add_include_path(&mut include_paths, &km_or_um_include_path)?;
 
         let kit_shared_include_path = windows_sdk_include_path.join("shared");
-        if !kit_shared_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: kit_shared_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(
-            kit_shared_include_path
-                .canonicalize()
-                .map_err(|source| IoError {
-                    metadata: IoErrorMetadata::SinglePath {
-                        path: kit_shared_include_path.clone(),
-                    },
-                    source,
-                })?
-                .strip_extended_length_path_prefix()?,
-        );
+        Self::validate_and_add_include_path(&mut include_paths, &kit_shared_include_path)?;
 
         // Add other driver type-specific include paths
         match &self.driver_config {
@@ -527,69 +482,47 @@ impl Config {
                     "wdf/kmdf/{}.{}",
                     kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ));
-                if !kmdf_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: kmdf_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(
-                    kmdf_include_path
-                        .canonicalize()
-                        .map_err(|source| IoError {
-                            metadata: IoErrorMetadata::SinglePath {
-                                path: kmdf_include_path.clone(),
-                            },
-                            source,
-                        })?
-                        .strip_extended_length_path_prefix()?,
-                );
+                Self::validate_and_add_include_path(&mut include_paths, &kmdf_include_path)?;
 
                 // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
                 // normally does not automatically include this search path, but it is required
                 // here so that the headers can be processed successfully.
                 let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
-                if !ufx_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: ufx_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(
-                    ufx_include_path
-                        .canonicalize()
-                        .map_err(|source| IoError {
-                            metadata: IoErrorMetadata::SinglePath {
-                                path: ufx_include_path.clone(),
-                            },
-                            source,
-                        })?
-                        .strip_extended_length_path_prefix()?,
-                );
+                Self::validate_and_add_include_path(&mut include_paths, &ufx_include_path)?;
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_include_path = include_directory.join(format!(
                     "wdf/umdf/{}.{}",
                     umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
                 ));
-                if !umdf_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: umdf_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(
-                    umdf_include_path
-                        .canonicalize()
-                        .map_err(|source| IoError {
-                            metadata: IoErrorMetadata::SinglePath {
-                                path: umdf_include_path.clone(),
-                            },
-                            source,
-                        })?
-                        .strip_extended_length_path_prefix()?,
-                );
+                Self::validate_and_add_include_path(&mut include_paths, &umdf_include_path)?;
             }
         }
 
         Ok(include_paths.into_iter())
+    }
+
+    /// Validate that a path is a valid include path and add it to the include paths collection
+    fn validate_and_add_include_path(include_paths: &mut Vec<PathBuf>, path: &Path) -> Result<(), ConfigError> {
+        // Include paths should be directories
+        if !path.is_dir() {
+            return Err(ConfigError::DirectoryNotFound {
+                directory: path.to_string_lossy().into(),
+            });
+        }
+
+        let canonicalized_path = path
+            .canonicalize()
+            .map_err(|source| IoError {
+                metadata: IoErrorMetadata::SinglePath {
+                    path: path.to_path_buf(),
+                },
+                source,
+            })?
+            .strip_extended_length_path_prefix()?;
+
+        include_paths.push(canonicalized_path);
+        Ok(())
     }
 
     /// Return library include paths required to build and link based off of
@@ -609,17 +542,7 @@ impl Config {
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
         let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
-        library_paths.push(
-            windows_sdk_library_path
-                .canonicalize()
-                .map_err(|source| IoError {
-                    metadata: IoErrorMetadata::SinglePath {
-                        path: windows_sdk_library_path.clone(),
-                    },
-                    source,
-                })?
-                .strip_extended_length_path_prefix()?,
-        );
+        Self::validate_and_add_include_path(&mut library_paths, &windows_sdk_library_path)?;
 
         // Add other driver type-specific library paths
         let library_directory = self.wdk_content_root.join("Lib");
@@ -632,22 +555,7 @@ impl Config {
                     kmdf_config.kmdf_version_major,
                     kmdf_config.target_kmdf_version_minor
                 ));
-                if !kmdf_library_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: kmdf_library_path.to_string_lossy().into(),
-                    });
-                }
-                library_paths.push(
-                    kmdf_library_path
-                        .canonicalize()
-                        .map_err(|source| IoError {
-                            metadata: IoErrorMetadata::SinglePath {
-                                path: kmdf_library_path.clone(),
-                            },
-                            source,
-                        })?
-                        .strip_extended_length_path_prefix()?,
-                );
+                Self::validate_and_add_include_path(&mut library_paths, &kmdf_library_path)?;
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_library_path = library_directory.join(format!(
@@ -656,22 +564,7 @@ impl Config {
                     umdf_config.umdf_version_major,
                     umdf_config.target_umdf_version_minor,
                 ));
-                if !umdf_library_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: umdf_library_path.to_string_lossy().into(),
-                    });
-                }
-                library_paths.push(
-                    umdf_library_path
-                        .canonicalize()
-                        .map_err(|source| IoError {
-                            metadata: IoErrorMetadata::SinglePath {
-                                path: umdf_library_path.clone(),
-                            },
-                            source,
-                        })?
-                        .strip_extended_length_path_prefix()?,
-                );
+                Self::validate_and_add_include_path(&mut library_paths, &umdf_library_path)?;
             }
         }
 

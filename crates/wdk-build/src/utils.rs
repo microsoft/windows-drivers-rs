@@ -846,7 +846,7 @@ mod tests {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             let result = find_max_version_in_directory(temp_dir.path());
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(result.unwrap_err().source.kind(), std::io::ErrorKind::NotFound);
         }
 
         #[test]
@@ -885,7 +885,7 @@ mod tests {
             temp_dir.child("folder1").create_dir_all().unwrap();
             let result = find_max_version_in_directory(temp_dir.path());
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(result.unwrap_err().source.kind(), std::io::ErrorKind::NotFound);
 
             // Multiple invalid directories
             let temp_dir = assert_fs::TempDir::new().unwrap();
@@ -897,7 +897,7 @@ mod tests {
             temp_dir.child(".5").create_dir_all().unwrap(); // Missing major
             let result = find_max_version_in_directory(temp_dir.path());
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(result.unwrap_err().source.kind(), std::io::ErrorKind::NotFound);
         }
 
         #[test]
