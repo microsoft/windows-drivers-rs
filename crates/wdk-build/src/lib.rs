@@ -1719,4 +1719,171 @@ mod tests {
             assert_eq!(result, None);
         }
     }
+
+    mod validate_and_add_include_path {
+        use assert_fs::prelude::*;
+        use super::*;
+
+        #[test]
+        fn valid_directory_is_added_successfully() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+            assert!(include_paths[0].exists());
+            assert!(include_paths[0].is_dir());
+            
+            // Verify the exact canonicalized path was added
+            let expected_path = temp_dir.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+
+        #[test]
+        fn non_existent_path_returns_directory_not_found_error() {
+            let non_existent_path = std::path::Path::new("/this/path/does/not/exist");
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_include_path(&mut include_paths, non_existent_path);
+
+            assert!(result.is_err());
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
+                result.unwrap_err(),
+                ConfigError::DirectoryNotFound { directory } if directory == non_existent_path.to_string_lossy()
+            );
+            assert_eq!(include_paths.len(), 0);
+        }
+
+        #[test]
+        fn file_path_returns_directory_not_found_error() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let file = temp_dir.child("test_file.txt");
+            file.write_str("test content").unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_include_path(&mut include_paths, file.path());
+
+            assert!(result.is_err());
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
+                result.unwrap_err(),
+                ConfigError::DirectoryNotFound { directory } if directory == file.path().to_string_lossy()
+            );
+            assert_eq!(include_paths.len(), 0);
+        }
+
+        #[test]
+        fn path_is_canonicalized_before_adding() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let sub_dir = temp_dir.child("subdir");
+            sub_dir.create_dir_all().unwrap();
+            
+            // Create a path with ".." to test canonicalization
+            let complex_path = sub_dir.path().join("..").join("subdir");
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_include_path(&mut include_paths, &complex_path);
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+            
+            // The canonicalized path should not contain ".."
+            assert!(!include_paths[0].to_string_lossy().contains(".."));
+            assert!(include_paths[0].is_absolute());
+            
+            // Verify the path resolves to the actual subdir path
+            let expected_path = sub_dir.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+
+        #[test]
+        fn multiple_paths_are_added_correctly() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let dir1 = temp_dir.child("dir1");
+            let dir2 = temp_dir.child("dir2");
+            dir1.create_dir_all().unwrap();
+            dir2.create_dir_all().unwrap();
+            
+            let mut include_paths = Vec::new();
+
+            let result1 = Config::validate_and_add_include_path(&mut include_paths, dir1.path());
+            let result2 = Config::validate_and_add_include_path(&mut include_paths, dir2.path());
+
+            assert!(result1.is_ok());
+            assert!(result2.is_ok());
+            assert_eq!(include_paths.len(), 2);
+            
+            // Both paths should be present and different
+            assert_ne!(include_paths[0], include_paths[1]);
+            assert!(include_paths[0].exists());
+            assert!(include_paths[1].exists());
+            
+            // Verify both paths match their expected canonicalized values
+            let expected_path1 = dir1.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            let expected_path2 = dir2.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            assert_eq!(include_paths[0], expected_path1);
+            assert_eq!(include_paths[1], expected_path2);
+        }
+
+        #[test]
+        fn nested_directory_is_handled_correctly() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let nested_dir = temp_dir.child("level1").child("level2").child("level3");
+            nested_dir.create_dir_all().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_include_path(&mut include_paths, nested_dir.path());
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+            assert!(include_paths[0].exists());
+            assert!(include_paths[0].is_dir());
+            
+            // Verify the nested path matches the expected canonicalized value
+            let expected_path = nested_dir.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+
+        #[test]
+        fn same_directory_can_be_added_multiple_times() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result1 = Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+            let result2 = Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+
+            assert!(result1.is_ok());
+            assert!(result2.is_ok());
+            assert_eq!(include_paths.len(), 2);
+            assert_eq!(include_paths[0], include_paths[1]);
+            
+            // Verify both entries match the expected canonicalized path
+            let expected_path = temp_dir.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            assert_eq!(include_paths[0], expected_path);
+            assert_eq!(include_paths[1], expected_path);
+        }
+
+        #[cfg(windows)]
+        #[test]
+        fn windows_extended_length_paths_are_stripped() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+            
+            // The path should not start with \\?\ on Windows after canonicalization
+            let path_str = include_paths[0].to_string_lossy();
+            assert!(!path_str.starts_with(r"\\?\"));
+            
+            // Verify the path matches expected canonicalized value
+            let expected_path = temp_dir.path().canonicalize().unwrap().strip_extended_length_path_prefix().unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+    }
 }
