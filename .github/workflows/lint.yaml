@@ -90,7 +90,10 @@ jobs:
           targets: ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Clippy
-        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features --verbose
+        # Due to passing `--target`, `RUSTFLAGS` is not passed to proc-macros or build scripts: https://github.com/rust-lang/cargo/issues/14046
+        # To work around this, `-D warnings` is explicitly passed to clippy-driver.
+        # Possible future solution: https://github.com/rust-lang/cargo/issues/14802
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features -- -D warnings
 
   unused_deps:
     name: Detect Unused Cargo Dependencies
