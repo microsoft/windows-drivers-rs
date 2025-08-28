@@ -101,3 +101,55 @@ impl<'a> BuildTask<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use wdk_build::CpuArchitecture;
+
+    use super::*;
+    use crate::actions::{Profile, TargetArch};
+
+    #[test]
+    fn new() {
+        let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
+        let package_name = "test_package";
+        let profile = Profile::Dev;
+        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let verbosity_level = clap_verbosity_flag::Verbosity::default();
+        let command_exec = CommandExec::new();
+
+        let build_task = BuildTask::new(
+            package_name,
+            &working_dir,
+            Some(&profile),
+            target_arch,
+            verbosity_level,
+            &command_exec,
+        );
+
+        assert_eq!(build_task.package_name, package_name);
+        assert_eq!(build_task.profile, Some(&profile));
+        assert_eq!(build_task.target_arch, target_arch);
+        assert_eq!(build_task.manifest_path, working_dir.join("Cargo.toml"));
+    }
+
+    #[test]
+    #[should_panic(expected = "working_dir should be absolute")]
+    fn new_panics_when_working_dir_is_not_absolute() {
+        let working_dir = PathBuf::from("relative/path/to/working/dir");
+        let package_name = "test_package";
+        let profile = Some(Profile::Dev);
+        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let verbosity_level = clap_verbosity_flag::Verbosity::default();
+        let command_exec = CommandExec::new();
+
+        BuildTask::new(
+            package_name,
+            &working_dir,
+            profile.as_ref(),
+            target_arch,
+            verbosity_level,
+            &command_exec,
+        );
+    }
+}

@@ -385,7 +385,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Extended (verbatim) paths are currently not supported"
+            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not currently supported"
         );
     }
 }

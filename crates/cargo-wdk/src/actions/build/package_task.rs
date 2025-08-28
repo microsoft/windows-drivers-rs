@@ -508,3 +508,142 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 }
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use wdk_build::{CpuArchitecture, KmdfConfig};
+
+    use super::*;
+
+    #[test]
+    fn new() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("D:/absolute/path/to/working/dir");
+        let target_dir = PathBuf::from("C:/absolute/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: false,
+        };
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        // Mock FS: expect that the destination package folder does not exist and
+        // that create_dir will be called to create it.
+        let mut fs = Fs::default();
+        let dest_root = target_dir.join(format!("{package_name}_package"));
+        let dr1 = dest_root.clone();
+        fs.expect_exists()
+            .withf(move |p| p == dr1)
+            .return_const(false);
+        let dr2 = dest_root.clone();
+        fs.expect_create_dir()
+            .withf(move |p| p == dr2)
+            .returning(|_| Ok(()));
+
+        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs)
+            .expect("PackageTask::new should succeed with absolute paths");
+
+        assert_eq!(task.package_name, package_name.replace('-', "_"));
+        assert!(!task.verify_signature);
+        assert!(!task.sample_class);
+
+        assert_eq!(task.src_inx_file_path, working_dir.join("test_package.inx"));
+        assert_eq!(
+            task.src_driver_binary_file_path,
+            target_dir.join("test_package.dll")
+        );
+        assert_eq!(
+            task.src_renamed_driver_binary_file_path,
+            target_dir.join("test_package.sys")
+        );
+        assert_eq!(task.src_pdb_file_path, target_dir.join("test_package.pdb"));
+        assert_eq!(
+            task.src_map_file_path,
+            target_dir.join("deps").join("test_package.map")
+        );
+        assert_eq!(
+            task.src_cert_file_path,
+            target_dir.join("WDRLocalTestCert.cer")
+        );
+
+        assert_eq!(task.dest_root_package_folder, dest_root);
+        assert_eq!(task.dest_inf_file_path, dest_root.join("test_package.inf"));
+        assert_eq!(
+            task.dest_driver_binary_path,
+            dest_root.join("test_package.sys")
+        );
+        assert_eq!(task.dest_pdb_file_path, dest_root.join("test_package.pdb"));
+        assert_eq!(task.dest_map_file_path, dest_root.join("test_package.map"));
+        assert_eq!(
+            task.dest_cert_file_path,
+            dest_root.join("WDRLocalTestCert.cer")
+        );
+        assert_eq!(task.dest_cat_file_path, dest_root.join("test_package.cat"));
+
+        // arch, os_mapping, driver_model
+        assert_eq!(*task.arch, arch);
+        assert_eq!(task.os_mapping, "10_x64");
+        // avoid requiring PartialEq on DriverConfig: verify shape
+        assert!(matches!(task.driver_model, DriverConfig::Kmdf(_)));
+    }
+
+    #[test]
+    #[should_panic(expected = "params.target_dir must be absolute")]
+    fn new_panics_on_relative_target_dir() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
+        let target_dir = PathBuf::from("../relative/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: false,
+        };
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs)
+            .expect("PackageTask::new should panic with relative target_dir");
+    }
+
+    #[test]
+    #[should_panic(expected = "params.working_dir must be absolute")]
+    fn new_panics_on_relative_working_dir() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("relative/path/to/working/dir");
+        let target_dir = PathBuf::from("E:/absolute/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: false,
+        };
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs)
+            .expect("PackageTask::new should panic with relative working_dir");
+    }
+}
