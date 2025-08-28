@@ -39,8 +39,11 @@ impl<'a> BuildTask<'a> {
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
     ///
-    /// # Returns:
+    /// # Returns
     /// * `Self` - A new instance of `BuildTask`.
+    ///
+    /// # Panics
+    /// * If `working_dir` is not absolute
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
@@ -49,7 +52,7 @@ impl<'a> BuildTask<'a> {
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
     ) -> Self {
-        debug_assert!(working_dir.is_absolute(), "working_dir should be absolute");
+        assert!(working_dir.is_absolute(), "working_dir should be absolute");
         Self {
             package_name,
             profile,

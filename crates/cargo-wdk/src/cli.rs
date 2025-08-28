@@ -144,7 +144,8 @@ impl Cli {
                         .starts_with(EXTENDED_PATH_PREFIX)
                     {
                         return Err(anyhow::anyhow!(
-                            "Extended (verbatim) paths are currently not supported"
+                            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not \
+                             currently supported"
                         ));
                     }
                 }

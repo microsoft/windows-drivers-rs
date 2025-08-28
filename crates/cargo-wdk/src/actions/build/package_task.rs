@@ -87,6 +87,10 @@ impl<'a> PackageTask<'a> {
     /// # Errors
     /// * `PackageTaskError::Io` - If there is an IO error while creating the
     ///   final package directory.
+    ///
+    /// # Panics
+    /// * If `params.working_dir` is not absolute
+    /// * If `params.target_dir` is not absolute
     pub fn new(
         params: PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
@@ -94,11 +98,11 @@ impl<'a> PackageTask<'a> {
         fs: &'a Fs,
     ) -> Result<Self, PackageTaskError> {
         debug!("Package task params: {params:?}");
-        debug_assert!(
+        assert!(
             params.working_dir.is_absolute(),
             "params.working_dir must be absolute"
         );
-        debug_assert!(
+        assert!(
             params.target_dir.is_absolute(),
             "params.target_dir must be absolute"
         );
