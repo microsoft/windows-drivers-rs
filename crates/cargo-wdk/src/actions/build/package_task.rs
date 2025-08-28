@@ -100,11 +100,13 @@ impl<'a> PackageTask<'a> {
         debug!("Package task params: {params:?}");
         assert!(
             params.working_dir.is_absolute(),
-            "params.working_dir must be absolute"
+            "Working directory path must be absolute. Input path: {}",
+            params.working_dir.display()
         );
         assert!(
             params.target_dir.is_absolute(),
-            "params.target_dir must be absolute"
+            "Target directory path must be absolute. Input path: {}",
+            params.target_dir.display()
         );
         let package_name = params.package_name.replace('-', "_");
         // src paths
@@ -596,8 +598,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "params.target_dir must be absolute")]
-    fn new_panics_on_relative_target_dir() {
+    #[should_panic(expected = "Target directory path must be absolute. Input path: \
+                               ../relative/path/to/target/dir")]
+    fn new_panics_when_target_dir_is_not_absolute() {
         let package_name = "test_package";
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let target_dir = PathBuf::from("../relative/path/to/target/dir");
@@ -622,8 +625,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "params.working_dir must be absolute")]
-    fn new_panics_on_relative_working_dir() {
+    #[should_panic(expected = "Working directory path must be absolute. Input path: \
+                               relative/path/to/working/dir")]
+    fn new_panics_when_working_dir_is_not_absolute() {
         let package_name = "test_package";
         let working_dir = PathBuf::from("relative/path/to/working/dir");
         let target_dir = PathBuf::from("E:/absolute/path/to/target/dir");

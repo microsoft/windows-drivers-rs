@@ -52,7 +52,11 @@ impl<'a> BuildTask<'a> {
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
     ) -> Self {
-        assert!(working_dir.is_absolute(), "working_dir should be absolute");
+        assert!(
+            working_dir.is_absolute(),
+            "Working directory path must be absolute. Input path: {}",
+            working_dir.display()
+        );
         Self {
             package_name,
             profile,
@@ -134,7 +138,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "working_dir should be absolute")]
+    #[should_panic(expected = "Working directory path must be absolute. Input path: \
+                               relative/path/to/working/dir")]
     fn new_panics_when_working_dir_is_not_absolute() {
         let working_dir = PathBuf::from("relative/path/to/working/dir");
         let package_name = "test_package";
