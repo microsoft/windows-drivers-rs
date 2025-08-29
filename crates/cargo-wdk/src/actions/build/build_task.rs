@@ -114,7 +114,7 @@ mod tests {
     use crate::actions::{Profile, TargetArch};
 
     #[test]
-    fn new() {
+    fn new_succeeds_for_valid_args() {
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let package_name = "test_package";
         let profile = Profile::Dev;

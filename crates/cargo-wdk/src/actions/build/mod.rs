@@ -419,7 +419,7 @@ impl<'a> BuildAction<'a> {
             self.wdk_build,
             self.command_exec,
             self.fs,
-        )?
+        )
         .run()?;
 
         info!("Processing completed for package: {}", package_name);

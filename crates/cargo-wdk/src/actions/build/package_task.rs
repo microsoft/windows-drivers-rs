@@ -96,7 +96,7 @@ impl<'a> PackageTask<'a> {
         wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
-    ) -> Result<Self, PackageTaskError> {
+    ) -> Self {
         debug!("Package task params: {params:?}");
         assert!(
             params.working_dir.is_absolute(),
@@ -144,15 +144,12 @@ impl<'a> PackageTask<'a> {
             dest_root_package_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
         let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
 
-        if !fs.exists(&dest_root_package_folder) {
-            fs.create_dir(&dest_root_package_folder)?;
-        }
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
             CpuArchitecture::Arm64 => "Server10_arm64",
         };
 
-        Ok(Self {
+        Self {
             package_name,
             verify_signature: params.verify_signature,
             sample_class: params.sample_class,
@@ -175,7 +172,7 @@ impl<'a> PackageTask<'a> {
             wdk_build,
             command_exec,
             fs,
-        })
+        }
     }
 
     /// Entry point method to run the low level driver packaging operations.
@@ -211,6 +208,10 @@ impl<'a> PackageTask<'a> {
     /// * `PackageTaskError::Io` - Wraps all possible IO errors.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
+        debug!("Creating final package directory if it doesn't exist");
+        if !self.fs.exists(&self.dest_root_package_folder) {
+            self.fs.create_dir(&self.dest_root_package_folder)?;
+        }
         info!(
             "Copying files to target package folder: {}",
             self.dest_root_package_folder.to_string_lossy()
@@ -519,7 +520,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new() {
+    fn new_succeeds_for_valid_args() {
         let package_name = "test_package";
         let working_dir = PathBuf::from("D:/absolute/path/to/working/dir");
         let target_dir = PathBuf::from("C:/absolute/path/to/target/dir");
@@ -534,29 +535,15 @@ mod tests {
             sample_class: false,
             verify_signature: false,
         };
+        let dest_root = target_dir.join(format!("{package_name}_package"));
 
         let command_exec = CommandExec::default();
         let wdk_build = WdkBuild::default();
-        // Mock FS: expect that the destination package folder does not exist and
-        // that create_dir will be called to create it.
-        let mut fs = Fs::default();
-        let dest_root = target_dir.join(format!("{package_name}_package"));
-        let dr1 = dest_root.clone();
-        fs.expect_exists()
-            .withf(move |p| p == dr1)
-            .return_const(false);
-        let dr2 = dest_root.clone();
-        fs.expect_create_dir()
-            .withf(move |p| p == dr2)
-            .returning(|_| Ok(()));
-
-        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs)
-            .expect("PackageTask::new should succeed with absolute paths");
-
+        let fs = Fs::default();
+        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
         assert_eq!(task.package_name, package_name.replace('-', "_"));
         assert!(!task.verify_signature);
         assert!(!task.sample_class);
-
         assert_eq!(task.src_inx_file_path, working_dir.join("test_package.inx"));
         assert_eq!(
             task.src_driver_binary_file_path,
@@ -575,7 +562,6 @@ mod tests {
             task.src_cert_file_path,
             target_dir.join("WDRLocalTestCert.cer")
         );
-
         assert_eq!(task.dest_root_package_folder, dest_root);
         assert_eq!(task.dest_inf_file_path, dest_root.join("test_package.inf"));
         assert_eq!(
@@ -589,11 +575,8 @@ mod tests {
             dest_root.join("WDRLocalTestCert.cer")
         );
         assert_eq!(task.dest_cat_file_path, dest_root.join("test_package.cat"));
-
-        // arch, os_mapping, driver_model
         assert_eq!(*task.arch, arch);
         assert_eq!(task.os_mapping, "10_x64");
-        // avoid requiring PartialEq on DriverConfig: verify shape
         assert!(matches!(task.driver_model, DriverConfig::Kmdf(_)));
     }
 
@@ -620,8 +603,7 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs)
-            .expect("PackageTask::new should panic with relative target_dir");
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
 
     #[test]
@@ -647,7 +629,6 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs)
-            .expect("PackageTask::new should panic with relative working_dir");
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
 }

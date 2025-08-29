@@ -654,8 +654,6 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_cargo_build(driver_name, &cwd, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, false)
-        .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, false);
 
     let build_action = BuildAction::new(
