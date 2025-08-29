@@ -32,9 +32,12 @@ pub struct CommandExec {}
     reason = "Mocking associated functions complicates testing; using instance methods instead"
 )]
 impl CommandExec {
-    #[allow(
-        clippy::ref_option_ref,
-        reason = "Mock adds an extra reference to Option<HashMap<&str, &str>>."
+    #[cfg_attr(
+        test,
+        allow(
+            clippy::ref_option_ref,
+            reason = "Mock adds an extra reference to Option<HashMap<&str, &str>>."
+        )
     )]
     pub fn run<'a>(
         &self,
