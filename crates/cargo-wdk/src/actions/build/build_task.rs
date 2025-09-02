@@ -10,12 +10,15 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use mockall_double::double;
 use tracing::{debug, info};
-use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
+use wdk_build::{
+    utils::{PathExt, StripExtendedPathPrefixError},
+    CpuArchitecture,
+};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{
-    actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
+    actions::{build::error::BuildTaskError, to_target_triple, Profile},
     trace,
 };
 
@@ -23,10 +26,11 @@ use crate::{
 pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
-    target_arch: TargetArch,
+    target_arch: Option<&'a CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
+    working_dir: &'a Path,
 }
 
 impl<'a> BuildTask<'a> {
@@ -50,7 +54,7 @@ impl<'a> BuildTask<'a> {
         package_name: &'a str,
         working_dir: &'a Path,
         profile: Option<&'a Profile>,
-        target_arch: TargetArch,
+        target_arch: Option<&'a CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
@@ -70,6 +74,7 @@ impl<'a> BuildTask<'a> {
             verbosity_level,
             manifest_path,
             command_exec,
+            working_dir,
         })
     }
 
@@ -95,9 +100,9 @@ impl<'a> BuildTask<'a> {
             args.push("--profile".to_string());
             args.push(profile.to_string());
         }
-        if let TargetArch::Selected(target_arch) = self.target_arch {
+        if let Some(target_arch) = self.target_arch {
             args.push("--target".to_string());
-            args.push(to_target_triple(target_arch));
+            args.push(to_target_triple(*target_arch));
         }
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
@@ -106,7 +111,8 @@ impl<'a> BuildTask<'a> {
             .iter()
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
-        self.command_exec.run("cargo", &args, None)?;
+        self.command_exec
+            .run("cargo", &args, None, Some(self.working_dir))?;
         debug!("Done");
         Ok(())
     }

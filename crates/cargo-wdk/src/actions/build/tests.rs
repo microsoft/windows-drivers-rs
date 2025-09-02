@@ -31,7 +31,6 @@ use crate::{
         build::{BuildAction, BuildActionError, BuildActionParams},
         to_target_triple,
         Profile,
-        TargetArch,
     },
     providers::error::{CommandError, FileError},
 };
@@ -48,7 +47,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
+    let override_target_arch = CpuArchitecture::Amd64;
     let verify_signature = false;
     let sample_class = false;
     // Driver project data
@@ -79,6 +79,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
+        .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -86,8 +87,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -100,7 +101,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -122,7 +123,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Some(Profile::Release);
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -162,8 +163,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -176,7 +177,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -198,7 +199,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Selected(CpuArchitecture::Arm64);
+    let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -238,8 +239,8 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -252,7 +253,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -275,7 +276,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Some(Profile::Release);
-    let target_arch = TargetArch::Selected(CpuArchitecture::Arm64);
+    let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = false;
     let sample_class = false;
 
@@ -315,8 +316,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -329,7 +330,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -351,7 +352,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = false;
     let sample_class = true;
 
@@ -391,8 +392,8 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -406,7 +407,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -428,7 +429,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
+    let override_target_arch = CpuArchitecture::Amd64;
     let verify_signature = true;
     let sample_class = false;
 
@@ -461,6 +463,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
+        .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -468,8 +471,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -484,7 +487,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -506,7 +509,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
+    let override_target_arch = CpuArchitecture::Arm64;
     let verify_signature = true;
     let sample_class = false;
 
@@ -558,6 +562,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
+        .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -565,8 +570,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_certmgr_create_cert_from_store(&cwd, Some(expected_create_cert_output))
@@ -581,7 +586,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -603,7 +608,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -643,8 +648,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -659,7 +664,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -681,7 +686,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -702,6 +707,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
+        .expect_detect_target_arch_for_package(&cwd, CpuArchitecture::Arm64)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, false);
@@ -710,7 +716,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -735,7 +741,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -765,7 +771,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -790,7 +796,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -824,13 +830,13 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, Some(expected_stampinf_output));
+        .expect_stampinf(driver_name, &cwd, Some(expected_stampinf_output), None);
 
     let build_action = BuildAction::new(
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -855,7 +861,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -889,14 +895,14 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, Some(expected_inf2cat_output));
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, Some(expected_inf2cat_output), None);
 
     let build_action = BuildAction::new(
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -921,7 +927,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -955,8 +961,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_output));
 
@@ -964,7 +970,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -989,7 +995,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1023,8 +1029,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, Some(expected_output));
@@ -1033,7 +1039,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1058,7 +1064,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
+    let override_target_arch = CpuArchitecture::Arm64;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1085,6 +1092,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd)
         .expect_cargo_build(driver_name, &cwd, None)
+        .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1092,8 +1100,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, None)
@@ -1104,7 +1112,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1129,7 +1137,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1163,8 +1171,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, None)
-        .expect_inf2cat(driver_name, &cwd, None)
+        .expect_stampinf(driver_name, &cwd, None, None)
+        .expect_inf2cat(driver_name, &cwd, None, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, None)
@@ -1177,7 +1185,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1203,7 +1211,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_m
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1227,7 +1235,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_m
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1250,7 +1258,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp\\sample-driver");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1272,7 +1280,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1303,7 +1311,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
+    let override_target_arch = CpuArchitecture::Amd64;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1360,6 +1369,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
+        .expect_detect_target_arch_for_package(&cwd.join(driver_name_1), override_target_arch)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
@@ -1367,8 +1377,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_copy_pdb_file_to_package_folder(driver_name_1, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd.join(driver_name_1), true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name_1, &cwd, true)
-        .expect_stampinf(driver_name_1, &cwd, None)
-        .expect_inf2cat(driver_name_1, &cwd, None)
+        .expect_stampinf(driver_name_1, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name_1, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output.clone()))
         .expect_makecert(&cwd, None)
@@ -1381,6 +1391,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         // Second driver project
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
+        .expect_detect_target_arch_for_package(&cwd.join(driver_name_2), override_target_arch)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
@@ -1388,8 +1399,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_copy_pdb_file_to_package_folder(driver_name_2, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name_2, &cwd.join(driver_name_2), true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name_2, &cwd, true)
-        .expect_stampinf(driver_name_2, &cwd, None)
-        .expect_inf2cat(driver_name_2, &cwd, None)
+        .expect_stampinf(driver_name_2, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name_2, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -1407,7 +1418,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1431,7 +1442,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("sample-kmdf-1");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Arm64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1500,8 +1511,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_copy_pdb_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
         .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd, true, &workspace_root_dir)
         .expect_copy_map_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
-        .expect_stampinf(driver_name_1, &workspace_root_dir, None)
-        .expect_inf2cat(driver_name_1, &workspace_root_dir, None)
+        .expect_stampinf(driver_name_1, &workspace_root_dir, None, None)
+        .expect_inf2cat(driver_name_1, &workspace_root_dir, None, None)
         .expect_self_signed_cert_file_exists(&workspace_root_dir, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&workspace_root_dir, None)
@@ -1520,7 +1531,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1543,7 +1554,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
+    let override_target_arch = CpuArchitecture::Amd64;
     let verify_signature = false;
     let sample_class = false;
 
@@ -1600,6 +1612,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_path_canonicalization_all_package_roots()
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_1))
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
+        .expect_detect_target_arch_for_package(&cwd.join(driver_name_1), override_target_arch)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &cwd)
@@ -1607,8 +1620,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_copy_pdb_file_to_package_folder(driver_name_1, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd.join(driver_name_1), true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name_1, &cwd, true)
-        .expect_stampinf(driver_name_1, &cwd, None)
-        .expect_inf2cat(driver_name_1, &cwd, None)
+        .expect_stampinf(driver_name_1, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name_1, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output.clone()))
         .expect_makecert(&cwd, None)
@@ -1619,6 +1632,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         // Second driver project
         .expect_path_canonicalization_package_manifest_path(&cwd.join(driver_name_2))
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
+        .expect_detect_target_arch_for_package(&cwd.join(driver_name_2), override_target_arch)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_2, &cwd)
@@ -1626,8 +1640,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_copy_pdb_file_to_package_folder(driver_name_2, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name_2, &cwd.join(driver_name_2), true, &cwd)
         .expect_copy_map_file_to_package_folder(driver_name_2, &cwd, true)
-        .expect_stampinf(driver_name_2, &cwd, None)
-        .expect_inf2cat(driver_name_2, &cwd, None)
+        .expect_stampinf(driver_name_2, &cwd, None, Some(override_target_arch))
+        .expect_inf2cat(driver_name_2, &cwd, None, Some(override_target_arch))
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_makecert(&cwd, None)
@@ -1643,7 +1657,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1667,7 +1681,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1722,7 +1736,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1745,7 +1759,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1794,7 +1808,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1824,7 +1838,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1873,7 +1887,7 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1903,7 +1917,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = None;
     let verify_signature = true;
     let sample_class = false;
 
@@ -1932,7 +1946,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1956,7 +1970,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
     let profile = None;
-    let target_arch = TargetArch::Default(CpuArchitecture::Amd64);
+    let target_arch = Some(CpuArchitecture::Amd64);
     let verify_signature = true;
     let sample_class = false;
 
@@ -1989,7 +2003,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
         &BuildActionParams {
             working_dir: &cwd,
             profile: profile.as_ref(),
-            target_arch,
+            target_arch: target_arch.as_ref(),
             verify_signature,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -2011,7 +2025,7 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
 struct TestBuildAction {
     cwd: PathBuf,
     profile: Option<Profile>,
-    target_arch: TargetArch,
+    target_arch: Option<CpuArchitecture>,
     sample_class: bool,
 
     cargo_metadata: Option<CargoMetadata>,
@@ -2087,12 +2101,14 @@ trait TestSetupPackageExpectations {
         driver_name: &str,
         driver_dir: &Path,
         override_output: Option<Output>,
+        override_target_arch: Option<CpuArchitecture>,
     ) -> Self;
     fn expect_inf2cat(
         self,
         driver_name: &str,
         driver_dir: &Path,
         override_output: Option<Output>,
+        override_target_arch: Option<CpuArchitecture>,
     ) -> Self;
     fn expect_certmgr_exists_check(self, override_output: Option<Output>) -> Self;
     fn expect_certmgr_create_cert_from_store(
@@ -2135,6 +2151,11 @@ trait TestSetupPackageExpectations {
         driver_type: &str,
         override_output: Option<Output>,
     ) -> Self;
+    fn expect_detect_target_arch_for_package(
+        self,
+        driver_dir: &Path,
+        detected_arch: CpuArchitecture,
+    ) -> Self;
 
     fn mock_wdk_build_provider(&self) -> &WdkBuild;
     fn mock_run_command(&self) -> &CommandExec;
@@ -2146,7 +2167,7 @@ impl TestBuildAction {
     fn new(
         cwd: PathBuf,
         profile: Option<Profile>,
-        target_arch: TargetArch,
+        target_arch: Option<CpuArchitecture>,
         sample_class: bool,
     ) -> Self {
         let mock_run_command = CommandExec::default();
@@ -2236,11 +2257,12 @@ impl TestBuildAction {
 
     fn setup_target_dir(&self, dir_path: &Path) -> PathBuf {
         let mut expected_target_dir = dir_path.join("target");
-
-        if let TargetArch::Selected(target_arch) = self.target_arch {
-            expected_target_dir = expected_target_dir.join(to_target_triple(target_arch));
+        if let Some(target_arch) = self.target_arch {
+            let target_triple = to_target_triple(target_arch);
+            if expected_target_dir.join(&target_triple).exists() {
+                expected_target_dir = expected_target_dir.join(target_triple);
+            }
         }
-
         expected_target_dir = match self.profile {
             Some(Profile::Release) => expected_target_dir.join("release"),
             _ => expected_target_dir.join("debug"),
@@ -2410,7 +2432,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
             expected_cargo_build_args.push(profile.to_string());
         }
 
-        if let TargetArch::Selected(target_arch) = self.target_arch {
+        if let Some(target_arch) = self.target_arch {
             expected_cargo_build_args.push("--target".to_string());
             expected_cargo_build_args.push(to_target_triple(target_arch));
         }
@@ -2429,13 +2451,51 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_cargo_command && args == expected_cargo_build_args
                 },
             )
             .once()
-            .returning(move |_, _, _| Ok(expected_output.clone()));
+            .returning(move |_, _, _, _| Ok(expected_output.clone()));
+        self
+    }
+
+    fn expect_detect_target_arch_for_package(
+        mut self,
+        driver_dir: &Path,
+        detected_arch: CpuArchitecture,
+    ) -> Self {
+        if self.target_arch.is_some() {
+            return self;
+        }
+        let expected_working_dir = driver_dir.to_path_buf();
+        let arch_str = match detected_arch {
+            CpuArchitecture::Amd64 => "x86_64",
+            CpuArchitecture::Arm64 => "aarch64",
+        };
+        let expected_output = Output {
+            status: ExitStatus::default(),
+            stdout: format!("target_arch=\"{arch_str}\"\n").as_bytes().to_vec(),
+            stderr: vec![],
+        };
+        self.mock_run_command
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      working_dir: &Option<&Path>| {
+                    command == "cargo"
+                        && args == ["rustc", "--", "--print", "cfg"]
+                        && working_dir
+                            .map(|d| d == expected_working_dir.as_path())
+                            .unwrap_or(false)
+                },
+            )
+            .once()
+            .returning(move |_, _, _, _| Ok(expected_output.clone()));
         self
     }
 
@@ -2674,6 +2734,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
         driver_name: &str,
         driver_dir: &Path,
         override_output: Option<Output>,
+        override_target_arch: Option<CpuArchitecture>,
     ) -> Self {
         // Run stampinf command
         let expected_driver_name_underscored = driver_name.replace('-', "_");
@@ -2691,9 +2752,10 @@ impl TestSetupPackageExpectations for TestBuildAction {
         )
         .expect("Wdk metadata must be available");
 
-        let target_arch = match self.target_arch {
-            TargetArch::Default(target_arch) | TargetArch::Selected(target_arch) => target_arch,
-        };
+        let target_arch = self.target_arch.unwrap_or_else(|| {
+            override_target_arch
+                .expect("Either target_arch or override_target_arch must be set for tests")
+        });
 
         if let DriverConfig::Kmdf(kmdf_config) = wdk_metadata.driver_model {
             let expected_cat_file_name = format!("{expected_driver_name_underscored}.cat");
@@ -2720,7 +2782,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .withf(
                     move |command: &str,
                           args: &[&str],
-                          _env_vars: &Option<&HashMap<&str, &str>>|
+                          _env_vars: &Option<&HashMap<&str, &str>>,
+                          _working_dir: &Option<&Path>|
                           -> bool {
                         println!("command: {command}, args: {args:?}");
                         println!(
@@ -2731,7 +2794,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     },
                 )
                 .once()
-                .returning(move |_, _, _| match override_output.clone() {
+                .returning(move |_, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
                         Some(0) => Ok(Output {
                             status: ExitStatus::from_raw(0),
@@ -2755,6 +2818,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
         driver_name: &str,
         driver_dir: &Path,
         override_output: Option<Output>,
+        override_target_arch: Option<CpuArchitecture>,
     ) -> Self {
         // Run inf2cat command
         let expected_driver_name_underscored = driver_name.replace('-', "_");
@@ -2764,9 +2828,10 @@ impl TestSetupPackageExpectations for TestBuildAction {
 
         let expected_inf2cat_command: &'static str = "inf2cat";
 
-        let target_arch = match self.target_arch {
-            TargetArch::Default(target_arch) | TargetArch::Selected(target_arch) => target_arch,
-        };
+        let target_arch = self.target_arch.unwrap_or_else(|| {
+            override_target_arch
+                .expect("Either target_arch or override_target_arch must be set for tests")
+        });
 
         let expected_inf2cat_arg = match target_arch {
             CpuArchitecture::Amd64 => "10_x64",
@@ -2786,7 +2851,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
@@ -2797,7 +2863,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2825,13 +2891,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2875,13 +2942,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2923,13 +2991,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_makecert_command && args == expected_makecert_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2983,13 +3052,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3042,13 +3112,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3094,13 +3165,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_verify_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3146,13 +3218,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_signtool_command && args == expected_signtool_verify_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3208,13 +3281,14 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_infverif_command && args == expected_infverif_args
                 },
             )
             .once()
-            .returning(move |_, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),

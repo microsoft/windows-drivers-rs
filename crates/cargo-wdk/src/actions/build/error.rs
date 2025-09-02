@@ -36,6 +36,13 @@ pub enum BuildActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+    #[error("Unsupported target arch was detected: {0}")]
+    UnsupportedArchitecture(String),
+    #[error(
+        "Failed to detect target architecture using `cargo rustc -- --print cfg`. Error details: \
+         {0}"
+    )]
+    DetectTargetArch(String),
 }
 
 /// Errors for the low level build task layer
