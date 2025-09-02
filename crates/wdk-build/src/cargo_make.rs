@@ -29,6 +29,8 @@ use crate::{
     utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number, PathExt},
     ConfigError,
     CpuArchitecture,
+    IoError,
+    IoErrorMetadata,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -520,31 +522,44 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version);
 
-    let host_windows_sdk_ver_bin_path = wdk_bin_root
-        .join(host_arch.as_windows_str())
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
-        .to_str()
-        .expect("WDK bin path should be valid UTF-8")
-        .to_string();
+    let host_windows_sdk_ver_bin_path = {
+        let path = wdk_bin_root.join(host_arch.as_windows_str());
+        path.canonicalize().map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath { path },
+            source,
+        })
+    }?
+    .strip_extended_length_path_prefix()?
+    .to_str()
+    .expect("WDK bin path should be valid UTF-8")
+    .to_string();
 
-    let x86_windows_sdk_ver_bin_path = wdk_bin_root
-        .join("x86")
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
-        .to_str()
-        .expect("WDK x86 bin path should be valid UTF-8")
-        .to_string();
+    let x86_windows_sdk_ver_bin_path = {
+        let path = wdk_bin_root.join("x86");
+        path.canonicalize().map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath { path },
+            source,
+        })
+    }?
+    .strip_extended_length_path_prefix()?
+    .to_str()
+    .expect("WDK x86 bin path should be valid UTF-8")
+    .to_string();
 
     if let Ok(sdk_bin_path) = env::var("WindowsSdkBinPath") {
-        let sdk_bin_path = PathBuf::from(sdk_bin_path)
-            .join(&sdk_version)
-            .join(host_arch.as_windows_str())
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?
-            .to_str()
-            .expect("WindowsSdkBinPath should be valid UTF-8")
-            .to_string();
+        let sdk_bin_path = {
+            let path = PathBuf::from(sdk_bin_path)
+                .join(&sdk_version)
+                .join(host_arch.as_windows_str());
+            path.canonicalize().map_err(|source| IoError {
+                metadata: IoErrorMetadata::SinglePath { path },
+                source,
+            })
+        }?
+        .strip_extended_length_path_prefix()?
+        .to_str()
+        .expect("WindowsSdkBinPath should be valid UTF-8")
+        .to_string();
         prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, sdk_bin_path);
     }
 
@@ -554,13 +569,17 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     );
 
     let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, sdk_version);
-    let host_windows_sdk_version_tool_path = wdk_tool_root
-        .join(host_arch.as_windows_str())
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
-        .to_str()
-        .expect("WDK tool path should be valid UTF-8")
-        .to_string();
+    let host_windows_sdk_version_tool_path = {
+        let path = wdk_tool_root.join(host_arch.as_windows_str());
+        path.canonicalize().map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath { path },
+            source,
+        })
+    }?
+    .strip_extended_length_path_prefix()?
+    .to_str()
+    .expect("WDK tool path should be valid UTF-8")
+    .to_string();
     prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
     Ok([PATH_ENV_VAR].map(ToString::to_string))
@@ -727,7 +746,12 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
     let package_folder_path: PathBuf =
         get_wdk_build_output_directory().join(format!("{}_package", get_current_package_name()));
     if !package_folder_path.exists() {
-        std::fs::create_dir(&package_folder_path)?;
+        std::fs::create_dir(&package_folder_path).map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: package_folder_path.clone(),
+            },
+            source,
+        })?;
     }
 
     let destination_path = package_folder_path.join(
@@ -735,7 +759,13 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
             .file_name()
             .expect("path_to_copy should always end with a valid file or directory name"),
     );
-    std::fs::copy(path_to_copy, destination_path)?;
+    std::fs::copy(path_to_copy, &destination_path).map_err(|source| IoError {
+        metadata: IoErrorMetadata::SrcDestPaths {
+            from_path: path_to_copy.to_path_buf(),
+            to_path: destination_path,
+        },
+        source,
+    })?;
 
     Ok(())
 }
@@ -846,7 +876,8 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .manifest_path
         .parent()
         .expect("The parsed manifest_path should have a valid parent directory")
-        .join(&makefile_name);
+        .join(&makefile_name)
+        .into_std_path_buf();
 
     let cargo_make_workspace_working_directory =
         env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
@@ -860,18 +891,36 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
     // Only create a new symlink if the existing one is not already pointing to the
     // correct file
     if !destination_path.exists() {
-        return Ok(std::os::windows::fs::symlink_file(
-            rust_driver_makefile_toml_path,
-            destination_path,
-        )?);
+        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+            .map_err(|source| IoError {
+                metadata: IoErrorMetadata::SrcDestPaths {
+                    from_path: rust_driver_makefile_toml_path.clone(),
+                    to_path: destination_path,
+                },
+                source,
+            })?;
     } else if !destination_path.is_symlink()
-        || std::fs::read_link(&destination_path)? != rust_driver_makefile_toml_path
+        || std::fs::read_link(&destination_path).map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: destination_path.clone(),
+            },
+            source,
+        })? != rust_driver_makefile_toml_path
     {
-        std::fs::remove_file(&destination_path)?;
-        return Ok(std::os::windows::fs::symlink_file(
-            rust_driver_makefile_toml_path,
-            destination_path,
-        )?);
+        std::fs::remove_file(&destination_path).map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: destination_path.clone(),
+            },
+            source,
+        })?;
+        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+            .map_err(|source| IoError {
+                metadata: IoErrorMetadata::SrcDestPaths {
+                    from_path: rust_driver_makefile_toml_path.clone(),
+                    to_path: destination_path.clone(),
+                },
+                source,
+            })?;
     }
 
     // Symlink is already up to date
