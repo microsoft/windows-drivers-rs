@@ -2,6 +2,7 @@
 // License: MIT OR Apache-2.0
 #![allow(clippy::too_many_lines)] // Package tests are longer and splitting them into sub functions can make the code less readable
 #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
+use std::sync::{Mutex, MutexGuard};
 use std::{
     collections::HashMap,
     os::windows::process::ExitStatusExt,
@@ -35,6 +36,10 @@ use crate::{
     },
     providers::error::{CommandError, FileError},
 };
+
+// Serialize tests in this module to avoid concurrent global mock expectation overrides
+// due to the use of associated functions for providers.
+static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Standalone driver project tests
@@ -2020,6 +2025,9 @@ struct TestBuildAction {
     mock_wdk_build_provider: WdkBuild,
     mock_fs_provider: Fs,
     mock_metadata_provider: MetadataProvider,
+
+    // Hold the lock for the full duration of the test to ensure serialization.
+    _test_serialization_guard: MutexGuard<'static, ()>,
 }
 
 // Presence of method ensures specific mock expectation is set
@@ -2149,6 +2157,7 @@ impl TestBuildAction {
         target_arch: TargetArch,
         sample_class: bool,
     ) -> Self {
+        let guard = TEST_MUTEX.lock().expect("Test mutex poisoned");
         let mock_run_command = CommandExec::default();
         let mock_wdk_build_provider = WdkBuild::default();
         let mock_fs_provider = Fs::default();
@@ -2164,6 +2173,7 @@ impl TestBuildAction {
             mock_fs_provider,
             mock_metadata_provider,
             cargo_metadata: None,
+            _test_serialization_guard: guard,
         }
     }
 
