@@ -2,8 +2,6 @@
 
 #![allow(clippy::literal_string_with_formatting_args)]
 
-use fs4::fs_std::FileExt;
-
 /// Sets the `RUSTFLAGS` environment variable to include `+crt-static`.
 ///
 /// # Panics
@@ -39,7 +37,7 @@ where
 {
     let lock_file = std::fs::File::create("cargo-wdk-test.lock")
         .expect("Unable to create lock file for cargo-wdk tests");
-    FileExt::lock_exclusive(&lock_file).expect("Unable to cargo-wdk-test.lock file");
+    lock_file.lock().expect("Unable to cargo-wdk-test.lock file");
     f();
-    FileExt::unlock(&lock_file).expect("Unable to unlock cargo-wdk-test.lock file");
+    lock_file.unlock().expect("Unable to unlock cargo-wdk-test.lock file");
 }

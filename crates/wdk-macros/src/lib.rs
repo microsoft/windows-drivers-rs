@@ -6,8 +6,6 @@
 //! Kit (WDK).
 
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
-
-use fs4::fs_std::FileExt;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -124,14 +122,14 @@ struct FileLockGuard {
 
 impl FileLockGuard {
     fn new(file: std::fs::File, span: Span) -> Result<Self> {
-        FileExt::lock_exclusive(&file).to_syn_result(span, "unable to obtain file lock")?;
+        file.lock().to_syn_result(span, "unable to obtain file lock")?;
         Ok(Self { file })
     }
 }
 
 impl Drop for FileLockGuard {
     fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.file);
+        let _ = self.file.unlock();
     }
 }
 
@@ -978,7 +976,7 @@ mod tests {
     {
         let test_flock: std::fs::File =
             std::fs::File::create(SCRATCH_DIR.join("test.lock")).unwrap();
-        FileExt::lock_exclusive(&test_flock).unwrap();
+        test_flock.lock().unwrap();
 
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
 
@@ -995,7 +993,7 @@ mod tests {
             std::fs::remove_file(cached_function_info_map_path).unwrap();
         }
 
-        FileExt::unlock(&test_flock).unwrap();
+        test_flock.unlock().unwrap();
     }
 
     mod to_snake_case {
