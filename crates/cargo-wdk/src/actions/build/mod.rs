@@ -344,7 +344,7 @@ impl<'a> BuildAction<'a> {
         package_name: &str,
         target_dir: &Path,
     ) -> Result<(), BuildActionError> {
-        info!("Processing package: {}", package_name);
+        info!("Processing build for package: {package_name}");
         BuildTask::new(
             package_name,
             working_dir,
@@ -360,20 +360,13 @@ impl<'a> BuildAction<'a> {
             debug!("Found wdk metadata in package: {}", package_name);
             wdk_metadata
         } else {
-            warn!(
-                "WDK metadata is not available. Skipping driver build workflow for package: {}",
-                package_name
-            );
+            warn!("Invalid WDK metadata. Skipping package task");
             return Ok(());
         };
 
-        // TODO: Do we need this check anymore?
+        // Identifying non driver packages
         if package.metadata.get("wdk").is_none() {
-            warn!(
-                "No package.metadata.wdk section found. Skipping driver build workflow for \
-                 package: {}",
-                package_name
-            );
+            info!("Packaging task skipped for non-driver package");
             return Ok(());
         }
 
@@ -382,10 +375,7 @@ impl<'a> BuildAction<'a> {
             .iter()
             .any(|t| t.kind.contains(&TargetKind::CDyLib))
         {
-            warn!(
-                "No cdylib target found. Skipping driver build workflow for package: {}",
-                package_name
-            );
+            warn!("No cdylib target found. Skipping package task");
             return Ok(());
         }
 
@@ -394,10 +384,7 @@ impl<'a> BuildAction<'a> {
         let target_arch = match self.target_arch {
             TargetArch::Default(arch) | TargetArch::Selected(arch) => arch,
         };
-        debug!(
-            "Target architecture for package: {} is: {}",
-            package_name, target_arch
-        );
+        debug!("Target architecture for package: {package_name} is: {target_arch}");
         let mut target_dir = target_dir.to_path_buf();
         if let TargetArch::Selected(arch) = self.target_arch {
             target_dir = target_dir.join(to_target_triple(arch));
@@ -428,7 +415,7 @@ impl<'a> BuildAction<'a> {
         )?
         .run()?;
 
-        info!("Processing completed for package: {}", package_name);
+        info!("Processing completed");
         Ok(())
     }
 }

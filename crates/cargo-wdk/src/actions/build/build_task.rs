@@ -81,7 +81,7 @@ impl<'a> BuildTask<'a> {
     /// * `BuildTaskError::CargoBuild` - If there is an error running the cargo
     ///   build command
     pub fn run(&self) -> Result<(), BuildTaskError> {
-        info!("Running cargo build for package: {}", self.package_name);
+        info!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
