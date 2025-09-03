@@ -21,14 +21,13 @@ use anyhow::Result;
 use build_task::BuildTask;
 use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
-use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
 use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
 
 use crate::actions::{to_target_triple, Profile, TargetArch};
-#[double]
-use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+#[cfg_attr(test, mockall_double::double)]
+use crate::providers::{fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
@@ -51,7 +50,6 @@ pub struct BuildAction<'a> {
 
     // Injected deps
     wdk_build: &'a WdkBuild,
-    command_exec: &'a CommandExec,
     fs: &'a Fs,
     metadata: &'a Metadata,
 }
@@ -62,7 +60,6 @@ impl<'a> BuildAction<'a> {
     /// * `params` - The `BuildActionParams` struct containing the parameters
     ///   for the build action
     /// * `wdk_build` - The WDK build provider instance
-    /// * `command_exec` - The command execution provider instance
     /// * `fs` - The file system provider instance
     /// * `metadata` - The metadata provider instance
     /// # Returns
@@ -74,7 +71,6 @@ impl<'a> BuildAction<'a> {
     pub fn new(
         params: &BuildActionParams<'a>,
         wdk_build: &'a WdkBuild,
-        command_exec: &'a CommandExec,
         fs: &'a Fs,
         metadata: &'a Metadata,
     ) -> Result<Self> {
@@ -88,7 +84,6 @@ impl<'a> BuildAction<'a> {
             is_sample_class: params.is_sample_class,
             verbosity_level: params.verbosity_level,
             wdk_build,
-            command_exec,
             fs,
             metadata,
         })
@@ -351,7 +346,6 @@ impl<'a> BuildAction<'a> {
             self.profile,
             self.target_arch,
             self.verbosity_level,
-            self.command_exec,
             self.fs,
         )?
         .run()?;
@@ -423,7 +417,6 @@ impl<'a> BuildAction<'a> {
                 driver_model,
             },
             self.wdk_build,
-            self.command_exec,
             self.fs,
         )?
         .run()?;

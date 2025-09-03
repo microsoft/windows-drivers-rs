@@ -9,6 +9,8 @@
 mod actions;
 mod cli;
 mod providers;
+#[cfg(test)]
+mod tests;
 mod trace;
 
 use anyhow::{Ok, Result};

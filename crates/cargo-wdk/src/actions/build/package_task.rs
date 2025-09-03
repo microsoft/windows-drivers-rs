@@ -13,11 +13,10 @@ use std::{
     result::Result,
 };
 
-use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
@@ -67,7 +66,6 @@ pub struct PackageTask<'a> {
 
     // Injected deps
     wdk_build: &'a WdkBuild,
-    command_exec: &'a CommandExec,
     fs: &'a Fs,
 }
 
@@ -76,7 +74,6 @@ impl<'a> PackageTask<'a> {
     /// # Arguments
     /// * `params` - Struct containing the parameters for the package task.
     /// * `wdk_build` - The provider for WDK build related methods.
-    /// * `command_exec` - The provider for command execution.
     /// * `fs` - The provider for file system operations.
     /// # Returns
     /// * `Result<Self, PackageTaskError>` - A result containing the new
@@ -87,7 +84,6 @@ impl<'a> PackageTask<'a> {
     pub fn new(
         params: PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
-        command_exec: &'a CommandExec,
         fs: &'a Fs,
     ) -> Result<Self, PackageTaskError> {
         debug!("Package task params: {params:?}");
@@ -156,7 +152,6 @@ impl<'a> PackageTask<'a> {
             os_mapping,
             driver_model: params.driver_model,
             wdk_build,
-            command_exec,
             fs,
         })
     }
@@ -210,12 +205,12 @@ impl<'a> PackageTask<'a> {
         self.run_inf2cat()?;
         self.generate_certificate()?;
         self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-        self.run_signtool_sign(
+        Self::run_signtool_sign(
             &self.dest_driver_binary_path,
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
         )?;
-        self.run_signtool_sign(
+        Self::run_signtool_sign(
             &self.dest_cat_file_path,
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
@@ -224,8 +219,8 @@ impl<'a> PackageTask<'a> {
         // Verify signatures only when --verify-signature flag = true is passed
         if self.verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
-            self.run_signtool_verify(&self.dest_driver_binary_path)?;
-            self.run_signtool_verify(&self.dest_cat_file_path)?;
+            Self::run_signtool_verify(&self.dest_driver_binary_path)?;
+            Self::run_signtool_verify(&self.dest_cat_file_path)?;
         }
         Ok(())
     }
@@ -301,7 +296,7 @@ impl<'a> PackageTask<'a> {
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
-        if let Err(e) = self.command_exec.run("stampinf", &args, None) {
+        if let Err(e) = CommandExec::run("stampinf", &args, None) {
             return Err(PackageTaskError::StampinfCommand(e));
         }
         Ok(())
@@ -320,7 +315,7 @@ impl<'a> PackageTask<'a> {
             "/uselocaltime",
         ];
 
-        if let Err(e) = self.command_exec.run("inf2cat", &args, None) {
+        if let Err(e) = CommandExec::run("inf2cat", &args, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
 
@@ -332,7 +327,7 @@ impl<'a> PackageTask<'a> {
         if self.fs.exists(&self.src_cert_file_path) {
             return Ok(());
         }
-        if self.is_self_signed_certificate_in_store()? {
+        if Self::is_self_signed_certificate_in_store()? {
             self.create_cert_file_from_store()?;
         } else {
             self.create_self_signed_cert_in_store()?;
@@ -340,11 +335,11 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
+    fn is_self_signed_certificate_in_store() -> Result<bool, PackageTaskError> {
         debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
         let args = ["-s", WDR_TEST_CERT_STORE];
 
-        match self.command_exec.run("certmgr.exe", &args, None) {
+        match CommandExec::run("certmgr.exe", &args, None) {
             Ok(output) if output.status.success() => String::from_utf8(output.stdout).map_or_else(
                 |e| Err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e)),
                 |stdout| Ok(stdout.contains(WDR_LOCAL_TEST_CERT)),
@@ -370,7 +365,7 @@ impl<'a> PackageTask<'a> {
             &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("makecert", &args, None) {
+        if let Err(e) = CommandExec::run("makecert", &args, None) {
             return Err(PackageTaskError::CertGenerationInStoreCommand(e));
         }
         Ok(())
@@ -388,7 +383,7 @@ impl<'a> PackageTask<'a> {
             WDR_LOCAL_TEST_CERT,
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("certmgr.exe", &args, None) {
+        if let Err(e) = CommandExec::run("certmgr.exe", &args, None) {
             return Err(PackageTaskError::CreateCertFileFromStoreCommand(e));
         }
         Ok(())
@@ -404,7 +399,6 @@ impl<'a> PackageTask<'a> {
     /// * `cert_name` - The name of the certificate to use for signing. TODO:
     ///   Add parameters for certificate store and name
     fn run_signtool_sign(
-        &self,
         file_path: &Path,
         cert_store: &str,
         cert_name: &str,
@@ -430,13 +424,13 @@ impl<'a> PackageTask<'a> {
             "SHA256",
             &driver_binary_file_path,
         ];
-        if let Err(e) = self.command_exec.run("signtool", &args, None) {
+        if let Err(e) = CommandExec::run("signtool", &args, None) {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
         Ok(())
     }
 
-    fn run_signtool_verify(&self, file_path: &Path) -> Result<(), PackageTaskError> {
+    fn run_signtool_verify(file_path: &Path) -> Result<(), PackageTaskError> {
         info!(
             "Verifying {} using signtool.",
             file_path
@@ -448,7 +442,7 @@ impl<'a> PackageTask<'a> {
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
         // TODO: Differentiate between command exec failure and signature verification
         // failure
-        if let Err(e) = self.command_exec.run("signtool", &args, None) {
+        if let Err(e) = CommandExec::run("signtool", &args, None) {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
         Ok(())
@@ -486,7 +480,7 @@ impl<'a> PackageTask<'a> {
         }
         args.push(&inf_path);
 
-        if let Err(e) = self.command_exec.run("infverif", &args, None) {
+        if let Err(e) = CommandExec::run("infverif", &args, None) {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
