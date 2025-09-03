@@ -25,10 +25,8 @@ use clap::{Args, Parser};
 use tracing::{instrument, trace};
 
 use crate::{
-    detect_wdk_content_root,
-    detect_windows_sdk_version,
-    get_wdk_version_number,
     metadata,
+    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number},
     ConfigError,
     CpuArchitecture,
 };

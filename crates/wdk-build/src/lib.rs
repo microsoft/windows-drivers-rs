@@ -26,18 +26,14 @@ pub mod cargo_make;
 pub mod metadata;
 
 mod utils;
-pub use utils::{
-    detect_wdk_content_root,
-    detect_windows_sdk_version,
-    get_wdk_version_number,
-    validate_wdk_version_format,
-};
 
 mod bindgen;
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::utils::detect_windows_sdk_version;
 
 /// Configuration parameters for a build dependent on the WDK
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
