@@ -15,7 +15,7 @@ use tracing::debug;
 use super::error::CommandError;
 
 /// Provides limited access to `std::process::Command` methods
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CommandExec {}
 
 #[cfg_attr(test, mockall::automock)]
@@ -27,10 +27,6 @@ pub struct CommandExec {}
                   test configuration."
     )
 )]
-#[allow(
-    clippy::unused_self,
-    reason = "Mocking associated functions complicates testing; using instance methods instead"
-)]
 impl CommandExec {
     #[cfg_attr(
         test,
@@ -40,7 +36,6 @@ impl CommandExec {
         )
     )]
     pub fn run<'a>(
-        &self,
         command: &'a str,
         args: &'a [&'a str],
         env_vars: Option<&'a HashMap<&'a str, &'a str>>,
