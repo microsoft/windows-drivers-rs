@@ -186,11 +186,10 @@ impl Cli {
                     "aarch64-pc-windows-msvc" => Ok(CpuArchitecture::Arm64),
                     _ => Err(anyhow::anyhow!(
                         "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                             aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows \
-                             and switch the default target to one of the above two using \
-                             `rustup.exe`. You can also use the --target-arch option to \
-                             explicitly specify a CPU architecture instead of relying on the \
-                             default target.",
+                         aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and \
+                         switch the default target to one of the above two using `rustup.exe`. \
+                         You can also use the --target-arch option to explicitly specify a CPU \
+                         architecture instead of relying on the default target.",
                         stdout
                     )),
                 }
@@ -207,8 +206,6 @@ mod tests {
         process::{ExitStatus, Output},
     };
 
-    use crate::tests::TEST_MUTEX;
-
     use mockall_double::double;
     use wdk_build::CpuArchitecture;
 
@@ -217,11 +214,11 @@ mod tests {
     use crate::{
         actions::DriverType,
         cli::{Cli, NewArgs},
+        tests::TEST_MUTEX,
     };
 
     #[test]
     pub fn arch_detection_works_for_supported_toolchains() {
-        let _lock = TEST_MUTEX.lock();
         fn run_test(toolchain: &str, arch: CpuArchitecture) {
             let result = run_arch_detection(Ok(Output {
                 status: ExitStatus::default(),
@@ -233,13 +230,13 @@ mod tests {
             assert_eq!(result.unwrap(), arch);
         }
 
+        let _lock = TEST_MUTEX.lock();
         run_test("x86_64-pc-windows-msvc", CpuArchitecture::Amd64);
         run_test("aarch64-pc-windows-msvc", CpuArchitecture::Arm64);
     }
 
     #[test]
     pub fn arch_detection_fails_for_unsupported_toolchains() {
-        let _lock = TEST_MUTEX.lock();
         fn run_test(toolchain: &str) {
             let result = run_arch_detection(Ok(Output {
                 status: ExitStatus::default(),
@@ -260,6 +257,7 @@ mod tests {
             );
         }
 
+        let _lock = TEST_MUTEX.lock();
         run_test("i686-pc-windows-msvc");
         run_test("x86_64-win7-windows-msvc");
     }

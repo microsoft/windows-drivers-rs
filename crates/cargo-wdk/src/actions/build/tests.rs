@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
     process::{ExitStatus, Output},
     result::Result::Ok,
-    sync::MutexGuard,
+    sync::{LockResult, MutexGuard},
 };
 
 use cargo_metadata::Metadata as CargoMetadata;
@@ -1994,13 +1994,13 @@ struct TestBuildAction {
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
-    _exec_contexts: Vec<Context>,
+    exec_contexts: Vec<Context>,
     mock_wdk_build_provider: WdkBuild,
     mock_fs_provider: Fs,
     mock_metadata_provider: MetadataProvider,
 
     // Hold the lock for the full duration of the test to ensure serialization.
-    _test_serialization_guard: Result<MutexGuard<'static, ()>>,
+    _test_serialization_guard: LockResult<MutexGuard<'static, ()>>,
 }
 
 // Presence of method ensures specific mock expectation is set
@@ -2145,7 +2145,7 @@ impl TestBuildAction {
             mock_metadata_provider,
             cargo_metadata: None,
             _test_serialization_guard: guard,
-            _exec_contexts: Vec::new(),
+            exec_contexts: Vec::new(),
         }
     }
 
@@ -2419,7 +2419,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
             )
             .once()
             .returning(move |_, _, _| Ok(expected_output.clone()));
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2730,7 +2730,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                         stderr: vec![],
                     }),
                 });
-            self._exec_contexts.push(ctx);
+            self.exec_contexts.push(ctx);
         }
         self
     }
@@ -2797,7 +2797,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2832,7 +2832,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2883,7 +2883,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2932,7 +2932,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2993,7 +2993,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3053,7 +3053,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3107,7 +3107,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 }),
             });
 
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3161,7 +3161,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 }),
             });
 
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3225,7 +3225,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 }),
             });
 
-        self._exec_contexts.push(ctx);
+        self.exec_contexts.push(ctx);
         self
     }
 

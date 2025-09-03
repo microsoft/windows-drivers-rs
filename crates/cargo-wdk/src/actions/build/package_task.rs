@@ -205,12 +205,12 @@ impl<'a> PackageTask<'a> {
         self.run_inf2cat()?;
         self.generate_certificate()?;
         self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-        self.run_signtool_sign(
+        Self::run_signtool_sign(
             &self.dest_driver_binary_path,
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
         )?;
-        self.run_signtool_sign(
+        Self::run_signtool_sign(
             &self.dest_cat_file_path,
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
@@ -219,8 +219,8 @@ impl<'a> PackageTask<'a> {
         // Verify signatures only when --verify-signature flag = true is passed
         if self.verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
-            self.run_signtool_verify(&self.dest_driver_binary_path)?;
-            self.run_signtool_verify(&self.dest_cat_file_path)?;
+            Self::run_signtool_verify(&self.dest_driver_binary_path)?;
+            Self::run_signtool_verify(&self.dest_cat_file_path)?;
         }
         Ok(())
     }
@@ -327,7 +327,7 @@ impl<'a> PackageTask<'a> {
         if self.fs.exists(&self.src_cert_file_path) {
             return Ok(());
         }
-        if self.is_self_signed_certificate_in_store()? {
+        if Self::is_self_signed_certificate_in_store()? {
             self.create_cert_file_from_store()?;
         } else {
             self.create_self_signed_cert_in_store()?;
@@ -335,7 +335,7 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
+    fn is_self_signed_certificate_in_store() -> Result<bool, PackageTaskError> {
         debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
         let args = ["-s", WDR_TEST_CERT_STORE];
 
@@ -399,7 +399,6 @@ impl<'a> PackageTask<'a> {
     /// * `cert_name` - The name of the certificate to use for signing. TODO:
     ///   Add parameters for certificate store and name
     fn run_signtool_sign(
-        &self,
         file_path: &Path,
         cert_store: &str,
         cert_name: &str,
@@ -431,7 +430,7 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    fn run_signtool_verify(&self, file_path: &Path) -> Result<(), PackageTaskError> {
+    fn run_signtool_verify(file_path: &Path) -> Result<(), PackageTaskError> {
         info!(
             "Verifying {} using signtool.",
             file_path
