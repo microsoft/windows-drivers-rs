@@ -135,6 +135,21 @@ impl Cli {
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
+                // TODO: Support extended path as cargo supports it
+                if let Some(path) = &cli_args.path {
+                    const EXTENDED_PATH_PREFIX: &str = r"\\?\";
+                    if path
+                        .as_os_str()
+                        .to_string_lossy()
+                        .starts_with(EXTENDED_PATH_PREFIX)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not \
+                             currently supported"
+                        ));
+                    }
+                }
+
                 NewAction::new(
                     cli_args.path.as_ref().unwrap_or(&std::env::current_dir()?),
                     cli_args.driver_type(),
@@ -154,7 +169,7 @@ impl Cli {
                         Self::detect_default_target_arch_using_rustc(&command_exec)?;
                     TargetArch::Default(detected_arch)
                 };
-                let build_action = BuildAction::new(
+                BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
@@ -167,8 +182,8 @@ impl Cli {
                     &command_exec,
                     &fs,
                     &metadata,
-                )?;
-                build_action.run()?;
+                )?
+                .run()?;
                 Ok(())
             }
         }
@@ -349,5 +364,28 @@ mod tests {
             path: None,
         };
         assert_eq!(args.driver_type(), DriverType::Wdm);
+    }
+
+    #[test]
+    fn verbatim_path_is_rejected() {
+        use std::path::PathBuf;
+
+        let cli = Cli {
+            cargo_command: "wdk".to_string(),
+            sub_cmd: crate::cli::Subcmd::New(NewArgs {
+                kmdf: true,
+                umdf: false,
+                wdm: false,
+                path: Some(PathBuf::from(r"\\?\C:\some\path")),
+            }),
+            verbose: clap_verbosity_flag::Verbosity::default(),
+        };
+
+        let result = cli.run();
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not currently supported"
+        );
     }
 }

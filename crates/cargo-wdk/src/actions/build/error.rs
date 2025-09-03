@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 //! This module defines error types used in the build action module.
 
-use std::{path::PathBuf, string::FromUtf8Error};
+use std::{io, path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
@@ -11,6 +11,8 @@ use crate::providers::error::{CommandError, FileError};
 /// Errors for the build action layer
 #[derive(Error, Debug)]
 pub enum BuildActionError {
+    #[error(transparent)]
+    Io(#[from] io::Error),
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Error Parsing Cargo.toml, not a valid rust project/workspace")]
