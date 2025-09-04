@@ -389,6 +389,7 @@ impl<'a> BuildAction<'a> {
                 "No cdylib target found. Skipping driver packaging task for `{package_name}` \
                  package",
             );
+            return Ok(());
         }
 
         // Detect target architecture and determine the final driver package's root
