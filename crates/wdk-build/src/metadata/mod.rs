@@ -270,13 +270,13 @@ mod tests {
         let driver_version = "0.0.1";
         let wdk_metadata = TestWdkMetadata(
             r#"
-                {{
-                    "wdk": {{
-                        "driver-model": {{
+                {
+                    "wdk": {
+                        "driver-model": {
                             "random-key": "random-value"
-                        }}
-                    }}
-                }}
+                        }
+                    }
+                }
             "#
             .to_string(),
         );
@@ -285,6 +285,7 @@ mod tests {
 
         let cargo_toml_metadata =
             get_cargo_metadata(&cwd, vec![package], &[workspace_member], None);
+
         let cargo_toml_metadata =
             serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
