@@ -18,8 +18,8 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 
         assert!(stdout.contains("Processing completed for package: driver"));
         assert!(stdout.contains(
-            "No package.metadata.wdk section found. Skipping driver build workflow for package: \
-             non_driver_crate"
+            "No package.metadata.wdk section found. Skipping driver packaging task for \
+             `non_driver_crate` package"
         ));
 
         verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
@@ -80,8 +80,8 @@ fn emulated_workspace_builds_successfully() {
         // Matches warning about WDK metadata not being available for non driver project
         // but a valid rust project
         assert!(stdout.contains(
-            "WDK metadata is not available. Skipping driver build workflow for package: \
-             rust-project"
+            "WDK metadata is not available. Skipping driver packaging task for `rust-project` \
+             package"
         ));
 
         assert!(stdout.contains("Processing completed for package: driver_1"));
@@ -130,8 +130,11 @@ fn verify_driver_package_files(
     driver_binary_extension: &str,
 ) {
     let driver_name = driver_name.replace('-', "_");
-    let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
-    let package_path = format!("{debug_folder_path}/{driver_name}_package");
+    let target_folder_path = determine_target_folder(driver_or_workspace_path, "debug");
+    let package_path = target_folder_path
+        .join(format!("{driver_name}_package"))
+        .to_string_lossy()
+        .to_string();
 
     // Verify files exist in package folder
     assert_dir_exists(&package_path);
@@ -143,20 +146,39 @@ fn verify_driver_package_files(
     assert_file_exists(&format!("{package_path}/WDRLocalTestCert.cer"));
 
     // Verify hashes of files copied from debug to package folder
+    let target_folder_str = target_folder_path.to_string_lossy();
     assert_file_hash(
         &format!("{package_path}/{driver_name}.map"),
-        &format!("{debug_folder_path}/deps/{driver_name}.map"),
+        &format!("{target_folder_str}/deps/{driver_name}.map"),
     );
 
     assert_file_hash(
         &format!("{package_path}/{driver_name}.pdb"),
-        &format!("{debug_folder_path}/{driver_name}.pdb"),
+        &format!("{target_folder_str}/{driver_name}.pdb"),
     );
 
     assert_file_hash(
         &format!("{package_path}/WDRLocalTestCert.cer"),
-        &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
+        &format!("{target_folder_str}/WDRLocalTestCert.cer"),
     );
+}
+
+// Determine the target folder (e.g., debug or release) optionally under an
+// architecture triple directory, mirroring
+// BuildAction::detect_target_arch_and_final_package_root. If a target triple
+// directory (e.g. x86_64-pc-windows-msvc) exists under target/, prefer it;
+// otherwise fall back to target/<profile> directly.
+fn determine_target_folder(driver_or_workspace_path: &str, profile: &str) -> PathBuf {
+    let base = PathBuf::from(driver_or_workspace_path).join("target");
+    // Hard check in priority order: x86_64 then aarch64
+    for triple in ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"] {
+        let candidate = base.join(triple);
+        if candidate.is_dir() {
+            return candidate.join(profile);
+        }
+    }
+    // Fallback to base target/<profile>
+    base.join(profile)
 }
 
 fn assert_dir_exists(path: &str) {
