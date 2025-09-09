@@ -8,11 +8,10 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use mockall_double::double;
 use tracing::{debug, info};
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
-#[double]
+#[cfg_attr(test, mockall_double::double)]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::{
     actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
@@ -26,7 +25,6 @@ pub struct BuildTask<'a> {
     target_arch: TargetArch,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
-    command_exec: &'a CommandExec,
 }
 
 impl<'a> BuildTask<'a> {
@@ -37,7 +35,6 @@ impl<'a> BuildTask<'a> {
     /// * `profile` - An optional profile for the build
     /// * `target_arch` - The target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
-    /// * `command_exec` - The command execution provider
     /// * `fs` - The file system provider
     /// # Returns
     /// * `Result<Self, BuildTaskError>` - A result containing the new instance
@@ -52,7 +49,6 @@ impl<'a> BuildTask<'a> {
         profile: Option<&'a Profile>,
         target_arch: TargetArch,
         verbosity_level: clap_verbosity_flag::Verbosity,
-        command_exec: &'a CommandExec,
         fs: &'a Fs,
     ) -> Result<Self, BuildTaskError> {
         let manifest_path = fs.canonicalize_path(&working_dir.join("Cargo.toml"))?;
@@ -69,7 +65,6 @@ impl<'a> BuildTask<'a> {
             target_arch,
             verbosity_level,
             manifest_path,
-            command_exec,
         })
     }
 
@@ -106,7 +101,7 @@ impl<'a> BuildTask<'a> {
             .iter()
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
-        self.command_exec.run("cargo", &args, None)?;
+        CommandExec::run("cargo", &args, None)?;
         debug!("Done");
         Ok(())
     }

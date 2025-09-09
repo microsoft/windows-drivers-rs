@@ -8,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
     process::{ExitStatus, Output},
     result::Result::Ok,
+    sync::{LockResult, MutexGuard},
 };
 
 use cargo_metadata::Metadata as CargoMetadata;
@@ -33,7 +34,10 @@ use crate::{
         Profile,
         TargetArch,
     },
-    providers::error::{CommandError, FileError},
+    providers::{
+        error::{CommandError, FileError},
+        exec::__mock_MockCommandExec::__run::Context,
+    },
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +110,6 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -182,7 +185,6 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -258,7 +260,6 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -335,7 +336,6 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -412,7 +412,6 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -490,7 +489,6 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -587,7 +585,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -665,7 +662,6 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -716,7 +712,6 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -771,7 +766,6 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -836,7 +830,6 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -902,7 +895,6 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -970,7 +962,6 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1039,7 +1030,6 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1110,7 +1100,6 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1183,7 +1172,6 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1233,7 +1221,6 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_m
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1278,7 +1265,6 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1413,7 +1399,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1526,7 +1511,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1649,7 +1633,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1728,7 +1711,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1800,7 +1782,6 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1879,7 +1860,6 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1938,7 +1918,6 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -1995,7 +1974,6 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
         test_build_action.mock_fs_provider(),
         test_build_action.mock_metadata_provider(),
     );
@@ -2016,10 +1994,13 @@ struct TestBuildAction {
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
-    mock_run_command: CommandExec,
+    exec_contexts: Vec<Context>,
     mock_wdk_build_provider: WdkBuild,
     mock_fs_provider: Fs,
     mock_metadata_provider: MetadataProvider,
+
+    // Hold the lock for the full duration of the test to ensure serialization.
+    _test_serialization_guard: LockResult<MutexGuard<'static, ()>>,
 }
 
 // Presence of method ensures specific mock expectation is set
@@ -2137,7 +2118,6 @@ trait TestSetupPackageExpectations {
     ) -> Self;
 
     fn mock_wdk_build_provider(&self) -> &WdkBuild;
-    fn mock_run_command(&self) -> &CommandExec;
     fn mock_fs_provider(&self) -> &Fs;
     fn mock_metadata_provider(&self) -> &MetadataProvider;
 }
@@ -2149,7 +2129,8 @@ impl TestBuildAction {
         target_arch: TargetArch,
         sample_class: bool,
     ) -> Self {
-        let mock_run_command = CommandExec::default();
+        // Acquire lock before setting expectations
+        let guard = crate::tests::TEST_MUTEX.lock();
         let mock_wdk_build_provider = WdkBuild::default();
         let mock_fs_provider = Fs::default();
         let mock_metadata_provider = MetadataProvider::default();
@@ -2159,11 +2140,12 @@ impl TestBuildAction {
             profile,
             target_arch,
             sample_class,
-            mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
             mock_metadata_provider,
             cargo_metadata: None,
+            _test_serialization_guard: guard,
+            exec_contexts: Vec::new(),
         }
     }
 
@@ -2424,8 +2406,9 @@ impl TestSetupPackageExpectations for TestBuildAction {
             },
             |output| output,
         );
-        self.mock_run_command
-            .expect_run()
+
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -2436,6 +2419,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
             )
             .once()
             .returning(move |_, _, _| Ok(expected_output.clone()));
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2715,8 +2699,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 ),
             ];
 
-            self.mock_run_command
-                .expect_run()
+            let ctx = CommandExec::run_context();
+            ctx.expect()
                 .withf(
                     move |command: &str,
                           args: &[&str],
@@ -2746,6 +2730,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                         stderr: vec![],
                     }),
                 });
+            self.exec_contexts.push(ctx);
         }
         self
     }
@@ -2781,8 +2766,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
             "/uselocaltime".to_string(),
         ];
 
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -2812,6 +2797,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2820,8 +2806,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
         let expected_certmgr_command: &'static str = "certmgr.exe";
         let expected_certmgr_args: Vec<String> =
             vec!["-s".to_string(), "WDRTestCertStore".to_string()];
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -2846,6 +2832,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2870,8 +2857,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .to_string_lossy()
                 .to_string(),
         ];
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -2896,6 +2883,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2918,8 +2906,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
             expected_src_driver_cert_path.to_string_lossy().to_string(),
         ];
 
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -2944,6 +2932,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -2978,8 +2967,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .to_string(),
         ];
 
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -3004,6 +2993,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3037,8 +3027,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .to_string_lossy()
                 .to_string(),
         ];
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -3063,6 +3053,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3089,8 +3080,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .to_string_lossy()
                 .to_string(),
         ];
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -3115,6 +3106,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3141,8 +3134,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                 .to_string_lossy()
                 .to_string(),
         ];
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -3167,6 +3160,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+
+        self.exec_contexts.push(ctx);
         self
     }
 
@@ -3203,8 +3198,8 @@ impl TestSetupPackageExpectations for TestBuildAction {
             expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.inf"));
         expected_infverif_args.push(expected_dest_inf_file_path.to_string_lossy().to_string());
 
-        self.mock_run_command
-            .expect_run()
+        let ctx = CommandExec::run_context();
+        ctx.expect()
             .withf(
                 move |command: &str,
                       args: &[&str],
@@ -3229,15 +3224,13 @@ impl TestSetupPackageExpectations for TestBuildAction {
                     stderr: vec![],
                 }),
             });
+
+        self.exec_contexts.push(ctx);
         self
     }
 
     fn mock_wdk_build_provider(&self) -> &WdkBuild {
         &self.mock_wdk_build_provider
-    }
-
-    fn mock_run_command(&self) -> &CommandExec {
-        &self.mock_run_command
     }
 
     fn mock_fs_provider(&self) -> &Fs {
