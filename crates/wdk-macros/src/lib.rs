@@ -112,7 +112,7 @@ struct DerivedASTFragments {
 struct IntermediateOutputASTFragments {
     must_use_attribute: Option<Attribute>,
     inline_wdf_fn_signature: Signature,
-    inline_wdf_fn_body_statments: Vec<Stmt>,
+    inline_wdf_fn_body_statements: Vec<Stmt>,
     inline_wdf_fn_invocation: ExprCall,
 }
 
@@ -299,7 +299,7 @@ impl DerivedASTFragments {
             unsafe fn #inline_wdf_fn_name(#parameters) #return_type
         };
 
-        let inline_wdf_fn_body_statments = parse_quote! {
+        let inline_wdf_fn_body_statements = parse_quote! {
             // Get handle to WDF function from the function table
             let wdf_function: wdk_sys::#function_pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
@@ -353,7 +353,7 @@ impl DerivedASTFragments {
         IntermediateOutputASTFragments {
             must_use_attribute,
             inline_wdf_fn_signature,
-            inline_wdf_fn_body_statments,
+            inline_wdf_fn_body_statements,
             inline_wdf_fn_invocation,
         }
     }
@@ -364,7 +364,7 @@ impl IntermediateOutputASTFragments {
         let Self {
             must_use_attribute,
             inline_wdf_fn_signature,
-            inline_wdf_fn_body_statments,
+            inline_wdf_fn_body_statements,
             inline_wdf_fn_invocation,
         } = self;
 
@@ -376,7 +376,7 @@ impl IntermediateOutputASTFragments {
                 // Use a private module to prevent leaking of glob import into inline_wdf_fn_invocation's parameters
                 mod private__ {
                     // Glob import types from wdk_sys. glob importing is done instead of blindly prepending the
-                    // paramters types with wdk_sys:: because bindgen generates some paramters as native rust types
+                    // parameters types with wdk_sys:: because bindgen generates some parameters as native rust types
                     use wdk_sys::*;
 
                     // If the function returns a value, add a `#[must_use]` attribute to the function
@@ -385,7 +385,7 @@ impl IntermediateOutputASTFragments {
                     //  core::hint::must_use is not stable yet: https://github.com/rust-lang/rust/issues/94745
                     #[inline(always)]
                     pub #inline_wdf_fn_signature {
-                        #(#inline_wdf_fn_body_statments)*
+                        #(#inline_wdf_fn_body_statements)*
                     }
                 }
 
@@ -928,7 +928,7 @@ fn compute_fn_parameters(
         .collect())
 }
 
-/// Compute the return type based on the function defintion
+/// Compute the return type based on the function definition
 ///
 /// # Examples
 ///

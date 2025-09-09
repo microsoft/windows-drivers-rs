@@ -394,7 +394,7 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    /// Signs the specified file using signtool command using cerificate from
+    /// Signs the specified file using signtool command using certificate from
     /// certificate store.
     ///
     /// # Arguments

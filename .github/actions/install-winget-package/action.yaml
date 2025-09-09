@@ -1,0 +1,155 @@
+name: "Install WinGet Package"
+description: "Install a package using WinGet with robust error handling and verification"
+
+inputs:
+    package-id:
+        description: "WinGet package ID to install"
+        required: true
+    version:
+        description: "Specific version to install (optional)"
+        required: false
+    override-args:
+        description: "Override arguments to pass to the WinGet installer (replaces default installer arguments)"
+        required: false
+    skip-if-installed:
+        description: "Skip installation if package is already installed (with matching version if specified)"
+        required: false
+        default: "true"
+    timeout-minutes:
+        description: "Maximum time in minutes to wait for package verification after installation"
+        required: false
+        default: "5"
+    retry-attempts:
+        description: "Maximum number of installation retry attempts"
+        required: false
+        default: "5"
+    retry-delay-seconds:
+        description: "Delay in seconds between retry attempts"
+        required: false
+        default: "30"
+
+runs:
+    using: "composite"
+    steps:
+        - name: Install WinGet Package ${{ inputs.package-id }}
+          shell: pwsh
+          run: |
+              Set-StrictMode -Version Latest
+              $ErrorActionPreference = 'Stop'
+
+              # Import WinGet PowerShell module
+              Import-Module Microsoft.WinGet.Client -Force
+
+              $packageId = '${{ inputs.package-id }}'
+              $version = '${{ inputs.version }}'
+              $overrideArgs = '${{ inputs.override-args }}'
+              $skipIfInstalled = [System.Convert]::ToBoolean('${{ inputs.skip-if-installed }}')
+              $timeoutMinutes = [int]'${{ inputs.timeout-minutes }}'
+              $maxRetries = [int]'${{ inputs.retry-attempts }}'
+              $delaySeconds = [int]'${{ inputs.retry-delay-seconds }}'
+
+              Write-Host "Installing WinGet package: $packageId"
+              if ($version) {
+                  Write-Host "Target version: $version"
+              }
+              if ($overrideArgs) {
+                  Write-Host "Override arguments: $overrideArgs"
+              }
+
+              # Check if package is already installed and skip if appropriate
+              $shouldInstall = $true
+              if ($skipIfInstalled) {
+                  $existingPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals
+                  if ($existingPackage) {
+                      $installedVersion = $existingPackage.InstalledVersion
+                      Write-Host "$packageId is already installed. Installed version: $installedVersion"
+                      
+                      if ($version) {
+                          # Check if installed version matches requested version
+                          if ($installedVersion -eq $version) {
+                              Write-Host "✅ Requested version $version is already installed. Skipping installation."
+                              $shouldInstall = $false
+                          } else {
+                              Write-Host "Installed version ($installedVersion) differs from requested version ($version). Will install requested version."
+                          }
+                      } else {
+                          Write-Host "✅ Package is already installed and no specific version was requested. Skipping installation."
+                          $shouldInstall = $false
+                      }
+                  } else {
+                      Write-Host "Package is not currently installed. Proceeding with installation..."
+                  }
+              }
+
+              # Perform installation only if needed
+              if ($shouldInstall) {
+                  $installParams = @{
+                      Id = $packageId
+                      Source = 'winget'
+                      MatchOption = 'Equals'
+                      Mode = 'Silent'
+                      Force = $true
+                  }
+                  if ($version) {
+                      $installParams.Version = $version
+                  }
+                  if ($overrideArgs) {
+                      $installParams.Override = $overrideArgs
+                  }
+                  Write-Host "Installing $packageId..."
+                  
+                  $installResult = $null
+                  for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+                      try {
+                          Write-Host "Attempting package installation (attempt $attempt of $maxRetries)..."
+                          $installResult = Install-WinGetPackage @installParams
+                          
+                          # Check for installation errors in the result object immediately
+                          if ($installResult.Status -ne 'Ok') {
+                              throw "Package installation failed with status: $($installResult.Status). InstallerErrorCode: $($installResult.InstallerErrorCode)"
+                          }
+                          
+                          Write-Host "✅ Package installation completed successfully on attempt $attempt"
+                          break
+                      } catch {
+                          Write-Warning "Package installation failed on attempt $attempt`: $($_.Exception.Message)"
+                          if ($attempt -eq $maxRetries) {
+                              throw "All $maxRetries installation attempts failed. Last error: $($_.Exception.Message)"
+                          }
+                          Write-Host "Waiting $delaySeconds seconds before retry..."
+                          Start-Sleep -Seconds $delaySeconds
+                      }
+                  }
+                  Write-Host "✅ Successfully initiated installation for $packageId"
+              }
+
+              # Verify final installation state with retry loop for async installation completion
+              $verificationTimeoutMinutes = $timeoutMinutes
+              $verificationStartTime = Get-Date
+              $verificationTimeout = $verificationStartTime.AddMinutes($verificationTimeoutMinutes)
+              $packageVerified = $false
+
+              Write-Host "Verifying package installation (will retry for up to $verificationTimeoutMinutes minutes for async completion)..."
+
+              while ((Get-Date) -lt $verificationTimeout -and -not $packageVerified) {
+                  try {
+                      $elapsedSeconds = [math]::Round(((Get-Date) - $verificationStartTime).TotalSeconds, 1)
+                      Write-Host "Verification attempt at $elapsedSeconds seconds..."
+                      $verifyPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals
+                      
+                      if ($verifyPackage) {
+                          Write-Host "✅ Final verification: $packageId is installed with version: $($verifyPackage.InstalledVersion)"
+                          $packageVerified = $true
+                      } else {
+                          throw "Package not found in WinGet package list"
+                      }
+                  } catch {
+                      $remainingSeconds = [math]::Round(($verificationTimeout - (Get-Date)).TotalSeconds, 1)
+                      if ($remainingSeconds -le 0) {
+                          throw "Package verification failed after $verificationTimeoutMinutes minutes - $packageId is not installed or not recognized by WinGet. Last error: $($_.Exception.Message)"
+                      } else {
+                          Write-Host "Package not yet visible to WinGet, waiting 10 seconds before retry... ($remainingSeconds seconds remaining)"
+                          Start-Sleep -Seconds 10
+                      }
+                  }
+              }
