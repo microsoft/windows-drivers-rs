@@ -135,6 +135,13 @@ mod tests {
         assert_eq!(build_task.profile, Some(&profile));
         assert_eq!(build_task.target_arch, target_arch);
         assert_eq!(build_task.manifest_path, working_dir.join("Cargo.toml"));
+        assert_eq!(
+            std::ptr::from_ref(build_task.command_exec),
+            &raw const command_exec,
+            "CommandExec instances are not the same"
+        );
+        // TODO: Add assert for verbosity_level once `clap-verbosity-flag` crate
+        // is updated to 3.0.4
     }
 
     #[test]

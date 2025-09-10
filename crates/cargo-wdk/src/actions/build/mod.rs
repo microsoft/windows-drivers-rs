@@ -225,8 +225,14 @@ impl<'a> BuildAction<'a> {
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
-        let workspace_root = absolute(cargo_metadata.workspace_root.as_std_path())?;
-        let target_directory = absolute(cargo_metadata.target_directory.as_std_path())?;
+        let workspace_root =
+            absolute(cargo_metadata.workspace_root.as_std_path()).map_err(|e| {
+                BuildActionError::NotAbsolute(cargo_metadata.workspace_root.clone().into(), e)
+            })?;
+        let target_directory =
+            absolute(cargo_metadata.target_directory.as_std_path()).map_err(|e| {
+                BuildActionError::NotAbsolute(cargo_metadata.target_directory.clone().into(), e)
+            })?;
         if workspace_root.eq(&working_dir) {
             // If the working directory is root of a standalone project or a
             // workspace
@@ -242,7 +248,8 @@ impl<'a> BuildAction<'a> {
                     .expect("Unable to find package path from Cargo manifest path")
                     .into();
 
-                let package_root_path = absolute(package_root_path.as_path())?;
+                let package_root_path = absolute(package_root_path.as_path())
+                    .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
                 debug!(
                     "Processing workspace member package: {}",
                     package_root_path.display()
