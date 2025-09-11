@@ -9,7 +9,7 @@ publish = false
 
 [lib]
 crate-type = ["cdylib"]
-# Windows Server 2022 (used in CI) has issues running driver tests
+# temporarily disable due to github runner issues: https://github.com/microsoft/windows-drivers-rs/issues/502
 test = false
 
 [build-dependencies]

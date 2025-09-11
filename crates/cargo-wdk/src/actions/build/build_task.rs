@@ -10,10 +10,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use mockall_double::double;
 use tracing::{debug, info};
-use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs};
+use crate::providers::exec::CommandExec;
 use crate::{
     actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
     trace,
@@ -31,7 +30,8 @@ pub struct BuildTask<'a> {
 }
 
 impl<'a> BuildTask<'a> {
-    /// Creates a new instance of `BuildTask`
+    /// Creates a new instance of `BuildTask`.
+    ///
     /// # Arguments
     /// * `package_name` - The name of the package to build
     /// * `working_dir` - The working directory for the build
@@ -39,14 +39,12 @@ impl<'a> BuildTask<'a> {
     /// * `target_arch` - The target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
-    /// * `fs` - The file system provider
+    ///
     /// # Returns
-    /// * `Result<Self, BuildTaskError>` - A result containing the new instance
-    ///   of `BuildTask` or an error
-    /// # Errors
-    /// * `BuildTaskError::CanonicalizeManifestPath` - If there is an IO error
-    ///   while canonicalizing the working dir
-    /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty
+    /// * `Self` - A new instance of `BuildTask`.
+    ///
+    /// # Panics
+    /// * If `working_dir` is not absolute
     pub fn new(
         package_name: &'a str,
         working_dir: &'a Path,
@@ -54,25 +52,21 @@ impl<'a> BuildTask<'a> {
         target_arch: TargetArch,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
-        fs: &'a Fs,
-    ) -> Result<Self, BuildTaskError> {
-        let manifest_path = fs.canonicalize_path(&working_dir.join("Cargo.toml"))?;
-        let manifest_path = match manifest_path.strip_extended_length_path_prefix() {
-            Ok(path) => path,
-            Err(StripExtendedPathPrefixError::NoExtendedPathPrefix) => manifest_path,
-            Err(StripExtendedPathPrefixError::EmptyPath) => {
-                return Err(BuildTaskError::EmptyManifestPath);
-            }
-        };
-        Ok(Self {
+    ) -> Self {
+        assert!(
+            working_dir.is_absolute(),
+            "Working directory path must be absolute. Input path: {}",
+            working_dir.display()
+        );
+        Self {
             package_name,
             profile,
             target_arch,
             verbosity_level,
-            manifest_path,
+            manifest_path: working_dir.join("Cargo.toml"),
             command_exec,
             working_dir,
-        })
+        }
     }
 
     /// Entry point method to run the build task
@@ -114,5 +108,65 @@ impl<'a> BuildTask<'a> {
             .run("cargo", &args, None, Some(self.working_dir))?;
         debug!("Done");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wdk_build::CpuArchitecture;
+
+    use super::*;
+    use crate::actions::{Profile, TargetArch};
+
+    #[test]
+    fn new_succeeds_for_valid_args() {
+        let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
+        let package_name = "test_package";
+        let profile = Profile::Dev;
+        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let verbosity_level = clap_verbosity_flag::Verbosity::default();
+        let command_exec = CommandExec::new();
+
+        let build_task = BuildTask::new(
+            package_name,
+            &working_dir,
+            Some(&profile),
+            target_arch,
+            verbosity_level,
+            &command_exec,
+        );
+
+        assert_eq!(build_task.package_name, package_name);
+        assert_eq!(build_task.profile, Some(&profile));
+        assert_eq!(build_task.target_arch, target_arch);
+        assert_eq!(build_task.manifest_path, working_dir.join("Cargo.toml"));
+        assert_eq!(
+            std::ptr::from_ref(build_task.command_exec),
+            &raw const command_exec,
+            "CommandExec instances are not the same"
+        );
+        // TODO: Add assert for verbosity_level once `clap-verbosity-flag` crate
+        // is updated to 3.0.4
+    }
+
+    #[test]
+    #[should_panic(expected = "Working directory path must be absolute. Input path: \
+                               relative/path/to/working/dir")]
+    fn new_panics_when_working_dir_is_not_absolute() {
+        let working_dir = PathBuf::from("relative/path/to/working/dir");
+        let package_name = "test_package";
+        let profile = Some(Profile::Dev);
+        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let verbosity_level = clap_verbosity_flag::Verbosity::default();
+        let command_exec = CommandExec::new();
+
+        BuildTask::new(
+            package_name,
+            &working_dir,
+            profile.as_ref(),
+            target_arch,
+            verbosity_level,
+            &command_exec,
+        );
     }
 }
