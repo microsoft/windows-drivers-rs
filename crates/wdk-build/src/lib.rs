@@ -287,10 +287,6 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
-
-    /// Error returned when the UCX header file is not found
-    #[error("failed to find {0} header file.")]
-    HeaderNotFound(String, #[source] IoError),
 }
 
 /// Subset of APIs in the Windows Driver Kit
