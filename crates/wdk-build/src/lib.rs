@@ -514,16 +514,16 @@ impl Config {
         let windows_sdk_include_path = include_directory.join(sdk_version);
 
         let crt_include_path = windows_sdk_include_path.join("km/crt");
-        Self::validate_and_add_include_path(&mut include_paths, &crt_include_path)?;
+        Self::validate_and_add_folder_path(&mut include_paths, &crt_include_path)?;
 
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
         });
-        Self::validate_and_add_include_path(&mut include_paths, &km_or_um_include_path)?;
+        Self::validate_and_add_folder_path(&mut include_paths, &km_or_um_include_path)?;
 
         let kit_shared_include_path = windows_sdk_include_path.join("shared");
-        Self::validate_and_add_include_path(&mut include_paths, &kit_shared_include_path)?;
+        Self::validate_and_add_folder_path(&mut include_paths, &kit_shared_include_path)?;
 
         // Add other driver type-specific include paths
         match &self.driver_config {
@@ -533,29 +533,32 @@ impl Config {
                     "wdf/kmdf/{}.{}",
                     kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ));
-                Self::validate_and_add_include_path(&mut include_paths, &kmdf_include_path)?;
+                Self::validate_and_add_folder_path(&mut include_paths, &kmdf_include_path)?;
 
                 // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
                 // normally does not automatically include this search path, but it is required
                 // here so that the headers can be processed successfully.
                 let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
-                Self::validate_and_add_include_path(&mut include_paths, &ufx_include_path)?;
+                Self::validate_and_add_folder_path(&mut include_paths, &ufx_include_path)?;
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_include_path = include_directory.join(format!(
                     "wdf/umdf/{}.{}",
                     umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
                 ));
-                Self::validate_and_add_include_path(&mut include_paths, &umdf_include_path)?;
+                Self::validate_and_add_folder_path(&mut include_paths, &umdf_include_path)?;
             }
         }
 
         Ok(include_paths.into_iter())
     }
 
-    /// Validate that a path is a valid include path and add it to the include
-    /// paths collection
-    fn validate_and_add_include_path(
+    /// Validate that a path refers to an existing directory and push its
+    /// canonical absolute form into the provided collection.
+    ///
+    /// This helper is used for both header include directories and library
+    /// directories. It normalizes paths before insertion.
+    fn validate_and_add_folder_path(
         include_paths: &mut Vec<PathBuf>,
         path: &Path,
     ) -> Result<(), ConfigError> {
@@ -594,7 +597,7 @@ impl Config {
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
         let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
-        Self::validate_and_add_include_path(&mut library_paths, &windows_sdk_library_path)?;
+        Self::validate_and_add_folder_path(&mut library_paths, &windows_sdk_library_path)?;
 
         // Add other driver type-specific library paths
         let library_directory = self.wdk_content_root.join("Lib");
@@ -607,7 +610,7 @@ impl Config {
                     kmdf_config.kmdf_version_major,
                     kmdf_config.target_kmdf_version_minor
                 ));
-                Self::validate_and_add_include_path(&mut library_paths, &kmdf_library_path)?;
+                Self::validate_and_add_folder_path(&mut library_paths, &kmdf_library_path)?;
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_library_path = library_directory.join(format!(
@@ -616,7 +619,7 @@ impl Config {
                     umdf_config.umdf_version_major,
                     umdf_config.target_umdf_version_minor,
                 ));
-                Self::validate_and_add_include_path(&mut library_paths, &umdf_library_path)?;
+                Self::validate_and_add_folder_path(&mut library_paths, &umdf_library_path)?;
             }
         }
 
@@ -1979,7 +1982,7 @@ mod tests {
         }
     }
 
-    mod validate_and_add_include_path {
+    mod validate_and_add_folder_path {
         use assert_fs::prelude::*;
 
         use super::*;
@@ -1989,7 +1992,7 @@ mod tests {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             let mut include_paths = Vec::new();
 
-            let result = Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+            let result = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
 
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
@@ -2007,7 +2010,7 @@ mod tests {
             let mut include_paths = Vec::new();
 
             let result =
-                Config::validate_and_add_include_path(&mut include_paths, non_existent_path);
+                Config::validate_and_add_folder_path(&mut include_paths, non_existent_path);
 
             assert!(result.is_err());
             #[cfg(nightly_toolchain)]
@@ -2025,7 +2028,7 @@ mod tests {
             file.write_str("test content").unwrap();
             let mut include_paths = Vec::new();
 
-            let result = Config::validate_and_add_include_path(&mut include_paths, file.path());
+            let result = Config::validate_and_add_folder_path(&mut include_paths, file.path());
 
             assert!(result.is_err());
             #[cfg(nightly_toolchain)]
@@ -2046,7 +2049,7 @@ mod tests {
             let complex_path = sub_dir.path().join("..").join("subdir");
             let mut include_paths = Vec::new();
 
-            let result = Config::validate_and_add_include_path(&mut include_paths, &complex_path);
+            let result = Config::validate_and_add_folder_path(&mut include_paths, &complex_path);
 
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
@@ -2070,8 +2073,8 @@ mod tests {
 
             let mut include_paths = Vec::new();
 
-            let result1 = Config::validate_and_add_include_path(&mut include_paths, dir1.path());
-            let result2 = Config::validate_and_add_include_path(&mut include_paths, dir2.path());
+            let result1 = Config::validate_and_add_folder_path(&mut include_paths, dir1.path());
+            let result2 = Config::validate_and_add_folder_path(&mut include_paths, dir2.path());
 
             assert!(result1.is_ok());
             assert!(result2.is_ok());
@@ -2097,7 +2100,7 @@ mod tests {
             let mut include_paths = Vec::new();
 
             let result =
-                Config::validate_and_add_include_path(&mut include_paths, nested_dir.path());
+                Config::validate_and_add_folder_path(&mut include_paths, nested_dir.path());
 
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
@@ -2114,10 +2117,8 @@ mod tests {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             let mut include_paths = Vec::new();
 
-            let result1 =
-                Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
-            let result2 =
-                Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+            let result1 = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
+            let result2 = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
 
             assert!(result1.is_ok());
             assert!(result2.is_ok());
@@ -2136,7 +2137,7 @@ mod tests {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             let mut include_paths = Vec::new();
 
-            let result = Config::validate_and_add_include_path(&mut include_paths, temp_dir.path());
+            let result = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
 
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
