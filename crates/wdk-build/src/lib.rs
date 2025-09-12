@@ -11,7 +11,13 @@
 //! models (WDM, KMDF, UMDF).
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
-use std::{fmt, str::FromStr};
+use std::{
+    env,
+    fmt,
+    path::{absolute, Path, PathBuf},
+    str::FromStr,
+    sync::LazyLock,
+};
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
@@ -19,20 +25,13 @@ use metadata::TryFromCargoMetadataError;
 pub mod cargo_make;
 pub mod metadata;
 
-pub mod utils;
+mod utils;
 
 mod bindgen;
-
-use std::{
-    env,
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use utils::PathExt;
 
 use crate::utils::detect_windows_sdk_version;
 
@@ -231,10 +230,6 @@ pub enum ConfigError {
         error_source: semver::Error,
     },
 
-    /// `utils::PathExt::strip_extended_length_path_prefix` operation fails
-    #[error(transparent)]
-    StripExtendedPathPrefixError(#[from] utils::StripExtendedPathPrefixError),
-
     /// Error returned when a [`metadata::Wdk`] fails to be parsed from a Cargo
     /// Manifest
     #[error(transparent)]
@@ -317,6 +312,58 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+/// Error when parsing a [`TwoPartVersion`].
+pub enum TwoPartVersionError {
+    /// Supplied string didn't match MAJOR.MINOR format.
+    #[error("Invalid version: {0}. Expected format is 'major.minor'")]
+    InvalidFormat(String),
+    /// A numeric component failed to parse (component name, original string).
+    #[error("Error parsing {0} version to 'u32'. Version string: {1}")]
+    ParseError(String, String),
+}
+
+/// Version of the form MAJOR.MINOR (both u32). Accepts leading zeros.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct TwoPartVersion(pub u32, pub u32);
+
+/// Parses a string of the form `MAJOR.MINOR` into a [`TwoPartVersion`].
+///
+/// # Expected format
+/// - The input string must contain exactly one dot (`.`) separating two
+///   non-empty components.
+/// - Both components must be valid unsigned 32-bit integers (`u32`). Leading
+///   zeros are accepted.
+///
+/// # Errors
+/// - Returns [`TwoPartVersionError::InvalidFormat`] if the string does not
+///   contain exactly one dot or has empty components.
+/// - Returns [`TwoPartVersionError::ParseError`] if either component cannot be
+///   parsed as a `u32`.
+impl FromStr for TwoPartVersion {
+    type Err = TwoPartVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let dot_count = s.matches('.').count();
+        if dot_count != 1 {
+            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
+        }
+        let (major_str, minor_str) = s
+            .split_once('.')
+            .ok_or_else(|| TwoPartVersionError::InvalidFormat(s.to_string()))?;
+        if major_str.is_empty() || minor_str.is_empty() {
+            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
+        }
+        let major = major_str
+            .parse::<u32>()
+            .map_err(|_| TwoPartVersionError::ParseError("major".to_string(), s.to_string()))?;
+        let minor = minor_str
+            .parse::<u32>()
+            .map_err(|_| TwoPartVersionError::ParseError("minor".to_string(), s.to_string()))?;
+        Ok(Self(major, minor))
+    }
 }
 
 impl Default for Config {
@@ -519,17 +566,14 @@ impl Config {
             });
         }
 
-        let canonicalized_path = path
-            .canonicalize()
-            .map_err(|source| IoError {
-                metadata: IoErrorMetadata::SinglePath {
-                    path: path.to_path_buf(),
-                },
-                source,
-            })?
-            .strip_extended_length_path_prefix()?;
+        let absolute_path = absolute(path).map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: path.to_path_buf(),
+            },
+            source,
+        })?;
 
-        include_paths.push(canonicalized_path);
+        include_paths.push(absolute_path);
         Ok(())
     }
 
@@ -1443,6 +1487,213 @@ mod tests {
 
     use super::*;
 
+    mod two_part_version {
+        use super::*;
+
+        #[test]
+        fn valid_versions() {
+            assert_eq!("1.2".parse(), Ok(TwoPartVersion(1, 2)));
+            assert_eq!("0.0".parse(), Ok(TwoPartVersion(0, 0)));
+            assert_eq!("10.15".parse(), Ok(TwoPartVersion(10, 15)));
+            assert_eq!("999.1".parse(), Ok(TwoPartVersion(999, 1)));
+            assert_eq!("1.999".parse(), Ok(TwoPartVersion(1, 999)));
+            assert_eq!("01.02".parse(), Ok(TwoPartVersion(1, 2)));
+            assert_eq!("1.02".parse(), Ok(TwoPartVersion(1, 2)));
+            assert_eq!("01.2".parse(), Ok(TwoPartVersion(1, 2)));
+        }
+
+        #[test]
+        fn invalid_format_versions() {
+            assert_eq!(
+                String::new().parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat(String::new()))
+            );
+            assert_eq!(
+                "1".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("1".to_string()))
+            );
+            assert_eq!(
+                "123".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("123".to_string()))
+            );
+            assert_eq!(
+                "1.2.3.4".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("1.2.3.4".to_string()))
+            );
+            assert_eq!(
+                ".".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat(".".to_string()))
+            );
+            assert_eq!(
+                ".2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat(".2".to_string()))
+            );
+            assert_eq!(
+                "1.".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("1.".to_string()))
+            );
+            assert_eq!(
+                "myfolder".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::InvalidFormat("myfolder".to_string()))
+            );
+        }
+
+        #[test]
+        fn parse_error_versions() {
+            assert_eq!(
+                "a.b".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "a.b".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.b".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.b".to_string()
+                ))
+            );
+            assert_eq!(
+                "a.2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "a.2".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.2a".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.2a".to_string()
+                ))
+            );
+            assert_eq!(
+                "1a.2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "1a.2".to_string()
+                ))
+            );
+            assert_eq!(
+                " 1.2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    " 1.2".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.2 ".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.2 ".to_string()
+                ))
+            );
+            assert_eq!(
+                "1 .2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "1 .2".to_string()
+                ))
+            );
+            assert_eq!(
+                "1. 2".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1. 2".to_string()
+                ))
+            );
+        }
+
+        #[test]
+        fn version_ordering() {
+            let v1_0 = TwoPartVersion(1, 0);
+            let v1_1 = TwoPartVersion(1, 1);
+            let v1_999 = TwoPartVersion(1, 999);
+            let v2_0 = TwoPartVersion(2, 0);
+            let v2_1 = TwoPartVersion(2, 1);
+
+            assert!(v1_0 < v1_1);
+            assert!(v1_1 < v1_999);
+            assert!(v1_999 < v2_0);
+            assert!(v2_0 < v2_1);
+        }
+
+        #[test]
+        fn equality() {
+            let v1 = TwoPartVersion(1, 2);
+            let v2 = TwoPartVersion(1, 2);
+            let v3 = TwoPartVersion(1, 3);
+            assert_eq!(v1, v2);
+            assert_ne!(v1, v3);
+        }
+
+        #[test]
+        fn debug_formatting() {
+            let version = TwoPartVersion(1, 2);
+            let debug_str = format!("{version:?}");
+            assert_eq!(debug_str, "TwoPartVersion(1, 2)");
+        }
+
+        #[test]
+        fn max_selection() {
+            let versions = [
+                TwoPartVersion(1, 2),
+                TwoPartVersion(1, 10),
+                TwoPartVersion(2, 0),
+                TwoPartVersion(1, 5),
+                TwoPartVersion(2, 1),
+                TwoPartVersion(1, 999),
+            ];
+
+            let max_version = versions.iter().max().unwrap();
+            assert_eq!(*max_version, TwoPartVersion(2, 1));
+        }
+
+        #[test]
+        fn u32_max_and_overflow() {
+            assert_eq!(
+                "4294967295.4294967295".parse::<TwoPartVersion>(),
+                Ok(TwoPartVersion(4_294_967_295, 4_294_967_295))
+            );
+            assert_eq!(
+                "4294967296.0".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "4294967296.0".to_string()
+                ))
+            );
+            assert_eq!(
+                "99999999999999999999.0".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "99999999999999999999.0".to_string()
+                ))
+            );
+            assert_eq!(
+                "0.4294967296".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "0.4294967296".to_string()
+                ))
+            );
+            assert_eq!(
+                "1.99999999999999999999".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "minor".to_string(),
+                    "1.99999999999999999999".to_string()
+                ))
+            );
+            assert_eq!(
+                "4294967296.4294967296".parse::<TwoPartVersion>(),
+                Err(TwoPartVersionError::ParseError(
+                    "major".to_string(),
+                    "4294967296.4294967296".to_string()
+                ))
+            );
+        }
+    }
+
     /// Runs function after modifying environment variables, and returns the
     /// function's return value.
     ///
@@ -1746,12 +1997,7 @@ mod tests {
             assert!(include_paths[0].is_dir());
 
             // Verify the exact canonicalized path was added
-            let expected_path = temp_dir
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
+            let expected_path = absolute(temp_dir.path()).unwrap();
             assert_eq!(include_paths[0], expected_path);
         }
 
@@ -1810,12 +2056,7 @@ mod tests {
             assert!(include_paths[0].is_absolute());
 
             // Verify the path resolves to the actual subdir path
-            let expected_path = sub_dir
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
+            let expected_path = absolute(sub_dir.path()).unwrap();
             assert_eq!(include_paths[0], expected_path);
         }
 
@@ -1842,18 +2083,8 @@ mod tests {
             assert!(include_paths[1].exists());
 
             // Verify both paths match their expected canonicalized values
-            let expected_path1 = dir1
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
-            let expected_path2 = dir2
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
+            let expected_path1 = absolute(dir1.path()).unwrap();
+            let expected_path2 = absolute(dir2.path()).unwrap();
             assert_eq!(include_paths[0], expected_path1);
             assert_eq!(include_paths[1], expected_path2);
         }
@@ -1874,12 +2105,7 @@ mod tests {
             assert!(include_paths[0].is_dir());
 
             // Verify the nested path matches the expected canonicalized value
-            let expected_path = nested_dir
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
+            let expected_path = absolute(nested_dir.path()).unwrap();
             assert_eq!(include_paths[0], expected_path);
         }
 
@@ -1899,12 +2125,7 @@ mod tests {
             assert_eq!(include_paths[0], include_paths[1]);
 
             // Verify both entries match the expected canonicalized path
-            let expected_path = temp_dir
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
+            let expected_path = absolute(temp_dir.path()).unwrap();
             assert_eq!(include_paths[0], expected_path);
             assert_eq!(include_paths[1], expected_path);
         }
@@ -1925,12 +2146,7 @@ mod tests {
             assert!(!path_str.starts_with(r"\\?\"));
 
             // Verify the path matches expected canonicalized value
-            let expected_path = temp_dir
-                .path()
-                .canonicalize()
-                .unwrap()
-                .strip_extended_length_path_prefix()
-                .unwrap();
+            let expected_path = absolute(temp_dir.path()).unwrap();
             assert_eq!(include_paths[0], expected_path);
         }
     }

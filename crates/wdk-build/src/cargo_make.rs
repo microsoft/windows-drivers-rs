@@ -15,7 +15,7 @@ use core::{fmt, ops::RangeFrom};
 use std::{
     env,
     panic::UnwindSafe,
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
     process::Command,
 };
 
@@ -26,7 +26,7 @@ use tracing::{instrument, trace};
 
 use crate::{
     metadata,
-    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number, PathExt},
+    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number},
     ConfigError,
     CpuArchitecture,
     IoError,
@@ -524,24 +524,22 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let host_windows_sdk_ver_bin_path = {
         let path = wdk_bin_root.join(host_arch.as_windows_str());
-        path.canonicalize().map_err(|source| IoError {
+        absolute(&path).map_err(|source| IoError {
             metadata: IoErrorMetadata::SinglePath { path },
             source,
         })
     }?
-    .strip_extended_length_path_prefix()?
     .to_str()
     .expect("WDK bin path should be valid UTF-8")
     .to_string();
 
     let x86_windows_sdk_ver_bin_path = {
         let path = wdk_bin_root.join("x86");
-        path.canonicalize().map_err(|source| IoError {
+        absolute(&path).map_err(|source| IoError {
             metadata: IoErrorMetadata::SinglePath { path },
             source,
         })
     }?
-    .strip_extended_length_path_prefix()?
     .to_str()
     .expect("WDK x86 bin path should be valid UTF-8")
     .to_string();
@@ -551,12 +549,11 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
             let path = PathBuf::from(sdk_bin_path)
                 .join(&sdk_version)
                 .join(host_arch.as_windows_str());
-            path.canonicalize().map_err(|source| IoError {
+            absolute(&path).map_err(|source| IoError {
                 metadata: IoErrorMetadata::SinglePath { path },
                 source,
             })
         }?
-        .strip_extended_length_path_prefix()?
         .to_str()
         .expect("WindowsSdkBinPath should be valid UTF-8")
         .to_string();
@@ -571,12 +568,11 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, sdk_version);
     let host_windows_sdk_version_tool_path = {
         let path = wdk_tool_root.join(host_arch.as_windows_str());
-        path.canonicalize().map_err(|source| IoError {
+        absolute(&path).map_err(|source| IoError {
             metadata: IoErrorMetadata::SinglePath { path },
             source,
         })
     }?
-    .strip_extended_length_path_prefix()?
     .to_str()
     .expect("WDK tool path should be valid UTF-8")
     .to_string();
