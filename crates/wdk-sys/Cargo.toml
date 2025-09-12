@@ -25,6 +25,7 @@ parallel-ports = ["gpio"]
 spb = []
 storage = []
 usb = []
+network = []
 
 nightly = ["wdk-macros/nightly", "wdk-build/nightly"]
 test-stubs = []
@@ -48,7 +49,7 @@ wdk-build.workspace = true
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]
 # workspace = true
-# 
+#
 # Differences from the workspace lints have comments explaining why they are different
 
 [lints.rust]

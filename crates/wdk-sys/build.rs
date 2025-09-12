@@ -78,12 +78,12 @@ static CALL_UNSAFE_WDF_BINDING_TEMPLATE: LazyLock<String> = LazyLock::new(|| {
 ///
 /// ```rust, no_run
 /// use wdk_sys::*;
-/// 
+///
 /// pub unsafe extern "system" fn driver_entry(
 ///     driver: &mut DRIVER_OBJECT,
 ///     registry_path: PCUNICODE_STRING,
 /// ) -> NTSTATUS {{
-/// 
+///
 ///     let mut driver_config = WDF_DRIVER_CONFIG {{
 ///         Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as ULONG,
 ///         ..WDF_DRIVER_CONFIG::default()
@@ -138,6 +138,7 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("spb.rs", generate_spb),
     ("storage.rs", generate_storage),
     ("usb.rs", generate_usb),
+    ("network.rs", generate_network),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -212,6 +213,8 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
+        #[cfg(feature = "network")]
+        ApiSubset::Network,
     ])?;
     trace!(header_contents = ?header_contents);
 
@@ -244,6 +247,8 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         ApiSubset::Storage,
         #[cfg(feature = "usb")]
         ApiSubset::Usb,
+        #[cfg(feature = "network")]
+        ApiSubset::Network,
     ])?;
     trace!(header_contents = ?header_contents);
 
@@ -526,6 +531,42 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
 
             info!("Skipping usb.rs generation since usb feature is not enabled");
+            Ok(())
+        }
+    }
+}
+
+fn generate_network(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "network")] {
+            info!("Generating bindings to Network: network.rs");
+
+            let header_contents =
+                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Network])?;
+            trace!(header_contents = ?header_contents);
+
+            let bindgen_builder = {
+                let mut builder = bindgen::Builder::wdk_default(config)?
+                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+                    .header_contents("network-input.h", &header_contents);
+
+                // Only allowlist files in the network-specific files to avoid
+                // duplicate definitions
+                for header_file in config.headers(ApiSubset::Network)? {
+                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+                }
+                builder
+            };
+            trace!(bindgen_builder = ?bindgen_builder);
+
+            Ok(bindgen_builder
+                .generate()
+                .expect("Bindings should succeed to generate")
+                .write_to_file(out_path.join("network.rs"))?)
+        } else {
+            let _ = (out_path, config); // Silence unused variable warnings when network feature is not enabled
+
+            info!("Skipping network.rs generation since network feature is not enabled");
             Ok(())
         }
     }
