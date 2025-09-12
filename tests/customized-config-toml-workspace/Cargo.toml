@@ -1,0 +1,3 @@
+[workspace]
+members = ["lib-crate"]
+resolver = "2"

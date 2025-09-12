@@ -8,8 +8,9 @@ use bindgen::{
     Builder,
 };
 use cargo_metadata::MetadataCommand;
+use tracing::debug;
 
-use crate::{Config, ConfigError, DriverConfig};
+use crate::{find_top_level_cargo_manifest, Config, ConfigError, DriverConfig};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -242,10 +243,20 @@ fn get_stable_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
 // Returns `ConfigError::CargoMetadataPackageNotFound` if the `wdk-build`
 // package is not found, or `ConfigError::UnsupportedRustEdition` if the edition
 // is not supported.
+#[tracing::instrument(level = "debug")]
 fn get_rust_edition() -> Result<bindgen::RustEdition, ConfigError> {
     const WDK_BUILD_PACKAGE_NAME: &str = "wdk-build";
-
-    let wdk_sys_cargo_metadata = MetadataCommand::new().exec()?;
+    // Run `cargo_metadata` in the same working directory as the top level manifest
+    // in order to respect `config.toml` overrides
+    let top_level_cargo_manifest_path = find_top_level_cargo_manifest();
+    debug!(
+        "Top level Cargo manifest path: {:?}",
+        top_level_cargo_manifest_path
+    );
+    let cwd = top_level_cargo_manifest_path
+        .parent()
+        .expect("Cargo manifest should have a valid parent directory");
+    let wdk_sys_cargo_metadata = MetadataCommand::new().current_dir(cwd).exec()?;
 
     let wdk_sys_package_metadata = wdk_sys_cargo_metadata
         .packages
