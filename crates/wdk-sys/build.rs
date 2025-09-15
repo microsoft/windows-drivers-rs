@@ -127,8 +127,26 @@ pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::pt
 ",
     )
 });
-type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
+/// Enabled API subsets based off of cargo-features
+const ENABLED_API_SUBSETS: &[ApiSubset] = &[
+    ApiSubset::Base,
+    ApiSubset::Wdf,
+    #[cfg(feature = "gpio")]
+    ApiSubset::Gpio,
+    #[cfg(feature = "hid")]
+    ApiSubset::Hid,
+    #[cfg(feature = "parallel-ports")]
+    ApiSubset::ParallelPorts,
+    #[cfg(feature = "spb")]
+    ApiSubset::Spb,
+    #[cfg(feature = "storage")]
+    ApiSubset::Storage,
+    #[cfg(feature = "usb")]
+    ApiSubset::Usb,
+];
+
+type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("constants.rs", generate_constants),
     ("types.rs", generate_types),
@@ -205,22 +223,7 @@ fn initialize_tracing() -> Result<(), ParseError> {
 fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: constants.rs");
 
-    let header_contents = config.bindgen_header_contents([
-        ApiSubset::Base,
-        ApiSubset::Wdf,
-        #[cfg(feature = "gpio")]
-        ApiSubset::Gpio,
-        #[cfg(feature = "hid")]
-        ApiSubset::Hid,
-        #[cfg(feature = "parallel-ports")]
-        ApiSubset::ParallelPorts,
-        #[cfg(feature = "spb")]
-        ApiSubset::Spb,
-        #[cfg(feature = "storage")]
-        ApiSubset::Storage,
-        #[cfg(feature = "usb")]
-        ApiSubset::Usb,
-    ])?;
+    let header_contents = config.bindgen_header_contents(ENABLED_API_SUBSETS.iter().copied())?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -244,22 +247,7 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
-    let header_contents = config.bindgen_header_contents([
-        ApiSubset::Base,
-        ApiSubset::Wdf,
-        #[cfg(feature = "gpio")]
-        ApiSubset::Gpio,
-        #[cfg(feature = "hid")]
-        ApiSubset::Hid,
-        #[cfg(feature = "parallel-ports")]
-        ApiSubset::ParallelPorts,
-        #[cfg(feature = "spb")]
-        ApiSubset::Spb,
-        #[cfg(feature = "storage")]
-        ApiSubset::Storage,
-        #[cfg(feature = "usb")]
-        ApiSubset::Usb,
-    ])?;
+    let header_contents = config.bindgen_header_contents(ENABLED_API_SUBSETS.iter().copied())?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -490,11 +478,8 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: storage.rs");
 
-    let header_contents = config.bindgen_header_contents([
-        ApiSubset::Base,
-        ApiSubset::Wdf,
-        ApiSubset::Storage,
-    ])?;
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Storage])?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = {
@@ -661,6 +646,155 @@ fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> 
     Ok(())
 }
 
+/// Starts parallel bindgen tasks for generating binding files.
+fn start_bindgen_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) {
+    info_span!("bindgen generation").in_scope(|| {
+        for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
+            let current_span = Span::current();
+
+            thread_join_handles.push(
+                thread::Builder::new()
+                    .name(format!("bindgen {file_name} generator"))
+                    .spawn_scoped(thread_scope, move || {
+                        // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
+                        info_span!(parent: &current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
+                    })
+                    .expect("Scoped Thread should spawn successfully"),
+            );
+        }
+    });
+}
+
+/// Starts a task that compiles a C shim to expose WDF symbols hidden by
+/// `__declspec(selectany)`.
+fn start_wdf_symbol_export_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) {
+    let current_span = Span::current();
+
+    // Compile a c library to expose symbols that are not exposed because of
+    // __declspec(selectany)
+    thread_join_handles.push(
+        thread::Builder::new()
+            .name("wdf.c cc compilation".to_string())
+            .spawn_scoped(thread_scope, move || {
+                // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
+                info_span!(parent: current_span, "cc").in_scope(|| {
+                    info!("Compiling wdf.c");
+
+                    // Write all included headers into wdf.c (existing file, if present
+                    // (i.e. incremental rebuild), is truncated)
+                    let wdf_c_file_path = out_path.join("wdf.c");
+                    {
+                        let mut wdf_c_file =
+                            File::create(&wdf_c_file_path).map_err(|source| IoError {
+                                metadata: IoErrorMetadata::SinglePath {
+                                    path: wdf_c_file_path.clone(),
+                                },
+                                source,
+                            })?;
+                        wdf_c_file
+                            .write_all(
+                                config
+                                    .bindgen_header_contents(ENABLED_API_SUBSETS.iter().copied())?
+                                    .as_bytes(),
+                            )
+                            .map_err(|source| IoError {
+                                metadata: IoErrorMetadata::SinglePath {
+                                    path: wdf_c_file_path.clone(),
+                                },
+                                source,
+                            })?;
+
+                        // Explicitly sync_all to surface any IO errors (File::drop
+                        // silently ignores close errors)
+                        wdf_c_file.sync_all().map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: wdf_c_file_path.clone(),
+                            },
+                            source,
+                        })?;
+                    }
+
+                    let mut cc_builder = cc::Build::new();
+                    for (key, value) in config.preprocessor_definitions() {
+                        cc_builder.define(&key, value.as_deref());
+                    }
+
+                    cc_builder
+                        .includes(config.include_paths()?)
+                        .file(wdf_c_file_path)
+                        .compile("wdf");
+                    Ok::<(), ConfigError>(())
+                })
+            })
+            .expect("Scoped Thread should spawn successfully"),
+    );
+}
+
+/// Starts generation/compilation tasks for WDF-specific artifacts for driver
+/// configurations.
+///
+/// Uses the `start_*_tasks` naming convention: dispatches work to scoped
+/// threads and returns after scheduling.
+fn start_wdf_artifact_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) -> anyhow::Result<()> {
+    if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
+        start_wdf_symbol_export_tasks(thread_scope, out_path, config, thread_join_handles);
+
+        info_span!("wdf_function_count.rs generation").in_scope(|| {
+            generate_wdf_function_count(out_path, config)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+
+        info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
+            generate_call_unsafe_wdf_function_binding_macro(out_path)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+
+        info_span!("test_stubs.rs generation").in_scope(|| {
+            generate_test_stubs(out_path, config)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+    }
+    Ok(())
+}
+
+/// Joins all worker threads and collects their results
+fn join_worker_threads(
+    thread_join_handles: Vec<thread::ScopedJoinHandle<'_, Result<(), ConfigError>>>,
+) -> anyhow::Result<()> {
+    for join_handle in thread_join_handles {
+        let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
+
+        match join_handle.join() {
+            // Forward panics to the main thread
+            Err(panic_payload) => {
+                panic::resume_unwind(panic_payload);
+            }
+
+            Ok(thread_result) => {
+                thread_result.with_context(|| {
+                    format!(r#""{thread_name}" thread failed to exit successfully"#)
+                })?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
 
@@ -672,131 +806,10 @@ fn main() -> anyhow::Result<()> {
         thread::scope(|thread_scope| {
             let mut thread_join_handles = Vec::new();
 
-            info_span!("bindgen generation").in_scope(|| {
-                let out_path = &out_path;
-                let config = &config;
+            start_bindgen_tasks(thread_scope, &out_path, &config, &mut thread_join_handles);
+            start_wdf_artifact_tasks(thread_scope, &out_path, &config, &mut thread_join_handles)?;
 
-                for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
-                    let current_span = Span::current();
-
-                    thread_join_handles.push(
-                        thread::Builder::new()
-                            .name(format!("bindgen {file_name} generator"))
-                            .spawn_scoped(thread_scope, move || {
-                                // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                                info_span!(parent: &current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
-                            })
-                            .expect("Scoped Thread should spawn successfully"),
-                    );
-                }
-            });
-
-            if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
-                let current_span = Span::current();
-                let config = &config;
-                let out_path = &out_path;
-
-                // Compile a c library to expose symbols that are not exposed because of
-                // __declspec(selectany)
-                thread_join_handles.push(
-                    thread::Builder::new()
-                        .name("wdf.c cc compilation".to_string())
-                        .spawn_scoped(thread_scope, move || {
-                            // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                            info_span!(parent: current_span, "cc").in_scope(|| {
-                                info!("Compiling wdf.c");
-
-                                // Write all included headers into wdf.c (existing file, if present
-                                // (i.e. incremental rebuild), is truncated)
-                                let wdf_c_file_path = out_path.join("wdf.c");
-                                {
-                                    let mut wdf_c_file =
-                                        File::create(&wdf_c_file_path).map_err(|source| {
-                                            IoError {
-                                                metadata: IoErrorMetadata::SinglePath {
-                                                    path: wdf_c_file_path.clone(),
-                                                },
-                                                source,
-                                            }
-                                        })?;
-                                    wdf_c_file
-                                        .write_all(
-                                            config
-                                                .bindgen_header_contents([
-                                                    ApiSubset::Base,
-                                                    ApiSubset::Wdf,
-                                                    #[cfg(feature = "hid")]
-                                                    ApiSubset::Hid,
-                                                    #[cfg(feature = "spb")]
-                                                    ApiSubset::Spb,
-                                                ])?
-                                                .as_bytes(),
-                                        )
-                                        .map_err(|source| IoError {
-                                            metadata: IoErrorMetadata::SinglePath {
-                                                path: wdf_c_file_path.clone(),
-                                            },
-                                            source,
-                                        })?;
-
-                                    // Explicitly sync_all to surface any IO errors (File::drop
-                                    // silently ignores close errors)
-                                    wdf_c_file.sync_all().map_err(|source| IoError {
-                                        metadata: IoErrorMetadata::SinglePath {
-                                            path: wdf_c_file_path.clone(),
-                                        },
-                                        source,
-                                    })?;
-                                }
-
-                                let mut cc_builder = cc::Build::new();
-                                for (key, value) in config.preprocessor_definitions() {
-                                    cc_builder.define(&key, value.as_deref());
-                                }
-
-                                cc_builder
-                                    .includes(config.include_paths()?)
-                                    .file(wdf_c_file_path)
-                                    .compile("wdf");
-                                Ok::<(), ConfigError>(())
-                            })
-                        })
-                        .expect("Scoped Thread should spawn successfully"),
-                );
-
-                info_span!("wdf_function_count.rs generation").in_scope(|| {
-                    generate_wdf_function_count(out_path, config)?;
-                    Ok::<(), std::io::Error>(())
-                })?;
-
-                info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
-                    generate_call_unsafe_wdf_function_binding_macro(out_path)?;
-                    Ok::<(), std::io::Error>(())
-                })?;
-
-                info_span!("test_stubs.rs generation").in_scope(|| {
-                    generate_test_stubs(out_path, config)?;
-                    Ok::<(), std::io::Error>(())
-                })?;
-            }
-
-            for join_handle in thread_join_handles {
-                let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
-
-                match join_handle.join() {
-                    // Forward panics to the main thread
-                    Err(panic_payload) => {
-                        panic::resume_unwind(panic_payload);
-                    }
-
-                    Ok(thread_result) => {
-                        thread_result.with_context(|| {
-                            format!(r#""{thread_name}" thread failed to exit successfully"#)
-                        })?;
-                    }
-                }
-            }
-            Ok::<(), anyhow::Error>(())
+            join_worker_threads(thread_join_handles)
         })?;
 
         Ok::<(), anyhow::Error>(())
