@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 fs4 = { version = "0.13.1", features = ["sync"] }
-macrotest = "1.0.13"
+macrotest = "1.2.0"
 owo-colors = "4.2.0"
 paste = "1.0.15"
 pathdiff = "0.2.3"
