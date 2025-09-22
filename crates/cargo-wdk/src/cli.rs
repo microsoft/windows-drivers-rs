@@ -203,7 +203,7 @@ impl Cli {
         command_exec: &CommandExec,
     ) -> Result<CpuArchitecture> {
         command_exec
-            .run("rustc", &["--print", "host-tuple"], None)
+            .run("rustc", &["--print", "host-tuple"], None, None)
             .map_or_else(
                 |e| Err(anyhow::anyhow!("Unable to read rustc host tuple: {e}")),
                 |output| {
@@ -317,7 +317,8 @@ mod tests {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&std::path::Path>|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
@@ -328,7 +329,7 @@ mod tests {
                 },
             )
             .once()
-            .return_once(|_, _, _| expected_cli_result);
+            .return_once(|_, _, _, _| expected_cli_result);
 
         Cli::detect_default_target_arch_using_rustc(&mock_command_exec)
     }

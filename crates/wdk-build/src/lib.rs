@@ -21,6 +21,7 @@ use std::{
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
+use tracing::debug;
 
 pub mod cargo_make;
 pub mod metadata;
@@ -398,10 +399,25 @@ impl Config {
     /// # Panics
     ///
     /// Panics if the resolved top-level Cargo manifest path is not valid UTF-8
+    #[tracing::instrument(level = "debug")]
     pub fn from_env_auto() -> Result<Self, ConfigError> {
-        let top_level_manifest = find_top_level_cargo_manifest();
+        let top_level_cargo_manifest_path = find_top_level_cargo_manifest();
+        debug!(
+            "Top level Cargo manifest path: {:?}",
+            top_level_cargo_manifest_path
+        );
+
+        let cwd = top_level_cargo_manifest_path
+            .parent()
+            .expect("Cargo manifest should have a valid parent directory");
+
         let cargo_metadata = MetadataCommand::new()
-            .manifest_path(&top_level_manifest)
+            // Run `cargo_metadata` in the same working directory as the top level manifest in order
+            // to respect `config.toml` overrides
+            .current_dir(cwd)
+            // top-level manifest path must be used in order for metadata from the top-level crates
+            // to be discovered
+            .manifest_path(&top_level_cargo_manifest_path)
             .exec()?;
         let wdk_metadata = metadata::Wdk::try_from(&cargo_metadata)?;
 
@@ -410,7 +426,7 @@ impl Config {
         for manifest_path in metadata::iter_manifest_paths(cargo_metadata)
             .into_iter()
             .chain(std::iter::once(
-                top_level_manifest
+                top_level_cargo_manifest_path
                     .try_into()
                     .expect("Path to Cargo manifests should always be valid UTF8"),
             ))

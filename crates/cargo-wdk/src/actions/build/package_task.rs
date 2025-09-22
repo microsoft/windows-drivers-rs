@@ -319,7 +319,7 @@ impl<'a> PackageTask<'a> {
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
-        if let Err(e) = self.command_exec.run("stampinf", &args, None) {
+        if let Err(e) = self.command_exec.run("stampinf", &args, None, None) {
             return Err(PackageTaskError::StampinfCommand(e));
         }
         Ok(())
@@ -338,7 +338,7 @@ impl<'a> PackageTask<'a> {
             "/uselocaltime",
         ];
 
-        if let Err(e) = self.command_exec.run("inf2cat", &args, None) {
+        if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
 
@@ -362,7 +362,7 @@ impl<'a> PackageTask<'a> {
         debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
         let args = ["-s", WDR_TEST_CERT_STORE];
 
-        match self.command_exec.run("certmgr.exe", &args, None) {
+        match self.command_exec.run("certmgr.exe", &args, None, None) {
             Ok(output) if output.status.success() => String::from_utf8(output.stdout).map_or_else(
                 |e| Err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e)),
                 |stdout| Ok(stdout.contains(WDR_LOCAL_TEST_CERT)),
@@ -388,7 +388,7 @@ impl<'a> PackageTask<'a> {
             &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("makecert", &args, None) {
+        if let Err(e) = self.command_exec.run("makecert", &args, None, None) {
             return Err(PackageTaskError::CertGenerationInStoreCommand(e));
         }
         Ok(())
@@ -406,7 +406,7 @@ impl<'a> PackageTask<'a> {
             WDR_LOCAL_TEST_CERT,
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("certmgr.exe", &args, None) {
+        if let Err(e) = self.command_exec.run("certmgr.exe", &args, None, None) {
             return Err(PackageTaskError::CreateCertFileFromStoreCommand(e));
         }
         Ok(())
@@ -448,7 +448,7 @@ impl<'a> PackageTask<'a> {
             "SHA256",
             &driver_binary_file_path,
         ];
-        if let Err(e) = self.command_exec.run("signtool", &args, None) {
+        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
         Ok(())
@@ -466,7 +466,7 @@ impl<'a> PackageTask<'a> {
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
         // TODO: Differentiate between command exec failure and signature verification
         // failure
-        if let Err(e) = self.command_exec.run("signtool", &args, None) {
+        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
         Ok(())
@@ -504,7 +504,7 @@ impl<'a> PackageTask<'a> {
         }
         args.push(&inf_path);
 
-        if let Err(e) = self.command_exec.run("infverif", &args, None) {
+        if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
