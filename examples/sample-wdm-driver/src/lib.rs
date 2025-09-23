@@ -63,7 +63,7 @@ pub unsafe extern "system" fn driver_entry(
         //            must be properly aligned.
         //         2. `registry_path.Buffer` points to `number_of_slice_elements` consecutive
         //            properly initialized values of type `WCHAR`.
-        //         3. Windows does not mutate the memory referenced by the returned slice for for
+        //         3. Windows does not mutate the memory referenced by the returned slice for
         //            its entire lifetime.
         //         4. The total size, `number_of_slice_elements` * `core::mem::size_of::<WCHAR>()`,
         //            of the slice must be no larger than `isize::MAX`. This is proven by the below
