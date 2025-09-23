@@ -17,7 +17,7 @@ use alloc::{ffi::CString, slice, string::String};
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
-use wdk_sys::{ntddk::DbgPrint, DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS};
+use wdk_sys::{ntddk::DbgPrint, DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS, UNICODE_STRING, WCHAR};
 
 #[cfg(not(test))]
 #[global_allocator]
@@ -47,12 +47,35 @@ pub unsafe extern "system" fn driver_entry(
     driver.DriverUnload = Some(driver_exit);
 
     // Translate UTF16 string to rust string
-    let registry_path = String::from_utf16_lossy(unsafe {
-        slice::from_raw_parts(
-            (*registry_path).Buffer,
-            (*registry_path).Length as usize / core::mem::size_of_val(&(*(*registry_path).Buffer)),
-        )
-    });
+    let registry_path: UNICODE_STRING =
+        // SAFETY: This dereference is safe since `registry_path` is:
+        //         * provided by `DriverEntry` and is never null
+        //         * a valid pointer to a `UNICODE_STRING`
+        unsafe { *registry_path };
+    let number_of_slice_elements = {
+        registry_path.Length as usize / core::mem::size_of::<WCHAR>()
+    };
+
+    let registry_path = String::from_utf16_lossy(
+        // SAFETY: This is safe because:
+        //         1. `registry_path.Buffer` is valid for reads for `number_of_slice_elements` *
+        //            `core::mem::size_of::<WCHAR>()` bytes, and is guaranteed to be aligned and it
+        //            must be properly aligned.
+        //         2. `registry_path.Buffer` points to `number_of_slice_elements` consecutive
+        //            properly initialized values of type `WCHAR`.
+        //         3. Windows does not mutate the memory referenced by the returned slice for for
+        //            its entire lifetime.
+        //         4. The total size, `number_of_slice_elements` * `core::mem::size_of::<WCHAR>()`,
+        //            of the slice must be no larger than `isize::MAX`. This is proven by the below
+        //            `debug_assert!`.
+        unsafe {
+            debug_assert!(isize::try_from(
+                number_of_slice_elements * core::mem::size_of::<WCHAR>()
+            )
+            .is_ok());
+            slice::from_raw_parts(registry_path.Buffer, number_of_slice_elements)
+        },
+    );
 
     // It is much better to use the println macro that has an implementation in
     // wdk::print.rs to call DbgPrint. The println! implementation in

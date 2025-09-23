@@ -86,7 +86,7 @@ pub unsafe extern "system" fn driver_entry(
             driver,
             registry_path,
             driver_attributes,
-            &mut driver_config,
+            &raw mut driver_config,
             driver_handle_output,
         );
     }
@@ -98,13 +98,7 @@ pub unsafe extern "system" fn driver_entry(
         //         * a valid pointer to a `UNICODE_STRING`
         unsafe { *registry_path };
     let number_of_slice_elements = {
-        registry_path.Length as usize
-            / core::mem::size_of_val(
-                // SAFETY: This dereference is safe since `Buffer` is:
-                //         * provided by `DriverEntry` and is never null
-                //         * a valid pointer to `Buffer`'s type
-                &unsafe { *registry_path.Buffer },
-            )
+        registry_path.Length as usize / core::mem::size_of::<WCHAR>()
     };
 
     let registry_path = String::from_utf16_lossy(
@@ -154,9 +148,9 @@ extern "C" fn evt_driver_device_add(
     unsafe {
         ntstatus = call_unsafe_wdf_function_binding!(
             WdfDeviceCreate,
-            &mut device_init,
+            &raw mut device_init,
             WDF_NO_OBJECT_ATTRIBUTES,
-            &mut device_handle_output,
+            &raw mut device_handle_output,
         );
     }
 

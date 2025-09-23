@@ -92,6 +92,14 @@ jobs:
       - name: Run Cargo Clippy
         run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features
 
+      - name: Install Cargo Make
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
+
+      - name: Run Cargo Clippy on Examples (via Cargo Make)
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./examples clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-features
+
   unused_deps:
     name: Detect Unused Cargo Dependencies
     runs-on: windows-2025
