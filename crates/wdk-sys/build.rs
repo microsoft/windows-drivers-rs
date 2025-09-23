@@ -704,7 +704,15 @@ fn start_wdf_symbol_export_tasks<'scope>(
                         wdf_c_file
                             .write_all(
                                 config
-                                    .bindgen_header_contents(ENABLED_API_SUBSETS.iter().copied())?
+                                    // This should include the entirety of the `ENABLED_API_SUBSETS`, but this is currently blocked by issues with mutually exclusive headers: https://github.com/microsoft/windows-drivers-rs/issues/515
+                                    .bindgen_header_contents([
+                                        ApiSubset::Base,
+                                        ApiSubset::Wdf,
+                                        #[cfg(feature = "hid")]
+                                        ApiSubset::Hid,
+                                        #[cfg(feature = "spb")]
+                                        ApiSubset::Spb,
+                                    ])?
                                     .as_bytes(),
                             )
                             .map_err(|source| IoError {
