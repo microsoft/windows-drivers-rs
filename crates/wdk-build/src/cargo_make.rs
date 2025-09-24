@@ -484,13 +484,20 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
-    CommandLineInterface::from_arg_matches_mut(&mut CommandLineInterface::command()
-        .color(if is_cargo_make_color_disabled() {
-            ColorChoice::Never
-        } else {
-            ColorChoice::Always
-        })
-        .get_matches_from(env_args)).unwrap_or_else(|err| err.exit()).parse_cargo_args();
+    CommandLineInterface::from_arg_matches_mut(
+        &mut CommandLineInterface::command()
+            .color(if is_cargo_make_color_disabled() {
+                ColorChoice::Never
+            } else {
+                // `ColorChoice::Always` is used instead of `ColorChoice::Auto` to force color.
+                // This function is always executed from rust-script invoked by cargo-make,
+                // whose piping of stdout/stderr disables color by default.
+                ColorChoice::Always
+            })
+            .get_matches_from(env_args),
+    )
+    .unwrap_or_else(|err| err.exit())
+    .parse_cargo_args();
 
     [
         CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
