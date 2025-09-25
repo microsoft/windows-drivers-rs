@@ -14,6 +14,7 @@
 
 use std::{
     collections::HashMap,
+    path::Path,
     process::{Command, Output, Stdio},
 };
 
@@ -34,7 +35,7 @@ impl CommandExec {
         command: &'a str,
         args: &'a [&'a str],
         env_vars: Option<&'a HashMap<&'a str, &'a str>>,
-        working_dir: Option<&'a std::path::Path>,
+        working_dir: Option<&'a Path>,
     ) -> Result<Output, CommandError> {
         debug!("Running: {} {:?}", command, args);
 
@@ -49,6 +50,10 @@ impl CommandExec {
             for (key, value) in env {
                 cmd.env(key, value);
             }
+        }
+
+        if let Some(working_dir) = working_dir {
+            cmd.current_dir(working_dir);
         }
 
         let output = cmd

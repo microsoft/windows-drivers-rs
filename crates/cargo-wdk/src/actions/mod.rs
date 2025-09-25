@@ -24,7 +24,7 @@ const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 /// `aarch64/Arm64` target triple name
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Profile {
     Dev,
     Release,
