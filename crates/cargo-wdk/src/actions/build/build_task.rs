@@ -10,11 +10,12 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use mockall_double::double;
 use tracing::{debug, info};
+use wdk_build::CpuArchitecture;
 
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
+    actions::{build::error::BuildTaskError, to_target_triple, Profile},
     trace,
 };
 
@@ -22,7 +23,7 @@ use crate::{
 pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
-    target_arch: TargetArch,
+    target_arch: Option<&'a CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -49,7 +50,7 @@ impl<'a> BuildTask<'a> {
         package_name: &'a str,
         working_dir: &'a Path,
         profile: Option<&'a Profile>,
-        target_arch: TargetArch,
+        target_arch: Option<&'a CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
     ) -> Self {
@@ -91,9 +92,9 @@ impl<'a> BuildTask<'a> {
             args.push("--profile".to_string());
             args.push(profile.to_string());
         }
-        if let TargetArch::Selected(target_arch) = self.target_arch {
+        if let Some(target_arch) = self.target_arch {
             args.push("--target".to_string());
-            args.push(to_target_triple(target_arch));
+            args.push(to_target_triple(*target_arch));
         }
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
@@ -116,14 +117,14 @@ mod tests {
     use wdk_build::CpuArchitecture;
 
     use super::*;
-    use crate::actions::{Profile, TargetArch};
+    use crate::actions::Profile;
 
     #[test]
     fn new_succeeds_for_valid_args() {
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let package_name = "test_package";
         let profile = Profile::Dev;
-        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let target_arch = Some(&CpuArchitecture::Amd64);
         let verbosity_level = clap_verbosity_flag::Verbosity::default();
         let command_exec = CommandExec::new();
 
@@ -156,7 +157,7 @@ mod tests {
         let working_dir = PathBuf::from("relative/path/to/working/dir");
         let package_name = "test_package";
         let profile = Some(Profile::Dev);
-        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let target_arch = Some(&CpuArchitecture::Arm64);
         let verbosity_level = clap_verbosity_flag::Verbosity::default();
         let command_exec = CommandExec::new();
 
