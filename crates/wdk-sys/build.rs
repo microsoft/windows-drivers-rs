@@ -30,6 +30,8 @@ use wdk_build::{
     Config,
     ConfigError,
     DriverConfig,
+    IoError,
+    IoErrorMetadata,
     KmdfConfig,
     UmdfConfig,
 };
@@ -125,18 +127,42 @@ pub static mut {WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER}: *const WDFFUNC = core::pt
 ",
     )
 });
-type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 
+/// Enabled API subsets based off of cargo-features
+const ENABLED_API_SUBSETS: &[ApiSubset] = &[
+    ApiSubset::Base,
+    ApiSubset::Wdf,
+    #[cfg(feature = "gpio")]
+    ApiSubset::Gpio,
+    #[cfg(feature = "hid")]
+    ApiSubset::Hid,
+    #[cfg(feature = "parallel-ports")]
+    ApiSubset::ParallelPorts,
+    #[cfg(feature = "spb")]
+    ApiSubset::Spb,
+    #[cfg(feature = "storage")]
+    ApiSubset::Storage,
+    #[cfg(feature = "usb")]
+    ApiSubset::Usb,
+];
+
+type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
 const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("constants.rs", generate_constants),
     ("types.rs", generate_types),
     ("base.rs", generate_base),
     ("wdf.rs", generate_wdf),
+    #[cfg(feature = "gpio")]
     ("gpio.rs", generate_gpio),
+    #[cfg(feature = "hid")]
     ("hid.rs", generate_hid),
+    #[cfg(feature = "parallel-ports")]
     ("parallel_ports.rs", generate_parallel_ports),
+    #[cfg(feature = "spb")]
     ("spb.rs", generate_spb),
+    #[cfg(feature = "storage")]
     ("storage.rs", generate_storage),
+    #[cfg(feature = "usb")]
     ("usb.rs", generate_usb),
 ];
 
@@ -197,22 +223,7 @@ fn initialize_tracing() -> Result<(), ParseError> {
 fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: constants.rs");
 
-    let header_contents = config.bindgen_header_contents([
-        ApiSubset::Base,
-        ApiSubset::Wdf,
-        #[cfg(feature = "gpio")]
-        ApiSubset::Gpio,
-        #[cfg(feature = "hid")]
-        ApiSubset::Hid,
-        #[cfg(feature = "parallel-ports")]
-        ApiSubset::ParallelPorts,
-        #[cfg(feature = "spb")]
-        ApiSubset::Spb,
-        #[cfg(feature = "storage")]
-        ApiSubset::Storage,
-        #[cfg(feature = "usb")]
-        ApiSubset::Usb,
-    ])?;
+    let header_contents = config.bindgen_header_contents(ENABLED_API_SUBSETS.iter().copied())?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -220,31 +231,23 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         .header_contents("constants-input.h", &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
+    let output_file_path = out_path.join("constants.rs");
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("constants.rs"))?)
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     info!("Generating bindings to WDK: types.rs");
 
-    let header_contents = config.bindgen_header_contents([
-        ApiSubset::Base,
-        ApiSubset::Wdf,
-        #[cfg(feature = "gpio")]
-        ApiSubset::Gpio,
-        #[cfg(feature = "hid")]
-        ApiSubset::Hid,
-        #[cfg(feature = "parallel-ports")]
-        ApiSubset::ParallelPorts,
-        #[cfg(feature = "spb")]
-        ApiSubset::Spb,
-        #[cfg(feature = "storage")]
-        ApiSubset::Storage,
-        #[cfg(feature = "usb")]
-        ApiSubset::Usb,
-    ])?;
+    let header_contents = config.bindgen_header_contents(ENABLED_API_SUBSETS.iter().copied())?;
     trace!(header_contents = ?header_contents);
 
     let bindgen_builder = bindgen::Builder::wdk_default(config)?
@@ -252,10 +255,17 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .header_contents("types-input.h", &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
+    let output_file_path = out_path.join("types.rs");
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join("types.rs"))?)
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
 fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -273,10 +283,17 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .header_contents(&format!("{outfile_name}-input.h"), &header_contents);
     trace!(bindgen_builder = ?bindgen_builder);
 
+    let output_file_path = out_path.join(format!("{outfile_name}.rs"));
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
-        .write_to_file(out_path.join(format!("{outfile_name}.rs")))?)
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -294,10 +311,17 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             .allowlist_file("(?i).*wdf.*");
         trace!(bindgen_builder = ?bindgen_builder);
 
+        let output_file_path = out_path.join("wdf.rs");
         Ok(bindgen_builder
             .generate()
             .expect("Bindings should succeed to generate")
-            .write_to_file(out_path.join("wdf.rs"))?)
+            .write_to_file(&output_file_path)
+            .map_err(|source| IoError {
+                metadata: IoErrorMetadata::SinglePath {
+                    path: output_file_path,
+                },
+                source,
+            })?)
     } else {
         info!(
             "Skipping wdf.rs generation since driver_config is {:#?}",
@@ -307,228 +331,217 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     }
 }
 
+#[cfg(feature = "gpio")]
 fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "gpio")] {
-            info!("Generating bindings to WDK: gpio.rs");
+    info!("Generating bindings to WDK: gpio.rs");
 
-            let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Gpio])?;
-            trace!(header_contents = ?header_contents);
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Gpio])?;
+    trace!(header_contents = ?header_contents);
 
-            let bindgen_builder = {
-                let mut builder = bindgen::Builder::wdk_default(config)?
-                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("gpio-input.h", &header_contents);
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("gpio-input.h", &header_contents);
 
-                // Only allowlist files in the gpio-specific files to avoid
-                // duplicate definitions
-                for header_file in config.headers(ApiSubset::Gpio)? {
-                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-                }
-                builder
-            };
-            trace!(bindgen_builder = ?bindgen_builder);
-
-            Ok(bindgen_builder
-                .generate()
-                .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("gpio.rs"))?)
-        } else {
-            let _ = (out_path, config); // Silence unused variable warnings when gpio feature is not enabled
-
-            info!("Skipping gpio.rs generation since gpio feature is not enabled");
-            Ok(())
+        // Only allowlist files in the gpio-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Gpio)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
-    }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("gpio.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
+#[cfg(feature = "hid")]
 fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "hid")] {
-            info!("Generating bindings to WDK: hid.rs");
+    info!("Generating bindings to WDK: hid.rs");
 
-            let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid])?;
-            trace!(header_contents = ?header_contents);
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Hid])?;
+    trace!(header_contents = ?header_contents);
 
-            let bindgen_builder = {
-                let mut builder = bindgen::Builder::wdk_default(config)?
-                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("hid-input.h", &header_contents);
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("hid-input.h", &header_contents);
 
-                // Only allowlist files in the hid-specific files to avoid
-                // duplicate definitions
-                for header_file in config.headers(ApiSubset::Hid)? {
-                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-                }
-                builder
-            };
-            trace!(bindgen_builder = ?bindgen_builder);
-
-            Ok(bindgen_builder
-                .generate()
-                .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("hid.rs"))?)
-        } else {
-            let _ = (out_path, config); // Silence unused variable warnings when hid feature is not enabled
-
-            info!("Skipping hid.rs generation since hid feature is not enabled");
-            Ok(())
+        // Only allowlist files in the hid-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Hid)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
-    }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("hid.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
+#[cfg(feature = "parallel-ports")]
 fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "parallel-ports")] {
-            info!("Generating bindings to WDK: parallel_ports.rs");
+    info!("Generating bindings to WDK: parallel_ports.rs");
 
-            let header_contents = config.bindgen_header_contents([
-                ApiSubset::Base,
-                ApiSubset::Wdf,
-                ApiSubset::ParallelPorts,
-            ])?;
-            trace!(header_contents = ?header_contents);
+    let header_contents = config.bindgen_header_contents([
+        ApiSubset::Base,
+        ApiSubset::Wdf,
+        ApiSubset::ParallelPorts,
+    ])?;
+    trace!(header_contents = ?header_contents);
 
-            let bindgen_builder = {
-                let mut builder = bindgen::Builder::wdk_default(config)?
-                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("parallel-ports-input.h", &header_contents);
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("parallel-ports-input.h", &header_contents);
 
-                // Only allowlist files in the parallel-ports-specific files to
-                // avoid duplicate definitions
-                for header_file in config.headers(ApiSubset::ParallelPorts)? {
-                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-                }
-                builder
-            };
-            trace!(bindgen_builder = ?bindgen_builder);
-
-            Ok(bindgen_builder
-                .generate()
-                .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("parallel_ports.rs"))?)
-        } else {
-            let _ = (out_path, config); // Silence unused variable warnings when parallel-ports feature is not enabled
-
-            info!(
-                "Skipping parallel_ports.rs generation since parallel-ports feature is not enabled"
-            );
-            Ok(())
+        // Only allowlist files in the parallel-ports-specific files to
+        // avoid duplicate definitions
+        for header_file in config.headers(ApiSubset::ParallelPorts)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
-    }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("parallel_ports.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
+#[cfg(feature = "spb")]
 fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "spb")] {
-            info!("Generating bindings to WDK: spb.rs");
+    info!("Generating bindings to WDK: spb.rs");
 
-            let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb])?;
-            trace!(header_contents = ?header_contents);
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Spb])?;
+    trace!(header_contents = ?header_contents);
 
-            let bindgen_builder = {
-                let mut builder = bindgen::Builder::wdk_default(config)?
-                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("spb-input.h", &header_contents);
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("spb-input.h", &header_contents);
 
-                // Only allowlist files in the spb-specific files to avoid
-                // duplicate definitions
-                for header_file in config.headers(ApiSubset::Spb)? {
-                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-                }
-                builder
-            };
-            trace!(bindgen_builder = ?bindgen_builder);
-
-            Ok(bindgen_builder
-                .generate()
-                .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("spb.rs"))?)
-        } else {
-            let _ = (out_path, config); // Silence unused variable warnings when spb feature is not enabled
-
-            info!("Skipping spb.rs generation since spb feature is not enabled");
-            Ok(())
+        // Only allowlist files in the spb-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Spb)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
-    }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("spb.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
+#[cfg(feature = "storage")]
 fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "storage")] {
-            info!("Generating bindings to WDK: storage.rs");
+    info!("Generating bindings to WDK: storage.rs");
 
-            let header_contents = config.bindgen_header_contents([
-                ApiSubset::Base,
-                ApiSubset::Wdf,
-                ApiSubset::Storage,
-            ])?;
-            trace!(header_contents = ?header_contents);
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Storage])?;
+    trace!(header_contents = ?header_contents);
 
-            let bindgen_builder = {
-                let mut builder = bindgen::Builder::wdk_default(config)?
-                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("storage-input.h", &header_contents);
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("storage-input.h", &header_contents);
 
-                // Only allowlist files in the storage-specific files to avoid
-                // duplicate definitions
-                for header_file in config.headers(ApiSubset::Storage)? {
-                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-                }
-                builder
-            };
-            trace!(bindgen_builder = ?bindgen_builder);
-
-            Ok(bindgen_builder
-                .generate()
-                .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("storage.rs"))?)
-        } else {
-            let _ = (out_path, config); // Silence unused variable warnings when storage feature is not enabled
-
-            info!("Skipping storage.rs generation since storage feature is not enabled");
-            Ok(())
+        // Only allowlist files in the storage-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Storage)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
-    }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("storage.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
+#[cfg(feature = "usb")]
 fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "usb")] {
-            info!("Generating bindings to WDK: usb.rs");
+    info!("Generating bindings to WDK: usb.rs");
 
-            let header_contents =
-                config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb])?;
-            trace!(header_contents = ?header_contents);
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Usb])?;
+    trace!(header_contents = ?header_contents);
 
-            let bindgen_builder = {
-                let mut builder = bindgen::Builder::wdk_default(config)?
-                    .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-                    .header_contents("usb-input.h", &header_contents);
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("usb-input.h", &header_contents);
 
-                // Only allowlist files in the usb-specific files to avoid
-                // duplicate definitions
-                for header_file in config.headers(ApiSubset::Usb)? {
-                    builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
-                }
-                builder
-            };
-            trace!(bindgen_builder = ?bindgen_builder);
-
-            Ok(bindgen_builder
-                .generate()
-                .expect("Bindings should succeed to generate")
-                .write_to_file(out_path.join("usb.rs"))?)
-        } else {
-            let _ = (out_path, config); // Silence unused variable warnings when usb feature is not enabled
-
-            info!("Skipping usb.rs generation since usb feature is not enabled");
-            Ok(())
+        // Only allowlist files in the usb-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Usb)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
-    }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("usb.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError {
+            metadata: IoErrorMetadata::SinglePath {
+                path: output_file_path,
+            },
+            source,
+        })?)
 }
 
 /// Generates a `wdf_function_count.rs` file in `OUT_DIR` which contains the
@@ -633,6 +646,163 @@ fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> 
     Ok(())
 }
 
+/// Starts parallel bindgen tasks for generating binding files.
+fn start_bindgen_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) {
+    info_span!("bindgen generation").in_scope(|| {
+        for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
+            let current_span = Span::current();
+
+            thread_join_handles.push(
+                thread::Builder::new()
+                    .name(format!("bindgen {file_name} generator"))
+                    .spawn_scoped(thread_scope, move || {
+                        // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
+                        info_span!(parent: &current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
+                    })
+                    .expect("Scoped Thread should spawn successfully"),
+            );
+        }
+    });
+}
+
+/// Starts a task that compiles a C shim to expose WDF symbols hidden by
+/// `__declspec(selectany)`.
+fn start_wdf_symbol_export_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) {
+    let current_span = Span::current();
+
+    // Compile a c library to expose symbols that are not exposed because of
+    // __declspec(selectany)
+    thread_join_handles.push(
+        thread::Builder::new()
+            .name("wdf.c cc compilation".to_string())
+            .spawn_scoped(thread_scope, move || {
+                // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
+                info_span!(parent: current_span, "cc").in_scope(|| {
+                    info!("Compiling wdf.c");
+
+                    // Write all included headers into wdf.c (existing file, if present
+                    // (i.e. incremental rebuild), is truncated)
+                    let wdf_c_file_path = out_path.join("wdf.c");
+                    {
+                        let mut wdf_c_file =
+                            File::create(&wdf_c_file_path).map_err(|source| IoError {
+                                metadata: IoErrorMetadata::SinglePath {
+                                    path: wdf_c_file_path.clone(),
+                                },
+                                source,
+                            })?;
+                        wdf_c_file
+                            .write_all(
+                                config
+                                    // This should include the entirety of the `ENABLED_API_SUBSETS`, but this is currently blocked by issues with mutually exclusive headers: https://github.com/microsoft/windows-drivers-rs/issues/515
+                                    .bindgen_header_contents([
+                                        ApiSubset::Base,
+                                        ApiSubset::Wdf,
+                                        #[cfg(feature = "hid")]
+                                        ApiSubset::Hid,
+                                        #[cfg(feature = "spb")]
+                                        ApiSubset::Spb,
+                                    ])?
+                                    .as_bytes(),
+                            )
+                            .map_err(|source| IoError {
+                                metadata: IoErrorMetadata::SinglePath {
+                                    path: wdf_c_file_path.clone(),
+                                },
+                                source,
+                            })?;
+
+                        // Explicitly sync_all to surface any IO errors (File::drop
+                        // silently ignores close errors)
+                        wdf_c_file.sync_all().map_err(|source| IoError {
+                            metadata: IoErrorMetadata::SinglePath {
+                                path: wdf_c_file_path.clone(),
+                            },
+                            source,
+                        })?;
+                    }
+
+                    let mut cc_builder = cc::Build::new();
+                    for (key, value) in config.preprocessor_definitions() {
+                        cc_builder.define(&key, value.as_deref());
+                    }
+
+                    cc_builder
+                        .includes(config.include_paths()?)
+                        .file(wdf_c_file_path)
+                        .compile("wdf");
+                    Ok::<(), ConfigError>(())
+                })
+            })
+            .expect("Scoped Thread should spawn successfully"),
+    );
+}
+
+/// Starts generation/compilation tasks for WDF-specific artifacts for driver
+/// configurations.
+///
+/// Uses the `start_*_tasks` naming convention: dispatches work to scoped
+/// threads and returns after scheduling.
+fn start_wdf_artifact_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) -> anyhow::Result<()> {
+    if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
+        start_wdf_symbol_export_tasks(thread_scope, out_path, config, thread_join_handles);
+
+        info_span!("wdf_function_count.rs generation").in_scope(|| {
+            generate_wdf_function_count(out_path, config)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+
+        info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
+            generate_call_unsafe_wdf_function_binding_macro(out_path)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+
+        info_span!("test_stubs.rs generation").in_scope(|| {
+            generate_test_stubs(out_path, config)?;
+            Ok::<(), std::io::Error>(())
+        })?;
+    }
+    Ok(())
+}
+
+/// Joins all worker threads and collects their results
+fn join_worker_threads(
+    thread_join_handles: Vec<thread::ScopedJoinHandle<'_, Result<(), ConfigError>>>,
+) -> anyhow::Result<()> {
+    for join_handle in thread_join_handles {
+        let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
+
+        match join_handle.join() {
+            // Forward panics to the main thread
+            Err(panic_payload) => {
+                panic::resume_unwind(panic_payload);
+            }
+
+            Ok(thread_result) => {
+                thread_result.with_context(|| {
+                    format!(r#""{thread_name}" thread failed to exit successfully"#)
+                })?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     initialize_tracing()?;
 
@@ -644,111 +814,10 @@ fn main() -> anyhow::Result<()> {
         thread::scope(|thread_scope| {
             let mut thread_join_handles = Vec::new();
 
-            info_span!("bindgen generation").in_scope(|| {
-                let out_path = &out_path;
-                let config = &config;
+            start_bindgen_tasks(thread_scope, &out_path, &config, &mut thread_join_handles);
+            start_wdf_artifact_tasks(thread_scope, &out_path, &config, &mut thread_join_handles)?;
 
-                for (file_name, generate_function) in BINDGEN_FILE_GENERATORS_TUPLES {
-                    let current_span = Span::current();
-
-                    thread_join_handles.push(
-                        thread::Builder::new()
-                            .name(format!("bindgen {file_name} generator"))
-                            .spawn_scoped(thread_scope, move || {
-                                // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                                info_span!(parent: &current_span, "worker thread", generated_file_name = file_name).in_scope(|| generate_function(out_path, config))
-                            })
-                            .expect("Scoped Thread should spawn successfully"),
-                    );
-                }
-            });
-
-            if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
-                let current_span = Span::current();
-                let config = &config;
-                let out_path = &out_path;
-
-                // Compile a c library to expose symbols that are not exposed because of
-                // __declspec(selectany)
-                thread_join_handles.push(
-                    thread::Builder::new()
-                        .name("wdf.c cc compilation".to_string())
-                        .spawn_scoped(thread_scope, move || {
-                            // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
-                            info_span!(parent: current_span, "cc").in_scope(|| {
-                                info!("Compiling wdf.c");
-
-                                // Write all included headers into wdf.c (existing file, if present
-                                // (i.e. incremental rebuild), is truncated)
-                                let wdf_c_file_path = out_path.join("wdf.c");
-                                {
-                                    let mut wdf_c_file = File::create(&wdf_c_file_path)?;
-                                    wdf_c_file.write_all(
-                                        config
-                                            .bindgen_header_contents([
-                                                ApiSubset::Base,
-                                                ApiSubset::Wdf,
-                                                #[cfg(feature = "hid")]
-                                                ApiSubset::Hid,
-                                                #[cfg(feature = "spb")]
-                                                ApiSubset::Spb,
-                                            ])?
-                                            .as_bytes(),
-                                    )?;
-
-                                    // Explicitly sync_all to surface any IO errors (File::drop
-                                    // silently ignores close errors)
-                                    wdf_c_file.sync_all()?;
-                                }
-
-                                let mut cc_builder = cc::Build::new();
-                                for (key, value) in config.preprocessor_definitions() {
-                                    cc_builder.define(&key, value.as_deref());
-                                }
-
-                                cc_builder
-                                    .includes(config.include_paths()?)
-                                    .file(wdf_c_file_path)
-                                    .compile("wdf");
-                                Ok::<(), ConfigError>(())
-                            })
-                        })
-                        .expect("Scoped Thread should spawn successfully"),
-                );
-
-                info_span!("wdf_function_count.rs generation").in_scope(|| {
-                    generate_wdf_function_count(out_path, config)?;
-                    Ok::<(), std::io::Error>(())
-                })?;
-
-                info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
-                    generate_call_unsafe_wdf_function_binding_macro(out_path)?;
-                    Ok::<(), std::io::Error>(())
-                })?;
-
-                info_span!("test_stubs.rs generation").in_scope(|| {
-                    generate_test_stubs(out_path, config)?;
-                    Ok::<(), std::io::Error>(())
-                })?;
-            }
-
-            for join_handle in thread_join_handles {
-                let thread_name = join_handle.thread().name().unwrap_or("UNNAMED").to_string();
-
-                match join_handle.join() {
-                    // Forward panics to the main thread
-                    Err(panic_payload) => {
-                        panic::resume_unwind(panic_payload);
-                    }
-
-                    Ok(thread_result) => {
-                        thread_result.with_context(|| {
-                            format!(r#""{thread_name}" thread failed to exit successfully"#)
-                        })?;
-                    }
-                }
-            }
-            Ok::<(), anyhow::Error>(())
+            join_worker_threads(thread_join_handles)
         })?;
 
         Ok::<(), anyhow::Error>(())
