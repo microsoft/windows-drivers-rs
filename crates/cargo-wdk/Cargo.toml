@@ -36,6 +36,10 @@ sha2.workspace = true
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "forbid"
 
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(wdk_build_unstable)", "cfg(allow_stampinf_version_env_override)"]
+
 [lints.clippy]
 # Lint Groups
 all = "deny"

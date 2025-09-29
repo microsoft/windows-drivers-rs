@@ -315,11 +315,23 @@ impl<'a> PackageTask<'a> {
             &cat_file_path,
         ];
 
-        if let Ok(version) = std::env::var("STAMPINF_VERSION") {
-            // If STAMPINF_VERSION is set we rely on stampinf reading it; do NOT add -v.
-            // Otherwise we pass -v * (see else) to let stampinf auto-generate the version.
-            info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
-        } else {
+        // DriverVer handling:
+        // 1. When BOTH cfg flags (wdk_build_unstable + allow_stampinf_version_env_override) are
+        //    enabled, allow an external override via STAMPINF_VERSION env var. If the env var is
+        //    absent we fall back to auto-generation (-v *).
+        // 2. Otherwise (stable / default builds) always request auto-generation (-v *).
+        #[cfg(all(wdk_build_unstable, allow_stampinf_version_env_override))]
+        {
+            if let Ok(version) = std::env::var("STAMPINF_VERSION") {
+                // Rely on stampinf reading STAMPINF_VERSION; do NOT add -v.
+                info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
+            } else {
+                args.push("-v");
+                args.push("*");
+            }
+        }
+        #[cfg(not(all(wdk_build_unstable, allow_stampinf_version_env_override)))]
+        {
             args.push("-v");
             args.push("*");
         }
