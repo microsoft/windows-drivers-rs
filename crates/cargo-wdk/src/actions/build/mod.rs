@@ -395,13 +395,14 @@ impl<'a> BuildAction<'a> {
             return Ok(());
         }
 
-        // Detect target architecture and determine the final driver package's root
-        // directory
-        let target_arch = match self.target_arch {
-            Some(arch) => arch,
-            None => &self.detect_target_arch_using_cargo_rustc(working_dir)?,
+        // Resolve effective target architecture and artifacts root path. Skip packaging
+        // task if target_arch or final_artifacts_root could not be resolved
+        let Some((target_arch, final_artifacts_root)) =
+            self.resolve_final_artifacts_root(working_dir, target_dir)?
+        else {
+            debug!("Failed to resolve final artifacts root. Skipping packaging");
+            return Ok(());
         };
-        let target_dir = self.construct_final_package_root_path(target_dir, *target_arch);
 
         // Set up the `PATH` system environment variable with WDK/SDK bin and tools
         // paths.
@@ -415,8 +416,8 @@ impl<'a> BuildAction<'a> {
             &PackageTaskParams {
                 package_name,
                 working_dir,
-                target_dir: &target_dir,
-                target_arch,
+                target_dir: &final_artifacts_root,
+                target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
                 driver_model: &wdk_metadata.driver_model,
@@ -431,40 +432,110 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    /// Constructs the final driver package's root path based on the target
-    /// architecture and the package's base directory. This method checks if
-    /// `cargo` has added the target architecture subdirectory (for example,
-    /// when `--target-arch` is passed or Cargo configuration is set).
+    /// Resolves the final artifacts directory produced by Cargo for this build.
     ///
-    /// # Arguments
-    /// * `base_path` - The base target directory of the package.
-    /// * `target_arch` - The target architecture for the package.
-    ///
-    /// # Returns
-    /// * `PathBuf` - The final package root directory.
-    ///
-    /// # Errors
-    /// * `BuildActionError` - If the target architecture cannot be detected.
-    fn construct_final_package_root_path(
+    /// Behavior:
+    /// - Implicit host build: artifacts under `target/<profile>`.
+    /// - Explicit target specified (CLI `--target-arch`, env
+    ///   `CARGO_BUILD_TARGET`, or `[build].target` in config): artifacts under
+    ///   `target/<triple>/<profile>`.
+    /// - If an explicit target was specified but the expected triple directory
+    ///   does not exist, logs an error and returns `None` (caller skips
+    ///   packaging gracefully).
+    fn resolve_final_artifacts_root(
         &self,
-        base_path: &Path,
-        target_arch: CpuArchitecture,
-    ) -> PathBuf {
-        debug!("Constructing final package root path");
-        let target_triple = to_target_triple(target_arch);
-        let mut target_dir = base_path.to_path_buf();
-        debug!("Checking for {target_triple} directory");
-        if target_dir.join(&target_triple).exists() {
-            debug!("Found {target_triple} directory");
-            target_dir = target_dir.join(&target_triple);
-        }
-        if matches!(self.profile, Some(Profile::Release)) {
-            target_dir = target_dir.join("release");
+        working_dir: &Path,
+        target_dir: &Path,
+    ) -> Result<Option<(CpuArchitecture, PathBuf)>, BuildActionError> {
+        let target_arch = if let Some(arch) = self.target_arch {
+            *arch
         } else {
-            target_dir = target_dir.join("debug");
+            self.detect_target_arch_using_cargo_rustc(working_dir)?
+        };
+        let profile_dir = if matches!(self.profile, Some(Profile::Release)) {
+            "release"
+        } else {
+            "debug"
+        };
+
+        let explicit_cli = self.target_arch.is_some();
+        let explicit_env = std::env::var("CARGO_BUILD_TARGET")
+            .ok()
+            .is_some_and(|v| !v.trim().is_empty());
+        let explicit_cfg = Self::find_build_target_in_config(working_dir).is_some();
+        let explicit_specified = explicit_cli || explicit_env || explicit_cfg;
+
+        let final_root = if explicit_specified {
+            let triple = to_target_triple(target_arch);
+            let triple_dir = target_dir.join(&triple).join(profile_dir);
+            if !triple_dir.exists() {
+                err!(
+                    "Expected target triple dir '{}' not found. Skipping packaging",
+                    triple_dir.display()
+                );
+                return Ok(None);
+            }
+            debug!(
+                "Resolved explicit target artifacts directory: {} (arch={:?})",
+                triple_dir.display(),
+                target_arch
+            );
+            triple_dir
+        } else {
+            let host_dir = target_dir.join(profile_dir);
+            debug!(
+                "Resolved host (implicit) artifacts directory: {} (arch={:?})",
+                host_dir.display(),
+                target_arch
+            );
+            host_dir
+        };
+        Ok(Some((target_arch, final_root)))
+    }
+
+    fn find_build_target_in_config(start: &Path) -> Option<String> {
+        for ancestor in start.ancestors() {
+            let cargo_dir = ancestor.join(".cargo");
+            if !cargo_dir.exists() {
+                continue;
+            }
+            for cfg_name in ["config.toml", "config"] {
+                let cfg_path = cargo_dir.join(cfg_name);
+                if !cfg_path.exists() {
+                    continue;
+                }
+                if let Ok(contents) = std::fs::read_to_string(&cfg_path) {
+                    let mut in_build = false;
+                    for raw_line in contents.lines() {
+                        let line = raw_line.trim();
+                        if line.starts_with('#') || line.is_empty() {
+                            continue;
+                        }
+                        if line.starts_with('[') && line.ends_with(']') {
+                            in_build = line == "[build]";
+                            continue;
+                        }
+                        if !in_build {
+                            continue;
+                        }
+                        if line.starts_with("target") {
+                            if let Some(eq_idx) = line.find('=') {
+                                let value = line[eq_idx + 1..].trim().trim_matches('"');
+                                if !value.is_empty() {
+                                    debug!(
+                                        "Detected explicit target triple '{}' from {}",
+                                        value,
+                                        cfg_path.display()
+                                    );
+                                    return Some(value.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        debug!("Final driver package directory: {}", target_dir.display());
-        target_dir
+        None
     }
 
     /// Detects the effective target architecture Cargo will build for this

@@ -94,6 +94,66 @@ fn emulated_workspace_builds_successfully() {
     });
 }
 
+#[test]
+fn build_with_target_arch_option() {
+    with_file_lock(|| {
+        let stdout = run_build_cmd("tests/kmdf-driver");
+
+        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+
+        verify_driver_package_files("tests/kmdf-driver", "kmdf-driver", "sys");
+    });
+}
+
+// Target architecture selection tests using explicit fixtures:
+// - tests/kmdf-driver (no target triple in config)
+// - tests/kmdf-driver-with-target-override (config sets aarch64 target)
+
+// 1. Explicit --target-arch arm64 should build arm64 regardless of config
+//    (using kmdf-driver).
+#[test]
+fn kmdf_explicit_target_arch_arm64() {
+    with_file_lock(|| {
+        let stdout = run_build_cmd_with("tests/kmdf-driver", &["--target-arch", "arm64"]);
+        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+        verify_driver_package_files("tests/kmdf-driver", "kmdf-driver", "sys");
+    });
+}
+
+// 2. Config sets aarch64 but CLI overrides to amd64 (using
+//    kmdf-driver-with-target-override).
+#[test]
+fn kmdf_config_aarch64_cli_overrides_amd64() {
+    with_file_lock(|| {
+        let stdout = run_build_cmd_with(
+            "tests/kmdf-driver-with-target-override",
+            &["--target-arch", "amd64"],
+        );
+        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+        verify_driver_package_files(
+            "tests/kmdf-driver-with-target-override",
+            "kmdf-driver-with-target-override",
+            "sys",
+        );
+    });
+}
+
+// 3. Config sets aarch64 and no CLI target-arch provided; config drives
+//    selection.
+#[test]
+fn kmdf_config_aarch64_no_cli_override() {
+    with_file_lock(|| {
+        set_crt_static_flag();
+        let stdout = run_build_cmd("tests/kmdf-driver-with-target-override");
+        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+        verify_driver_package_files(
+            "tests/kmdf-driver-with-target-override",
+            "kmdf-driver-with-target-override",
+            "sys",
+        );
+    });
+}
+
 fn build_driver_project(driver_type: &str) {
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
@@ -112,15 +172,18 @@ fn build_driver_project(driver_type: &str) {
 }
 
 fn run_build_cmd(driver_path: &str) -> String {
+    run_build_cmd_with(driver_path, &[])
+}
+
+// Run build with optional extra cargo-wdk args (excluding the initial 'build').
+fn run_build_cmd_with(driver_path: &str, extra_args: &[&str]) -> String {
     set_crt_static_flag();
-
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build"]).current_dir(driver_path);
-
-    // assert command output
+    let mut full_args = vec!["build"];
+    full_args.extend(extra_args);
+    cmd.args(full_args).current_dir(driver_path);
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
-
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
@@ -170,14 +233,12 @@ fn verify_driver_package_files(
 // otherwise fall back to target/<profile> directly.
 fn determine_target_folder(driver_or_workspace_path: &str, profile: &str) -> PathBuf {
     let base = PathBuf::from(driver_or_workspace_path).join("target");
-    // Hard check in priority order: x86_64 then aarch64
     for triple in ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"] {
         let candidate = base.join(triple);
         if candidate.is_dir() {
             return candidate.join(profile);
         }
     }
-    // Fallback to base target/<profile>
     base.join(profile)
 }
 

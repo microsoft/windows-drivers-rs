@@ -2109,18 +2109,20 @@ impl TestBuildAction {
     }
 
     fn setup_target_dir(&self, dir_path: &Path) -> PathBuf {
-        let mut expected_target_dir = dir_path.join("target");
-        if let Some(target_arch) = self.target_arch {
-            let target_triple = to_target_triple(target_arch);
-            if expected_target_dir.join(&target_triple).exists() {
-                expected_target_dir = expected_target_dir.join(target_triple);
-            }
-        }
-        expected_target_dir = match self.profile {
-            Some(Profile::Release) => expected_target_dir.join("release"),
-            _ => expected_target_dir.join("debug"),
+        let mut base = dir_path.join("target");
+        let profile_dir_name = match self.profile {
+            Some(Profile::Release) => "release",
+            _ => "debug",
         };
-        expected_target_dir
+        if let Some(target_arch) = self.target_arch {
+            let triple = to_target_triple(target_arch);
+            base = base.join(triple);
+        }
+        let final_dir = base.join(profile_dir_name);
+        // Ensure the directory exists on the real filesystem so production code's
+        // std::path existence checks (not mocked) see it and proceed with packaging.
+        let _ = std::fs::create_dir_all(&final_dir);
+        final_dir
     }
 }
 
