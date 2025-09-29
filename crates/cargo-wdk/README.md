@@ -82,6 +82,12 @@ The recommended way to do this is to [enter an eWDK developer prompt](https://le
         cargo wdk build 
         ```
 
+    * With `--cwd`
+
+        ```pwsh 
+        cargo wdk build --cwd /path/to/project
+        ```
+
     * With `--target-arch`
 
         ```pwsh 
