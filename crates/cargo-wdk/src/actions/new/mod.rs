@@ -41,12 +41,11 @@ impl<'a> NewAction<'a> {
     ///
     /// # Arguments
     ///
-    /// * `driver_project_name` - The name of the driver project to be created.
+    /// * `path` - The path to the new driver project. The last part of the path
+    ///   is used as the package name.
     /// * `driver_type` - The type of the driver project to be created.
-    /// * `cwd` - The current working directory inside which driver project will
-    ///   be created.
     /// * `verbosity_level` - The verbosity level for logging.
-    /// * `command_exec` - The provider for command exection.
+    /// * `command_exec` - The provider for command execution.
     /// * `fs` - The provider for file system operations.
     ///
     /// # Returns
@@ -121,7 +120,7 @@ impl<'a> NewAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        if let Err(e) = self.command_exec.run("cargo", &args, None) {
+        if let Err(e) = self.command_exec.run("cargo", &args, None, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }
         Ok(())

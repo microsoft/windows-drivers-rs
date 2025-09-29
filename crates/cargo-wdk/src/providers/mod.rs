@@ -63,8 +63,6 @@ pub mod error {
         AppendError(PathBuf, #[source] io::Error),
         #[error("Failed to copy file from {0} to {1}")]
         CopyError(PathBuf, PathBuf, #[source] io::Error),
-        #[error("Failed to canonicalize path {0}")]
-        PathCanonicalizationError(PathBuf, #[source] io::Error),
         #[error("Failed to create directory at path {0}")]
         CreateDirError(PathBuf, #[source] io::Error),
         #[error("Failed to rename file from {0} to {1}")]

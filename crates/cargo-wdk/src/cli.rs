@@ -3,7 +3,7 @@
 //! This module defines the top-level CLI layer, its argument types and
 //! structures used for parsing and validating arguments for various
 //! subcommands.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand};
@@ -78,10 +78,6 @@ impl NewArgs {
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
 pub struct BuildArgs {
-    /// Path to the project
-    #[arg(long, default_value = ".")]
-    pub cwd: PathBuf,
-
     /// Build artifacts with the specified profile
     #[arg(long, ignore_case = true)]
     pub profile: Option<Profile>,
@@ -118,6 +114,7 @@ pub enum Subcmd {
     author = env!("CARGO_PKG_AUTHORS"),
     about = ABOUT_STRING,
 )]
+#[command(styles = clap_cargo::style::CLAP_STYLING)]
 pub struct Cli {
     #[clap(name = "cargo command", default_value = "wdk", hide = true)]
     pub cargo_command: String,
@@ -139,6 +136,21 @@ impl Cli {
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
+                // TODO: Support extended path as cargo supports it
+                if let Some(path) = &cli_args.path {
+                    const EXTENDED_PATH_PREFIX: &str = r"\\?\";
+                    if path
+                        .as_os_str()
+                        .to_string_lossy()
+                        .starts_with(EXTENDED_PATH_PREFIX)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not \
+                             currently supported"
+                        ));
+                    }
+                }
+
                 NewAction::new(
                     cli_args.path.as_ref().unwrap_or(&std::env::current_dir()?),
                     cli_args.driver_type(),
@@ -158,9 +170,9 @@ impl Cli {
                         Self::detect_default_target_arch_using_rustc(&command_exec)?;
                     TargetArch::Default(detected_arch)
                 };
-                let build_action = BuildAction::new(
+                BuildAction::new(
                     &BuildActionParams {
-                        working_dir: &cli_args.cwd,
+                        working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
                         target_arch,
                         verify_signature: cli_args.verify_signature,
@@ -171,8 +183,8 @@ impl Cli {
                     &command_exec,
                     &fs,
                     &metadata,
-                )?;
-                build_action.run()?;
+                )?
+                .run()?;
                 Ok(())
             }
         }
@@ -192,7 +204,7 @@ impl Cli {
         command_exec: &CommandExec,
     ) -> Result<CpuArchitecture> {
         command_exec
-            .run("rustc", &["--print", "host-tuple"], None)
+            .run("rustc", &["--print", "host-tuple"], None, None)
             .map_or_else(
                 |e| Err(anyhow::anyhow!("Unable to read rustc host tuple: {e}")),
                 |output| {
@@ -306,7 +318,8 @@ mod tests {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&std::path::Path>|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
@@ -317,7 +330,7 @@ mod tests {
                 },
             )
             .once()
-            .return_once(|_, _, _| expected_cli_result);
+            .return_once(|_, _, _, _| expected_cli_result);
 
         Cli::detect_default_target_arch_using_rustc(&mock_command_exec)
     }
@@ -353,5 +366,28 @@ mod tests {
             path: None,
         };
         assert_eq!(args.driver_type(), DriverType::Wdm);
+    }
+
+    #[test]
+    fn verbatim_path_is_rejected() {
+        use std::path::PathBuf;
+
+        let cli = Cli {
+            cargo_command: "wdk".to_string(),
+            sub_cmd: crate::cli::Subcmd::New(NewArgs {
+                kmdf: true,
+                umdf: false,
+                wdm: false,
+                path: Some(PathBuf::from(r"\\?\C:\some\path")),
+            }),
+            verbose: clap_verbosity_flag::Verbosity::default(),
+        };
+
+        let result = cli.run();
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not currently supported"
+        );
     }
 }

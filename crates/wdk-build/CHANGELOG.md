@@ -85,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - resolve warnings in rust-script blocks and only fail warnings in CI ([#87](https://github/microsoft/windows-drivers-rs/pull/87))
-- add missing cpu-arch macro defintions
+- add missing cpu-arch macro definitions
 - fix wdk path regkey detection
 
 ### Other

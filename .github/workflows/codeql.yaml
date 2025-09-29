@@ -2,15 +2,21 @@ name: "CodeQL Advanced"
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   analyze:
     name: Analyze
-    runs-on: windows-latest
+    runs-on: windows-2025
     permissions:
       security-events: write
     strategy:
@@ -40,36 +46,32 @@ jobs:
           - name: aarch64-pc-windows-msvc
             arch: arm64
 
-        include:
-        - language: c-cpp
-          build-mode: manual
-  
+        codeql:
+          - language: c-cpp
+            build-mode: manual
+          - language: rust
+            build-mode: none
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install Winget
-      uses: ./.github/actions/winget-install
-      with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install Winget PowerShell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
 
     - name: Install LLVM ${{ matrix.llvm }}
-      run: |
-        if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
-          Write-Host "LLVM ${{ matrix.llvm }} is already installed."
-        } else {
-          Write-Host "Installing LLVM ${{ matrix.llvm }}..."
-          Install-WinGetPackage -Id LLVM.LLVM -Version ${{ matrix.llvm }} -Source winget -MatchOption Equals -Mode Silent -Force
-        }
-        clang --version
+      uses: ./.github/actions/install-llvm
+      with:
+        version: ${{ matrix.llvm }}
 
     - name: Install WDK (${{ matrix.wdk.version }})
       uses: ./.github/actions/install-wdk
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: 'x64' # windows-latest is x64-based
-        target: ${{ matrix.target_triple.arch }}
+        host: ${{ matrix.wdk.source == 'nuget' && 'amd64' || '' }}
+        target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
       uses: dtolnay/rust-toolchain@master
@@ -86,15 +88,15 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
-        languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
+        languages: ${{ matrix.codeql.language }}
+        build-mode: ${{ matrix.codeql.build-mode }}
         queries: security-extended,security-and-quality
 
-    - if: matrix.build-mode == 'manual'
+    - if: matrix.codeql.build-mode == 'manual'
       working-directory: ./examples
       run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
-        category: "/language:${{matrix.language}}"
+        category: "/language:${{matrix.codeql.language}}"

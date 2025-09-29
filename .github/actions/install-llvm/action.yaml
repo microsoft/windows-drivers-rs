@@ -1,0 +1,44 @@
+name: Install LLVM
+description: "Install LLVM using WinGet with version checking and error handling"
+
+inputs:
+  version:
+    description: "LLVM version to install"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate inputs
+      shell: pwsh
+      run: |
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $version = '${{ inputs.version }}'
+        Write-Host "Validating LLVM installation inputs..."
+        Write-Host "Version: $version"
+
+        # Basic version format validation (LLVM uses semantic versioning)
+        if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Version cannot be empty"
+        }
+
+        Write-Host "✅ Input validation passed"
+
+    - name: Install LLVM
+      uses: ./.github/actions/install-winget-package
+      with:
+        package-id: LLVM.LLVM
+        version: ${{ inputs.version }}
+        skip-if-installed: "true"
+
+    - name: Verify LLVM installation
+      shell: pwsh
+      run: |
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $clangVersion = & clang --version 2>&1
+        Write-Host "✅ LLVM/Clang verification successful:"
+        Write-Host $clangVersion

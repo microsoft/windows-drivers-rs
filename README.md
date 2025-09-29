@@ -21,7 +21,7 @@ This project was built with support of WDM, KMDF, and UMDF drivers in mind, as w
 
 * [crates](./crates): Contains all the main crates that are a part of the Cargo workspace.
 * [examples](./examples): Contains workspace-level examples. These examples consist of different types of minimal Windows drivers (ie. WDM, KMDF, UMDF).
-* [tests](./tests): Contains workspace-level tests, inlcuding tests for metadata-based wdk configuration in packages and workspaces.
+* [tests](./tests): Contains workspace-level tests, including tests for metadata-based wdk configuration in packages and workspaces.
 
 **Note:**: Since the workspace level examples and tests use different WDK configurations, and WDR only supports one WDK configuration per workspace, the workspace-level examples and tests folder are excluded from the [repository root's Cargo manifest](./Cargo.toml).
 

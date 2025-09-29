@@ -1,11 +1,17 @@
+name: Build
+
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
-    - cron: "0 11 * * *"
+    - cron: 0 11 * * *
 
-name: Build
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   RUSTFLAGS: >-
@@ -15,9 +21,15 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: windows-latest
     strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
+        runner:
+          - name: windows-2025
+            arch: amd64
+          - name: windows-11-arm
+            arch: arm64
+
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -41,33 +53,35 @@ jobs:
             arch: amd64
           - name: aarch64-pc-windows-msvc
             arch: arm64
+    
+    runs-on: ${{ matrix.runner.name }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Winget
-        uses: ./.github/actions/winget-install
+        if: matrix.runner.name == 'windows-11-arm'
+        uses: ./.github/actions/install-winget
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Winget PowerShell Module
+        shell: pwsh
+        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
       - name: Install LLVM ${{ matrix.llvm }}
-        run: |
-          if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
-            Write-Host "LLVM ${{ matrix.llvm }} is already installed."
-          } else {
-            Write-Host "Installing LLVM ${{ matrix.llvm }}..."
-            Install-WinGetPackage -Id LLVM.LLVM -Version ${{ matrix.llvm }} -Source winget -MatchOption Equals -Mode Silent -Force
-          }
-          clang --version
+        uses: ./.github/actions/install-llvm
+        with:
+          version: ${{ matrix.llvm }}
 
       - name: Install WDK (${{ matrix.wdk.version }})
         uses: ./.github/actions/install-wdk
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: 'x64' # windows-latest is x64-based
-          target: ${{ matrix.target_triple.arch }}
+          host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+          target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
@@ -93,12 +107,20 @@ jobs:
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
-      # Run cargo-wdk on examples
+      - name: Build Tests (via Cargo Make)
+        run: cargo make --cwd ./tests build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Package Tests (via Cargo Make)
+        run: cargo make --cwd ./tests package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./examples --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
+        working-directory: ./examples
 
       - name: Run build on tests folder (via cargo-wdk)
-        run: cargo +${{ matrix.rust_toolchain }} wdk build --cwd ./tests --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
+        working-directory: ./tests

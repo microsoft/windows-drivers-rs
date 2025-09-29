@@ -136,7 +136,7 @@ wdk_build::cargo_make::forward_printed_env_vars(
 '''
 
 [tasks.setup-wdk-config-env-vars]
-# This exists as a seperate task outside of `wdk-build-init` so that any wdk-metadata-detection errors can be a hard error, without failing every task flow that executes on non-driver crates in the workspace.
+# This exists as a separate task outside of `wdk-build-init` so that any wdk-metadata-detection errors can be a hard error, without failing every task flow that executes on non-driver crates in the workspace.
 private = true
 install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
 plugin = "rust-env-update"

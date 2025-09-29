@@ -16,7 +16,7 @@
      * Ex. `<REPO_ROOT>\target\x86_64-pc-windows-msvc\debug\package`, `<REPO_ROOT>\target\x86_64-pc-windows-msvc\release\package`, `<REPO_ROOT>\target\aarch64-pc-windows-msvc\debug\package`, `<REPO_ROOT>\target\aarch64-pc-windows-msvc\release\package`,
      `<REPO_ROOT>\target\debug\package`,
      `<REPO_ROOT>\target\release\package`
-   2. The version of `devgen.exe` from the WDK Developer Tools that matches the archtecture of your DUT
+   2. The version of `devgen.exe` from the WDK Developer Tools that matches the architecture of your DUT
      * Ex. `C:\Program Files\Windows Kits\10\Tools\10.0.22621.0\x64\devgen.exe`. Note: This path will vary based off your WDK environment
 2. Install the Certificate on the DUT:
    1. Double click the certificate

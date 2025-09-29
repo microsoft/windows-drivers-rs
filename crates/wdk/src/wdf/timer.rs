@@ -20,7 +20,9 @@ impl Timer {
     ///
     /// # Errors
     ///
-    /// This function will return an error if WDF fails to contruct a timer. The error variant will contain a [`NTSTATUS`] of the failure. Full error documentation is available in the [WDFTimer Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdftimer/nf-wdftimer-wdftimercreate#return-value)
+    /// This function will return an error if WDF fails to construct a timer.
+    /// The error variant will contain a [`NTSTATUS`] of the failure. Full error
+    /// documentation is available in the [WDFTimer Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdftimer/nf-wdftimer-wdftimercreate#return-value)
     pub fn try_new(
         timer_config: &mut WDF_TIMER_CONFIG,
         attributes: &mut WDF_OBJECT_ATTRIBUTES,
@@ -48,7 +50,9 @@ impl Timer {
     ///
     /// # Errors
     ///
-    /// This function will return an error if WDF fails to contruct a timer. The error variant will contain a [`NTSTATUS`] of the failure. Full error documentation is available in the [WDFTimer Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdftimer/nf-wdftimer-wdftimercreate#return-value)
+    /// This function will return an error if WDF fails to construct a timer.
+    /// The error variant will contain a [`NTSTATUS`] of the failure. Full error
+    /// documentation is available in the [WDFTimer Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdftimer/nf-wdftimer-wdftimercreate#return-value)
     pub fn create(
         timer_config: &mut WDF_TIMER_CONFIG,
         attributes: &mut WDF_OBJECT_ATTRIBUTES,
