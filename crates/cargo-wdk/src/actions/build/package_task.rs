@@ -313,9 +313,17 @@ impl<'a> PackageTask<'a> {
             &arch,
             "-c",
             &cat_file_path,
-            "-v",
-            "*",
         ];
+
+        if let Ok(version) = std::env::var("STAMPINF_VERSION") {
+            // If STAMPINF_VERSION is set we rely on stampinf reading it; do NOT add -v.
+            // Otherwise we pass -v * (see else) to let stampinf auto-generate the version.
+            info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
+        } else {
+            args.push("-v");
+            args.push("*");
+        }
+
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
