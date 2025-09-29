@@ -651,4 +651,77 @@ mod tests {
 
         PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
+
+    // Parameterized test for run_stampinf covering env present/absent.
+    // Compile-time cfgs determine expectation via cfg! so a single test body suffices.
+    #[test]
+    fn run_stampinf_parameterized_env_overrides() {
+        use std::process::{ExitStatus, Output};
+
+        let scenarios = [("env_set", Some("1.2.3.4")), ("env_unset", None)];
+
+        let both_cfgs = cfg!(all(wdk_build_unstable, allow_stampinf_version_env_override));
+
+        for (name, env_val) in scenarios {
+            if let Some(v) = env_val {
+                std::env::set_var("STAMPINF_VERSION", v);
+            } else {
+                std::env::remove_var("STAMPINF_VERSION");
+            }
+
+            let package_name = "param_pkg"; // reuse
+            let working_dir = PathBuf::from("C:/abs/wd");
+            let target_dir = PathBuf::from("C:/abs/target");
+            let arch = CpuArchitecture::Amd64;
+
+            let params = PackageTaskParams {
+                package_name,
+                working_dir: &working_dir,
+                target_dir: &target_dir,
+                target_arch: &arch,
+                driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+                sample_class: false,
+                verify_signature: false,
+            };
+
+            let wdk_build = WdkBuild::default();
+            let fs = Fs::default();
+            let mut command_exec = CommandExec::default();
+
+            let expect_skip_v = env_val.is_some() && both_cfgs; // skip -v only in override path
+
+            command_exec
+                .expect_run()
+                .withf(move |cmd: &str, args: &[&str], _, _| {
+                    if cmd != "stampinf" {
+                        return false;
+                    }
+                    let has_v = args.contains(&"-v");
+                    if expect_skip_v {
+                        !has_v
+                    } else {
+                        args.windows(2).any(|w| w == ["-v", "*"])
+                    }
+                })
+                .once()
+                .return_once(|_, _, _, _| {
+                    Ok(Output {
+                        status: ExitStatus::default(),
+                        stdout: vec![],
+                        stderr: vec![],
+                    })
+                });
+
+            let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+            let result = task.run_stampinf();
+            assert!(
+                result.is_ok(),
+                "scenario {name} failed (cfgs_override_enabled={both_cfgs}, env_set={:?})",
+                env_val
+            );
+        }
+
+        // Cleanup
+        std::env::remove_var("STAMPINF_VERSION");
+    }
 }
