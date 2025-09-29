@@ -13,9 +13,7 @@ use mockall::automock;
 
 /// Provides limited access to wdk-build crate methods
 #[derive(Default)]
-pub struct WdkBuild {
-    // wdk_build_number: option/u32
-}
+pub struct WdkBuild {}
 
 #[automock]
 impl WdkBuild {

@@ -129,7 +129,9 @@ fn kmdf_config_aarch64_cli_overrides_amd64() {
             "tests/kmdf-driver-with-target-override",
             &["--target-arch", "amd64"],
         );
-        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+        assert!(
+            stdout.contains("Processing completed for package: kmdf-driver-with-target-override")
+        );
         verify_driver_package_files(
             "tests/kmdf-driver-with-target-override",
             "kmdf-driver-with-target-override",
@@ -145,7 +147,9 @@ fn kmdf_config_aarch64_no_cli_override() {
     with_file_lock(|| {
         set_crt_static_flag();
         let stdout = run_build_cmd("tests/kmdf-driver-with-target-override");
-        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+        assert!(
+            stdout.contains("Processing completed for package: kmdf-driver-with-target-override")
+        );
         verify_driver_package_files(
             "tests/kmdf-driver-with-target-override",
             "kmdf-driver-with-target-override",
