@@ -2,8 +2,8 @@
 // License: MIT OR Apache-2.0
 
 use serde::{
-    ser::{self, Impossible},
     Serialize,
+    ser::{self, Impossible},
 };
 
 use super::{
@@ -17,7 +17,7 @@ use super::{
 pub const KEY_NAME_SEPARATOR: char = '-';
 
 /// Serialize a value into a [`Map`] where the keys represent a
-/// `KEY_NAME_SEPARATOR`-separated list of field names.
+/// `KEY_NAME_SEPARATOR`-seperated list of field names.
 ///
 /// # Errors
 ///
@@ -31,9 +31,9 @@ pub const KEY_NAME_SEPARATOR: char = '-';
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{self, to_map},
 ///     DriverConfig,
 ///     KmdfConfig,
+///     metadata::{self, to_map},
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -63,7 +63,7 @@ where
 }
 
 /// Serialize a value into a [`Map`] where the keys represent a
-/// `KEY_NAME_SEPARATOR`-separated list of field names prepended with a
+/// `KEY_NAME_SEPARATOR`-seperated list of field names prepended with a
 /// prefix.
 ///
 /// # Errors
@@ -78,9 +78,9 @@ where
 /// use std::collections::BTreeMap;
 ///
 /// use wdk_build::{
-///     metadata::{self, to_map_with_prefix},
 ///     DriverConfig,
 ///     KmdfConfig,
+///     metadata::{self, to_map_with_prefix},
 /// };
 ///
 /// let wdk_metadata = metadata::Wdk {
@@ -587,7 +587,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{metadata, DriverConfig, KmdfConfig, UmdfConfig};
+    use crate::{DriverConfig, KmdfConfig, UmdfConfig, metadata};
 
     #[test]
     fn test_kmdf() {

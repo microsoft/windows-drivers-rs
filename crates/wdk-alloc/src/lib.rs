@@ -31,10 +31,10 @@ mod kernel_mode {
     use core::alloc::{GlobalAlloc, Layout};
 
     use wdk_sys::{
-        ntddk::{ExAllocatePool2, ExFreePool},
         POOL_FLAG_NON_PAGED,
         SIZE_T,
         ULONG,
+        ntddk::{ExAllocatePool2, ExFreePool},
     };
 
     /// Allocator implementation to use with `#[global_allocator]` to allow use
@@ -52,7 +52,7 @@ mod kernel_mode {
     // SAFETY: This is safe because the Wdk allocator:
     //         1. can never unwind since it can never panic
     //         2. has implementations of alloc and dealloc that maintain layout
-    //            constraints (FIXME: Alignment of the layout is currently not
+    //            constraints (FIXME: Alignment of the layout is currenty not
     //            supported)
     unsafe impl GlobalAlloc for WdkAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

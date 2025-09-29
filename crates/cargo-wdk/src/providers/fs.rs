@@ -11,9 +11,9 @@
 #![allow(clippy::unused_self)]
 
 use std::{
-    fs::{copy, create_dir, read_dir, rename, DirEntry, File, FileType, OpenOptions},
+    fs::{DirEntry, File, FileType, OpenOptions, copy, create_dir, read_dir, rename},
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use mockall::automock;
@@ -26,6 +26,11 @@ pub struct Fs {}
 
 #[automock]
 impl Fs {
+    pub fn canonicalize_path(&self, path: &Path) -> Result<PathBuf, FileError> {
+        path.canonicalize()
+            .map_err(|e| FileError::PathCanonicalizationError(path.to_owned(), e))
+    }
+
     pub fn copy(&self, src: &Path, dest: &Path) -> Result<u64, FileError> {
         copy(src, dest).map_err(|e| FileError::CopyError(src.to_owned(), dest.to_owned(), e))
     }

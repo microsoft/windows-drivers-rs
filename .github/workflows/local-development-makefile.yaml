@@ -1,17 +1,11 @@
-name: Local Development Makefile
-
 on:
   push:
-    branches-ignore:
-      - 'gh-readonly-queue/**'
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
-    - cron: 0 11 * * *
+    - cron: "0 11 * * *"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+name: Local Development Makefile
 
 env:
   RUSTFLAGS: -D warnings
@@ -19,15 +13,9 @@ env:
 jobs:
   build:
     name: Test WDR's local cargo-make Makefile
+    runs-on: windows-latest
     strategy:
-      fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
-        runner:
-          - name: windows-2025
-            arch: amd64
-          - name: windows-11-arm
-            arch: arm64
-
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
@@ -37,49 +25,57 @@ jobs:
         llvm:
           - 17.0.6
 
-    runs-on: ${{ matrix.runner.name }}
+        target_triple:
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          # - name: aarch64-pc-windows-msvc FIXME: validate on aarch64
+          #   arch: arm64
+          
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Winget
-        if: matrix.runner.name == 'windows-11-arm'
-        uses: ./.github/actions/install-winget
+        uses: ./.github/actions/winget-install
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Winget PowerShell Module
-        shell: pwsh
-        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
-
       - name: Install LLVM ${{ matrix.llvm }}
-        uses: ./.github/actions/install-llvm
-        with:
-          version: ${{ matrix.llvm }}
+        run: |
+          if ((Get-WinGetPackage -Id LLVM -Source winget -MatchOption Equals).InstalledVersion -eq '${{ matrix.llvm }}') {
+            Write-Host "LLVM ${{ matrix.llvm }} is already installed."
+          } else {
+            Write-Host "Installing LLVM ${{ matrix.llvm }}..."
+            Install-WinGetPackage -Id LLVM.LLVM -Version ${{ matrix.llvm }} -Source winget -MatchOption Equals -Mode Silent -Force
+          }
+          clang --version
 
       - name: Install WDK (${{ matrix.wdk.version }})
         uses: ./.github/actions/install-wdk
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
-          target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+          host: 'x64' # windows-latest is x64-based
+          target: ${{ matrix.target_triple.arch }}
 
-      - name: Install Nightly Rust Toolchain
+      - name: Install Nightly Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Beta Rust Toolchain
+      - name: Install Beta Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@beta
         with:
           components: clippy
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Stable Rust Toolchain
+      - name: Install Stable Rust Toolchain (${{ matrix.target_triple.name }})
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: ${{ matrix.target_triple.name }}
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2

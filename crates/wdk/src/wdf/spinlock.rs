@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-use wdk_sys::{call_unsafe_wdf_function_binding, NTSTATUS, WDFSPINLOCK, WDF_OBJECT_ATTRIBUTES};
+use wdk_sys::{NTSTATUS, WDF_OBJECT_ATTRIBUTES, WDFSPINLOCK, call_unsafe_wdf_function_binding};
 
 use crate::nt_success;
 
@@ -26,9 +26,7 @@ impl SpinLock {
     ///
     /// # Errors
     ///
-    /// This function will return an error if WDF fails to construct a spinlock.
-    /// The error variant will contain a [`NTSTATUS`] of the failure. Full error
-    /// documentation is available in the [WDFSpinLock Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfsync/nf-wdfsync-wdfspinlockcreate#return-value)
+    /// This function will return an error if WDF fails to contruct a timer. The error variant will contain a [`NTSTATUS`] of the failure. Full error documentation is available in the [WDFSpinLock Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfsync/nf-wdfsync-wdfspinlockcreate#return-value)
     pub fn try_new(attributes: &mut WDF_OBJECT_ATTRIBUTES) -> Result<Self, NTSTATUS> {
         let mut spin_lock = Self {
             wdf_spin_lock: core::ptr::null_mut(),
@@ -42,7 +40,7 @@ impl SpinLock {
             nt_status = call_unsafe_wdf_function_binding!(
                 WdfSpinLockCreate,
                 attributes,
-                &mut spin_lock.wdf_spin_lock,
+                &raw mut spin_lock.wdf_spin_lock,
             );
         }
         nt_success(nt_status).then_some(spin_lock).ok_or(nt_status)
@@ -53,9 +51,7 @@ impl SpinLock {
     ///
     /// # Errors
     ///
-    /// This function will return an error if WDF fails to construct a spinlock.
-    /// The error variant will contain a [`NTSTATUS`] of the failure. Full error
-    /// documentation is available in the [WDFSpinLock Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfsync/nf-wdfsync-wdfspinlockcreate#return-value)
+    /// This function will return an error if WDF fails to contruct a timer. The error variant will contain a [`NTSTATUS`] of the failure. Full error documentation is available in the [WDFSpinLock Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfsync/nf-wdfsync-wdfspinlockcreate#return-value)
     pub fn create(attributes: &mut WDF_OBJECT_ATTRIBUTES) -> Result<Self, NTSTATUS> {
         Self::try_new(attributes)
     }
