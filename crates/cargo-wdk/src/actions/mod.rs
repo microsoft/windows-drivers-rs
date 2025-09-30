@@ -50,15 +50,6 @@ impl Display for Profile {
     }
 }
 
-/// Enum is used to determine the architecture for which the driver is being
-/// built. It can be either a selected architecture passed via CLI or a default
-/// host architecture.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetArch {
-    Selected(CpuArchitecture),
-    Default(CpuArchitecture),
-}
-
 /// Converts `CpuArchitecture` to its corresponding target triple name.
 #[must_use]
 pub fn to_target_triple(cpu_arch: CpuArchitecture) -> String {

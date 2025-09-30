@@ -35,7 +35,7 @@ pub struct PackageTaskParams<'a> {
     pub target_arch: &'a CpuArchitecture,
     pub verify_signature: bool,
     pub sample_class: bool,
-    pub driver_model: DriverConfig,
+    pub driver_model: &'a DriverConfig,
 }
 
 /// Supports low level driver packaging operations
@@ -63,7 +63,7 @@ pub struct PackageTask<'a> {
 
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
-    driver_model: DriverConfig,
+    driver_model: &'a DriverConfig,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -92,7 +92,7 @@ impl<'a> PackageTask<'a> {
     /// * If `params.working_dir` is not absolute
     /// * If `params.target_dir` is not absolute
     pub fn new(
-        params: PackageTaskParams<'a>,
+        params: &PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
@@ -337,7 +337,6 @@ impl<'a> PackageTask<'a> {
             &format!("/os:{}", self.os_mapping),
             "/uselocaltime",
         ];
-
         if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
@@ -503,7 +502,6 @@ impl<'a> PackageTask<'a> {
             args.push(additional_args);
         }
         args.push(&inf_path);
-
         if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
@@ -531,7 +529,7 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -540,7 +538,7 @@ mod tests {
         let command_exec = CommandExec::default();
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
-        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        let task = PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
         assert_eq!(task.package_name, package_name.replace('-', "_"));
         assert!(!task.verify_signature);
         assert!(!task.sample_class);
@@ -594,7 +592,7 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -603,7 +601,7 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
     }
 
     #[test]
@@ -620,7 +618,7 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -629,6 +627,6 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
     }
 }

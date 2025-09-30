@@ -24,16 +24,19 @@ use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
-use wdk_build::metadata::{TryFromCargoMetadataError, Wdk};
+use wdk_build::{
+    metadata::{TryFromCargoMetadataError, Wdk},
+    CpuArchitecture,
+};
 
-use crate::actions::{to_target_triple, Profile, TargetArch};
+use crate::actions::{to_target_triple, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
-    pub target_arch: TargetArch,
+    pub target_arch: Option<&'a CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -44,7 +47,7 @@ pub struct BuildActionParams<'a> {
 pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
-    target_arch: TargetArch,
+    target_arch: Option<&'a CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -97,9 +100,11 @@ impl<'a> BuildAction<'a> {
     }
 
     /// Entry point method to execute the packaging action flow.
+    ///
     /// # Returns
     /// * `Result<Self>` - A result containing an empty tuple or an error of
     ///   type `BuildActionError`.
+    ///
     /// # Errors
     /// * `BuildActionError::NotAWorkspaceMember` - If the working directory is
     ///   not a workspace member.
@@ -347,6 +352,7 @@ impl<'a> BuildAction<'a> {
         target_dir: &Path,
     ) -> Result<(), BuildActionError> {
         info!("Processing package: {}", package_name);
+
         BuildTask::new(
             package_name,
             working_dir,
@@ -362,8 +368,8 @@ impl<'a> BuildAction<'a> {
             wdk_metadata
         } else {
             warn!(
-                "WDK metadata is not available. Skipping driver build workflow for package: {}",
-                package_name
+                "WDK metadata is not available. Skipping driver packaging task for \
+                 `{package_name}` package",
             );
             return Ok(());
         };
@@ -371,9 +377,8 @@ impl<'a> BuildAction<'a> {
         // TODO: Do we need this check anymore?
         if package.metadata.get("wdk").is_none() {
             warn!(
-                "No package.metadata.wdk section found. Skipping driver build workflow for \
-                 package: {}",
-                package_name
+                "No package.metadata.wdk section found. Skipping driver packaging task for \
+                 `{package_name}` package",
             );
             return Ok(());
         }
@@ -384,44 +389,38 @@ impl<'a> BuildAction<'a> {
             .any(|t| t.kind.contains(&TargetKind::CDyLib))
         {
             warn!(
-                "No cdylib target found. Skipping driver build workflow for package: {}",
-                package_name
+                "No cdylib target found. Skipping driver packaging task for `{package_name}` \
+                 package",
             );
             return Ok(());
         }
 
-        debug!("Creating the driver package in the target directory");
-        let driver_model = wdk_metadata.driver_model.clone();
-        let target_arch = match self.target_arch {
-            TargetArch::Default(arch) | TargetArch::Selected(arch) => arch,
+        // Resolve effective target architecture and artifacts root path. Skip packaging
+        // task if target_arch or final_artifacts_root could not be resolved
+        let Some((target_arch, final_artifacts_root)) =
+            self.resolve_final_artifacts_root(working_dir, target_dir)?
+        else {
+            debug!("Failed to resolve final artifacts root. Skipping packaging");
+            return Ok(());
         };
-        debug!(
-            "Target architecture for package: {} is: {}",
-            package_name, target_arch
-        );
-        let mut target_dir = target_dir.to_path_buf();
-        if let TargetArch::Selected(arch) = self.target_arch {
-            target_dir = target_dir.join(to_target_triple(arch));
-        }
-        target_dir = match self.profile {
-            Some(Profile::Release) => target_dir.join("release"),
-            _ => target_dir.join("debug"),
-        };
-        debug!(
-            "Target directory for package: {} is: {}",
-            package_name,
-            target_dir.display()
-        );
+
+        // Set up the `PATH` system environment variable with WDK/SDK bin and tools
+        // paths.
+        wdk_build::cargo_make::setup_path().map_err(|e| {
+            debug!("Failed to set up PATH for WDK/SDK tools");
+            BuildActionError::WdkBuildConfig(e)
+        })?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
 
         PackageTask::new(
-            PackageTaskParams {
+            &PackageTaskParams {
                 package_name,
                 working_dir,
-                target_dir: &target_dir,
+                target_dir: &final_artifacts_root,
                 target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
-                driver_model,
+                driver_model: &wdk_metadata.driver_model,
             },
             self.wdk_build,
             self.command_exec,
@@ -431,5 +430,151 @@ impl<'a> BuildAction<'a> {
 
         info!("Processing completed for package: {}", package_name);
         Ok(())
+    }
+
+    /// Resolves the final artifacts directory produced by Cargo for this build.
+    ///
+    /// Behavior:
+    /// - Implicit host build: artifacts under `target/<profile>`.
+    /// - Explicit target specified (CLI `--target-arch`, env
+    ///   `CARGO_BUILD_TARGET`, or `[build].target` in config): artifacts under
+    ///   `target/<triple>/<profile>`.
+    /// - If an explicit target was specified but the expected triple directory
+    ///   does not exist, logs an error and returns `None` (caller skips
+    ///   packaging gracefully).
+    fn resolve_final_artifacts_root(
+        &self,
+        working_dir: &Path,
+        target_dir: &Path,
+    ) -> Result<Option<(CpuArchitecture, PathBuf)>, BuildActionError> {
+        let target_arch = if let Some(arch) = self.target_arch {
+            *arch
+        } else {
+            self.detect_target_arch_using_cargo_rustc(working_dir)?
+        };
+        let profile_dir = if matches!(self.profile, Some(Profile::Release)) {
+            "release"
+        } else {
+            "debug"
+        };
+
+        let explicit_cli = self.target_arch.is_some();
+        let explicit_env = std::env::var("CARGO_BUILD_TARGET")
+            .ok()
+            .is_some_and(|v| !v.trim().is_empty());
+        let explicit_cfg = Self::find_build_target_in_config(working_dir).is_some();
+        let explicit_specified = explicit_cli || explicit_env || explicit_cfg;
+
+        let final_root = if explicit_specified {
+            let triple = to_target_triple(target_arch);
+            let triple_dir = target_dir.join(&triple).join(profile_dir);
+            if !triple_dir.exists() {
+                err!(
+                    "Expected target triple dir '{}' not found. Skipping packaging",
+                    triple_dir.display()
+                );
+                return Ok(None);
+            }
+            debug!(
+                "Resolved explicit target artifacts directory: {} (arch={:?})",
+                triple_dir.display(),
+                target_arch
+            );
+            triple_dir
+        } else {
+            let host_dir = target_dir.join(profile_dir);
+            debug!(
+                "Resolved host (implicit) artifacts directory: {} (arch={:?})",
+                host_dir.display(),
+                target_arch
+            );
+            host_dir
+        };
+        Ok(Some((target_arch, final_root)))
+    }
+
+    fn find_build_target_in_config(start: &Path) -> Option<String> {
+        for ancestor in start.ancestors() {
+            let cargo_dir = ancestor.join(".cargo");
+            if !cargo_dir.exists() {
+                continue;
+            }
+            for cfg_name in ["config.toml", "config"] {
+                let cfg_path = cargo_dir.join(cfg_name);
+                if !cfg_path.exists() {
+                    continue;
+                }
+                if let Ok(contents) = std::fs::read_to_string(&cfg_path) {
+                    let mut in_build = false;
+                    for raw_line in contents.lines() {
+                        let line = raw_line.trim();
+                        if line.starts_with('#') || line.is_empty() {
+                            continue;
+                        }
+                        if line.starts_with('[') && line.ends_with(']') {
+                            in_build = line == "[build]";
+                            continue;
+                        }
+                        if !in_build {
+                            continue;
+                        }
+                        if line.starts_with("target") {
+                            if let Some(eq_idx) = line.find('=') {
+                                let value = line[eq_idx + 1..].trim().trim_matches('"');
+                                if !value.is_empty() {
+                                    debug!(
+                                        "Detected explicit target triple '{}' from {}",
+                                        value,
+                                        cfg_path.display()
+                                    );
+                                    return Some(value.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Detects the effective target architecture Cargo will build for this
+    /// package by invoking `cargo rustc -- --print cfg` inside the package
+    /// directory and parsing the emitted `target_arch="..."` cfg value.
+    ///
+    /// # Arguments
+    /// * `command_exec` - A reference to the `CommandExec` struct that provides
+    ///   methods for executing commands.
+    ///
+    /// # Returns
+    /// * `CpuArchitecture`
+    /// * `anyhow::Error` if the command fails to execute or the output is not
+    ///   in the expected format.
+    fn detect_target_arch_using_cargo_rustc(
+        &self,
+        working_dir: &Path,
+    ) -> Result<CpuArchitecture, BuildActionError> {
+        let args = ["rustc", "--", "--print", "cfg"];
+        let output = self
+            .command_exec
+            .run("cargo", &args, None, Some(working_dir))
+            .map_err(|e| BuildActionError::DetectTargetArch(e.to_string()))?;
+        for line in output.stdout.split(|b| *b == b'\n') {
+            if let Some(rest) = line.strip_prefix(b"target_arch=\"") {
+                if let Some(end_quote) = rest.iter().position(|b| *b == b'"') {
+                    let arch = &rest[..end_quote];
+                    return match arch {
+                        b"x86_64" => Ok(CpuArchitecture::Amd64),
+                        b"aarch64" => Ok(CpuArchitecture::Arm64),
+                        _ => Err(BuildActionError::UnsupportedArchitecture(
+                            String::from_utf8_lossy(arch).into(),
+                        )),
+                    };
+                }
+            }
+        }
+        Err(BuildActionError::DetectTargetArch(
+            String::from_utf8_lossy(&output.stderr).into(),
+        ))
     }
 }

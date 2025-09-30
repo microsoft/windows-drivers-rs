@@ -18,8 +18,8 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 
         assert!(stdout.contains("Processing completed for package: driver"));
         assert!(stdout.contains(
-            "No package.metadata.wdk section found. Skipping driver build workflow for package: \
-             non_driver_crate"
+            "No package.metadata.wdk section found. Skipping driver packaging task for \
+             `non_driver_crate` package"
         ));
 
         verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
@@ -80,8 +80,8 @@ fn emulated_workspace_builds_successfully() {
         // Matches warning about WDK metadata not being available for non driver project
         // but a valid rust project
         assert!(stdout.contains(
-            "WDK metadata is not available. Skipping driver build workflow for package: \
-             rust-project"
+            "WDK metadata is not available. Skipping driver packaging task for `rust-project` \
+             package"
         ));
 
         assert!(stdout.contains("Processing completed for package: driver_1"));
@@ -91,6 +91,70 @@ fn emulated_workspace_builds_successfully() {
         let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
         verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll");
         verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll");
+    });
+}
+
+#[test]
+fn build_with_target_arch_option() {
+    with_file_lock(|| {
+        let stdout = run_build_cmd("tests/kmdf-driver");
+
+        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+
+        verify_driver_package_files("tests/kmdf-driver", "kmdf-driver", "sys");
+    });
+}
+
+// Target architecture selection tests using explicit fixtures:
+// - tests/kmdf-driver (no target triple in config)
+// - tests/kmdf-driver-with-target-override (config sets aarch64 target)
+
+// 1. Explicit --target-arch arm64 should build arm64 regardless of config
+//    (using kmdf-driver).
+#[test]
+fn kmdf_explicit_target_arch_arm64() {
+    with_file_lock(|| {
+        let stdout = run_build_cmd_with("tests/kmdf-driver", &["--target-arch", "arm64"]);
+        assert!(stdout.contains("Processing completed for package: kmdf-driver"));
+        verify_driver_package_files("tests/kmdf-driver", "kmdf-driver", "sys");
+    });
+}
+
+// 2. Config sets aarch64 but CLI overrides to amd64 (using
+//    kmdf-driver-with-target-override).
+#[test]
+fn kmdf_config_aarch64_cli_overrides_amd64() {
+    with_file_lock(|| {
+        let stdout = run_build_cmd_with(
+            "tests/kmdf-driver-with-target-override",
+            &["--target-arch", "amd64"],
+        );
+        assert!(
+            stdout.contains("Processing completed for package: kmdf-driver-with-target-override")
+        );
+        verify_driver_package_files(
+            "tests/kmdf-driver-with-target-override",
+            "kmdf-driver-with-target-override",
+            "sys",
+        );
+    });
+}
+
+// 3. Config sets aarch64 and no CLI target-arch provided; config drives
+//    selection.
+#[test]
+fn kmdf_config_aarch64_no_cli_override() {
+    with_file_lock(|| {
+        set_crt_static_flag();
+        let stdout = run_build_cmd("tests/kmdf-driver-with-target-override");
+        assert!(
+            stdout.contains("Processing completed for package: kmdf-driver-with-target-override")
+        );
+        verify_driver_package_files(
+            "tests/kmdf-driver-with-target-override",
+            "kmdf-driver-with-target-override",
+            "sys",
+        );
     });
 }
 
@@ -112,15 +176,18 @@ fn build_driver_project(driver_type: &str) {
 }
 
 fn run_build_cmd(driver_path: &str) -> String {
+    run_build_cmd_with(driver_path, &[])
+}
+
+// Run build with optional extra cargo-wdk args (excluding the initial 'build').
+fn run_build_cmd_with(driver_path: &str, extra_args: &[&str]) -> String {
     set_crt_static_flag();
-
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build"]).current_dir(driver_path);
-
-    // assert command output
+    let mut full_args = vec!["build"];
+    full_args.extend(extra_args);
+    cmd.args(full_args).current_dir(driver_path);
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
-
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
@@ -130,8 +197,11 @@ fn verify_driver_package_files(
     driver_binary_extension: &str,
 ) {
     let driver_name = driver_name.replace('-', "_");
-    let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
-    let package_path = format!("{debug_folder_path}/{driver_name}_package");
+    let target_folder_path = determine_target_folder(driver_or_workspace_path, "debug");
+    let package_path = target_folder_path
+        .join(format!("{driver_name}_package"))
+        .to_string_lossy()
+        .to_string();
 
     // Verify files exist in package folder
     assert_dir_exists(&package_path);
@@ -143,20 +213,37 @@ fn verify_driver_package_files(
     assert_file_exists(&format!("{package_path}/WDRLocalTestCert.cer"));
 
     // Verify hashes of files copied from debug to package folder
+    let target_folder_str = target_folder_path.to_string_lossy();
     assert_file_hash(
         &format!("{package_path}/{driver_name}.map"),
-        &format!("{debug_folder_path}/deps/{driver_name}.map"),
+        &format!("{target_folder_str}/deps/{driver_name}.map"),
     );
 
     assert_file_hash(
         &format!("{package_path}/{driver_name}.pdb"),
-        &format!("{debug_folder_path}/{driver_name}.pdb"),
+        &format!("{target_folder_str}/{driver_name}.pdb"),
     );
 
     assert_file_hash(
         &format!("{package_path}/WDRLocalTestCert.cer"),
-        &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
+        &format!("{target_folder_str}/WDRLocalTestCert.cer"),
     );
+}
+
+// Determine the target folder (e.g., debug or release) optionally under an
+// architecture triple directory, mirroring
+// BuildAction::detect_target_arch_and_final_package_root. If a target triple
+// directory (e.g. x86_64-pc-windows-msvc) exists under target/, prefer it;
+// otherwise fall back to target/<profile> directly.
+fn determine_target_folder(driver_or_workspace_path: &str, profile: &str) -> PathBuf {
+    let base = PathBuf::from(driver_or_workspace_path).join("target");
+    for triple in ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"] {
+        let candidate = base.join(triple);
+        if candidate.is_dir() {
+            return candidate.join(profile);
+        }
+    }
+    base.join(profile)
 }
 
 fn assert_dir_exists(path: &str) {
