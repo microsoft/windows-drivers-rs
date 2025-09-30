@@ -488,7 +488,6 @@ impl<'a> PackageTask<'a> {
         } else {
             ""
         };
-
         let mut args = vec![
             "/v",
             match self.driver_model {
