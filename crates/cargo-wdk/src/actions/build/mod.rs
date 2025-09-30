@@ -365,7 +365,7 @@ impl<'a> BuildAction<'a> {
 
         // Identifying non driver packages
         if package.metadata.get("wdk").is_none() {
-            info!("Packaging task skipped for non-driver package");
+            debug!("Packaging task skipped for non-driver package");
             return Ok(());
         }
 
