@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use mockall_double::double;
 use tracing::debug;
-use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
 use crate::providers::exec::CommandExec;
