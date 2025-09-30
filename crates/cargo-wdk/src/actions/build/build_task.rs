@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use mockall_double::double;
-use tracing::{debug, info};
+use tracing::debug;
 use wdk_build::utils::{PathExt, StripExtendedPathPrefixError};
 
 #[double]
@@ -81,7 +81,7 @@ impl<'a> BuildTask<'a> {
     /// * `BuildTaskError::CargoBuild` - If there is an error running the cargo
     ///   build command
     pub fn run(&self) -> Result<(), BuildTaskError> {
-        info!("Running cargo build");
+        debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
@@ -107,7 +107,7 @@ impl<'a> BuildTask<'a> {
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
         self.command_exec.run("cargo", &args, None)?;
-        debug!("Done");
+        debug!("cargo build done");
         Ok(())
     }
 }

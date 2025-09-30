@@ -217,8 +217,7 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Method to initiate the build and package process for the given working
-    // directory and the cargo metadata
+    // Runs build for the given working directory and the cargo metadata
     fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
         let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
@@ -344,7 +343,7 @@ impl<'a> BuildAction<'a> {
         package_name: &str,
         target_dir: &Path,
     ) -> Result<(), BuildActionError> {
-        info!("Processing build for package: {package_name}");
+        info!("Building package {package_name}");
         BuildTask::new(
             package_name,
             working_dir,
@@ -415,7 +414,7 @@ impl<'a> BuildAction<'a> {
         )?
         .run()?;
 
-        info!("Processing completed");
+        info!("Finished building {package_name}");
         Ok(())
     }
 }
