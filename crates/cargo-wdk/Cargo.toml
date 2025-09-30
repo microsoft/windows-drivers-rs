@@ -38,7 +38,10 @@ unsafe_op_in_unsafe_fn = "forbid"
 
 [lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ["cfg(wdk_build_unstable)", "cfg(allow_stampinf_version_env_override)"]
+check-cfg = [
+  "cfg(wdk_build_unstable)",
+  "cfg(allow_stampinf_version_env_override)",
+]
 
 [lints.clippy]
 # Lint Groups
