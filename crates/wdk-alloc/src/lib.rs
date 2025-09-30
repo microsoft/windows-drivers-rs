@@ -52,7 +52,7 @@ mod kernel_mode {
     // SAFETY: This is safe because the Wdk allocator:
     //         1. can never unwind since it can never panic
     //         2. has implementations of alloc and dealloc that maintain layout
-    //            constraints (FIXME: Alignment of the layout is currenty not
+    //            constraints (FIXME: Alignment of the layout is currently not
     //            supported)
     unsafe impl GlobalAlloc for WdkAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

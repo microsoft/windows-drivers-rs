@@ -115,7 +115,7 @@ fn run_build_cmd(driver_path: &str) -> String {
     set_crt_static_flag();
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build", "--cwd", driver_path]);
+    cmd.args(["build"]).current_dir(driver_path);
 
     // assert command output
     let cmd_assertion = cmd.assert().success();

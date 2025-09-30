@@ -92,6 +92,7 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 * `cargo-machete`: `cargo install --locked cargo-machete`
 * `cargo-sort`: `cargo install --locked cargo-sort`
 * `taplo-cli`: `cargo install --locked taplo-cli`
+* `typos-cli`: `cargo install --locked typos-cli`
 
 **Note on arm64:** ARM64 support for ring is [not released yet](https://github.com/briansmith/ring/issues/1167), so TLS features must be disabled until arm64 is officially supported by ring (probably in 0.17.0 release)
 
@@ -140,6 +141,13 @@ To maintain the quality of code, tests and tools are required to pass before con
   * Running `taplo fmt` resolves these formatting inconsistencies usually
 * Check for sorted sections and dependencies listed in the `Cargo.toml` files: `cargo sort -w -g -n --check`
   * Running `cargo sort -w -g -n` resolves any formatting inconsistencies.
+
+**_Spelling (typos-cli):_**
+
+* Check spelling with typos-cli: `typos`
+  * Auto-fix locally before committing: `typos --write-changes`
+  * CI runs `typos` on every PR to `main` and will fail on finding any typos
+  * Configuration lives in `.typos.toml`; we allowlist specific Windows API identifiers flagged by typos to preserve upstream names and binding compatibility (no file-level excludes)
 
 **_Dependency Analysis:_**
 

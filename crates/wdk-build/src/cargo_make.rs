@@ -15,13 +15,13 @@ use core::{fmt, ops::RangeFrom};
 use std::{
     env,
     panic::UnwindSafe,
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
     process::Command,
 };
 
 use anyhow::Context;
 use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
-use clap::{Args, Parser};
+use clap::{Args, ColorChoice, CommandFactory, FromArgMatches, Parser};
 use tracing::{instrument, trace};
 
 use crate::{
@@ -29,7 +29,6 @@ use crate::{
     CpuArchitecture,
     metadata,
     utils::{
-        PathExt,
         detect_wdk_content_root,
         detect_windows_sdk_version,
         get_wdk_version_number,
@@ -55,6 +54,7 @@ const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 /// build` and `cargo test` commands
 const CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR: &str = "CARGO_MAKE_CARGO_BUILD_TEST_FLAGS";
 
+const CARGO_MAKE_DISABLE_COLOR_ENV_VAR: &str = "CARGO_MAKE_DISABLE_COLOR";
 const CARGO_MAKE_PROFILE_ENV_VAR: &str = "CARGO_MAKE_PROFILE";
 const CARGO_MAKE_CARGO_PROFILE_ENV_VAR: &str = "CARGO_MAKE_CARGO_PROFILE";
 const CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_TRIPLE";
@@ -79,6 +79,7 @@ trait ParseCargoArgs {
 }
 
 #[derive(Parser, Debug)]
+#[command(styles = clap_cargo::style::CLAP_STYLING)]
 struct CommandLineInterface {
     #[command(flatten)]
     base: BaseOptions,
@@ -488,7 +489,20 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
-    CommandLineInterface::parse_from(env_args.iter()).parse_cargo_args();
+    CommandLineInterface::from_arg_matches_mut(
+        &mut CommandLineInterface::command()
+            .color(if is_cargo_make_color_disabled() {
+                ColorChoice::Never
+            } else {
+                // `ColorChoice::Always` is used instead of `ColorChoice::Auto` to force color.
+                // This function is always executed from rust-script invoked by cargo-make,
+                // whose piping of stdout/stderr disables color by default.
+                ColorChoice::Always
+            })
+            .get_matches_from(env_args),
+    )
+    .unwrap_or_else(|err| err.exit())
+    .parse_cargo_args();
 
     [
         CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
@@ -500,6 +514,19 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     .into_iter()
     .filter(|env_var_name| env::var_os(env_var_name).is_some())
     .map(ToString::to_string)
+}
+
+fn is_cargo_make_color_disabled() -> bool {
+    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR)
+        .map(|value| {
+            !matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                // when color is enabled in cargo-make, the env var is guaranteed to be set to one
+                // of the below values, or not be set at all
+                "0" | "false" | "no" | ""
+            )
+        })
+        .unwrap_or(false)
 }
 
 /// Prepends the path variable with the necessary paths to access WDK(+SDK)
@@ -526,31 +553,25 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version);
 
-    let host_windows_sdk_ver_bin_path = wdk_bin_root
-        .join(host_arch.as_windows_str())
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
+    let host_windows_sdk_ver_bin_path = absolute(wdk_bin_root.join(host_arch.as_windows_str()))?
         .to_str()
         .expect("WDK bin path should be valid UTF-8")
         .to_string();
 
-    let x86_windows_sdk_ver_bin_path = wdk_bin_root
-        .join("x86")
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
+    let x86_windows_sdk_ver_bin_path = absolute(wdk_bin_root.join("x86"))?
         .to_str()
         .expect("WDK x86 bin path should be valid UTF-8")
         .to_string();
 
     if let Ok(sdk_bin_path) = env::var("WindowsSdkBinPath") {
-        let sdk_bin_path = PathBuf::from(sdk_bin_path)
-            .join(&sdk_version)
-            .join(host_arch.as_windows_str())
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?
-            .to_str()
-            .expect("WindowsSdkBinPath should be valid UTF-8")
-            .to_string();
+        let sdk_bin_path = absolute(
+            PathBuf::from(sdk_bin_path)
+                .join(&sdk_version)
+                .join(host_arch.as_windows_str()),
+        )?
+        .to_str()
+        .expect("WindowsSdkBinPath should be valid UTF-8")
+        .to_string();
         prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, sdk_bin_path);
     }
 
@@ -560,13 +581,11 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     );
 
     let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, sdk_version);
-    let host_windows_sdk_version_tool_path = wdk_tool_root
-        .join(host_arch.as_windows_str())
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
-        .to_str()
-        .expect("WDK tool path should be valid UTF-8")
-        .to_string();
+    let host_windows_sdk_version_tool_path =
+        absolute(wdk_tool_root.join(host_arch.as_windows_str()))?
+            .to_str()
+            .expect("WDK tool path should be valid UTF-8")
+            .to_string();
     prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
     Ok([PATH_ENV_VAR].map(ToString::to_string))
@@ -720,7 +739,7 @@ pub fn get_current_package_name() -> String {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::IoError`] if the it encouters IO
+/// This function returns a [`ConfigError::IoError`] if the it encounters IO
 /// errors while copying the file or creating the directory
 ///
 /// # Panics

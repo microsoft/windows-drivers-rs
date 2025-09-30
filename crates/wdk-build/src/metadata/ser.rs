@@ -17,7 +17,7 @@ use super::{
 pub const KEY_NAME_SEPARATOR: char = '-';
 
 /// Serialize a value into a [`Map`] where the keys represent a
-/// `KEY_NAME_SEPARATOR`-seperated list of field names.
+/// `KEY_NAME_SEPARATOR`-separated list of field names.
 ///
 /// # Errors
 ///
@@ -63,7 +63,7 @@ where
 }
 
 /// Serialize a value into a [`Map`] where the keys represent a
-/// `KEY_NAME_SEPARATOR`-seperated list of field names prepended with a
+/// `KEY_NAME_SEPARATOR`-separated list of field names prepended with a
 /// prefix.
 ///
 /// # Errors
