@@ -316,14 +316,16 @@ impl<'a> PackageTask<'a> {
         ];
 
         // DriverVer handling:
-        // 1. When BOTH cfg flags (wdk_build_unstable + allow_stampinf_version_env_override) are
-        //    enabled, allow an external override via STAMPINF_VERSION env var. If the env var is
-        //    absent we fall back to auto-generation (-v *).
+        // 1. When BOTH cfg flags (wdk_build_unstable +
+        //    allow_stampinf_version_env_override) are enabled, allow an external
+        //    override via STAMPINF_VERSION env var. If the env var is absent we fall
+        //    back to auto-generation (-v *).
         // 2. Otherwise (stable / default builds) always request auto-generation (-v *).
         #[cfg(all(wdk_build_unstable, allow_stampinf_version_env_override))]
         {
             if let Ok(version) = std::env::var("STAMPINF_VERSION") {
-                // Rely on stampinf reading STAMPINF_VERSION; do NOT add -v.
+                // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
+                // and populates DriverVer.
                 info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
             } else {
                 args.push("-v");
@@ -653,7 +655,8 @@ mod tests {
     }
 
     // Parameterized test for run_stampinf covering env present/absent.
-    // Compile-time cfgs determine expectation via cfg! so a single test body suffices.
+    // Compile-time cfgs determine expectation via cfg! so a single test body
+    // suffices.
     #[test]
     fn run_stampinf_parameterized_env_overrides() {
         use std::process::{ExitStatus, Output};
@@ -716,8 +719,7 @@ mod tests {
             let result = task.run_stampinf();
             assert!(
                 result.is_ok(),
-                "scenario {name} failed (cfgs_override_enabled={both_cfgs}, env_set={:?})",
-                env_val
+                "scenario {name} failed (cfgs_override_enabled={both_cfgs}, env_set={env_val:?})"
             );
         }
 
