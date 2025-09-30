@@ -9,6 +9,8 @@ publish = false
 
 [lib]
 crate-type = ["cdylib"]
+# temporarily disable due to github runner issues: https://github.com/microsoft/windows-drivers-rs/issues/502
+test = false
 
 [build-dependencies]
 wdk-build.workspace = true
