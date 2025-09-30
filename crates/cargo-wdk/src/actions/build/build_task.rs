@@ -108,7 +108,7 @@ impl<'a> BuildTask<'a> {
         // is respected
         self.command_exec
             .run("cargo", &args, None, Some(self.working_dir))?;
-        debug!("cargo build one");
+        debug!("cargo build done");
         Ok(())
     }
 }
