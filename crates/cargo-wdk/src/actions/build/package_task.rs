@@ -672,9 +672,9 @@ mod tests {
                 std::env::remove_var("STAMPINF_VERSION");
             }
 
-            let package_name = "param_pkg"; // reuse
-            let working_dir = PathBuf::from("C:/abs/wd");
-            let target_dir = PathBuf::from("C:/abs/target");
+            let package_name = "driver"; // reuse
+            let working_dir = PathBuf::from("C:/abs/driver");
+            let target_dir = PathBuf::from("C:/abs/target/debug");
             let arch = CpuArchitecture::Amd64;
 
             let params = PackageTaskParams {
