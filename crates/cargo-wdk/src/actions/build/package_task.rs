@@ -473,7 +473,6 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
-        info!("Running infverif");
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
             if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
@@ -488,6 +487,8 @@ impl<'a> PackageTask<'a> {
         } else {
             ""
         };
+
+        info!("Running infverif");
         let mut args = vec![
             "/v",
             match self.driver_model {
