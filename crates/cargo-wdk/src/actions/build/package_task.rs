@@ -323,17 +323,15 @@ impl<'a> PackageTask<'a> {
         cfg_if::cfg_if! {
             if #[cfg(allow_stampinf_version_env_override)]
             {
-                if let Ok(version) = std::env::var("STAMPINF_VERSION") {
+                if let Ok(version) = std::env::var("STAMPINF_VERSION") && !version.trim().is_empty() {
                     // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
                     // and populates DriverVer.
                     info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
                 } else {
-                    args.push("-v");
-                    args.push("*");
+                    args.extend(["-v", "*"]);
                 }
             } else {
-                args.push("-v");
-                args.push("*");
+                args.extend(["-v", "*"]);
             }
         }
 
@@ -672,7 +670,7 @@ mod tests {
 
             let package_name = "driver";
             let working_dir = PathBuf::from("C:/abs/driver");
-            let target_dir = PathBuf::from("C:/abs/target/debug");
+            let target_dir = PathBuf::from("C:/abs/driver/target/debug");
             let arch = CpuArchitecture::Amd64;
 
             let params = PackageTaskParams {
