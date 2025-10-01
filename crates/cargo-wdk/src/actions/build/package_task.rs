@@ -480,7 +480,7 @@ impl<'a> PackageTask<'a> {
                     "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
                      /samples flag."
                 );
-                info!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
+                warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
                 return Ok(());
             }
             "/msft"
