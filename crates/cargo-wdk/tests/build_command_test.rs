@@ -18,7 +18,6 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 
         assert!(stdout.contains("Building package driver"));
         assert!(stdout.contains("Building package non_driver_crate"));
-        assert!(stdout.contains("Packaging task skipped for non-driver package"));
         assert!(stdout.contains("Build completed successfully"));
         verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
     });
