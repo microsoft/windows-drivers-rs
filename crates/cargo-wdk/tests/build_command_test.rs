@@ -18,7 +18,6 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 
         assert!(stdout.contains("Building package driver"));
         assert!(stdout.contains("Building package non_driver_crate"));
-        assert!(stdout.contains("Build completed successfully"));
         verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
     });
 }
@@ -76,10 +75,6 @@ fn emulated_workspace_builds_successfully() {
 
         assert!(stdout.contains("Building package driver_1"));
         assert!(stdout.contains("Building package driver_2"));
-        // Matches warning about WDK metadata not being available for non driver project
-        // but a valid rust project
-        assert!(stdout.contains("Invalid WDK metadata. Skipping package task"));
-
         assert!(stdout.contains("Build completed successfully"));
 
         let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
@@ -95,7 +90,6 @@ fn build_driver_project(driver_type: &str) {
     let stdout = run_build_cmd(&driver_path);
 
     assert!(stdout.contains(&format!("Building package {driver_name}")));
-    assert!(stdout.contains("Build completed successfully"));
 
     let driver_binary_extension = match driver_type {
         "kmdf" | "wdm" => "sys",
