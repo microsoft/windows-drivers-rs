@@ -200,7 +200,7 @@ impl<'a> BuildAction<'a> {
             }
         }
 
-        debug!("Done building projects in {}", self.working_dir.display());
+        debug!("Done building packages in {}", self.working_dir.display());
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
