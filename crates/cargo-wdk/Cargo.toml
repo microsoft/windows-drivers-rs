@@ -14,6 +14,7 @@ categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
+cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-verbosity-flag.workspace = true
 fs4.workspace = true

@@ -316,26 +316,25 @@ impl<'a> PackageTask<'a> {
         ];
 
         // DriverVer handling:
-        // 1. When BOTH cfg flags (wdk_build_unstable +
-        //    allow_stampinf_version_env_override) are enabled, allow an external
+        // 1. When allow_stampinf_version_env_override cfg is enabled, allow an external
         //    override via STAMPINF_VERSION env var. If the env var is absent we fall
         //    back to auto-generation (-v *).
         // 2. Otherwise (stable / default builds) always request auto-generation (-v *).
-        #[cfg(all(wdk_build_unstable, allow_stampinf_version_env_override))]
-        {
-            if let Ok(version) = std::env::var("STAMPINF_VERSION") {
-                // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
-                // and populates DriverVer.
-                info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
+        cfg_if::cfg_if! {
+            if #[cfg(allow_stampinf_version_env_override)]
+            {
+                if let Ok(version) = std::env::var("STAMPINF_VERSION") {
+                    // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
+                    // and populates DriverVer.
+                    info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
+                } else {
+                    args.push("-v");
+                    args.push("*");
+                }
             } else {
                 args.push("-v");
                 args.push("*");
             }
-        }
-        #[cfg(not(all(wdk_build_unstable, allow_stampinf_version_env_override)))]
-        {
-            args.push("-v");
-            args.push("*");
         }
 
         if !wdf_version_flags.is_empty() {
@@ -662,7 +661,7 @@ mod tests {
 
         let scenarios = [("env_set", Some("1.2.3.4")), ("env_unset", None)];
 
-        let both_cfgs = cfg!(all(wdk_build_unstable, allow_stampinf_version_env_override));
+        let is_cfg_set = cfg!(allow_stampinf_version_env_override);
 
         for (name, env_val) in scenarios {
             if let Some(v) = env_val {
@@ -690,7 +689,7 @@ mod tests {
             let fs = Fs::default();
             let mut command_exec = CommandExec::default();
 
-            let expect_skip_v = env_val.is_some() && both_cfgs; // skip -v only in override path
+            let expect_skip_v = env_val.is_some() && is_cfg_set; // skip -v only in override path
 
             command_exec
                 .expect_run()
@@ -718,7 +717,7 @@ mod tests {
             let result = task.run_stampinf();
             assert!(
                 result.is_ok(),
-                "scenario {name} failed (cfgs_override_enabled={both_cfgs}, env_set={env_val:?})"
+                "scenario {name} failed (cfgs_override_enabled={is_cfg_set}, env_set={env_val:?})"
             );
         }
 
