@@ -270,6 +270,11 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    /// API subset for Network drivers <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_netvista/>
+    ///
+    /// Currently only supports the WSK (Winsock Kernel) portion of the Network
+    /// API subset.
+    Network,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -773,6 +778,7 @@ impl Config {
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => return self.usb_headers().map(std::iter::IntoIterator::into_iter),
+            ApiSubset::Network => self.network_headers(),
         };
         Ok(headers
             .into_iter()
@@ -945,6 +951,17 @@ impl Config {
             }
         }
         Ok(headers)
+    }
+
+    fn network_headers(&self) -> Vec<&'static str> {
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            vec!["wsk.h"]
+        } else {
+            vec![]
+        }
     }
 
     /// Determines whether to include the ufxclient.h header based on the Clang
@@ -1120,6 +1137,9 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=wmilib");
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
+
+                println!("cargo::rustc-link-lib=static=netio");
+                println!("cargo::rustc-link-lib=static=uuid");
 
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props
