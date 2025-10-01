@@ -655,8 +655,7 @@ mod tests {
     }
 
     // Parameterized test for run_stampinf covering env present/absent.
-    // Compile-time cfgs determine expectation via cfg! so a single test body
-    // suffices.
+    // Uses compile-time cfg checks to determine expected behavior, allowing a single test body to handle all scenarios.
     #[test]
     fn run_stampinf_parameterized_env_overrides() {
         use std::process::{ExitStatus, Output};
