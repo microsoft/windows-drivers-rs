@@ -651,14 +651,15 @@ mod tests {
         PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
 
-    // Parameterized test for run_stampinf covering env present/absent.
-    // Uses compile-time cfg checks to determine expected behavior, allowing a single test body to handle all scenarios.
     #[test]
-    fn run_stampinf_parameterized_env_overrides() {
+    fn stampinf_version_overrides_with_env_var() {
         use std::process::{ExitStatus, Output};
 
+        // verify both with and without the env var set scenarios
         let scenarios = [("env_set", Some("1.2.3.4")), ("env_unset", None)];
 
+        // Compile-time evaluation: cfg!(...) => true only if
+        // `allow_stampinf_version_env_override` was enabled during build
         let is_cfg_set = cfg!(allow_stampinf_version_env_override);
 
         for (name, env_val) in scenarios {
