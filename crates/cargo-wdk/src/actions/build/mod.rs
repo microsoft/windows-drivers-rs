@@ -172,7 +172,7 @@ impl<'a> BuildAction<'a> {
             ));
         }
 
-        info!("Building package(s) in {}", self.working_dir.display());
+        info!("Building packages in {}", self.working_dir.display());
 
         let mut failed_atleast_one_project = false;
         for dir in dirs {

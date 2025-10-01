@@ -14,7 +14,7 @@ use std::{
 };
 
 use mockall_double::double;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
 #[double]
