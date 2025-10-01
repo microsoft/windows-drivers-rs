@@ -313,9 +313,28 @@ impl<'a> PackageTask<'a> {
             &arch,
             "-c",
             &cat_file_path,
-            "-v",
-            "*",
         ];
+
+        // DriverVer handling:
+        // 1. When allow_stampinf_version_env_override cfg is enabled, allow an external
+        //    override via STAMPINF_VERSION env var. If the env var is absent we fall
+        //    back to auto-generation (-v *).
+        // 2. Otherwise (stable / default builds) always request auto-generation (-v *).
+        cfg_if::cfg_if! {
+            if #[cfg(allow_stampinf_version_env_override)]
+            {
+                if let Ok(version) = std::env::var("STAMPINF_VERSION") && !version.trim().is_empty() {
+                    // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
+                    // and populates DriverVer.
+                    info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
+                } else {
+                    args.extend(["-v", "*"]);
+                }
+            } else {
+                args.extend(["-v", "*"]);
+            }
+        }
+
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
@@ -630,5 +649,78 @@ mod tests {
         let fs = Fs::default();
 
         PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+    }
+
+    #[test]
+    fn stampinf_version_overrides_with_env_var() {
+        use std::process::{ExitStatus, Output};
+
+        // verify both with and without the env var set scenarios
+        let scenarios = [("env_set", Some("1.2.3.4")), ("env_unset", None)];
+
+        // Compile-time evaluation: cfg!(...) => true only if
+        // `allow_stampinf_version_env_override` was enabled during build
+        let is_cfg_set = cfg!(allow_stampinf_version_env_override);
+
+        for (name, env_val) in scenarios {
+            if let Some(v) = env_val {
+                std::env::set_var("STAMPINF_VERSION", v);
+            } else {
+                std::env::remove_var("STAMPINF_VERSION");
+            }
+
+            let package_name = "driver";
+            let working_dir = PathBuf::from("C:/abs/driver");
+            let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+            let arch = CpuArchitecture::Amd64;
+
+            let params = PackageTaskParams {
+                package_name,
+                working_dir: &working_dir,
+                target_dir: &target_dir,
+                target_arch: &arch,
+                driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+                sample_class: false,
+                verify_signature: false,
+            };
+
+            let wdk_build = WdkBuild::default();
+            let fs = Fs::default();
+            let mut command_exec = CommandExec::default();
+
+            let expect_skip_v = env_val.is_some() && is_cfg_set; // skip -v only in override path
+
+            command_exec
+                .expect_run()
+                .withf(move |cmd: &str, args: &[&str], _, _| {
+                    if cmd != "stampinf" {
+                        return false;
+                    }
+                    let has_v = args.contains(&"-v");
+                    if expect_skip_v {
+                        !has_v
+                    } else {
+                        args.windows(2).any(|w| w == ["-v", "*"])
+                    }
+                })
+                .once()
+                .return_once(|_, _, _, _| {
+                    Ok(Output {
+                        status: ExitStatus::default(),
+                        stdout: vec![],
+                        stderr: vec![],
+                    })
+                });
+
+            let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+            let result = task.run_stampinf();
+            assert!(
+                result.is_ok(),
+                "scenario {name} failed (cfgs_override_enabled={is_cfg_set}, env_set={env_val:?})"
+            );
+        }
+
+        // Cleanup
+        std::env::remove_var("STAMPINF_VERSION");
     }
 }
