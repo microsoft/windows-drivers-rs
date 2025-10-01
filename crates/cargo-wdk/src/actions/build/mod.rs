@@ -141,7 +141,7 @@ impl<'a> BuildAction<'a> {
 
         // Emulated workspaces support
         let dirs = self.fs.read_dir_entries(&self.working_dir)?;
-        info!(
+        debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
@@ -172,50 +172,45 @@ impl<'a> BuildAction<'a> {
             ));
         }
 
-        debug!("Iterating over each dir entry and process valid Rust(possibly driver) projects");
+        info!("Building package(s) in {}", self.working_dir.display());
+
         let mut failed_atleast_one_project = false;
         for dir in dirs {
-            debug!(
-                "Verifying the dir entry if it is a valid Rust project: {}",
-                dir.path().display()
-            );
+            debug!("Checking dir entry: {}", dir.path().display());
             if !self.fs.dir_file_type(&dir)?.is_dir()
                 || !self.fs.exists(&dir.path().join("Cargo.toml"))
             {
-                debug!("Skipping the dir entry as it is not a valid Rust project");
+                debug!("Dir entry is not a valid Rust package");
                 continue;
             }
 
-            info!(
-                "Processing Rust(possibly driver) project: {}",
-                dir.path()
-                    .file_name()
-                    .expect("package sub directory name ended with \"..\" which is not expected")
-                    .to_string_lossy()
-            );
+            let working_dir_path = dir.path(); // Avoids a short-lived temporary
+            let sub_dir = working_dir_path
+                .file_name()
+                .expect("package sub directory name ended with \"..\" which is not expected")
+                .to_string_lossy();
+
+            debug!("Building package(s) in dir {sub_dir}");
             if let Err(e) = self.run_from_workspace_root(&dir.path()) {
                 failed_atleast_one_project = true;
                 err!(
-                    "Error building the child project: {}, error: {:?}",
-                    dir.path()
-                        .file_name()
-                        .expect(
-                            "package sub directory name ended with \"..\" which is not expected"
-                        )
-                        .to_string_lossy(),
+                    "Error building project: {sub_dir}, error: {:?}",
                     anyhow::Error::new(e)
                 );
             }
         }
 
-        debug!("Done checking for valid Rust(possibly driver) projects in the working directory");
+        debug!("Done building projects in {}", self.working_dir.display());
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
         }
 
-        info!("Build completed successfully");
+        info!(
+            "Build completed successfully for projects in {}",
+            self.working_dir.display()
+        );
         Ok(())
     }
 
@@ -250,9 +245,10 @@ impl<'a> BuildAction<'a> {
                 let package_root_path = absolute(package_root_path.as_path())
                     .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
                 debug!(
-                    "Processing workspace member package: {}",
+                    "Building workspace member package: {}",
                     package_root_path.display()
                 );
+
                 if let Err(e) = self.build_and_package(
                     &package_root_path,
                     &wdk_metadata,
@@ -317,7 +313,7 @@ impl<'a> BuildAction<'a> {
             }
         }
 
-        info!(
+        debug!(
             "Build completed successfully for path: {}",
             working_dir.display()
         );
@@ -360,7 +356,7 @@ impl<'a> BuildAction<'a> {
             debug!("Found wdk metadata in package: {}", package_name);
             wdk_metadata
         } else {
-            warn!("Invalid WDK metadata. Skipping package task");
+            debug!("Invalid WDK metadata. Skipping package task");
             return Ok(());
         };
 
