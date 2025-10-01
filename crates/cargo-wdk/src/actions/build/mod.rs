@@ -208,7 +208,7 @@ impl<'a> BuildAction<'a> {
         }
 
         info!(
-            "Build completed successfully for projects in {}",
+            "Build completed successfully for packages in {}",
             self.working_dir.display()
         );
         Ok(())
