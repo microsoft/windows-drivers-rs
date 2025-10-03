@@ -2175,11 +2175,11 @@ mod tests {
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
 
-            // The path should not start with \\?\ on Windows after canonicalization
+            // `validate_and_add_folder_path` should always ensure that the path should not start with \\?\ on Windows
             let path_str = include_paths[0].to_string_lossy();
             assert!(!path_str.starts_with(r"\\?\"));
 
-            // Verify the path matches expected canonicalized value
+            // Verify the path matches expected value
             let expected_path = absolute(temp_dir.path()).unwrap();
             assert_eq!(include_paths[0], expected_path);
         }
