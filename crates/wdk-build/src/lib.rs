@@ -155,7 +155,7 @@ pub struct UmdfConfig {
 pub enum IoErrorMetadata {
     /// Path related to [`std::io::Error`] failure
     #[error(r#"failed to perform an IO operation on "{path}""#)]
-    SinglePath {
+    Path {
         /// The file system path where the I/O error occurred
         path: PathBuf,
     },
@@ -182,10 +182,36 @@ pub enum IoErrorMetadata {
 #[error("{metadata}")]
 pub struct IoError {
     /// Extra metadata related to the error
-    pub metadata: IoErrorMetadata,
+    metadata: IoErrorMetadata,
     /// [`std::io::Error`] that caused the operation to fail
     #[source]
-    pub source: std::io::Error,
+    source: std::io::Error,
+}
+
+impl IoError {
+    /// Creates a new `IoError` with a single path and source error.
+    pub fn with_path(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
+        Self {
+            metadata: IoErrorMetadata::Path { path: path.into() },
+            source,
+        }
+    }
+
+    /// Creates a new `IoError` for operations involving a source and
+    /// destination path.
+    pub fn with_src_dest_paths(
+        from_path: impl Into<PathBuf>,
+        to_path: impl Into<PathBuf>,
+        source: std::io::Error,
+    ) -> Self {
+        Self {
+            metadata: IoErrorMetadata::SrcDestPaths {
+                from_path: from_path.into(),
+                to_path: to_path.into(),
+            },
+            source,
+        }
+    }
 }
 
 /// Errors that could result from configuring a build via [`wdk_build`][crate]
@@ -581,12 +607,7 @@ impl Config {
             });
         }
 
-        let absolute_path = absolute(path).map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: path.to_path_buf(),
-            },
-            source,
-        })?;
+        let absolute_path = absolute(path).map_err(|source| IoError::with_path(path, source))?;
 
         include_paths.push(absolute_path);
         Ok(())

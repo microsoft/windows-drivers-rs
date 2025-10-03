@@ -31,7 +31,6 @@ use wdk_build::{
     ConfigError,
     DriverConfig,
     IoError,
-    IoErrorMetadata,
     KmdfConfig,
     UmdfConfig,
 };
@@ -236,12 +235,7 @@ fn generate_constants(out_path: &Path, config: &Config) -> Result<(), ConfigErro
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -260,12 +254,7 @@ fn generate_types(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -288,12 +277,7 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
@@ -316,12 +300,7 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             .generate()
             .expect("Bindings should succeed to generate")
             .write_to_file(&output_file_path)
-            .map_err(|source| IoError {
-                metadata: IoErrorMetadata::SinglePath {
-                    path: output_file_path,
-                },
-                source,
-            })?)
+            .map_err(|source| IoError::with_path(output_file_path, source))?)
     } else {
         info!(
             "Skipping wdf.rs generation since driver_config is {:#?}",
@@ -358,12 +337,7 @@ fn generate_gpio(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 #[cfg(feature = "hid")]
@@ -393,12 +367,7 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 #[cfg(feature = "parallel-ports")]
@@ -431,12 +400,7 @@ fn generate_parallel_ports(out_path: &Path, config: &Config) -> Result<(), Confi
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 #[cfg(feature = "spb")]
@@ -466,12 +430,7 @@ fn generate_spb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 #[cfg(feature = "storage")]
@@ -501,12 +460,7 @@ fn generate_storage(out_path: &Path, config: &Config) -> Result<(), ConfigError>
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 #[cfg(feature = "usb")]
@@ -536,12 +490,7 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         .generate()
         .expect("Bindings should succeed to generate")
         .write_to_file(&output_file_path)
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: output_file_path,
-            },
-            source,
-        })?)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
 }
 
 /// Generates a `wdf_function_count.rs` file in `OUT_DIR` which contains the
@@ -694,13 +643,8 @@ fn start_wdf_symbol_export_tasks<'scope>(
                     // (i.e. incremental rebuild), is truncated)
                     let wdf_c_file_path = out_path.join("wdf.c");
                     {
-                        let mut wdf_c_file =
-                            File::create(&wdf_c_file_path).map_err(|source| IoError {
-                                metadata: IoErrorMetadata::SinglePath {
-                                    path: wdf_c_file_path.clone(),
-                                },
-                                source,
-                            })?;
+                        let mut wdf_c_file = File::create(&wdf_c_file_path)
+                            .map_err(|source| IoError::with_path(&wdf_c_file_path, source))?;
                         wdf_c_file
                             .write_all(
                                 config
@@ -715,21 +659,13 @@ fn start_wdf_symbol_export_tasks<'scope>(
                                     ])?
                                     .as_bytes(),
                             )
-                            .map_err(|source| IoError {
-                                metadata: IoErrorMetadata::SinglePath {
-                                    path: wdf_c_file_path.clone(),
-                                },
-                                source,
-                            })?;
+                            .map_err(|source| IoError::with_path(&wdf_c_file_path, source))?;
 
                         // Explicitly sync_all to surface any IO errors (File::drop
                         // silently ignores close errors)
-                        wdf_c_file.sync_all().map_err(|source| IoError {
-                            metadata: IoErrorMetadata::SinglePath {
-                                path: wdf_c_file_path.clone(),
-                            },
-                            source,
-                        })?;
+                        wdf_c_file
+                            .sync_all()
+                            .map_err(|source| IoError::with_path(&wdf_c_file_path, source))?;
                     }
 
                     let mut cc_builder = cc::Build::new();

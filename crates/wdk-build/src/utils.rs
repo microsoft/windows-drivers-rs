@@ -24,7 +24,7 @@ use windows::{
     },
 };
 
-use crate::{ConfigError, CpuArchitecture, IoError, IoErrorMetadata, TwoPartVersion};
+use crate::{ConfigError, CpuArchitecture, IoError, TwoPartVersion};
 
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
 /// NI(22H2) WDK
@@ -109,12 +109,7 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
 pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
     Ok(path_to_search
         .read_dir()
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: path_to_search.to_path_buf(),
-            },
-            source,
-        })?
+        .map_err(|source| IoError::with_path(path_to_search, source))?
         .filter_map(std::result::Result::ok)
         .map(|valid_directory_entry| valid_directory_entry.path())
         .filter(|path| {
@@ -334,40 +329,24 @@ pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, Con
 
 /// Finds the maximum version in a directory where subdirectories are named with
 /// version format "x.y"
-///
-/// # Arguments
-/// * `directory_path` - The path to the directory to search for version
-///   subdirectories
-///
-/// # Returns
-/// * `Some(BasicVersion)` - The maximum version found
-/// * `None` - If no valid version directories are found or if the directory
-///   cannot be read
 pub fn find_max_version_in_directory<P: AsRef<Path>>(
     directory_path: P,
 ) -> Result<TwoPartVersion, IoError> {
-    std::fs::read_dir(directory_path.as_ref())
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: directory_path.as_ref().to_path_buf(),
-            },
-            source,
-        })?
+    let directory_path = directory_path.as_ref();
+    std::fs::read_dir(directory_path)
+        .map_err(|source| IoError::with_path(directory_path, source))?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
         .max()
-        .ok_or_else(|| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: directory_path.as_ref().to_path_buf(),
-            },
-            source: io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "Maximum version in {} not found",
-                    directory_path.as_ref().display()
+        .ok_or_else(|| {
+            IoError::with_path(
+                directory_path,
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Maximum version in {} not found", directory_path.display()),
                 ),
-            ),
+            )
         })
 }
 
