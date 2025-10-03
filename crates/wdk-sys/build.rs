@@ -498,11 +498,12 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
 /// be generated here since the size of the table is derived from either a
 /// global symbol that newer WDF versions expose, or an enum that older versions
 /// use.
-fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Result<()> {
+fn generate_wdf_function_count(out_path: &Path, config: &Config) -> Result<(), IoError> {
     const MINIMUM_MINOR_VERSION_TO_GENERATE_WDF_FUNCTION_COUNT: u8 = 25;
 
     let generated_file_path = out_path.join("wdf_function_count.rs");
-    let mut generated_file = std::fs::File::create(generated_file_path)?;
+    let mut generated_file = File::create(&generated_file_path)
+        .map_err(|source| IoError::with_path(&generated_file_path, source))?;
 
     let is_wdf_function_count_generated = match *config {
         Config {
@@ -547,7 +548,9 @@ fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Res
         },
     );
 
-    generated_file.write_all(wdf_function_table_count_snippet.as_bytes())?;
+    generated_file
+        .write_all(wdf_function_table_count_snippet.as_bytes())
+        .map_err(|source| IoError::with_path(generated_file_path, source))?;
     Ok(())
 }
 
@@ -557,20 +560,23 @@ fn generate_wdf_function_count(out_path: &Path, config: &Config) -> std::io::Res
 /// required in order to add an additional argument with the path to the file
 /// containing generated types. There is currently no other way to pass
 /// `OUT_DIR` of `wdk-sys` to the `proc_macro`.
-fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::Result<()> {
+fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> Result<(), IoError> {
     let generated_file_path = out_path.join("call_unsafe_wdf_function_binding.rs");
-    let mut generated_file = std::fs::File::create(generated_file_path)?;
-    generated_file.write_all(
-        CALL_UNSAFE_WDF_BINDING_TEMPLATE
-            .replace(
-                OUT_DIR_PLACEHOLDER,
-                out_path.join("types.rs").to_str().expect(
-                    "path to file with generated type information should successfully convert to \
-                     a str",
-                ),
-            )
-            .as_bytes(),
-    )?;
+    let mut generated_file = File::create(&generated_file_path)
+        .map_err(|source| IoError::with_path(&generated_file_path, source))?;
+    generated_file
+        .write_all(
+            CALL_UNSAFE_WDF_BINDING_TEMPLATE
+                .replace(
+                    OUT_DIR_PLACEHOLDER,
+                    out_path.join("types.rs").to_str().expect(
+                        "path to file with generated type information should successfully convert \
+                         to a str",
+                    ),
+                )
+                .as_bytes(),
+        )
+        .map_err(|source| IoError::with_path(generated_file_path, source))?;
     Ok(())
 }
 
@@ -578,20 +584,23 @@ fn generate_call_unsafe_wdf_function_binding_macro(out_path: &Path) -> std::io::
 /// for tests to compile. This should only generate the stubs whose names are
 /// dependent on the WDK configuration, and would otherwise be impossible to
 /// just include in `src/test_stubs.rs` directly.
-fn generate_test_stubs(out_path: &Path, config: &Config) -> std::io::Result<()> {
+fn generate_test_stubs(out_path: &Path, config: &Config) -> Result<(), IoError> {
     let stubs_file_path = out_path.join("test_stubs.rs");
-    let mut stubs_file = std::fs::File::create(stubs_file_path)?;
-    stubs_file.write_all(
-        TEST_STUBS_TEMPLATE
-            .replace(
-                WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER,
-                &config.compute_wdffunctions_symbol_name().expect(
-                    "KMDF and UMDF configs should always have a computable WdfFunctions symbol \
-                     name",
-                ),
-            )
-            .as_bytes(),
-    )?;
+    let mut stubs_file = File::create(&stubs_file_path)
+        .map_err(|source| IoError::with_path(&stubs_file_path, source))?;
+    stubs_file
+        .write_all(
+            TEST_STUBS_TEMPLATE
+                .replace(
+                    WDFFUNCTIONS_SYMBOL_NAME_PLACEHOLDER,
+                    &config.compute_wdffunctions_symbol_name().expect(
+                        "KMDF and UMDF configs should always have a computable WdfFunctions \
+                         symbol name",
+                    ),
+                )
+                .as_bytes(),
+        )
+        .map_err(|source| IoError::with_path(stubs_file_path, source))?;
     Ok(())
 }
 
@@ -698,20 +707,14 @@ fn start_wdf_artifact_tasks<'scope>(
     if let DriverConfig::Kmdf(_) | DriverConfig::Umdf(_) = config.driver_config {
         start_wdf_symbol_export_tasks(thread_scope, out_path, config, thread_join_handles);
 
-        info_span!("wdf_function_count.rs generation").in_scope(|| {
-            generate_wdf_function_count(out_path, config)?;
-            Ok::<(), std::io::Error>(())
-        })?;
+        info_span!("wdf_function_count.rs generation")
+            .in_scope(|| generate_wdf_function_count(out_path, config))?;
 
-        info_span!("call_unsafe_wdf_function_binding.rs generation").in_scope(|| {
-            generate_call_unsafe_wdf_function_binding_macro(out_path)?;
-            Ok::<(), std::io::Error>(())
-        })?;
+        info_span!("call_unsafe_wdf_function_binding.rs generation")
+            .in_scope(|| generate_call_unsafe_wdf_function_binding_macro(out_path))?;
 
-        info_span!("test_stubs.rs generation").in_scope(|| {
-            generate_test_stubs(out_path, config)?;
-            Ok::<(), std::io::Error>(())
-        })?;
+        info_span!("test_stubs.rs generation")
+            .in_scope(|| generate_test_stubs(out_path, config))?;
     }
     Ok(())
 }

@@ -2175,7 +2175,8 @@ mod tests {
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
 
-            // `validate_and_add_folder_path` should always ensure that the path should not start with \\?\ on Windows
+            // `validate_and_add_folder_path` should always ensure that the path should not
+            // start with \\?\ on Windows
             let path_str = include_paths[0].to_string_lossy();
             assert!(!path_str.starts_with(r"\\?\"));
 
