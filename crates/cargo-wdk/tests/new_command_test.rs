@@ -139,7 +139,7 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         tmp_dir.path().join(&driver_name).display()
     )));
 
-    // asert paths
+    // assert paths
     assert!(tmp_dir.join(&driver_name).is_dir());
     assert!(tmp_dir.join(&driver_name).join("build.rs").is_file());
     assert!(tmp_dir.join(&driver_name).join("Cargo.toml").is_file());

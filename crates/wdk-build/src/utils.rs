@@ -24,7 +24,7 @@ use windows::{
     },
 };
 
-use crate::{ConfigError, CpuArchitecture, TwoPartVersion};
+use crate::{ConfigError, CpuArchitecture, IoError, TwoPartVersion};
 
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
 /// NI(22H2) WDK
@@ -108,7 +108,8 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
 /// Panics if the path provided is not valid Unicode.
 pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
     Ok(path_to_search
-        .read_dir()?
+        .read_dir()
+        .map_err(|source| IoError::with_path(path_to_search, source))?
         .filter_map(std::result::Result::ok)
         .map(|valid_directory_entry| valid_directory_entry.path())
         .filter(|path| {
@@ -328,29 +329,22 @@ pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, Con
 
 /// Finds the maximum version in a directory where subdirectories are named with
 /// version format "x.y"
-///
-/// # Arguments
-/// * `directory_path` - The path to the directory to search for version
-///   subdirectories
-///
-/// # Returns
-/// * `Some(BasicVersion)` - The maximum version found
-/// * `None` - If no valid version directories are found or if the directory
-///   cannot be read
 pub fn find_max_version_in_directory<P: AsRef<Path>>(
     directory_path: P,
-) -> Result<TwoPartVersion, io::Error> {
-    std::fs::read_dir(directory_path.as_ref())?
+) -> Result<TwoPartVersion, IoError> {
+    let directory_path = directory_path.as_ref();
+    std::fs::read_dir(directory_path)
+        .map_err(|source| IoError::with_path(directory_path, source))?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
         .max()
         .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "Maximum version in {} not found",
-                    directory_path.as_ref().display()
+            IoError::with_path(
+                directory_path,
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Maximum version in {} not found", directory_path.display()),
                 ),
             )
         })
@@ -477,7 +471,10 @@ mod tests {
             let temp_dir = assert_fs::TempDir::new().unwrap();
             let result = find_max_version_in_directory(temp_dir.path());
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(
+                result.unwrap_err().source.kind(),
+                std::io::ErrorKind::NotFound
+            );
         }
 
         #[test]
@@ -516,7 +513,10 @@ mod tests {
             temp_dir.child("folder1").create_dir_all().unwrap();
             let result = find_max_version_in_directory(temp_dir.path());
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(
+                result.unwrap_err().source.kind(),
+                std::io::ErrorKind::NotFound
+            );
 
             // Multiple invalid directories
             let temp_dir = assert_fs::TempDir::new().unwrap();
@@ -528,7 +528,10 @@ mod tests {
             temp_dir.child(".5").create_dir_all().unwrap(); // Missing major
             let result = find_max_version_in_directory(temp_dir.path());
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(
+                result.unwrap_err().source.kind(),
+                std::io::ErrorKind::NotFound
+            );
         }
 
         #[test]

@@ -14,7 +14,7 @@
 use std::{
     env,
     fmt,
-    path::{absolute, PathBuf},
+    path::{absolute, Path, PathBuf},
     str::FromStr,
     sync::LazyLock,
 };
@@ -145,12 +145,81 @@ pub struct UmdfConfig {
     pub minimum_umdf_version_minor: Option<u8>,
 }
 
+/// Metadata providing additional context for [`std::io::Error`] failures
+///
+/// This enum provides structured information about the file system paths
+/// or operations that led to an I/O error. It can represent either single
+/// path operations or operations involving both source and destination paths.
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum IoErrorMetadata {
+    /// Path related to [`std::io::Error`] failure
+    #[error(r#"failed to perform an IO operation on "{path}""#)]
+    Path {
+        /// The file system path where the I/O error occurred
+        path: PathBuf,
+    },
+    /// Source and destination paths related to [`std::io::Error`] failure.
+    ///
+    /// This can be provided for APIs like [`std::fs::copy`] which have both a
+    /// `from` and `to` path.
+    #[error(r#"failed to perform an IO operation from "{from_path}" to "{to_path}""#)]
+    SrcDestPaths {
+        /// The source path in a copy or move operation that failed
+        from_path: PathBuf,
+        /// The destination path in a copy or move operation that failed
+        to_path: PathBuf,
+    },
+}
+
+/// Dedicated error type for I/O operations with extra metadata context
+///
+/// This error type wraps [`std::io::Error`] with additional [`IoErrorMetadata`]
+/// to provide better context about which file system paths or operations
+/// failed. It can be used directly by functions that only perform I/O
+/// operations, and automatically converts to [`ConfigError`] when needed.
+#[derive(Debug, Error)]
+#[error("{metadata}")]
+pub struct IoError {
+    /// Extra metadata related to the error
+    metadata: IoErrorMetadata,
+    /// [`std::io::Error`] that caused the operation to fail
+    #[source]
+    source: std::io::Error,
+}
+
+impl IoError {
+    /// Creates a new `IoError` with a single path and source error.
+    pub fn with_path(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
+        Self {
+            metadata: IoErrorMetadata::Path { path: path.into() },
+            source,
+        }
+    }
+
+    /// Creates a new `IoError` for operations involving a source and
+    /// destination path.
+    pub fn with_src_dest_paths(
+        from_path: impl Into<PathBuf>,
+        to_path: impl Into<PathBuf>,
+        source: std::io::Error,
+    ) -> Self {
+        Self {
+            metadata: IoErrorMetadata::SrcDestPaths {
+                from_path: from_path.into(),
+                to_path: to_path.into(),
+            },
+            source,
+        }
+    }
+}
+
 /// Errors that could result from configuring a build via [`wdk_build`][crate]
 #[derive(Debug, Error)]
 pub enum ConfigError {
     /// Error returned when an [`std::io`] operation fails
     #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    IoError(#[from] IoError),
 
     /// Error returned when an expected directory does not exist
     #[error("cannot find directory: {directory}")]
@@ -245,10 +314,6 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
-
-    /// Error returned when the UCX header file is not found
-    #[error("failed to find {0} header file.")]
-    HeaderNotFound(String, #[source] std::io::Error),
 }
 
 /// Subset of APIs in the Windows Driver Kit
@@ -491,31 +556,16 @@ impl Config {
         let windows_sdk_include_path = include_directory.join(sdk_version);
 
         let crt_include_path = windows_sdk_include_path.join("km/crt");
-        if !crt_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: crt_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(absolute(&crt_include_path)?);
+        Self::validate_and_add_folder_path(&mut include_paths, &crt_include_path)?;
 
         let km_or_um_include_path = windows_sdk_include_path.join(match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => "km",
             DriverConfig::Umdf(_) => "um",
         });
-        if !km_or_um_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: km_or_um_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(absolute(&km_or_um_include_path)?);
+        Self::validate_and_add_folder_path(&mut include_paths, &km_or_um_include_path)?;
 
         let kit_shared_include_path = windows_sdk_include_path.join("shared");
-        if !kit_shared_include_path.is_dir() {
-            return Err(ConfigError::DirectoryNotFound {
-                directory: kit_shared_include_path.to_string_lossy().into(),
-            });
-        }
-        include_paths.push(absolute(&kit_shared_include_path)?);
+        Self::validate_and_add_folder_path(&mut include_paths, &kit_shared_include_path)?;
 
         // Add other driver type-specific include paths
         match &self.driver_config {
@@ -525,39 +575,46 @@ impl Config {
                     "wdf/kmdf/{}.{}",
                     kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
                 ));
-                if !kmdf_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: kmdf_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(absolute(&kmdf_include_path)?);
+                Self::validate_and_add_folder_path(&mut include_paths, &kmdf_include_path)?;
 
                 // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
                 // normally does not automatically include this search path, but it is required
                 // here so that the headers can be processed successfully.
                 let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
-                if !ufx_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: ufx_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(absolute(&ufx_include_path)?);
+                Self::validate_and_add_folder_path(&mut include_paths, &ufx_include_path)?;
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_include_path = include_directory.join(format!(
                     "wdf/umdf/{}.{}",
                     umdf_config.umdf_version_major, umdf_config.target_umdf_version_minor
                 ));
-                if !umdf_include_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: umdf_include_path.to_string_lossy().into(),
-                    });
-                }
-                include_paths.push(absolute(&umdf_include_path)?);
+                Self::validate_and_add_folder_path(&mut include_paths, &umdf_include_path)?;
             }
         }
 
         Ok(include_paths.into_iter())
+    }
+
+    /// Validate that a path refers to an existing directory and push its
+    /// canonical absolute form into the provided collection.
+    ///
+    /// This helper is used for both header include directories and library
+    /// directories. It normalizes paths before insertion.
+    fn validate_and_add_folder_path(
+        include_paths: &mut Vec<PathBuf>,
+        path: &Path,
+    ) -> Result<(), ConfigError> {
+        // Include paths should be directories
+        if !path.is_dir() {
+            return Err(ConfigError::DirectoryNotFound {
+                directory: path.to_string_lossy().into(),
+            });
+        }
+
+        let absolute_path = absolute(path).map_err(|source| IoError::with_path(path, source))?;
+
+        include_paths.push(absolute_path);
+        Ok(())
     }
 
     /// Return library include paths required to build and link based off of
@@ -578,7 +635,7 @@ impl Config {
         // Based off of logic from WindowsDriver.KernelMode.props &
         // WindowsDriver.UserMode.props in NI(22H2) WDK
         let windows_sdk_library_path = self.sdk_library_path(sdk_version)?;
-        library_paths.push(absolute(&windows_sdk_library_path)?);
+        Self::validate_and_add_folder_path(&mut library_paths, &windows_sdk_library_path)?;
 
         // Add other driver type-specific library paths
         let library_directory = self.wdk_content_root.join("Lib");
@@ -591,12 +648,7 @@ impl Config {
                     kmdf_config.kmdf_version_major,
                     kmdf_config.target_kmdf_version_minor
                 ));
-                if !kmdf_library_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: kmdf_library_path.to_string_lossy().into(),
-                    });
-                }
-                library_paths.push(absolute(&kmdf_library_path)?);
+                Self::validate_and_add_folder_path(&mut library_paths, &kmdf_library_path)?;
             }
             DriverConfig::Umdf(umdf_config) => {
                 let umdf_library_path = library_directory.join(format!(
@@ -605,12 +657,7 @@ impl Config {
                     umdf_config.umdf_version_major,
                     umdf_config.target_umdf_version_minor,
                 ));
-                if !umdf_library_path.is_dir() {
-                    return Err(ConfigError::DirectoryNotFound {
-                        directory: umdf_library_path.to_string_lossy().into(),
-                    });
-                }
-                library_paths.push(absolute(&umdf_library_path)?);
+                Self::validate_and_add_folder_path(&mut library_paths, &umdf_library_path)?;
             }
         }
 
@@ -1238,8 +1285,7 @@ impl Config {
     fn ucx_header(&self) -> Result<String, ConfigError> {
         let sdk_version = utils::detect_windows_sdk_version(&self.wdk_content_root)?;
         let ucx_header_root_dir = self.sdk_library_path(sdk_version)?.join("ucx");
-        let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)
-            .map_err(|e| ConfigError::HeaderNotFound("ucxclass.h".into(), e))?;
+        let max_version = utils::find_max_version_in_directory(&ucx_header_root_dir)?;
         let path = format!("ucx/{}.{}/ucxclass.h", max_version.0, max_version.1);
         Ok(path)
     }
@@ -1996,6 +2042,177 @@ mod tests {
             let result = config.compute_wdffunctions_symbol_name();
 
             assert_eq!(result, None);
+        }
+    }
+
+    mod validate_and_add_folder_path {
+        use assert_fs::prelude::*;
+
+        use super::*;
+
+        #[test]
+        fn valid_directory_is_added_successfully() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+            assert!(include_paths[0].exists());
+            assert!(include_paths[0].is_dir());
+
+            // Verify the exact canonicalized path was added
+            let expected_path = absolute(temp_dir.path()).unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+
+        #[test]
+        fn non_existent_path_returns_directory_not_found_error() {
+            let non_existent_path = std::path::Path::new("/this/path/does/not/exist");
+            let mut include_paths = Vec::new();
+
+            let result =
+                Config::validate_and_add_folder_path(&mut include_paths, non_existent_path);
+
+            assert!(result.is_err());
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
+                result.unwrap_err(),
+                ConfigError::DirectoryNotFound { directory } if directory == non_existent_path.to_string_lossy()
+            );
+            assert_eq!(include_paths.len(), 0);
+        }
+
+        #[test]
+        fn file_path_returns_directory_not_found_error() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let file = temp_dir.child("test_file.txt");
+            file.write_str("test content").unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_folder_path(&mut include_paths, file.path());
+
+            assert!(result.is_err());
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
+                result.unwrap_err(),
+                ConfigError::DirectoryNotFound { directory } if directory == file.path().to_string_lossy()
+            );
+            assert_eq!(include_paths.len(), 0);
+        }
+
+        #[test]
+        fn path_is_canonicalized_before_adding() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let sub_dir = temp_dir.child("subdir");
+            sub_dir.create_dir_all().unwrap();
+
+            // Create a path with ".." to test canonicalization
+            let complex_path = sub_dir.path().join("..").join("subdir");
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_folder_path(&mut include_paths, &complex_path);
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+
+            // The canonicalized path should not contain ".."
+            assert!(!include_paths[0].to_string_lossy().contains(".."));
+            assert!(include_paths[0].is_absolute());
+
+            // Verify the path resolves to the actual subdir path
+            let expected_path = absolute(sub_dir.path()).unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+
+        #[test]
+        fn multiple_paths_are_added_correctly() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let dir1 = temp_dir.child("dir1");
+            let dir2 = temp_dir.child("dir2");
+            dir1.create_dir_all().unwrap();
+            dir2.create_dir_all().unwrap();
+
+            let mut include_paths = Vec::new();
+
+            let result1 = Config::validate_and_add_folder_path(&mut include_paths, dir1.path());
+            let result2 = Config::validate_and_add_folder_path(&mut include_paths, dir2.path());
+
+            assert!(result1.is_ok());
+            assert!(result2.is_ok());
+            assert_eq!(include_paths.len(), 2);
+
+            // Both paths should be present and different
+            assert_ne!(include_paths[0], include_paths[1]);
+            assert!(include_paths[0].exists());
+            assert!(include_paths[1].exists());
+
+            // Verify both paths match their expected canonicalized values
+            let expected_path1 = absolute(dir1.path()).unwrap();
+            let expected_path2 = absolute(dir2.path()).unwrap();
+            assert_eq!(include_paths[0], expected_path1);
+            assert_eq!(include_paths[1], expected_path2);
+        }
+
+        #[test]
+        fn nested_directory_is_handled_correctly() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let nested_dir = temp_dir.child("level1").child("level2").child("level3");
+            nested_dir.create_dir_all().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result =
+                Config::validate_and_add_folder_path(&mut include_paths, nested_dir.path());
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+            assert!(include_paths[0].exists());
+            assert!(include_paths[0].is_dir());
+
+            // Verify the nested path matches the expected canonicalized value
+            let expected_path = absolute(nested_dir.path()).unwrap();
+            assert_eq!(include_paths[0], expected_path);
+        }
+
+        #[test]
+        fn same_directory_can_be_added_multiple_times() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result1 = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
+            let result2 = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
+
+            assert!(result1.is_ok());
+            assert!(result2.is_ok());
+            assert_eq!(include_paths.len(), 2);
+            assert_eq!(include_paths[0], include_paths[1]);
+
+            // Verify both entries match the expected canonicalized path
+            let expected_path = absolute(temp_dir.path()).unwrap();
+            assert_eq!(include_paths[0], expected_path);
+            assert_eq!(include_paths[1], expected_path);
+        }
+
+        #[cfg(windows)]
+        #[test]
+        fn windows_extended_length_paths_are_stripped() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let mut include_paths = Vec::new();
+
+            let result = Config::validate_and_add_folder_path(&mut include_paths, temp_dir.path());
+
+            assert!(result.is_ok());
+            assert_eq!(include_paths.len(), 1);
+
+            // `validate_and_add_folder_path` should always ensure that the path should not
+            // start with \\?\ on Windows
+            let path_str = include_paths[0].to_string_lossy();
+            assert!(!path_str.starts_with(r"\\?\"));
+
+            // Verify the path matches expected value
+            let expected_path = absolute(temp_dir.path()).unwrap();
+            assert_eq!(include_paths[0], expected_path);
         }
     }
 }
