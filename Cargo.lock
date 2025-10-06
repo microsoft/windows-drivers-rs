@@ -176,7 +176,6 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "cargo_metadata",
- "cfg-if",
  "clap",
  "clap-verbosity-flag",
  "fs4",

@@ -26,6 +26,7 @@ use crate::{actions::build::error::PackageTaskError, providers::error::FileError
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
+const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[derive(Debug)]
 pub struct PackageTaskParams<'a> {
@@ -315,22 +316,13 @@ impl<'a> PackageTask<'a> {
             &cat_file_path,
         ];
 
-        // DriverVer handling:
-        // 1. When allow_stampinf_version_env_override cfg is enabled, allow an external
-        //    override via STAMPINF_VERSION env var. If the env var is absent we fall
-        //    back to auto-generation (-v *).
-        // 2. Otherwise (stable / default builds) always request auto-generation (-v *).
-        cfg_if::cfg_if! {
-            if #[cfg(allow_stampinf_version_env_override)]
-            {
-                if let Ok(version) = std::env::var("STAMPINF_VERSION") && !version.trim().is_empty() {
-                    // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
-                    // and populates DriverVer.
-                    info!("Using STAMPINF_VERSION env var to set DriverVer: {version}");
-                } else {
-                    args.extend(["-v", "*"]);
-                }
-            } else {
+        match std::env::var(STAMPINF_VERSION_ENV_VAR) {
+            Ok(version) if !version.trim().is_empty() => {
+                // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
+                // and populates DriverVer.
+                info!("Using {STAMPINF_VERSION_ENV_VAR} env var to set DriverVer: {version}");
+            }
+            _ => {
                 args.extend(["-v", "*"]);
             }
         }
@@ -656,17 +648,18 @@ mod tests {
         use std::process::{ExitStatus, Output};
 
         // verify both with and without the env var set scenarios
-        let scenarios = [("env_set", Some("1.2.3.4")), ("env_unset", None)];
+        let scenarios = [
+            ("env_set", Some("1.2.3.4"), true),
+            ("env_empty", Some(""), false),
+            ("env_spaces", Some("  "), false),
+            ("env_unset", None, false),
+        ];
 
-        // Compile-time evaluation: cfg!(...) => true only if
-        // `allow_stampinf_version_env_override` was enabled during build
-        let is_cfg_set = cfg!(allow_stampinf_version_env_override);
-
-        for (name, env_val) in scenarios {
+        for (name, env_val, expect_skip_v) in scenarios {
             if let Some(v) = env_val {
-                std::env::set_var("STAMPINF_VERSION", v);
+                std::env::set_var(STAMPINF_VERSION_ENV_VAR, v);
             } else {
-                std::env::remove_var("STAMPINF_VERSION");
+                std::env::remove_var(STAMPINF_VERSION_ENV_VAR);
             }
 
             let package_name = "driver";
@@ -687,8 +680,6 @@ mod tests {
             let wdk_build = WdkBuild::default();
             let fs = Fs::default();
             let mut command_exec = CommandExec::default();
-
-            let expect_skip_v = env_val.is_some() && is_cfg_set; // skip -v only in override path
 
             command_exec
                 .expect_run()
@@ -716,7 +707,7 @@ mod tests {
             let result = task.run_stampinf();
             assert!(
                 result.is_ok(),
-                "scenario {name} failed (cfgs_override_enabled={is_cfg_set}, env_set={env_val:?})"
+                "scenario {name} failed (env_set={env_val:?})"
             );
         }
 

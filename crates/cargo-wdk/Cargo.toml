@@ -14,7 +14,6 @@ categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
-cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-verbosity-flag.workspace = true
 fs4.workspace = true
@@ -36,13 +35,6 @@ sha2.workspace = true
 [lints.rust]
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "forbid"
-
-[lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = [
-  "cfg(wdk_build_unstable)",
-  "cfg(allow_stampinf_version_env_override)",
-]
 
 [lints.clippy]
 # Lint Groups

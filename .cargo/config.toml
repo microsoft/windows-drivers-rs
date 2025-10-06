@@ -9,5 +9,4 @@ rustflags = [
 
   # Unstable cfg options:
   # "--cfg", "skip_umdf_static_crt_check",
-  # "--cfg", "allow_stampinf_version_env_override"
 ]
