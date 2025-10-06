@@ -58,17 +58,17 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    with_file_lock(|| build_driver_project("kmdf"));
+    with_file_lock(|| clean_and_build_driver_project("kmdf"));
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    with_file_lock(|| build_driver_project("umdf"));
+    with_file_lock(|| clean_and_build_driver_project("umdf"));
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    with_file_lock(|| build_driver_project("wdm"));
+    with_file_lock(|| clean_and_build_driver_project("wdm"));
 }
 
 #[test]
@@ -94,10 +94,11 @@ fn emulated_workspace_builds_successfully() {
     });
 }
 
-fn build_driver_project(driver_type: &str) {
+fn clean_and_build_driver_project(driver_type: &str) {
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
 
+    run_clean_cmd(&driver_path);
     let stdout = run_build_cmd(&driver_path);
 
     assert!(stdout.contains(&format!("Processing completed for package: {driver_name}")));
@@ -109,6 +110,12 @@ fn build_driver_project(driver_type: &str) {
     };
 
     verify_driver_package_files(&driver_path, &driver_name, driver_binary_extension);
+}
+
+fn run_clean_cmd(driver_path: &str) {
+    let mut cmd = Command::new("cargo");
+    cmd.args(["clean"]).current_dir(driver_path);
+    cmd.assert().success();
 }
 
 fn run_build_cmd(driver_path: &str) -> String {
@@ -157,6 +164,18 @@ fn verify_driver_package_files(
         &format!("{package_path}/WDRLocalTestCert.cer"),
         &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
     );
+
+    fs::read_to_string(format!("{package_path}/{driver_name}.inf"))
+        .expect("Unable to read inf file")
+        .lines()
+        .for_each(|line| {
+            // Example: DriverVer=09/13/2023,1.0.0.0
+            let re =
+                regex::Regex::new(r"^DriverVer\s+=\s+\d+/\d+/\d+,\d+\.\d+\.\d+\.\d+$").unwrap();
+            if line.starts_with("DriverVer") {
+                assert!(re.captures(line).is_some());
+            }
+        });
 }
 
 fn assert_dir_exists(path: &str) {
