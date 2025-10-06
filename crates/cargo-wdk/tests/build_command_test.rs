@@ -16,6 +16,7 @@ const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
     with_file_lock::<&str, &str, _>(&[], || {
+        run_clean_cmd("tests/mixed-package-kmdf-workspace");
         let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
 
         assert!(stdout.contains("Building package driver"));
@@ -80,13 +81,15 @@ fn wdm_driver_builds_successfully_with_given_version() {
 fn emulated_workspace_builds_successfully() {
     with_file_lock::<&str, &str, _>(&[], || {
         let emulated_workspace_path = "tests/emulated-workspace";
+        let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
+
+        run_clean_cmd(&umdf_driver_workspace_path);
         let stdout = run_build_cmd(emulated_workspace_path);
 
         assert!(stdout.contains("Building package driver_1"));
         assert!(stdout.contains("Building package driver_2"));
         assert!(stdout.contains("Build completed successfully"));
 
-        let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
         verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
         verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
     });
@@ -200,25 +203,20 @@ fn assert_file_hash(path1: &str, path2: &str) {
 }
 
 fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
-    fs::read_to_string(format!("{package_path}/{driver_name}.inf"))
-        .expect("Unable to read inf file")
-        .lines()
-        .for_each(|line| {
-            // Example: DriverVer=09/13/2023,1.0.0.0
-            let driver_version_regex = if let Some(version) = driver_version {
-                version
-            } else {
-                r"\d+\.\d+\.\d+\.\d+"
-            };
-
-            let re = regex::Regex::new(&format!(
-                r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
-            ))
-            .unwrap();
-            if line.starts_with("DriverVer") {
-                assert!(re.captures(line).is_some());
-            }
-        });
+    let file_content =
+        fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
+    let file_content = String::from_utf8_lossy(&file_content);
+    file_content.lines().for_each(|line| {
+        // Example: DriverVer=09/13/2023,1.0.0.0
+        let driver_version_regex = driver_version.unwrap_or(r"\d+\.\d+\.\d+\.\d+");
+        let re = regex::Regex::new(&format!(
+            r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
+        ))
+        .unwrap();
+        if line.starts_with("DriverVer") {
+            assert!(re.captures(line).is_some());
+        }
+    });
 }
 
 // Helper to hash a file

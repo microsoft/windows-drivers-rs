@@ -30,8 +30,8 @@ wdk-build.workspace = true
 [dev-dependencies]
 assert_cmd.workspace = true
 assert_fs.workspace = true
-regex.workspace = true
 predicates.workspace = true
+regex.workspace = true
 sha2.workspace = true
 
 [lints.rust]
