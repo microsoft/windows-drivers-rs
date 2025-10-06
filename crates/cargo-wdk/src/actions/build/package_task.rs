@@ -14,7 +14,7 @@ use std::{
 };
 
 use mockall_double::double;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
 #[double]
@@ -280,7 +280,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_stampinf(&self) -> Result<(), PackageTaskError> {
-        info!("Running stampinf command.");
+        info!("Running stampinf");
         let wdf_version_flags = match self.driver_model {
             DriverConfig::Kmdf(kmdf_config) => {
                 vec![
@@ -337,7 +337,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_inf2cat(&self) -> Result<(), PackageTaskError> {
-        info!("Running inf2cat command.");
+        info!("Running inf2cat");
         let args = [
             &format!(
                 "/driver:{}",
@@ -357,7 +357,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn generate_certificate(&self) -> Result<(), PackageTaskError> {
-        debug!("Generating certificate.");
+        debug!("Generating certificate");
         if self.fs.exists(&self.src_cert_file_path) {
             return Ok(());
         }
@@ -370,7 +370,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
-        debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
+        debug!("Checking if self signed certificate exists in WDRTestCertStore store");
         let args = ["-s", WDR_TEST_CERT_STORE];
 
         match self.command_exec.run("certmgr.exe", &args, None, None) {
@@ -384,7 +384,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn create_self_signed_cert_in_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating self signed certificate in WDRTestCertStore store using makecert.");
+        info!("Creating self signed certificate in WDRTestCertStore store using makecert");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-r",
@@ -406,7 +406,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn create_cert_file_from_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating certificate file from WDRTestCertStore store using certmgr.");
+        info!("Creating certificate file from WDRTestCertStore store using certmgr");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-put",
@@ -439,7 +439,7 @@ impl<'a> PackageTask<'a> {
         cert_name: &str,
     ) -> Result<(), PackageTaskError> {
         info!(
-            "Signing {} using signtool.",
+            "Signing {} using signtool",
             file_path
                 .file_name()
                 .expect("Unable to read file name from the path")
@@ -467,7 +467,7 @@ impl<'a> PackageTask<'a> {
 
     fn run_signtool_verify(&self, file_path: &Path) -> Result<(), PackageTaskError> {
         info!(
-            "Verifying {} using signtool.",
+            "Verifying {} using signtool",
             file_path
                 .file_name()
                 .expect("Unable to read file name from the path")
@@ -484,7 +484,6 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
-        info!("Running infverif command.");
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
             if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
@@ -492,13 +491,15 @@ impl<'a> PackageTask<'a> {
                     "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
                      /samples flag."
                 );
-                info!("Skipping InfVerif for samples class. WDK Build: {wdk_build_number}");
+                warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
                 return Ok(());
             }
             "/msft"
         } else {
             ""
         };
+
+        info!("Running infverif");
         let mut args = vec![
             "/v",
             match self.driver_model {
