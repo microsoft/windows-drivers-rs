@@ -524,8 +524,12 @@ impl<'a> PackageTask<'a> {
 }
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::ffi::OsStr;
     use std::path::PathBuf;
 
+    use std::process::{ExitStatus, Output};
+    use std::sync::Mutex;
     use wdk_build::{CpuArchitecture, KmdfConfig};
 
     use super::*;
@@ -645,8 +649,6 @@ mod tests {
 
     #[test]
     fn stampinf_version_overrides_with_env_var() {
-        use std::process::{ExitStatus, Output};
-
         // verify both with and without the env var set scenarios
         let scenarios = [
             ("env_set", Some("1.2.3.4"), true),
@@ -656,55 +658,52 @@ mod tests {
         ];
 
         for (name, env_val, expect_skip_v) in scenarios {
-            if let Some(v) = env_val {
-                std::env::set_var(STAMPINF_VERSION_ENV_VAR, v);
-            } else {
-                std::env::remove_var(STAMPINF_VERSION_ENV_VAR);
-            }
+            let result = with_env(&[(STAMPINF_VERSION_ENV_VAR, env_val)], || {
+                let package_name = "driver";
+                let working_dir = PathBuf::from("C:/abs/driver");
+                let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+                let arch = CpuArchitecture::Amd64;
 
-            let package_name = "driver";
-            let working_dir = PathBuf::from("C:/abs/driver");
-            let target_dir = PathBuf::from("C:/abs/driver/target/debug");
-            let arch = CpuArchitecture::Amd64;
+                let params = PackageTaskParams {
+                    package_name,
+                    working_dir: &working_dir,
+                    target_dir: &target_dir,
+                    target_arch: &arch,
+                    driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+                    sample_class: false,
+                    verify_signature: false,
+                };
 
-            let params = PackageTaskParams {
-                package_name,
-                working_dir: &working_dir,
-                target_dir: &target_dir,
-                target_arch: &arch,
-                driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
-                sample_class: false,
-                verify_signature: false,
-            };
+                let wdk_build = WdkBuild::default();
+                let fs = Fs::default();
+                let mut command_exec = CommandExec::default();
 
-            let wdk_build = WdkBuild::default();
-            let fs = Fs::default();
-            let mut command_exec = CommandExec::default();
-
-            command_exec
-                .expect_run()
-                .withf(move |cmd: &str, args: &[&str], _, _| {
-                    if cmd != "stampinf" {
-                        return false;
-                    }
-                    let has_v = args.contains(&"-v");
-                    if expect_skip_v {
-                        !has_v
-                    } else {
-                        args.windows(2).any(|w| w == ["-v", "*"])
-                    }
-                })
-                .once()
-                .return_once(|_, _, _, _| {
-                    Ok(Output {
-                        status: ExitStatus::default(),
-                        stdout: vec![],
-                        stderr: vec![],
+                command_exec
+                    .expect_run()
+                    .withf(move |cmd: &str, args: &[&str], _, _| {
+                        if cmd != "stampinf" {
+                            return false;
+                        }
+                        let has_v = args.contains(&"-v");
+                        if expect_skip_v {
+                            !has_v
+                        } else {
+                            args.windows(2).any(|w| w == ["-v", "*"])
+                        }
                     })
-                });
+                    .once()
+                    .return_once(|_, _, _, _| {
+                        Ok(Output {
+                            status: ExitStatus::default(),
+                            stdout: vec![],
+                            stderr: vec![],
+                        })
+                    });
 
-            let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
-            let result = task.run_stampinf();
+                let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+                task.run_stampinf()
+            });
+
             assert!(
                 result.is_ok(),
                 "scenario {name} failed (env_set={env_val:?})"
@@ -713,5 +712,65 @@ mod tests {
 
         // Cleanup
         std::env::remove_var("STAMPINF_VERSION");
+    }
+
+    /// Runs function after modifying environment variables, and returns the
+    /// function's return value.
+    ///
+    /// The environment is guaranteed to be not modified during the execution
+    /// of the function, and the environment is reset to its original state
+    /// after execution of the function. No testing asserts should be called in
+    /// the function, since a failing test will poison the mutex, and cause all
+    /// remaining tests to fail.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called with duplicate environment variable keys.
+    pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, Option<V>)], f: F) -> R
+    where
+        K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
+        V: AsRef<OsStr>,
+        F: FnOnce() -> R,
+    {
+        // Tests can execute in multiple threads in the same process, so mutex must be
+        // used to guard access to the environment variables
+        static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+        let _mutex_guard = ENV_MUTEX.lock().unwrap();
+        let mut original_env_vars = HashMap::new();
+
+        // set requested environment variables
+        for (key, value) in env_vars_key_value_pairs {
+            if let Ok(original_value) = std::env::var(key) {
+                let insert_result = original_env_vars.insert(key, original_value);
+                assert!(
+                    insert_result.is_none(),
+                    "Duplicate environment variable keys were provided"
+                );
+            }
+
+            // Remove the env var if value is None
+            if let Some(value) = value {
+                std::env::set_var(key, value);
+            } else {
+                std::env::remove_var(key);
+            }
+        }
+
+        let f_return_value = f();
+
+        // reset all set environment variables
+        for (key, _) in env_vars_key_value_pairs {
+            original_env_vars.get(key).map_or_else(
+                || {
+                    std::env::remove_var(key);
+                },
+                |value| {
+                    std::env::set_var(key, value);
+                },
+            );
+        }
+
+        f_return_value
     }
 }
