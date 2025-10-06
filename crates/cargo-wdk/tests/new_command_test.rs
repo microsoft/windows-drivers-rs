@@ -60,7 +60,7 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    with_file_lock(|| {
+    with_file_lock::<&str, &str, _>(&[], || {
         let (stdout, _stderr) = create_and_build_new_driver_project(driver_type);
         assert!(stdout.contains(
             "Required directive Provider missing, empty, or invalid in [Version] section."
@@ -79,7 +79,7 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
     command_succeeds: bool,
     assert: F,
 ) {
-    with_file_lock(|| {
+    with_file_lock::<&str, &str, _>(&[], || {
         let mut args = args
             .iter()
             .map(ToString::to_string)

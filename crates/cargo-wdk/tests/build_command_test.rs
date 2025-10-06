@@ -11,14 +11,16 @@ use assert_cmd::prelude::*;
 use common::{set_crt_static_flag, with_file_lock};
 use sha2::{Digest, Sha256};
 
+const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    with_file_lock(|| {
+    with_file_lock::<&str, &str, _>(&[], || {
         let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
 
         assert!(stdout.contains("Building package driver"));
         assert!(stdout.contains("Building package non_driver_crate"));
-        verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
+        verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
     });
 }
 
@@ -54,22 +56,29 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    with_file_lock(|| clean_and_build_driver_project("kmdf"));
+    with_file_lock::<&str, &str, _>(&[], || clean_and_build_driver_project("kmdf", None));
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    with_file_lock(|| clean_and_build_driver_project("umdf"));
+    with_file_lock::<&str, &str, _>(&[], || clean_and_build_driver_project("umdf", None));
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    with_file_lock(|| clean_and_build_driver_project("wdm"));
+    with_file_lock::<&str, &str, _>(&[], || clean_and_build_driver_project("wdm", None));
+}
+
+#[test]
+fn wdm_driver_builds_successfully_with_given_version() {
+    with_file_lock::<&str, &str, _>(&[(STAMPINF_VERSION_ENV_VAR, "5.1.0")], || {
+        clean_and_build_driver_project("wdm", Some("5.1.0.0"));
+    });
 }
 
 #[test]
 fn emulated_workspace_builds_successfully() {
-    with_file_lock(|| {
+    with_file_lock::<&str, &str, _>(&[], || {
         let emulated_workspace_path = "tests/emulated-workspace";
         let stdout = run_build_cmd(emulated_workspace_path);
 
@@ -78,12 +87,12 @@ fn emulated_workspace_builds_successfully() {
         assert!(stdout.contains("Build completed successfully"));
 
         let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-        verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll");
-        verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll");
+        verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
+        verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
     });
 }
 
-fn clean_and_build_driver_project(driver_type: &str) {
+fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str>) {
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
 
@@ -98,7 +107,12 @@ fn clean_and_build_driver_project(driver_type: &str) {
         _ => panic!("Unsupported driver type: {driver_type}"),
     };
 
-    verify_driver_package_files(&driver_path, &driver_name, driver_binary_extension);
+    verify_driver_package_files(
+        &driver_path,
+        &driver_name,
+        driver_binary_extension,
+        driver_version,
+    );
 }
 
 fn run_clean_cmd(driver_path: &str) {
@@ -124,6 +138,7 @@ fn verify_driver_package_files(
     driver_or_workspace_path: &str,
     driver_name: &str,
     driver_binary_extension: &str,
+    driver_version: Option<&str>,
 ) {
     let driver_name = driver_name.replace('-', "_");
     let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
@@ -154,17 +169,7 @@ fn verify_driver_package_files(
         &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
     );
 
-    fs::read_to_string(format!("{package_path}/{driver_name}.inf"))
-        .expect("Unable to read inf file")
-        .lines()
-        .for_each(|line| {
-            // Example: DriverVer=09/13/2023,1.0.0.0
-            let re =
-                regex::Regex::new(r"^DriverVer\s+=\s+\d+/\d+/\d+,\d+\.\d+\.\d+\.\d+$").unwrap();
-            if line.starts_with("DriverVer") {
-                assert!(re.captures(line).is_some());
-            }
-        });
+    assert_driver_ver(&package_path, &driver_name, driver_version);
 }
 
 fn assert_dir_exists(path: &str) {
@@ -192,6 +197,28 @@ fn assert_file_hash(path1: &str, path2: &str) {
         digest_file(PathBuf::from(path2)),
         "Hash mismatch between {path1} and {path2}"
     );
+}
+
+fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
+    fs::read_to_string(format!("{package_path}/{driver_name}.inf"))
+        .expect("Unable to read inf file")
+        .lines()
+        .for_each(|line| {
+            // Example: DriverVer=09/13/2023,1.0.0.0
+            let driver_version_regex = if let Some(version) = driver_version {
+                version
+            } else {
+                r"\d+\.\d+\.\d+\.\d+"
+            };
+
+            let re = regex::Regex::new(&format!(
+                r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
+            ))
+            .unwrap();
+            if line.starts_with("DriverVer") {
+                assert!(re.captures(line).is_some());
+            }
+        });
 }
 
 // Helper to hash a file
