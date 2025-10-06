@@ -524,12 +524,14 @@ impl<'a> PackageTask<'a> {
 }
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::ffi::OsStr;
-    use std::path::PathBuf;
+    use std::{
+        collections::HashMap,
+        ffi::OsStr,
+        path::PathBuf,
+        process::{ExitStatus, Output},
+        sync::Mutex,
+    };
 
-    use std::process::{ExitStatus, Output};
-    use std::sync::Mutex;
     use wdk_build::{CpuArchitecture, KmdfConfig};
 
     use super::*;
