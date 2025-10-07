@@ -712,9 +712,6 @@ mod tests {
                 "scenario {name} failed (env_set={env_val:?})"
             );
         }
-
-        // Cleanup
-        std::env::remove_var("STAMPINF_VERSION");
     }
 
     /// Runs function after modifying environment variables, and returns the

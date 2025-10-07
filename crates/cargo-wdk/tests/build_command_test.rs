@@ -206,13 +206,15 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
     let file_content =
         fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
     let file_content = String::from_utf8_lossy(&file_content);
+
+    // Example: DriverVer = 09/13/2023,1.0.0.0
+    let driver_version_regex = driver_version.unwrap_or(r"\d+\.\d+\.\d+\.\d+");
+    let re = regex::Regex::new(&format!(
+        r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
+    ))
+    .unwrap();
+
     file_content.lines().for_each(|line| {
-        // Example: DriverVer=09/13/2023,1.0.0.0
-        let driver_version_regex = driver_version.unwrap_or(r"\d+\.\d+\.\d+\.\d+");
-        let re = regex::Regex::new(&format!(
-            r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
-        ))
-        .unwrap();
         if line.starts_with("DriverVer") {
             assert!(re.captures(line).is_some());
         }
