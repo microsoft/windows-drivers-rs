@@ -45,19 +45,21 @@ pub enum BuildActionError {
          {0}"
     )]
     DetectTargetArch(String),
+    #[error("Driver binary (.dll) parent directory missing")]
+    DriverBinaryMissingParent,
 }
 
 /// Errors for the low level build task layer
 #[derive(Error, Debug)]
 pub enum BuildTaskError {
-    #[error("Error getting canonicalized path for manifest file")]
-    CanonicalizeManifestPath(#[from] std::io::Error),
     #[error("Empty manifest path found error")]
     EmptyManifestPath,
     #[error("Error running cargo build command")]
     CargoBuild(#[from] CommandError),
     #[error(transparent)]
     FileIo(#[from] FileError),
+    #[error("Missing driver build artifacts (.dll) in cargo build output")]
+    DllNotFound,
 }
 
 /// Errors for the low level package task layer

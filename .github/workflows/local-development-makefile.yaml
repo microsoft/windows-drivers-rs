@@ -70,16 +70,25 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
+          targets: |
+            - aarch64-pc-windows-msvc
+            - x86_64-pc-windows-msvc
 
       - name: Install Beta Rust Toolchain
         uses: dtolnay/rust-toolchain@beta
         with:
           components: clippy
+          targets: |
+            - aarch64-pc-windows-msvc
+            - x86_64-pc-windows-msvc
 
       - name: Install Stable Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: |
+            - aarch64-pc-windows-msvc
+            - x86_64-pc-windows-msvc
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2

@@ -19,7 +19,7 @@ use std::{
 
 use anyhow::Result;
 use build_task::BuildTask;
-use cargo_metadata::{Metadata as CargoMetadata, Package, TargetKind};
+use cargo_metadata::Metadata as CargoMetadata;
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
@@ -29,7 +29,7 @@ use wdk_build::{
     CpuArchitecture,
 };
 
-use crate::actions::{to_target_triple, Profile};
+use crate::actions::{build::error::BuildTaskError, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -136,8 +136,6 @@ impl<'a> BuildAction<'a> {
         );
         let build_number = self.wdk_build.detect_wdk_build_number()?;
         debug!("WDK build number: {}", build_number);
-        wdk_build::cargo_make::setup_path()?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
@@ -234,10 +232,6 @@ impl<'a> BuildAction<'a> {
             absolute(cargo_metadata.workspace_root.as_std_path()).map_err(|e| {
                 BuildActionError::NotAbsolute(cargo_metadata.workspace_root.clone().into(), e)
             })?;
-        let target_directory =
-            absolute(cargo_metadata.target_directory.as_std_path()).map_err(|e| {
-                BuildActionError::NotAbsolute(cargo_metadata.target_directory.clone().into(), e)
-            })?;
         if workspace_root.eq(&working_dir) {
             // If the working directory is root of a standalone project or a
             // workspace
@@ -259,13 +253,9 @@ impl<'a> BuildAction<'a> {
                     "Processing workspace member package: {}",
                     package_root_path.display()
                 );
-                if let Err(e) = self.build_and_package(
-                    &package_root_path,
-                    &wdk_metadata,
-                    package,
-                    &package.name,
-                    &target_directory,
-                ) {
+                if let Err(e) =
+                    self.build_and_package(&package_root_path, &wdk_metadata, &package.name)
+                {
                     failed_atleast_one_workspace_member = true;
                     err!(
                         "Error building the workspace member project: {}, error: {:?}",
@@ -307,13 +297,7 @@ impl<'a> BuildAction<'a> {
             let package = package
                 .ok_or_else(|| BuildActionError::NotAWorkspaceMember(working_dir.to_owned()))?;
 
-            self.build_and_package(
-                working_dir,
-                &wdk_metadata,
-                package,
-                &package.name,
-                &target_directory,
-            )?;
+            self.build_and_package(working_dir, &wdk_metadata, &package.name)?;
 
             if let Err(e) = wdk_metadata {
                 // Ignore NoWdkConfigurationsDetected but propagate any other error
@@ -347,13 +331,10 @@ impl<'a> BuildAction<'a> {
         &self,
         working_dir: &Path,
         wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
-        package: &Package,
         package_name: &str,
-        target_dir: &Path,
     ) -> Result<(), BuildActionError> {
         info!("Processing package: {}", package_name);
-
-        BuildTask::new(
+        let (dll_path, wdk_metadata) = match BuildTask::new(
             package_name,
             working_dir,
             self.profile,
@@ -361,48 +342,34 @@ impl<'a> BuildAction<'a> {
             self.verbosity_level,
             self.command_exec,
         )
-        .run()?;
-
-        let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
-            debug!("Found wdk metadata in package: {}", package_name);
-            wdk_metadata
-        } else {
-            warn!(
-                "WDK metadata is not available. Skipping driver packaging task for \
-                 `{package_name}` package",
-            );
-            return Ok(());
-        };
-
-        // TODO: Do we need this check anymore?
-        if package.metadata.get("wdk").is_none() {
-            warn!(
-                "No package.metadata.wdk section found. Skipping driver packaging task for \
-                 `{package_name}` package",
-            );
-            return Ok(());
-        }
-
-        if !package
-            .targets
-            .iter()
-            .any(|t| t.kind.contains(&TargetKind::CDyLib))
+        .run()
         {
-            warn!(
-                "No cdylib target found. Skipping driver packaging task for `{package_name}` \
-                 package",
-            );
-            return Ok(());
-        }
-
-        // Resolve effective target architecture and artifacts root path. Skip packaging
-        // task if target_arch or final_artifacts_root could not be resolved
-        let Some((target_arch, final_artifacts_root)) =
-            self.resolve_final_artifacts_root(working_dir, target_dir)?
-        else {
-            debug!("Failed to resolve final artifacts root. Skipping packaging");
-            return Ok(());
+            Ok(dll_path) => {
+                debug!("Found driver binary(.dll) at {}", dll_path.display());
+                if let Ok(meta) = wdk_metadata {
+                    info!("Found wdk metadata in `{package_name}` package");
+                    (dll_path, meta)
+                } else {
+                    warn!("WDK metadata is not found for `{package_name}`; skipping packaging",);
+                    return Ok(());
+                }
+            }
+            Err(BuildTaskError::DllNotFound) => {
+                if wdk_metadata.is_ok() {
+                    warn!(
+                        "WDK metadata is present in workspace manifest. But `{package_name}` may \
+                         not be a driver, no cdylib (.dll) artifact found; skipping packaging"
+                    );
+                } else {
+                    info!("WDK metadata not found for `{package_name}`; skipping packaging");
+                }
+                return Ok(());
+            }
+            Err(e) => return Err(BuildActionError::BuildTask(e)),
         };
+
+        let artifacts_dir = Self::artifacts_dir(&dll_path)?;
+        let target_arch = self.determine_target_arch(working_dir, &artifacts_dir)?;
 
         // Set up the `PATH` system environment variable with WDK/SDK bin and tools
         // paths.
@@ -416,7 +383,7 @@ impl<'a> BuildAction<'a> {
             &PackageTaskParams {
                 package_name,
                 working_dir,
-                target_dir: &final_artifacts_root,
+                artifacts_dir: &artifacts_dir,
                 target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
@@ -432,110 +399,71 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    /// Resolves the final artifacts directory produced by Cargo for this build.
-    ///
-    /// Behavior:
-    /// - Implicit host build: artifacts under `target/<profile>`.
-    /// - Explicit target specified (CLI `--target-arch`, env
-    ///   `CARGO_BUILD_TARGET`, or `[build].target` in config): artifacts under
-    ///   `target/<triple>/<profile>`.
-    /// - If an explicit target was specified but the expected triple directory
-    ///   does not exist, logs an error and returns `None` (caller skips
-    ///   packaging gracefully).
-    fn resolve_final_artifacts_root(
+    fn arch_from_triple(triple: &str) -> Result<CpuArchitecture, BuildActionError> {
+        if triple.contains("x86_64") {
+            Ok(CpuArchitecture::Amd64)
+        } else if triple.contains("aarch64") {
+            Ok(CpuArchitecture::Arm64)
+        } else {
+            Err(BuildActionError::UnsupportedArchitecture(
+                triple.to_string(),
+            ))
+        }
+    }
+
+    /// Determine the artifacts directory (parent of the driver .dll).
+    fn artifacts_dir(dll_path: &Path) -> Result<PathBuf, BuildActionError> {
+        let dll_parent_rel = dll_path
+            .parent()
+            .ok_or(BuildActionError::DriverBinaryMissingParent)?;
+        let dll_parent_dir = absolute(dll_parent_rel)
+            .map_err(|e| BuildActionError::NotAbsolute(dll_parent_rel.to_path_buf(), e))?;
+        debug!(
+            "Driver artifacts parent directory: {}",
+            dll_parent_dir.display()
+        );
+        Ok(dll_parent_dir)
+    }
+
+    /// Determine the effective target architecture for packaging.
+    fn determine_target_arch(
         &self,
         working_dir: &Path,
-        target_dir: &Path,
-    ) -> Result<Option<(CpuArchitecture, PathBuf)>, BuildActionError> {
-        let target_arch = if let Some(arch) = self.target_arch {
-            *arch
-        } else {
-            self.detect_target_arch_using_cargo_rustc(working_dir)?
-        };
-        let profile_dir = if matches!(self.profile, Some(Profile::Release)) {
+        artifacts_dir: &Path,
+    ) -> Result<CpuArchitecture, BuildActionError> {
+        if let Some(explicit) = self.target_arch {
+            return Ok(*explicit);
+        }
+        let expected_profile_dir = if matches!(self.profile, Some(Profile::Release)) {
             "release"
         } else {
             "debug"
         };
-
-        let explicit_cli = self.target_arch.is_some();
-        let explicit_env = std::env::var("CARGO_BUILD_TARGET")
-            .ok()
-            .is_some_and(|v| !v.trim().is_empty());
-        let explicit_cfg = Self::find_build_target_in_config(working_dir).is_some();
-        let explicit_specified = explicit_cli || explicit_env || explicit_cfg;
-
-        let final_root = if explicit_specified {
-            let triple = to_target_triple(target_arch);
-            let triple_dir = target_dir.join(&triple).join(profile_dir);
-            if !triple_dir.exists() {
-                err!(
-                    "Expected target triple dir '{}' not found. Skipping packaging",
-                    triple_dir.display()
-                );
-                return Ok(None);
-            }
-            debug!(
-                "Resolved explicit target artifacts directory: {} (arch={:?})",
-                triple_dir.display(),
-                target_arch
-            );
-            triple_dir
-        } else {
-            let host_dir = target_dir.join(profile_dir);
-            debug!(
-                "Resolved host (implicit) artifacts directory: {} (arch={:?})",
-                host_dir.display(),
-                target_arch
-            );
-            host_dir
-        };
-        Ok(Some((target_arch, final_root)))
-    }
-
-    fn find_build_target_in_config(start: &Path) -> Option<String> {
-        for ancestor in start.ancestors() {
-            let cargo_dir = ancestor.join(".cargo");
-            if !cargo_dir.exists() {
-                continue;
-            }
-            for cfg_name in ["config.toml", "config"] {
-                let cfg_path = cargo_dir.join(cfg_name);
-                if !cfg_path.exists() {
-                    continue;
-                }
-                if let Ok(contents) = std::fs::read_to_string(&cfg_path) {
-                    let mut in_build = false;
-                    for raw_line in contents.lines() {
-                        let line = raw_line.trim();
-                        if line.starts_with('#') || line.is_empty() {
-                            continue;
-                        }
-                        if line.starts_with('[') && line.ends_with(']') {
-                            in_build = line == "[build]";
-                            continue;
-                        }
-                        if !in_build {
-                            continue;
-                        }
-                        if line.starts_with("target") {
-                            if let Some(eq_idx) = line.find('=') {
-                                let value = line[eq_idx + 1..].trim().trim_matches('"');
-                                if !value.is_empty() {
-                                    debug!(
-                                        "Detected explicit target triple '{}' from {}",
-                                        value,
-                                        cfg_path.display()
-                                    );
-                                    return Some(value.to_string());
-                                }
-                            }
-                        }
-                    }
+        let components: Vec<String> = artifacts_dir
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect();
+        if let Some(tgt_idx) = components.iter().rposition(|c| c == "target") {
+            if components.len() > tgt_idx + 2 && components[tgt_idx + 2] == expected_profile_dir {
+                let triple = &components[tgt_idx + 1];
+                if let Ok(a) = Self::arch_from_triple(triple) {
+                    debug!("Inferred architecture {:?} from artifact layout", a);
+                    return Ok(a);
                 }
             }
         }
-        None
+        match self.detect_target_arch_using_cargo_rustc(working_dir) {
+            Ok(a) => {
+                debug!("Detected architecture {:?} via cargo rustc", a);
+                Ok(a)
+            }
+            Err(e) => {
+                warn!("Failed to detect arch via cargo rustc: {e:?}");
+                Err(BuildActionError::DetectTargetArch(
+                    "Failed to determine target arch for packaging".into(),
+                ))
+            }
+        }
     }
 
     /// Detects the effective target architecture Cargo will build for this

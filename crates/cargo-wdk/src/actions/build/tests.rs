@@ -70,11 +70,13 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile.as_ref());
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -141,11 +143,18 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -211,11 +220,18 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("aarch64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -282,11 +298,18 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("aarch64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -352,11 +375,18 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -425,11 +455,13 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile.as_ref());
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -519,11 +551,13 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile.as_ref());
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -592,11 +626,18 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("aarch64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -654,11 +695,13 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
+    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile.as_ref());
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_detect_target_arch_for_package(&cwd, CpuArchitecture::Arm64)
         .expect_inx_file_exists(driver_name, &cwd, false);
 
@@ -702,11 +745,18 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -758,11 +808,18 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -818,11 +875,18 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -879,11 +943,18 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -942,11 +1013,18 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         stderr: vec![],
     };
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("x86_64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, target_arch, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1001,6 +1079,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
+    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile.as_ref());
+
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
         stdout: vec![],
@@ -1011,7 +1091,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_detect_target_arch_for_package(&cwd, override_target_arch)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -1068,6 +1148,13 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
 
+    let cargo_build_output = create_cargo_artifact_json(
+        driver_name,
+        &cwd,
+        Some("aarch64-pc-windows-msvc"),
+        profile.as_ref(),
+    );
+
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
         stdout: vec![],
@@ -1078,7 +1165,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name, &cwd, None)
+        .expect_cargo_build(driver_name, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1228,6 +1315,32 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     let driver_version_2 = "0.0.2";
     let non_driver = "non-driver";
     let non_driver_version = "0.0.3";
+
+    // Create artifact outputs for workspace packages
+    let artifact_1 = create_cargo_artifact_json_with_manifest(
+        driver_name_1,
+        &cwd,
+        &cwd.join(driver_name_1).join("Cargo.toml"),
+        None,
+        profile.as_ref(),
+        true, // is_driver
+    );
+    let artifact_2 = create_cargo_artifact_json_with_manifest(
+        driver_name_2,
+        &cwd,
+        &cwd.join(driver_name_2).join("Cargo.toml"),
+        None,
+        profile.as_ref(),
+        true, // is_driver
+    );
+    let artifact_non_driver = create_cargo_artifact_json_with_manifest(
+        non_driver,
+        &cwd,
+        &cwd.join(non_driver).join("Cargo.toml"),
+        None,
+        profile.as_ref(),
+        false, // NOT a driver - will use "lib" instead of "cdylib"
+    );
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member_1, package_1) = get_cargo_metadata_package(
         &cwd.join(driver_name_1),
@@ -1268,7 +1381,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
+        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), Some(artifact_1))
         .expect_detect_target_arch_for_package(&cwd.join(driver_name_1), override_target_arch)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
@@ -1289,7 +1402,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_signtool_verify_cat_file(driver_name_1, &cwd, None)
         .expect_infverif(driver_name_1, &cwd, "KMDF", None)
         // Second driver project
-        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
+        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), Some(artifact_2))
         .expect_detect_target_arch_for_package(&cwd.join(driver_name_2), override_target_arch)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
@@ -1310,7 +1423,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_signtool_verify_cat_file(driver_name_2, &cwd, None)
         .expect_infverif(driver_name_2, &cwd, "KMDF", None)
         // Non-driver project
-        .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
+        .expect_cargo_build(non_driver, &cwd.join(non_driver), Some(artifact_non_driver));
 
     let build_action = BuildAction::new(
         &BuildActionParams {
@@ -1371,6 +1484,15 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         None,
     );
 
+    let cargo_build_output = create_cargo_artifact_json_with_manifest(
+        driver_name_1,
+        &workspace_root_dir,
+        &cwd.join("Cargo.toml"),
+        Some("aarch64-pc-windows-msvc"),
+        profile.as_ref(),
+        true, // is_driver
+    );
+
     let expected_certmgr_output = Output {
         status: ExitStatus::default(),
         stdout: r"==============No Certificates ==========
@@ -1396,7 +1518,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd, None)
+        .expect_cargo_build(driver_name_1, &cwd, Some(cargo_build_output))
         .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
         .expect_inx_file_exists(driver_name_1, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
@@ -1459,6 +1581,32 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     let driver_version_2 = "0.0.2";
     let non_driver = "non-driver";
     let non_driver_version = "0.0.3";
+
+    // Create artifact outputs for workspace packages
+    let artifact_1 = create_cargo_artifact_json_with_manifest(
+        driver_name_1,
+        &cwd,
+        &cwd.join(driver_name_1).join("Cargo.toml"),
+        None,
+        profile.as_ref(),
+        true, // is_driver
+    );
+    let artifact_2 = create_cargo_artifact_json_with_manifest(
+        driver_name_2,
+        &cwd,
+        &cwd.join(driver_name_2).join("Cargo.toml"),
+        None,
+        profile.as_ref(),
+        true, // is_driver
+    );
+    let artifact_non_driver = create_cargo_artifact_json_with_manifest(
+        non_driver,
+        &cwd,
+        &cwd.join(non_driver).join("Cargo.toml"),
+        None,
+        profile.as_ref(),
+        false, // NOT a driver - will use "lib" instead of "cdylib"
+    );
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member_1, package_1) = get_cargo_metadata_package(
         &cwd.join(driver_name_1),
@@ -1499,7 +1647,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
+        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), Some(artifact_1))
         .expect_detect_target_arch_for_package(&cwd.join(driver_name_1), override_target_arch)
         .expect_final_package_dir_exists(driver_name_1, &cwd, true)
         .expect_inx_file_exists(driver_name_1, &cwd.join(driver_name_1), true)
@@ -1518,7 +1666,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_signtool_sign_cat_file(driver_name_1, &cwd, None)
         .expect_infverif(driver_name_1, &cwd, "KMDF", None)
         // Second driver project
-        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None)
+        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), Some(artifact_2))
         .expect_detect_target_arch_for_package(&cwd.join(driver_name_2), override_target_arch)
         .expect_final_package_dir_exists(driver_name_2, &cwd, true)
         .expect_inx_file_exists(driver_name_2, &cwd.join(driver_name_2), true)
@@ -1537,7 +1685,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_signtool_sign_cat_file(driver_name_2, &cwd, None)
         .expect_infverif(driver_name_2, &cwd, "KMDF", None)
         // Non-driver project
-        .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
+        .expect_cargo_build(non_driver, &cwd.join(non_driver), Some(artifact_non_driver));
 
     let build_action = BuildAction::new(
         &BuildActionParams {
@@ -2202,6 +2350,7 @@ impl TestSetupPackageExpectations for TestBuildAction {
             .to_string();
         let mut expected_cargo_build_args: Vec<String> = vec![
             "build",
+            "--message-format=json",
             "-p",
             &driver_name,
             "--manifest-path",
@@ -2237,7 +2386,12 @@ impl TestSetupPackageExpectations for TestBuildAction {
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_cargo_command && args == expected_cargo_build_args
+                    command == expected_cargo_command
+                        && args.len() == expected_cargo_build_args.len()
+                        && args
+                            .iter()
+                            .zip(expected_cargo_build_args.iter())
+                            .all(|(a, b)| a == b)
                 },
             )
             .once()
@@ -3335,4 +3489,73 @@ fn get_cargo_metadata_wdk_metadata(
         driver_type.to_ascii_lowercase(),
         target_kmdf_version_minor
     ))
+}
+
+/// Creates a valid cargo compiler-artifact JSON message for testing.
+/// This simulates the JSON output that `cargo build --message-format=json`
+/// produces.
+fn create_cargo_artifact_json(
+    package_name: &str,
+    cwd: &Path,
+    target_arch: Option<&str>,
+    profile: Option<&Profile>,
+) -> Output {
+    create_cargo_artifact_json_with_manifest(
+        package_name,
+        cwd,
+        &cwd.join("Cargo.toml"),
+        target_arch,
+        profile,
+        true, // is_driver (cdylib)
+    )
+}
+
+fn create_cargo_artifact_json_with_manifest(
+    package_name: &str,
+    workspace_root: &Path,
+    manifest_path: &Path,
+    target_arch: Option<&str>,
+    profile: Option<&Profile>,
+    is_driver: bool,
+) -> Output {
+    let normalized_name = package_name.replace('-', "_");
+
+    // Determine profile directory name
+    let profile_dir = match profile {
+        Some(Profile::Release) => "release",
+        _ => "debug",
+    };
+
+    // For non-driver projects, use "lib" instead of "cdylib" to ensure BuildTask
+    // returns DllNotFound
+    let (kind, crate_types, file_ext) = if is_driver {
+        ("cdylib", "cdylib", "dll")
+    } else {
+        ("lib", "lib", "rlib")
+    };
+
+    // Build the artifact path based on target_arch and profile
+    let mut artifact_path = workspace_root.join("target");
+    if let Some(target) = target_arch {
+        artifact_path = artifact_path.join(target);
+    }
+    artifact_path = artifact_path
+        .join(profile_dir)
+        .join(format!("{normalized_name}.{file_ext}"));
+
+    let artifact_json = format!(
+        r#"{{"reason":"compiler-artifact","package_id":"{package_name} 0.0.1 (path+file:///{manifest})","manifest_path":"{manifest}","target":{{"kind":["{kind}"],"crate_types":["{crate_types}"],"name":"{normalized_name}","src_path":"src/lib.rs","edition":"2021","doc":false,"doctest":false,"test":false}},"profile":{{"opt_level":"0","debuginfo":2,"debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":["{artifact_path}"],"executable":null,"fresh":false}}"#,
+        package_name = package_name,
+        normalized_name = normalized_name,
+        manifest = manifest_path.to_string_lossy().replace('\\', "/"),
+        kind = kind,
+        crate_types = crate_types,
+        artifact_path = artifact_path.to_string_lossy().replace('\\', "/"),
+    );
+
+    Output {
+        status: ExitStatus::default(),
+        stdout: artifact_json.as_bytes().to_vec(),
+        stderr: vec![],
+    }
 }

@@ -18,8 +18,8 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 
         assert!(stdout.contains("Processing completed for package: driver"));
         assert!(stdout.contains(
-            "No package.metadata.wdk section found. Skipping driver packaging task for \
-             `non_driver_crate` package"
+            "WDK metadata is present in workspace manifest. But `non_driver_crate` may not be a \
+             driver, no cdylib (.dll) artifact found; skipping packaging"
         ));
 
         verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
@@ -79,10 +79,7 @@ fn emulated_workspace_builds_successfully() {
 
         // Matches warning about WDK metadata not being available for non driver project
         // but a valid rust project
-        assert!(stdout.contains(
-            "WDK metadata is not available. Skipping driver packaging task for `rust-project` \
-             package"
-        ));
+        assert!(stdout.contains("WDK metadata not found for `rust-project`; skipping packaging"));
 
         assert!(stdout.contains("Processing completed for package: driver_1"));
         assert!(stdout.contains("Processing completed for package: driver_2"));

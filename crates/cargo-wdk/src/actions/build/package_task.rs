@@ -31,7 +31,7 @@ const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
-    pub target_dir: &'a Path,
+    pub artifacts_dir: &'a Path,
     pub target_arch: &'a CpuArchitecture,
     pub verify_signature: bool,
     pub sample_class: bool,
@@ -104,9 +104,9 @@ impl<'a> PackageTask<'a> {
             params.working_dir.display()
         );
         assert!(
-            params.target_dir.is_absolute(),
-            "Target directory path must be absolute. Input path: {}",
-            params.target_dir.display()
+            params.artifacts_dir.is_absolute(),
+            "Build artifacts directory path must be absolute. Input path: {}",
+            params.artifacts_dir.display()
         );
         let package_name = params.package_name.replace('-', "_");
         // src paths
@@ -115,14 +115,16 @@ impl<'a> PackageTask<'a> {
 
         // all paths inside target directory
         let src_driver_binary_file_path = params
-            .target_dir
+            .artifacts_dir
             .join(format!("{package_name}.{src_driver_binary_extension}"));
-        let src_pdb_file_path = params.target_dir.join(format!("{package_name}.pdb"));
+        let src_pdb_file_path = params.artifacts_dir.join(format!("{package_name}.pdb"));
         let src_map_file_path = params
-            .target_dir
+            .artifacts_dir
             .join("deps")
             .join(format!("{package_name}.map"));
-        let src_cert_file_path = params.target_dir.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
+        let src_cert_file_path = params
+            .artifacts_dir
+            .join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
 
         // destination paths
         let dest_driver_binary_extension = match params.driver_model {
@@ -131,10 +133,10 @@ impl<'a> PackageTask<'a> {
         };
 
         let src_renamed_driver_binary_file_path = params
-            .target_dir
+            .artifacts_dir
             .join(format!("{package_name}.{dest_driver_binary_extension}"));
         let dest_root_package_folder: PathBuf =
-            params.target_dir.join(format!("{package_name}_package"));
+            params.artifacts_dir.join(format!("{package_name}_package"));
         let dest_inf_file_path = dest_root_package_folder.join(format!("{package_name}.inf"));
         let dest_driver_binary_path =
             dest_root_package_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
@@ -527,7 +529,7 @@ mod tests {
         let package_task_params = PackageTaskParams {
             package_name,
             working_dir: &working_dir,
-            target_dir: &target_dir,
+            artifacts_dir: &target_dir,
             target_arch: &arch,
             driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
@@ -579,9 +581,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Target directory path must be absolute. Input path: \
-                               ../relative/path/to/target/dir")]
-    fn new_panics_when_target_dir_is_not_absolute() {
+    #[should_panic(
+        expected = "Build artifacts directory path must be absolute. Input path: \
+                    ../relative/path/to/target/dir"
+    )]
+    fn new_panics_when_build_artifacts_dir_is_not_absolute() {
         let package_name = "test_package";
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let target_dir = PathBuf::from("../relative/path/to/target/dir");
@@ -590,7 +594,7 @@ mod tests {
         let package_task_params = PackageTaskParams {
             package_name,
             working_dir: &working_dir,
-            target_dir: &target_dir,
+            artifacts_dir: &target_dir,
             target_arch: &arch,
             driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
@@ -616,7 +620,7 @@ mod tests {
         let package_task_params = PackageTaskParams {
             package_name,
             working_dir: &working_dir,
-            target_dir: &target_dir,
+            artifacts_dir: &target_dir,
             target_arch: &arch,
             driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
