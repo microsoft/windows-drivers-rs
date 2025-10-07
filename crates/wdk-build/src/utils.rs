@@ -26,9 +26,6 @@ use windows::{
 
 use crate::{ConfigError, CpuArchitecture, TwoPartVersion};
 
-/// The value for Windows in Rust's [`std::env::consts::OS`]
-const RUST_ENV_CONST_OS_WINDOWS: &str = "windows";
-
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
 /// NI(22H2) WDK
 #[must_use]
@@ -359,93 +356,104 @@ pub fn find_max_version_in_directory<P: AsRef<Path>>(
         })
 }
 
-/// Safely sets an environment variable, panicking if not running on a Windows
-/// host.
+/// Safely sets an environment variable. Will not compile if crate is not targeted for Windows.
 ///
 /// This function provides a safe wrapper around [`std::env::set_var`] that
-/// became unsafe in Rust 2024 edition. It validates that the current **host**
-/// OS (where the build is running) is Windows before calling the unsafe
-/// function.
-///
-/// Note: This checks the host OS, not the target OS. If you're cross-compiling
-/// from macOS to Windows, this will still panic because the host (macOS) is not
-/// Windows.
+/// became unsafe in Rust 2024 edition.
 ///
 /// # Panics
-///
-/// Panics if the current host OS is not Windows, since environment variable
-/// operations are only guaranteed to be safe on Windows according to Rust
-/// documentation.
-///
-/// # Examples
-///
-/// ```
-/// wdk_build::utils::set_var("MY_BUILD_VAR", "my_value");
-/// ```
+/// 
+/// This function may panic if key is empty, contains an ASCII equals sign '=' or the NUL character '\0', or when value contains the NUL character.
+#[cfg(target_os = "windows")]
 pub fn set_var<K, V>(key: K, value: V)
 where
     K: AsRef<OsStr>,
     V: AsRef<OsStr>,
 {
-    assert!(
-        env::consts::OS == RUST_ENV_CONST_OS_WINDOWS,
-        "Environment variable operations are only safe on Windows. This code is designed to run \
-         on a Windows host machine in a WDK environment. Current host OS: {}",
-        env::consts::OS
-    );
-    // SAFETY: We've verified this is running on Windows host, where env::set_var is
+    // SAFETY: We've verified this is targeted for Windows, where env::set_var is
     // always safe according to Rust documentation.
     unsafe {
         env::set_var(key, value);
     }
 }
 
-/// Safely removes an environment variable, panicking if not running on a
-/// Windows host.
+#[cfg(not(target_os = "windows"))]
+pub fn set_var<K>(_key: K, _value: V)
+where 
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. Please build using a Windows target. Current target: {}", 
+        env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+    );
+}
+
+/// Safely removes an environment variable. Will not compile if crate is not targeted for Windows.
 ///
 /// This function provides a safe wrapper around [`std::env::remove_var`] that
-/// became unsafe in Rust 2024 edition. It validates that the current **host**
-/// OS (where the build is running) is Windows before calling the unsafe
-/// function.
-///
-/// Note: This checks the host OS, not the target OS. If you're cross-compiling
-/// from macOS to Windows, this will still panic because the host (macOS) is not
-/// Windows.
+/// became unsafe in Rust 2024 edition.
 ///
 /// # Panics
-///
-/// Panics if the current host OS is not Windows, since environment variable
-/// operations are only guaranteed to be safe on Windows according to Rust
-/// documentation.
-///
-/// # Examples
-///
-/// ```
-/// wdk_build::utils::remove_var("MY_BUILD_VAR");
-/// ```
-#[allow(dead_code)]
+/// 
+/// This function may panic if key is empty, contains an ASCII equals sign '=' or the NUL character '\0', or when value contains the NUL character.
+#[cfg(target_os = "windows")]
 pub fn remove_var<K>(key: K)
 where
     K: AsRef<OsStr>,
 {
-    assert!(
-        env::consts::OS == RUST_ENV_CONST_OS_WINDOWS,
-        "Environment variable operations are only safe on Windows. This code is designed to run \
-         on a Windows host machine in a WDK environment. Current host OS: {}",
-        env::consts::OS
-    );
-    // SAFETY: We've verified this is running on Windows host, where env::remove_var
-    // is always safe according to Rust documentation.
+    // SAFETY: We've verified this is targeted for Windows, where env::remove_var
+    // is always safe according to documentation.
     unsafe {
         env::remove_var(key);
     }
 }
+
+#[cfg(not(target_os = "windows"))]
+pub fn remove_var<K>(_key: K)
+where K: AsRef<OsStr>
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. Please build using a Windows target. Current target: {}", 
+        env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+    );
+}
+
 
 #[cfg(test)]
 mod tests {
     use assert_fs::prelude::*;
 
     use super::*;
+    
+    // Function with_clean_env clears the inputted environment variable and runs the closure
+    fn with_clean_env<F>(key: &str, f: F)
+    where
+        F: FnOnce(),
+    {
+        let original = env::var(key).ok();
+
+        // SAFETY: We have verified that this is built for a Windows host due to no compile errors from building `set_var`.
+        unsafe {
+            env::remove_var(key);
+        }
+
+        f();
+
+        if let Some(val) = &original {
+            // SAFETY: We have verified that this is built for a Windows host due to no compile errors from building `set_var`.
+            unsafe {
+                env::set_var(key, val);
+            }
+        } else {
+            // SAFETY: We have verified that this is built for a Windows host due to no compile errors from building `set_var`.
+            unsafe {
+                env::remove_var(key);
+            }
+        }
+
+        assert!(env::var(key).ok() == original);
+    }
 
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
@@ -455,6 +463,7 @@ mod tests {
         };
 
         use super::*;
+
 
         #[test]
         fn read_reg_key_programfilesdir() {
@@ -678,58 +687,15 @@ mod tests {
         use super::*;
 
         #[test]
-        fn set_var_works_on_windows() {
-            // This test will only pass on Windows host, which is the intended behavior
-            if env::consts::OS == RUST_ENV_CONST_OS_WINDOWS {
-                set_var("WDK_BUILD_TEST_VAR", "test_value");
-                assert_eq!(env::var("WDK_BUILD_TEST_VAR").unwrap(), "test_value");
-                remove_var("WDK_BUILD_TEST_VAR");
-            }
-        }
-
-        #[test]
-        fn remove_var_works_on_windows() {
-            // This test will only pass on Windows host, which is the intended behavior
-            if env::consts::OS == RUST_ENV_CONST_OS_WINDOWS {
-                set_var("WDK_BUILD_TEST_REMOVE_VAR", "test_value");
-                assert_eq!(env::var("WDK_BUILD_TEST_REMOVE_VAR").unwrap(), "test_value");
-                remove_var("WDK_BUILD_TEST_REMOVE_VAR");
-                assert!(env::var("WDK_BUILD_TEST_REMOVE_VAR").is_err());
-            }
-        }
-
-        #[test]
-        #[should_panic(expected = "Environment variable operations are only safe on Windows")]
-        fn set_var_panics_on_non_windows() {
-            // This test simulates non-Windows behavior by checking the panic message
-            // In practice, this will only run on Windows in CI/development
-            if env::consts::OS == RUST_ENV_CONST_OS_WINDOWS {
-                // On Windows, manually trigger the panic for testing
-                panic!(
-                    "Environment variable operations are only safe on Windows. This code is \
-                     designed to run on a Windows host machine in a WDK environment. Current host \
-                     OS: windows"
-                );
-            } else {
-                set_var("TEST_VAR", "test_value");
-            }
-        }
-
-        #[test]
-        #[should_panic(expected = "Environment variable operations are only safe on Windows")]
-        fn remove_var_panics_on_non_windows() {
-            // This test simulates non-Windows behavior by checking the panic message
-            // In practice, this will only run on Windows in CI/development
-            if env::consts::OS == RUST_ENV_CONST_OS_WINDOWS {
-                // On Windows, manually trigger the panic for testing
-                panic!(
-                    "Environment variable operations are only safe on Windows. This code is \
-                     designed to run on a Windows host machine in a WDK environment. Current host \
-                     OS: windows"
-                );
-            } else {
-                remove_var("TEST_VAR");
-            }
+        fn set_var_and_remove_var() {
+            let key = "WDK_BUILD_TEST_VAR";
+            with_clean_env(key, || {
+                set_var(key, "test_value");
+                assert_eq!(env::var(key).unwrap(), "test_value");
+                remove_var(key);
+                assert!(env::var(key).is_err());
+            });
         }
     }
+
 }

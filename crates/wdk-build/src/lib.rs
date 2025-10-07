@@ -26,7 +26,7 @@ use tracing::debug;
 pub mod cargo_make;
 pub mod metadata;
 
-pub mod utils;
+mod utils;
 
 mod bindgen;
 
@@ -1339,7 +1339,7 @@ impl CpuArchitecture {
 #[tracing::instrument(level = "debug")]
 pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
-        PathBuf::from(std::env::var("OUT_DIR").expect(
+        PathBuf::from(var("OUT_DIR").expect(
             "Cargo should have set the OUT_DIR environment variable when executing build.rs",
         ));
 
@@ -1506,7 +1506,8 @@ mod tests {
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
     use super::*;
-    use crate::utils::{remove_var, set_var};
+
+    use crate::utils::{set_var, remove_var};
 
     mod two_part_version {
         use super::*;
@@ -1742,7 +1743,7 @@ mod tests {
 
         // set requested environment variables
         for (key, value) in env_vars_key_value_pairs {
-            if let Ok(original_value) = std::env::var(key) {
+            if let Ok(original_value) = env::var(key) {
                 let insert_result = original_env_vars.insert(key, original_value);
                 assert!(
                     insert_result.is_none(),
@@ -1758,7 +1759,7 @@ mod tests {
         for (key, _) in env_vars_key_value_pairs {
             original_env_vars.get(key).map_or_else(
                 || {
-                    remove_var(key);
+                   remove_var(key);
                 },
                 |value| {
                     set_var(key, value);

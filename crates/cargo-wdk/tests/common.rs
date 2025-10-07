@@ -3,7 +3,6 @@
 #![allow(clippy::literal_string_with_formatting_args)]
 
 use fs4::fs_std::FileExt;
-use wdk_build::utils::set_var;
 
 /// Sets the `RUSTFLAGS` environment variable to include `+crt-static`.
 ///
@@ -15,10 +14,33 @@ use wdk_build::utils::set_var;
 pub fn set_crt_static_flag() {
     if let Ok(rustflags) = std::env::var("RUSTFLAGS") {
         let updated_rust_flags = format!("{rustflags} -C target-feature=+crt-static");
-        set_var("RUSTFLAGS", updated_rust_flags);
+        
+        #[cfg(target_os = "windows")]
+        // SAFETY: This is only called on Windows hosts, so this is safe.
+        unsafe {
+            std::env::set_var("RUSTFLAGS", updated_rust_flags);
+        }
+
+        #[cfg(not(target_os = "windows"))] 
+        compile_error!(
+            "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. Please build using a Windows target. Current target: {}", 
+            env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+        );
+
         println!("RUSTFLAGS set, adding the +crt-static: {rustflags:?}");
     } else {
-        set_var("RUSTFLAGS", "-C target-feature=+crt-static");
+        #[cfg(target_os = "windows")]
+        // SAFETY: This is only called on Windows hosts, so this is safe.
+        unsafe {
+            std::env::set_var("RUSTFLAGS", "-C target-feature=+crt-static");
+        }
+
+        #[cfg(not(target_os = "windows"))] 
+        compile_error!(
+            "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. Please build using a Windows target. Current target: {}", 
+            env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+        );
+
         println!(
             "No RUSTFLAGS set, setting it to: {:?}",
             std::env::var("RUSTFLAGS").expect("RUSTFLAGS not set")
