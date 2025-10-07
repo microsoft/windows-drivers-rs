@@ -13,7 +13,7 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
     result::Result::Ok,
 };
 
@@ -57,20 +57,23 @@ pub struct BuildAction<'a> {
 }
 
 impl<'a> BuildAction<'a> {
-    /// Creates a new instance of `BuildAction`
-    /// # Arguments
+    /// Creates a new instance of `BuildAction`.
+    ///
+    /// # Arguments:
     /// * `params` - The `BuildActionParams` struct containing the parameters
     ///   for the build action
     /// * `wdk_build` - The WDK build provider instance
     /// * `command_exec` - The command execution provider instance
     /// * `fs` - The file system provider instance
     /// * `metadata` - The metadata provider instance
+    ///
     /// # Returns
-    /// * `Result<Self>` - A result containing the new instance of `BuildAction`
-    ///   or an error
+    /// * `Result<Self>` - A result containing either a new instance of
+    ///   `BuildAction` on success, or an `anyhow::Error`.
+    ///
     /// # Errors
-    /// * `BuildActionError::IoError` - If there is an IO error while
-    ///   canonicalizing the working dir
+    /// * [`anyhow::Error`] -  If `params.working_dir` is not a syntactically
+    ///   valid path, e.g. it is empty
     pub fn new(
         params: &BuildActionParams<'a>,
         wdk_build: &'a WdkBuild,
@@ -78,10 +81,9 @@ impl<'a> BuildAction<'a> {
         fs: &'a Fs,
         metadata: &'a Metadata,
     ) -> Result<Self> {
-        // TODO: validate and init attrs here
-        let working_dir = fs.canonicalize_path(params.working_dir)?;
+        // TODO: validate params
         Ok(Self {
-            working_dir,
+            working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
             verify_signature: params.verify_signature,
@@ -127,10 +129,10 @@ impl<'a> BuildAction<'a> {
             "Initialized build for project at: {}",
             self.working_dir.display()
         );
-        wdk_build::cargo_make::setup_path()?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
         let build_number = self.wdk_build.detect_wdk_build_number()?;
         debug!("WDK build number: {}", build_number);
+        wdk_build::cargo_make::setup_path()?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
@@ -139,7 +141,7 @@ impl<'a> BuildAction<'a> {
 
         // Emulated workspaces support
         let dirs = self.fs.read_dir_entries(&self.working_dir)?;
-        info!(
+        debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
@@ -170,64 +172,62 @@ impl<'a> BuildAction<'a> {
             ));
         }
 
-        debug!("Iterating over each dir entry and process valid Rust(possibly driver) projects");
+        info!("Building packages in {}", self.working_dir.display());
+
         let mut failed_atleast_one_project = false;
         for dir in dirs {
-            debug!(
-                "Verifying the dir entry if it is a valid Rust project: {}",
-                dir.path().display()
-            );
+            debug!("Checking dir entry: {}", dir.path().display());
             if !self.fs.dir_file_type(&dir)?.is_dir()
                 || !self.fs.exists(&dir.path().join("Cargo.toml"))
             {
-                debug!("Skipping the dir entry as it is not a valid Rust project");
+                debug!("Dir entry is not a valid Rust package");
                 continue;
             }
 
-            info!(
-                "Processing Rust(possibly driver) project: {}",
-                dir.path()
-                    .file_name()
-                    .expect("package sub directory name ended with \"..\" which is not expected")
-                    .to_string_lossy()
-            );
+            let working_dir_path = dir.path(); // Avoids a short-lived temporary
+            let sub_dir = working_dir_path
+                .file_name()
+                .expect("package sub directory name ended with \"..\" which is not expected")
+                .to_string_lossy();
+
+            debug!("Building package(s) in dir {sub_dir}");
             if let Err(e) = self.run_from_workspace_root(&dir.path()) {
                 failed_atleast_one_project = true;
                 err!(
-                    "Error building the child project: {}, error: {:?}",
-                    dir.path()
-                        .file_name()
-                        .expect(
-                            "package sub directory name ended with \"..\" which is not expected"
-                        )
-                        .to_string_lossy(),
+                    "Error building project: {sub_dir}, error: {:?}",
                     anyhow::Error::new(e)
                 );
             }
         }
 
-        debug!("Done checking for valid Rust(possibly driver) projects in the working directory");
+        debug!("Done building packages in {}", self.working_dir.display());
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
         }
 
-        info!("Build completed successfully");
+        info!(
+            "Build completed successfully for packages in {}",
+            self.working_dir.display()
+        );
         Ok(())
     }
 
-    // Method to initiate the build and package process for the given working
-    // directory and the cargo metadata
+    // Runs build for the given working directory and the cargo metadata
     fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
-        let target_directory = cargo_metadata.target_directory.as_std_path().to_path_buf();
         let wdk_metadata = Wdk::try_from(cargo_metadata);
         let workspace_packages = cargo_metadata.workspace_packages();
-        let workspace_root = self
-            .fs
-            .canonicalize_path(cargo_metadata.workspace_root.clone().as_std_path())?;
-        if workspace_root.eq(working_dir) {
+        let workspace_root =
+            absolute(cargo_metadata.workspace_root.as_std_path()).map_err(|e| {
+                BuildActionError::NotAbsolute(cargo_metadata.workspace_root.clone().into(), e)
+            })?;
+        let target_directory =
+            absolute(cargo_metadata.target_directory.as_std_path()).map_err(|e| {
+                BuildActionError::NotAbsolute(cargo_metadata.target_directory.clone().into(), e)
+            })?;
+        if workspace_root.eq(&working_dir) {
             // If the working directory is root of a standalone project or a
             // workspace
             debug!(
@@ -242,11 +242,13 @@ impl<'a> BuildAction<'a> {
                     .expect("Unable to find package path from Cargo manifest path")
                     .into();
 
-                let package_root_path = self.fs.canonicalize_path(package_root_path.as_path())?;
+                let package_root_path = absolute(package_root_path.as_path())
+                    .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
                 debug!(
-                    "Processing workspace member package: {}",
+                    "Building workspace member package: {}",
                     package_root_path.display()
                 );
+
                 if let Err(e) = self.build_and_package(
                     &package_root_path,
                     &wdk_metadata,
@@ -286,15 +288,10 @@ impl<'a> BuildAction<'a> {
                     .parent()
                     .expect("Unable to find package path from Cargo manifest path")
                     .into();
-                self.fs
-                    .canonicalize_path(package_root_path.as_path())
-                    .is_ok_and(|package_root_path| {
-                        debug!(
-                            "Processing workspace member package: {}",
-                            package_root_path.display()
-                        );
-                        package_root_path.eq(working_dir)
-                    })
+                absolute(package_root_path.as_path()).is_ok_and(|p| {
+                    debug!("Processing workspace member package: {}", p.display());
+                    p.eq(&working_dir)
+                })
             });
 
             let package = package
@@ -316,7 +313,7 @@ impl<'a> BuildAction<'a> {
             }
         }
 
-        info!(
+        debug!(
             "Build completed successfully for path: {}",
             working_dir.display()
         );
@@ -344,7 +341,7 @@ impl<'a> BuildAction<'a> {
         package_name: &str,
         target_dir: &Path,
     ) -> Result<(), BuildActionError> {
-        info!("Processing package: {}", package_name);
+        info!("Building package {package_name}");
         BuildTask::new(
             package_name,
             working_dir,
@@ -352,28 +349,20 @@ impl<'a> BuildAction<'a> {
             self.target_arch,
             self.verbosity_level,
             self.command_exec,
-            self.fs,
-        )?
+        )
         .run()?;
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
             debug!("Found wdk metadata in package: {}", package_name);
             wdk_metadata
         } else {
-            warn!(
-                "WDK metadata is not available. Skipping driver build workflow for package: {}",
-                package_name
-            );
+            debug!("Invalid WDK metadata. Skipping package task");
             return Ok(());
         };
 
-        // TODO: Do we need this check anymore?
+        // Identifying non driver packages
         if package.metadata.get("wdk").is_none() {
-            warn!(
-                "No package.metadata.wdk section found. Skipping driver build workflow for \
-                 package: {}",
-                package_name
-            );
+            debug!("Packaging task skipped for non-driver package");
             return Ok(());
         }
 
@@ -382,10 +371,7 @@ impl<'a> BuildAction<'a> {
             .iter()
             .any(|t| t.kind.contains(&TargetKind::CDyLib))
         {
-            warn!(
-                "No cdylib target found. Skipping driver build workflow for package: {}",
-                package_name
-            );
+            warn!("No cdylib target found. Skipping package task");
             return Ok(());
         }
 
@@ -394,10 +380,7 @@ impl<'a> BuildAction<'a> {
         let target_arch = match self.target_arch {
             TargetArch::Default(arch) | TargetArch::Selected(arch) => arch,
         };
-        debug!(
-            "Target architecture for package: {} is: {}",
-            package_name, target_arch
-        );
+        debug!("Target architecture for package: {package_name} is: {target_arch}");
         let mut target_dir = target_dir.to_path_buf();
         if let TargetArch::Selected(arch) = self.target_arch {
             target_dir = target_dir.join(to_target_triple(arch));
@@ -425,10 +408,10 @@ impl<'a> BuildAction<'a> {
             self.wdk_build,
             self.command_exec,
             self.fs,
-        )?
+        )
         .run()?;
 
-        info!("Processing completed for package: {}", package_name);
+        info!("Finished building {package_name}");
         Ok(())
     }
 }
