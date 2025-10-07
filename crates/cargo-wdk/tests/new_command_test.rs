@@ -139,7 +139,7 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         tmp_dir.path().join(&driver_name).display()
     )));
 
-    // asert paths
+    // assert paths
     assert!(tmp_dir.join(&driver_name).is_dir());
     assert!(tmp_dir.join(&driver_name).join("build.rs").is_file());
     assert!(tmp_dir.join(&driver_name).join("Cargo.toml").is_file());
@@ -193,11 +193,8 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     set_crt_static_flag();
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args([
-        "build",
-        "--cwd",
-        &tmp_dir.join(&driver_name).to_string_lossy(), // Root dir for tests is cargo-wdk
-    ]);
+    let driver_path = tmp_dir.join(&driver_name); // Root dir for tests
+    cmd.args(["build"]).current_dir(&driver_path);
 
     let cmd_assertion = cmd.assert().failure();
     tmp_dir
