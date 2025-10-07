@@ -24,7 +24,7 @@ const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 /// `aarch64/Arm64` target triple name
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Profile {
     Dev,
     Release,
@@ -53,7 +53,7 @@ impl Display for Profile {
 /// Enum is used to determine the architecture for which the driver is being
 /// built. It can be either a selected architecture passed via CLI or a default
 /// host architecture.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetArch {
     Selected(CpuArchitecture),
     Default(CpuArchitecture),

@@ -41,7 +41,7 @@ pub static TRYBUILD_OUTPUT_FOLDER_PATH: LazyLock<PathBuf> =
 /// reside in the `tests/inputs/macrotest` folder, and may be a path to
 /// a file relative to the `tests/inputs/macrotest` folder. This macro is
 /// designed to use one test file per generated test to fully take advantage of
-/// parallization of tests in cargo.
+/// parallelization of tests in cargo.
 ///
 /// Note: Due to limitations in `trybuild`, a successful compilation
 /// test will include output that looks similar to the following:
@@ -242,10 +242,11 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
     .expect("target file should be successfully opened");
 
     // only create a new symlink if there isn't an existing one, or if the existing
-    // one points to the wrong place
+    // one points to the wrong place. If std::fs::read_link returns an error (ex.
+    // link was removed after link.is_symlink() check), assume the link needs update
     let link_needs_update = || {
         !link.is_symlink()
-            || std::fs::read_link(link).expect("read_link of symlink should succeed") != target
+            || !std::fs::read_link(link).is_ok_and(|current_target| current_target == target)
     };
     if !link.exists() || link_needs_update() {
         // create flock based off target_file, so tests can run in parallel
@@ -270,7 +271,6 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
 
         // explicitly unlock the target_file to avoid waiting for windows to eventually
         // automatically release the lock when target_file handle is closed
-        FileExt::unlock(&target_file)
-            .expect("file locks should be successfully released");
+        FileExt::unlock(&target_file).expect("file locks should be successfully released");
     }
 }

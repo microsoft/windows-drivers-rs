@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 //! This module defines error types used in the build action module.
 
-use std::{path::PathBuf, string::FromUtf8Error};
+use std::{io, path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
 
@@ -11,6 +11,8 @@ use crate::providers::error::{CommandError, FileError};
 /// Errors for the build action layer
 #[derive(Error, Debug)]
 pub enum BuildActionError {
+    #[error("Provided path is not absolute: {0}")]
+    NotAbsolute(PathBuf, #[source] io::Error),
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Error Parsing Cargo.toml, not a valid rust project/workspace")]
@@ -29,10 +31,7 @@ pub enum BuildActionError {
     PackageTask(#[from] PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
-    #[error(
-        "One or more rust (possibly driver) projects failed to build in the emulated workspace: \
-         {0}"
-    )]
+    #[error("One or more packages failed to build in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),

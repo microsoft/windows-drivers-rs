@@ -15,25 +15,21 @@ use core::{fmt, ops::RangeFrom};
 use std::{
     env,
     panic::UnwindSafe,
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
     process::Command,
 };
 
 use anyhow::Context;
 use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
-use clap::{Args, Parser};
+use clap::{Args, ColorChoice, CommandFactory, FromArgMatches, Parser};
 use tracing::{instrument, trace};
 
 use crate::{
     metadata,
-    utils::{
-        detect_wdk_content_root,
-        get_latest_windows_sdk_version,
-        get_wdk_version_number,
-        PathExt,
-    },
+    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number},
     ConfigError,
     CpuArchitecture,
+    IoError,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -54,6 +50,7 @@ const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 /// build` and `cargo test` commands
 const CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR: &str = "CARGO_MAKE_CARGO_BUILD_TEST_FLAGS";
 
+const CARGO_MAKE_DISABLE_COLOR_ENV_VAR: &str = "CARGO_MAKE_DISABLE_COLOR";
 const CARGO_MAKE_PROFILE_ENV_VAR: &str = "CARGO_MAKE_PROFILE";
 const CARGO_MAKE_CARGO_PROFILE_ENV_VAR: &str = "CARGO_MAKE_CARGO_PROFILE";
 const CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_TRIPLE";
@@ -78,6 +75,7 @@ trait ParseCargoArgs {
 }
 
 #[derive(Parser, Debug)]
+#[command(styles = clap_cargo::style::CLAP_STYLING)]
 struct CommandLineInterface {
     #[command(flatten)]
     base: BaseOptions,
@@ -487,7 +485,20 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
-    CommandLineInterface::parse_from(env_args.iter()).parse_cargo_args();
+    CommandLineInterface::from_arg_matches_mut(
+        &mut CommandLineInterface::command()
+            .color(if is_cargo_make_color_disabled() {
+                ColorChoice::Never
+            } else {
+                // `ColorChoice::Always` is used instead of `ColorChoice::Auto` to force color.
+                // This function is always executed from rust-script invoked by cargo-make,
+                // whose piping of stdout/stderr disables color by default.
+                ColorChoice::Always
+            })
+            .get_matches_from(env_args),
+    )
+    .unwrap_or_else(|err| err.exit())
+    .parse_cargo_args();
 
     [
         CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
@@ -498,10 +509,24 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     ]
     .into_iter()
     .filter(|env_var_name| env::var_os(env_var_name).is_some())
-    .map(std::string::ToString::to_string)
+    .map(ToString::to_string)
 }
 
-/// Prepends the path variable with the necessary paths to access WDK tools
+fn is_cargo_make_color_disabled() -> bool {
+    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR)
+        .map(|value| {
+            !matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                // when color is enabled in cargo-make, the env var is guaranteed to be set to one
+                // of the below values, or not be set at all
+                "0" | "false" | "no" | ""
+            )
+        })
+        .unwrap_or(false)
+}
+
+/// Prepends the path variable with the necessary paths to access WDK(+SDK)
+/// tools.
 ///
 /// # Errors
 ///
@@ -514,65 +539,73 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 /// [`env::consts::ARCH`] or if the PATH variable contains non-UTF8
 /// characters.
 pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
-    let Some(wdk_content_root) = detect_wdk_content_root() else {
-        return Err(ConfigError::WdkContentRootDetectionError);
-    };
-    let version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+    let wdk_content_root =
+        detect_wdk_content_root().ok_or(ConfigError::WdkContentRootDetectionError)?;
+
+    let sdk_version = detect_windows_sdk_version(&wdk_content_root)?;
+
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
 
-    let wdk_bin_root = wdk_content_root
-        .join(format!("bin/{version}"))
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?;
-    let host_windows_sdk_ver_bin_path = match host_arch {
-        CpuArchitecture::Amd64 => wdk_bin_root
-            .join(host_arch.as_windows_str())
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?
-            .to_str()
-            .expect("x64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
-            .to_string(),
-        CpuArchitecture::Arm64 => wdk_bin_root
-            .join(host_arch.as_windows_str())
-            .canonicalize()?
-            .strip_extended_length_path_prefix()?
-            .to_str()
-            .expect("ARM64 host_windows_sdk_ver_bin_path should only contain valid UTF8")
-            .to_string(),
-    };
+    let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version);
 
-    // Some tools (ex. inf2cat) are only available in the x86 folder
-    let x86_windows_sdk_ver_bin_path = wdk_bin_root
-        .join("x86")
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?
+    let host_windows_sdk_ver_bin_path = {
+        let path = wdk_bin_root.join(host_arch.as_windows_str());
+        absolute(&path).map_err(|source| IoError::with_path(path, source))?
+    }
+    .to_str()
+    .expect("WDK bin path should be valid UTF-8")
+    .to_string();
+
+    let x86_windows_sdk_ver_bin_path = {
+        let path = wdk_bin_root.join("x86");
+        absolute(&path).map_err(|source| IoError::with_path(path, source))?
+    }
+    .to_str()
+    .expect("WDK x86 bin path should be valid UTF-8")
+    .to_string();
+
+    if let Ok(sdk_bin_path) = env::var("WindowsSdkBinPath") {
+        let sdk_bin_path = {
+            let path = PathBuf::from(sdk_bin_path)
+                .join(&sdk_version)
+                .join(host_arch.as_windows_str());
+            absolute(&path).map_err(|source| IoError::with_path(path, source))?
+        }
         .to_str()
-        .expect("x86_windows_sdk_ver_bin_path should only contain valid UTF8")
+        .expect("WindowsSdkBinPath should be valid UTF-8")
         .to_string();
+        prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, sdk_bin_path);
+    }
+
     prepend_to_semicolon_delimited_env_var(
         PATH_ENV_VAR,
-        // By putting host path first, host versions of tools are prioritized over
-        // x86 versions
         format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
     );
 
-    let wdk_tool_root = wdk_content_root
-        .join(format!("Tools/{version}"))
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?;
-    let arch_specific_wdk_tool_root = wdk_tool_root
-        .join(host_arch.as_windows_str())
-        .canonicalize()?
-        .strip_extended_length_path_prefix()?;
-    prepend_to_semicolon_delimited_env_var(
-        PATH_ENV_VAR,
-        arch_specific_wdk_tool_root
-            .to_str()
-            .expect("arch_specific_wdk_tool_root should only contain valid UTF8"),
-    );
+    let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, sdk_version);
+    let host_windows_sdk_version_tool_path = {
+        let path = wdk_tool_root.join(host_arch.as_windows_str());
+        absolute(&path).map_err(|source| IoError::with_path(path, source))?
+    }
+    .to_str()
+    .expect("WDK tool path should be valid UTF-8")
+    .to_string();
+    prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
-    Ok([PATH_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([PATH_ENV_VAR].map(ToString::to_string))
+}
+
+fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: String) -> PathBuf {
+    env::var("WDKToolRoot")
+        .map_or_else(|_| wdk_content_root.join("tools"), PathBuf::from)
+        .join(sdk_version)
+}
+
+fn get_wdk_bin_root(wdk_content_root: &Path, sdk_version: &String) -> PathBuf {
+    env::var("WDKBinRoot")
+        .map_or_else(|_| wdk_content_root.join("bin"), PathBuf::from)
+        .join(sdk_version)
 }
 
 /// Forwards the specified environment variables in this process to the parent
@@ -619,13 +652,14 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
     let Some(wdk_content_root) = detect_wdk_content_root() else {
         return Err(ConfigError::WdkContentRootDetectionError);
     };
-    let detected_sdk_version = get_latest_windows_sdk_version(&wdk_content_root.join("Lib"))?;
+
+    let detected_sdk_version = detect_windows_sdk_version(&wdk_content_root)?;
 
     if let Ok(existing_version) = std::env::var(WDK_VERSION_ENV_VAR) {
         if detected_sdk_version == existing_version {
             // Skip updating.  This can happen in certain recursive
             // cargo-make cases.
-            return Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string));
+            return Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string));
         }
         // We have a bad version string set somehow.  Return an error.
         return Err(ConfigError::WdkContentRootDetectionError);
@@ -638,7 +672,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
     }
 
     env::set_var(WDK_VERSION_ENV_VAR, detected_sdk_version);
-    Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string))
 }
 
 /// Sets the `WDK_INFVERIF_SAMPLE_FLAG` environment variable to contain the
@@ -672,7 +706,7 @@ pub fn setup_infverif_for_samples<S: AsRef<str> + ToString + ?Sized>(
     };
     append_to_space_delimited_env_var(WDK_INF_ADDITIONAL_FLAGS_ENV_VAR, sample_flag);
 
-    Ok([WDK_INF_ADDITIONAL_FLAGS_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([WDK_INF_ADDITIONAL_FLAGS_ENV_VAR].map(ToString::to_string))
 }
 
 /// Returns the path to the WDK build output directory for the current
@@ -710,7 +744,7 @@ pub fn get_current_package_name() -> String {
 ///
 /// # Errors
 ///
-/// This function returns a [`ConfigError::IoError`] if the it encouters IO
+/// This function returns a [`ConfigError::IoError`] if the it encounters IO
 /// errors while copying the file or creating the directory
 ///
 /// # Panics
@@ -723,7 +757,8 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
     let package_folder_path: PathBuf =
         get_wdk_build_output_directory().join(format!("{}_package", get_current_package_name()));
     if !package_folder_path.exists() {
-        std::fs::create_dir(&package_folder_path)?;
+        std::fs::create_dir(&package_folder_path)
+            .map_err(|source| IoError::with_path(&package_folder_path, source))?;
     }
 
     let destination_path = package_folder_path.join(
@@ -731,7 +766,8 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
             .file_name()
             .expect("path_to_copy should always end with a valid file or directory name"),
     );
-    std::fs::copy(path_to_copy, destination_path)?;
+    std::fs::copy(path_to_copy, &destination_path)
+        .map_err(|source| IoError::with_src_dest_paths(path_to_copy, destination_path, source))?;
 
     Ok(())
 }
@@ -822,20 +858,28 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .into_iter()
         .filter(|package| package.name == "wdk-build")
         .collect::<Vec<_>>();
-    if wdk_build_package_matches.len() != 1 {
-        return Err(ConfigError::MultipleWdkBuildCratesDetected {
-            package_ids: wdk_build_package_matches
-                .iter()
-                .map(|package_info| package_info.id.clone())
-                .collect(),
-        });
+
+    match wdk_build_package_matches.len() {
+        0 => {
+            return Err(ConfigError::NoWdkBuildCrateDetected);
+        }
+        1 => {}
+        _ => {
+            return Err(ConfigError::MultipleWdkBuildCratesDetected {
+                package_ids: wdk_build_package_matches
+                    .iter()
+                    .map(|package_info| package_info.id.clone())
+                    .collect(),
+            });
+        }
     }
 
     let rust_driver_makefile_toml_path = wdk_build_package_matches[0]
         .manifest_path
         .parent()
         .expect("The parsed manifest_path should have a valid parent directory")
-        .join(&makefile_name);
+        .join(&makefile_name)
+        .into_std_path_buf();
 
     let cargo_make_workspace_working_directory =
         env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
@@ -849,18 +893,29 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
     // Only create a new symlink if the existing one is not already pointing to the
     // correct file
     if !destination_path.exists() {
-        return Ok(std::os::windows::fs::symlink_file(
-            rust_driver_makefile_toml_path,
-            destination_path,
-        )?);
+        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+            .map_err(|source| {
+                IoError::with_src_dest_paths(
+                    rust_driver_makefile_toml_path,
+                    destination_path,
+                    source,
+                )
+            })?;
     } else if !destination_path.is_symlink()
-        || std::fs::read_link(&destination_path)? != rust_driver_makefile_toml_path
+        || std::fs::read_link(&destination_path)
+            .map_err(|source| IoError::with_path(&destination_path, source))?
+            != rust_driver_makefile_toml_path
     {
-        std::fs::remove_file(&destination_path)?;
-        return Ok(std::os::windows::fs::symlink_file(
-            rust_driver_makefile_toml_path,
-            destination_path,
-        )?);
+        std::fs::remove_file(&destination_path)
+            .map_err(|source| IoError::with_path(&destination_path, source))?;
+        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+            .map_err(|source| {
+                IoError::with_src_dest_paths(
+                    rust_driver_makefile_toml_path,
+                    destination_path,
+                    source,
+                )
+            })?;
     }
 
     // Symlink is already up to date

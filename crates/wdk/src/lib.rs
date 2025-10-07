@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 
 //! Idiomatic Rust wrappers for the Windows Driver Kit (WDK) APIs. This crate is
-//! built on top of the raw FFI bindings provided by [`wdk-sys`], and provides a
+//! built on top of the raw FFI bindings provided by [`wdk_sys`], and provides a
 //! safe, idiomatic rust interface to the WDK.
 
 #![cfg_attr(

@@ -7,10 +7,10 @@
 use std::{
     env,
     ffi::CStr,
+    io,
     path::{Path, PathBuf},
 };
 
-use thiserror::Error;
 use windows::{
     core::{s, PCSTR},
     Win32::System::Registry::{
@@ -24,62 +24,7 @@ use windows::{
     },
 };
 
-use crate::{ConfigError, CpuArchitecture};
-
-/// Errors that may occur when stripping the extended path prefix from a path
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum StripExtendedPathPrefixError {
-    /// Error raised when the provided path is empty.
-    #[error("provided path is empty")]
-    EmptyPath,
-    /// Error raised when the provided path has no extended path prefix to
-    /// strip.
-    #[error("provided path has no extended path prefix to strip")]
-    NoExtendedPathPrefix,
-}
-
-/// A trait for dealing with paths with extended-length prefixes.
-pub trait PathExt {
-    /// The kinds of errors that can be returned when trying to deal with an
-    /// extended path prefix.
-    type Error;
-
-    /// Strips the extended length path prefix from a given path.
-    ///  # Errors
-    ///
-    /// Returns an error defined by the implementer if unable to strip the
-    /// extended path length prefix.
-    fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error>;
-}
-
-impl<P> PathExt for P
-where
-    P: AsRef<Path>,
-{
-    type Error = StripExtendedPathPrefixError;
-
-    fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error> {
-        const EXTENDED_LENGTH_PATH_PREFIX: &str = r"\\?\";
-        let mut path_components = self.as_ref().components();
-
-        let path_prefix = match path_components.next() {
-            Some(it) => it.as_os_str().to_string_lossy(),
-            None => return Err(Self::Error::EmptyPath),
-        };
-
-        if path_prefix.len() < EXTENDED_LENGTH_PATH_PREFIX.len()
-            || &path_prefix[..EXTENDED_LENGTH_PATH_PREFIX.len()] != EXTENDED_LENGTH_PATH_PREFIX
-        {
-            return Err(Self::Error::NoExtendedPathPrefix);
-        }
-
-        let mut path_without_prefix =
-            PathBuf::from(&path_prefix[EXTENDED_LENGTH_PATH_PREFIX.len()..]);
-        path_without_prefix.push(path_components.as_path());
-
-        Ok(path_without_prefix)
-    }
-}
+use crate::{ConfigError, CpuArchitecture, IoError, TwoPartVersion};
 
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
 /// NI(22H2) WDK
@@ -114,8 +59,7 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
                 path.display()
             );
         } else {
-            let wdk_kit_version =
-                env::var("WDKKitVersion").map_or("10.0".to_string(), |version| version);
+            let wdk_kit_version = env::var("WDKKitVersion").unwrap_or_else(|_| "10.0".to_string());
             let path = path.join("Windows Kits").join(wdk_kit_version);
             if path.is_dir() {
                 return Some(path);
@@ -164,7 +108,8 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
 /// Panics if the path provided is not valid Unicode.
 pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
     Ok(path_to_search
-        .read_dir()?
+        .read_dir()
+        .map_err(|source| IoError::with_path(path_to_search, source))?
         .filter_map(std::result::Result::ok)
         .map(|valid_directory_entry| valid_directory_entry.path())
         .filter(|path| {
@@ -366,48 +311,50 @@ fn read_registry_key_string_value(
     None
 }
 
+/// Detects the Windows SDK version from the `Version_Number` env var or from
+/// the WDK content's `Lib` directory.
+///
+/// # Arguments
+/// * `wdk_content_root` - A reference to the path where the WDK content root is
+///   located.
+///
+/// # Errors
+///
+/// Returns a `ConfigError::DirectoryNotFound` error if the directory provided
+/// does not exist.
+pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, ConfigError> {
+    env::var("Version_Number")
+        .or_else(|_| get_latest_windows_sdk_version(&wdk_content_root.join("Lib")))
+}
+
+/// Finds the maximum version in a directory where subdirectories are named with
+/// version format "x.y"
+pub fn find_max_version_in_directory<P: AsRef<Path>>(
+    directory_path: P,
+) -> Result<TwoPartVersion, IoError> {
+    let directory_path = directory_path.as_ref();
+    std::fs::read_dir(directory_path)
+        .map_err(|source| IoError::with_path(directory_path, source))?
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
+        .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
+        .max()
+        .ok_or_else(|| {
+            IoError::with_path(
+                directory_path,
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Maximum version in {} not found", directory_path.display()),
+                ),
+            )
+        })
+}
+
 #[cfg(test)]
 mod tests {
+    use assert_fs::prelude::*;
+
     use super::*;
-
-    mod strip_extended_length_path_prefix {
-        use super::*;
-
-        #[test]
-        fn strip_prefix_successfully() -> Result<(), StripExtendedPathPrefixError> {
-            assert_eq!(
-                PathBuf::from(r"\\?\C:\Program Files")
-                    .strip_extended_length_path_prefix()?
-                    .to_str(),
-                Some(r"C:\Program Files")
-            );
-            Ok(())
-        }
-
-        #[test]
-        fn empty_path() {
-            assert_eq!(
-                PathBuf::from("").strip_extended_length_path_prefix(),
-                Err(StripExtendedPathPrefixError::EmptyPath)
-            );
-        }
-
-        #[test]
-        fn path_too_short() {
-            assert_eq!(
-                PathBuf::from(r"C:\").strip_extended_length_path_prefix(),
-                Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
-            );
-        }
-
-        #[test]
-        fn no_prefix_to_strip() {
-            assert_eq!(
-                PathBuf::from(r"C:\Program Files").strip_extended_length_path_prefix(),
-                Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
-            );
-        }
-    }
 
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
@@ -514,5 +461,134 @@ mod tests {
                 test_string
             )
         );
+    }
+
+    mod find_max_version_in_directory {
+        use super::*;
+
+        #[test]
+        fn empty_directory() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(
+                result.unwrap_err().source.kind(),
+                std::io::ErrorKind::NotFound
+            );
+        }
+
+        #[test]
+        fn nonexistent_directory() {
+            let nonexistent_path = std::path::Path::new("/this/path/does/not/exist");
+            let result = find_max_version_in_directory(nonexistent_path);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn valid_version_directories() {
+            // Single valid version directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("3.14").create_dir_all().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(3, 14)
+            );
+            // Multiple valid version directories
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("not_a_version").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
+            );
+        }
+
+        #[test]
+        fn invalid_version_directories() {
+            // Single invalid directory
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(
+                result.unwrap_err().source.kind(),
+                std::io::ErrorKind::NotFound
+            );
+
+            // Multiple invalid directories
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("folder1").create_dir_all().unwrap();
+            temp_dir.child("1.2.3").create_dir_all().unwrap(); // Too many dots
+            temp_dir.child("a.b").create_dir_all().unwrap(); // Non-numeric
+            temp_dir.child("1").create_dir_all().unwrap(); // No dot
+            temp_dir.child("1.").create_dir_all().unwrap(); // Missing minor
+            temp_dir.child(".5").create_dir_all().unwrap(); // Missing major
+            let result = find_max_version_in_directory(temp_dir.path());
+            assert!(result.is_err());
+            assert_eq!(
+                result.unwrap_err().source.kind(),
+                std::io::ErrorKind::NotFound
+            );
+        }
+
+        #[test]
+        fn major_version_priority() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.999").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("1.1000").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
+            );
+        }
+
+        #[test]
+        fn minor_version_comparison() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.5").create_dir_all().unwrap();
+            temp_dir.child("1.10").create_dir_all().unwrap();
+            temp_dir.child("1.2").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(1, 10)
+            );
+        }
+
+        #[test]
+        fn zero_versions() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("0.0").create_dir_all().unwrap();
+            temp_dir.child("0.1").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(0, 1)
+            );
+            temp_dir.child("1.0").create_dir_all().unwrap();
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(1, 0)
+            );
+        }
+
+        #[test]
+        fn mixed_valid_and_invalid_entries() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            temp_dir.child("1.5").create_dir_all().unwrap();
+            temp_dir.child("2.0").create_dir_all().unwrap();
+            temp_dir.child("invalid").create_dir_all().unwrap();
+            temp_dir.child("1.2.3").create_dir_all().unwrap(); // Invalid: too many dots
+            temp_dir.child("a.b").create_dir_all().unwrap(); // Invalid: non-numeric
+            temp_dir.child("not_version").touch().unwrap(); // File: ignored
+            temp_dir.child("3.0").touch().unwrap(); // File: ignored
+                                                    // Should find the maximum among valid version directories only
+            assert_eq!(
+                find_max_version_in_directory(temp_dir.path()).unwrap(),
+                TwoPartVersion(2, 0)
+            );
+        }
     }
 }

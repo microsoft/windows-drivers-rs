@@ -2,7 +2,8 @@
 // License: MIT OR Apache-2.0
 
 //! A collection of macros that help make it easier to interact with
-//! [`wdk-sys`]'s direct bindings to the Windows Driver Kit (WDK).
+//! [`wdk_sys`](../wdk_sys/index.html)'s direct bindings to the Windows Driver
+//! Kit (WDK).
 
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
@@ -49,10 +50,11 @@ const WDF_FUNC_ENUM_MOD_NAME: &str = "_WDFFUNCENUM";
 
 /// A procedural macro that allows WDF functions to be called by name.
 ///
-/// This macro is only intended to be used in the `wdk-sys` crate. Users wanting
-/// to call WDF functions should use the macro in `wdk-sys`. This macro differs
-/// from the one in [`wdk-sys`] in that it must pass in the generated types from
-/// `wdk-sys` as an argument to the macro.
+/// This macro is only intended to be used in the
+/// [`wdk_sys`](../wdk_sys/index.html) crate. Users wanting to call WDF
+/// [`wdk_sys`](../wdk_sys/index.html) as an argument to the macro.
+/// macro differs from the one in [`wdk_sys`](../wdk_sys/index.html) in that it
+/// must pass in the generated types from `wdk-sys` as an argument to the macro.
 #[proc_macro]
 pub fn call_unsafe_wdf_function_binding(input_tokens: TokenStream) -> TokenStream {
     call_unsafe_wdf_function_binding_impl(TokenStream2::from(input_tokens)).into()
@@ -110,7 +112,7 @@ struct DerivedASTFragments {
 struct IntermediateOutputASTFragments {
     must_use_attribute: Option<Attribute>,
     inline_wdf_fn_signature: Signature,
-    inline_wdf_fn_body_statments: Vec<Stmt>,
+    inline_wdf_fn_body_statements: Vec<Stmt>,
     inline_wdf_fn_invocation: ExprCall,
 }
 
@@ -297,7 +299,7 @@ impl DerivedASTFragments {
             unsafe fn #inline_wdf_fn_name(#parameters) #return_type
         };
 
-        let inline_wdf_fn_body_statments = parse_quote! {
+        let inline_wdf_fn_body_statements = parse_quote! {
             // Get handle to WDF function from the function table
             let wdf_function: wdk_sys::#function_pointer_type = Some(
                 // SAFETY: This `transmute` from a no-argument function pointer to a function pointer with the correct
@@ -351,7 +353,7 @@ impl DerivedASTFragments {
         IntermediateOutputASTFragments {
             must_use_attribute,
             inline_wdf_fn_signature,
-            inline_wdf_fn_body_statments,
+            inline_wdf_fn_body_statements,
             inline_wdf_fn_invocation,
         }
     }
@@ -362,7 +364,7 @@ impl IntermediateOutputASTFragments {
         let Self {
             must_use_attribute,
             inline_wdf_fn_signature,
-            inline_wdf_fn_body_statments,
+            inline_wdf_fn_body_statements,
             inline_wdf_fn_invocation,
         } = self;
 
@@ -374,7 +376,7 @@ impl IntermediateOutputASTFragments {
                 // Use a private module to prevent leaking of glob import into inline_wdf_fn_invocation's parameters
                 mod private__ {
                     // Glob import types from wdk_sys. glob importing is done instead of blindly prepending the
-                    // paramters types with wdk_sys:: because bindgen generates some paramters as native rust types
+                    // parameters types with wdk_sys:: because bindgen generates some parameters as native rust types
                     use wdk_sys::*;
 
                     // If the function returns a value, add a `#[must_use]` attribute to the function
@@ -383,7 +385,7 @@ impl IntermediateOutputASTFragments {
                     //  core::hint::must_use is not stable yet: https://github.com/rust-lang/rust/issues/94745
                     #[inline(always)]
                     pub #inline_wdf_fn_signature {
-                        #(#inline_wdf_fn_body_statments)*
+                        #(#inline_wdf_fn_body_statements)*
                     }
                 }
 
@@ -926,7 +928,7 @@ fn compute_fn_parameters(
         .collect())
 }
 
-/// Compute the return type based on the function defintion
+/// Compute the return type based on the function definition
 ///
 /// # Examples
 ///

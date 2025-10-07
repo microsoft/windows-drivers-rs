@@ -14,7 +14,7 @@ use std::{
 };
 
 use mockall_double::double;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
 
 #[double]
@@ -38,7 +38,7 @@ pub struct PackageTaskParams<'a> {
     pub driver_model: DriverConfig,
 }
 
-/// Suports low level driver packaging operations
+/// Supports low level driver packaging operations
 pub struct PackageTask<'a> {
     package_name: String,
     verify_signature: bool,
@@ -73,24 +73,41 @@ pub struct PackageTask<'a> {
 
 impl<'a> PackageTask<'a> {
     /// Creates a new instance of `PackageTask`.
+    ///
     /// # Arguments
     /// * `params` - Struct containing the parameters for the package task.
     /// * `wdk_build` - The provider for WDK build related methods.
     /// * `command_exec` - The provider for command execution.
     /// * `fs` - The provider for file system operations.
+    ///
     /// # Returns
     /// * `Result<Self, PackageTaskError>` - A result containing the new
     ///   instance or an error.
+    ///
     /// # Errors
     /// * `PackageTaskError::Io` - If there is an IO error while creating the
     ///   final package directory.
+    ///
+    /// # Panics
+    /// * If `params.working_dir` is not absolute
+    /// * If `params.target_dir` is not absolute
     pub fn new(
         params: PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
-    ) -> Result<Self, PackageTaskError> {
+    ) -> Self {
         debug!("Package task params: {params:?}");
+        assert!(
+            params.working_dir.is_absolute(),
+            "Working directory path must be absolute. Input path: {}",
+            params.working_dir.display()
+        );
+        assert!(
+            params.target_dir.is_absolute(),
+            "Target directory path must be absolute. Input path: {}",
+            params.target_dir.display()
+        );
         let package_name = params.package_name.replace('-', "_");
         // src paths
         let src_driver_binary_extension = "dll";
@@ -127,15 +144,12 @@ impl<'a> PackageTask<'a> {
             dest_root_package_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
         let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
 
-        if !fs.exists(&dest_root_package_folder) {
-            fs.create_dir(&dest_root_package_folder)?;
-        }
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
             CpuArchitecture::Arm64 => "Server10_arm64",
         };
 
-        Ok(Self {
+        Self {
             package_name,
             verify_signature: params.verify_signature,
             sample_class: params.sample_class,
@@ -158,7 +172,7 @@ impl<'a> PackageTask<'a> {
             wdk_build,
             command_exec,
             fs,
-        })
+        }
     }
 
     /// Entry point method to run the low level driver packaging operations.
@@ -194,6 +208,10 @@ impl<'a> PackageTask<'a> {
     /// * `PackageTaskError::Io` - Wraps all possible IO errors.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
+        debug!("Creating final package directory if it doesn't exist");
+        if !self.fs.exists(&self.dest_root_package_folder) {
+            self.fs.create_dir(&self.dest_root_package_folder)?;
+        }
         info!(
             "Copying files to target package folder: {}",
             self.dest_root_package_folder.to_string_lossy()
@@ -261,7 +279,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn run_stampinf(&self) -> Result<(), PackageTaskError> {
-        info!("Running stampinf command.");
+        info!("Running stampinf");
         let wdf_version_flags = match self.driver_model {
             DriverConfig::Kmdf(kmdf_config) => {
                 vec![
@@ -301,14 +319,14 @@ impl<'a> PackageTask<'a> {
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
-        if let Err(e) = self.command_exec.run("stampinf", &args, None) {
+        if let Err(e) = self.command_exec.run("stampinf", &args, None, None) {
             return Err(PackageTaskError::StampinfCommand(e));
         }
         Ok(())
     }
 
     fn run_inf2cat(&self) -> Result<(), PackageTaskError> {
-        info!("Running inf2cat command.");
+        info!("Running inf2cat");
         let args = [
             &format!(
                 "/driver:{}",
@@ -320,7 +338,7 @@ impl<'a> PackageTask<'a> {
             "/uselocaltime",
         ];
 
-        if let Err(e) = self.command_exec.run("inf2cat", &args, None) {
+        if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
 
@@ -328,7 +346,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn generate_certificate(&self) -> Result<(), PackageTaskError> {
-        debug!("Generating certificate.");
+        debug!("Generating certificate");
         if self.fs.exists(&self.src_cert_file_path) {
             return Ok(());
         }
@@ -341,10 +359,10 @@ impl<'a> PackageTask<'a> {
     }
 
     fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
-        debug!("Checking if self signed certificate exists in WDRTestCertStore store.");
+        debug!("Checking if self signed certificate exists in WDRTestCertStore store");
         let args = ["-s", WDR_TEST_CERT_STORE];
 
-        match self.command_exec.run("certmgr.exe", &args, None) {
+        match self.command_exec.run("certmgr.exe", &args, None, None) {
             Ok(output) if output.status.success() => String::from_utf8(output.stdout).map_or_else(
                 |e| Err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e)),
                 |stdout| Ok(stdout.contains(WDR_LOCAL_TEST_CERT)),
@@ -355,7 +373,7 @@ impl<'a> PackageTask<'a> {
     }
 
     fn create_self_signed_cert_in_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating self signed certificate in WDRTestCertStore store using makecert.");
+        info!("Creating self signed certificate in WDRTestCertStore store using makecert");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-r",
@@ -370,14 +388,14 @@ impl<'a> PackageTask<'a> {
             &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("makecert", &args, None) {
+        if let Err(e) = self.command_exec.run("makecert", &args, None, None) {
             return Err(PackageTaskError::CertGenerationInStoreCommand(e));
         }
         Ok(())
     }
 
     fn create_cert_file_from_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating certificate file from WDRTestCertStore store using certmgr.");
+        info!("Creating certificate file from WDRTestCertStore store using certmgr");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-put",
@@ -388,13 +406,13 @@ impl<'a> PackageTask<'a> {
             WDR_LOCAL_TEST_CERT,
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("certmgr.exe", &args, None) {
+        if let Err(e) = self.command_exec.run("certmgr.exe", &args, None, None) {
             return Err(PackageTaskError::CreateCertFileFromStoreCommand(e));
         }
         Ok(())
     }
 
-    /// Signs the specified file using signtool command using cerificate from
+    /// Signs the specified file using signtool command using certificate from
     /// certificate store.
     ///
     /// # Arguments
@@ -410,7 +428,7 @@ impl<'a> PackageTask<'a> {
         cert_name: &str,
     ) -> Result<(), PackageTaskError> {
         info!(
-            "Signing {} using signtool.",
+            "Signing {} using signtool",
             file_path
                 .file_name()
                 .expect("Unable to read file name from the path")
@@ -430,7 +448,7 @@ impl<'a> PackageTask<'a> {
             "SHA256",
             &driver_binary_file_path,
         ];
-        if let Err(e) = self.command_exec.run("signtool", &args, None) {
+        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
         Ok(())
@@ -438,7 +456,7 @@ impl<'a> PackageTask<'a> {
 
     fn run_signtool_verify(&self, file_path: &Path) -> Result<(), PackageTaskError> {
         info!(
-            "Verifying {} using signtool.",
+            "Verifying {} using signtool",
             file_path
                 .file_name()
                 .expect("Unable to read file name from the path")
@@ -448,14 +466,13 @@ impl<'a> PackageTask<'a> {
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
         // TODO: Differentiate between command exec failure and signature verification
         // failure
-        if let Err(e) = self.command_exec.run("signtool", &args, None) {
+        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
         Ok(())
     }
 
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
-        info!("Running infverif command.");
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
             if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
@@ -463,13 +480,15 @@ impl<'a> PackageTask<'a> {
                     "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
                      /samples flag."
                 );
-                info!("Skipping InfVerif for samples class. WDK Build: {wdk_build_number}");
+                warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
                 return Ok(());
             }
             "/msft"
         } else {
             ""
         };
+
+        info!("Running infverif");
         let mut args = vec![
             "/v",
             match self.driver_model {
@@ -486,10 +505,131 @@ impl<'a> PackageTask<'a> {
         }
         args.push(&inf_path);
 
-        if let Err(e) = self.command_exec.run("infverif", &args, None) {
+        if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
         Ok(())
+    }
+}
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use wdk_build::{CpuArchitecture, KmdfConfig};
+
+    use super::*;
+
+    #[test]
+    fn new_succeeds_for_valid_args() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("D:/absolute/path/to/working/dir");
+        let target_dir = PathBuf::from("C:/absolute/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: false,
+        };
+        let dest_root = target_dir.join(format!("{package_name}_package"));
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        assert_eq!(task.package_name, package_name.replace('-', "_"));
+        assert!(!task.verify_signature);
+        assert!(!task.sample_class);
+        assert_eq!(task.src_inx_file_path, working_dir.join("test_package.inx"));
+        assert_eq!(
+            task.src_driver_binary_file_path,
+            target_dir.join("test_package.dll")
+        );
+        assert_eq!(
+            task.src_renamed_driver_binary_file_path,
+            target_dir.join("test_package.sys")
+        );
+        assert_eq!(task.src_pdb_file_path, target_dir.join("test_package.pdb"));
+        assert_eq!(
+            task.src_map_file_path,
+            target_dir.join("deps").join("test_package.map")
+        );
+        assert_eq!(
+            task.src_cert_file_path,
+            target_dir.join("WDRLocalTestCert.cer")
+        );
+        assert_eq!(task.dest_root_package_folder, dest_root);
+        assert_eq!(task.dest_inf_file_path, dest_root.join("test_package.inf"));
+        assert_eq!(
+            task.dest_driver_binary_path,
+            dest_root.join("test_package.sys")
+        );
+        assert_eq!(task.dest_pdb_file_path, dest_root.join("test_package.pdb"));
+        assert_eq!(task.dest_map_file_path, dest_root.join("test_package.map"));
+        assert_eq!(
+            task.dest_cert_file_path,
+            dest_root.join("WDRLocalTestCert.cer")
+        );
+        assert_eq!(task.dest_cat_file_path, dest_root.join("test_package.cat"));
+        assert_eq!(*task.arch, arch);
+        assert_eq!(task.os_mapping, "10_x64");
+        assert!(matches!(task.driver_model, DriverConfig::Kmdf(_)));
+    }
+
+    #[test]
+    #[should_panic(expected = "Target directory path must be absolute. Input path: \
+                               ../relative/path/to/target/dir")]
+    fn new_panics_when_target_dir_is_not_absolute() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
+        let target_dir = PathBuf::from("../relative/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: false,
+        };
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+    }
+
+    #[test]
+    #[should_panic(expected = "Working directory path must be absolute. Input path: \
+                               relative/path/to/working/dir")]
+    fn new_panics_when_working_dir_is_not_absolute() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("relative/path/to/working/dir");
+        let target_dir = PathBuf::from("E:/absolute/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: false,
+        };
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
 }

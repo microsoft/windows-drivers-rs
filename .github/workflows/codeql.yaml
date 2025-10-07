@@ -1,0 +1,102 @@
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
+  merge_group:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: 0 11 * * *
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: windows-2025
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        wdk:
+          - version: 10.0.22621 # NI WDK
+            source: winget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
+
+        llvm:
+          - 17.0.6
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+        cargo_profile:
+          - dev
+          - release
+
+        target_triple:
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
+
+        codeql:
+          - language: c-cpp
+            build-mode: manual
+          - language: rust
+            build-mode: none
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Winget PowerShell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+    - name: Install LLVM ${{ matrix.llvm }}
+      uses: ./.github/actions/install-llvm
+      with:
+        version: ${{ matrix.llvm }}
+
+    - name: Install WDK (${{ matrix.wdk.version }})
+      uses: ./.github/actions/install-wdk
+      with:
+        version: ${{ matrix.wdk.version }}
+        source: ${{ matrix.wdk.source }}
+        host: ${{ matrix.wdk.source == 'nuget' && 'amd64' || '' }}
+        target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
+
+    - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust_toolchain }}
+        components: clippy
+        targets: ${{ matrix.target_triple.name }}
+    
+    - name: Install Cargo Make
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-make
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.codeql.language }}
+        build-mode: ${{ matrix.codeql.build-mode }}
+        queries: security-extended,security-and-quality
+
+    - if: matrix.codeql.build-mode == 'manual'
+      working-directory: ./examples
+      run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.codeql.language}}"
