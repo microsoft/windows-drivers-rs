@@ -1,15 +1,16 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, fmt};
 
 use bindgen::{
     callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
 };
 use cargo_metadata::MetadataCommand;
+use tracing::debug;
 
-use crate::{Config, ConfigError, DriverConfig};
+use crate::{find_top_level_cargo_manifest, Config, ConfigError, DriverConfig};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk
@@ -21,7 +22,7 @@ pub trait BuilderExt {
     ///
     /// Implementation may return `wdk_build::ConfigError` if it fails to create
     /// a builder
-    fn wdk_default(config: impl Borrow<Config>) -> Result<Builder, ConfigError>;
+    fn wdk_default(config: impl Borrow<Config> + fmt::Debug) -> Result<Builder, ConfigError>;
 }
 
 #[derive(Debug)]
@@ -63,7 +64,8 @@ impl BuilderExt for Builder {
     ///
     /// Will return `wdk_build::ConfigError` if any of the resolved include or
     /// library paths do not exist
-    fn wdk_default(config: impl Borrow<Config>) -> Result<Self, ConfigError> {
+    #[tracing::instrument(level = "debug")]
+    fn wdk_default(config: impl Borrow<Config> + fmt::Debug) -> Result<Self, ConfigError> {
         let config = config.borrow();
 
         let mut builder = Self::default()
@@ -174,6 +176,7 @@ impl ParseCallbacks for WdkCallbacks {
 }
 
 impl WdkCallbacks {
+    #[tracing::instrument(level = "trace")]
     fn new(config: &Config) -> Self {
         Self {
             wdf_function_table_symbol_name: config.compute_wdffunctions_symbol_name(),
@@ -195,6 +198,7 @@ impl WdkCallbacks {
 // Returns `ConfigError::MsrvNotSupportedByBindgen` if the MSRV is not supported
 // by bindgen, or `ConfigError::SemverError` if the MSRV cannot be parsed as a
 // semver version.
+#[tracing::instrument(level = "trace")]
 fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
     let nightly_feature = cfg!(feature = "nightly");
     let nightly_toolchain = rustversion::cfg!(nightly);
@@ -222,6 +226,7 @@ fn get_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
 // Retrieves the stable Rust target for the current build configuration.
 // Queries the MSRV from the `CARGO_PKG_RUST_VERSION` environment variable and
 // uses it to create a `bindgen::RustTarget::stable` value.
+#[tracing::instrument(level = "trace")]
 fn get_stable_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
     let package_msrv = semver::Version::parse(env!("CARGO_PKG_RUST_VERSION"))
         .map_err(|e| ConfigError::RustVersionParseError { error_source: e })?;
@@ -242,10 +247,20 @@ fn get_stable_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
 // Returns `ConfigError::CargoMetadataPackageNotFound` if the `wdk-build`
 // package is not found, or `ConfigError::UnsupportedRustEdition` if the edition
 // is not supported.
+#[tracing::instrument(level = "trace")]
 fn get_rust_edition() -> Result<bindgen::RustEdition, ConfigError> {
     const WDK_BUILD_PACKAGE_NAME: &str = "wdk-build";
-
-    let wdk_sys_cargo_metadata = MetadataCommand::new().exec()?;
+    // Run `cargo_metadata` in the same working directory as the top level manifest
+    // in order to respect `config.toml` overrides
+    let top_level_cargo_manifest_path = find_top_level_cargo_manifest();
+    debug!(
+        "Top level Cargo manifest path: {:?}",
+        top_level_cargo_manifest_path
+    );
+    let cwd = top_level_cargo_manifest_path
+        .parent()
+        .expect("Cargo manifest should have a valid parent directory");
+    let wdk_sys_cargo_metadata = MetadataCommand::new().current_dir(cwd).exec()?;
 
     let wdk_sys_package_metadata = wdk_sys_cargo_metadata
         .packages
