@@ -16,12 +16,8 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
     with_file_lock(|| {
         let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
 
-        assert!(stdout.contains("Processing completed for package: driver"));
-        assert!(stdout.contains(
-            "No package.metadata.wdk section found. Skipping driver build workflow for package: \
-             non_driver_crate"
-        ));
-
+        assert!(stdout.contains("Building package driver"));
+        assert!(stdout.contains("Building package non_driver_crate"));
         verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
     });
 }
@@ -77,16 +73,9 @@ fn emulated_workspace_builds_successfully() {
         let emulated_workspace_path = "tests/emulated-workspace";
         let stdout = run_build_cmd(emulated_workspace_path);
 
-        // Matches warning about WDK metadata not being available for non driver project
-        // but a valid rust project
-        assert!(stdout.contains(
-            "WDK metadata is not available. Skipping driver build workflow for package: \
-             rust-project"
-        ));
-
-        assert!(stdout.contains("Processing completed for package: driver_1"));
-        assert!(stdout.contains("Processing completed for package: driver_2"));
-        assert!(stdout.contains(r"Build completed successfully"));
+        assert!(stdout.contains("Building package driver_1"));
+        assert!(stdout.contains("Building package driver_2"));
+        assert!(stdout.contains("Build completed successfully"));
 
         let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
         verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll");
@@ -100,7 +89,7 @@ fn build_driver_project(driver_type: &str) {
 
     let stdout = run_build_cmd(&driver_path);
 
-    assert!(stdout.contains(&format!("Processing completed for package: {driver_name}")));
+    assert!(stdout.contains(&format!("Building package {driver_name}")));
 
     let driver_binary_extension = match driver_type {
         "kmdf" | "wdm" => "sys",

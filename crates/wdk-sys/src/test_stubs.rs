@@ -2,7 +2,7 @@
 // License: MIT OR Apache-2.0
 
 //! Any library dependency that depends on `wdk-sys` requires these stubs to
-//! provide symobols to successfully compile and run tests.
+//! provide symbols to successfully compile and run tests.
 //!
 //! These stubs can be brought into scope by introducing `wdk-sys` with the
 //! `test-stubs` feature in the `dev-dependencies` of the crate's `Cargo.toml`
