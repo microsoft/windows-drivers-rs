@@ -203,6 +203,7 @@ fn assert_file_hash(path1: &str, path2: &str) {
 }
 
 fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
+    // Read the INF as raw bytes and produce a best‑effort UTF-8 view
     let file_content =
         fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
     let file_content = String::from_utf8_lossy(&file_content);
@@ -214,11 +215,11 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
     ))
     .unwrap();
 
-    file_content.lines().for_each(|line| {
-        if line.starts_with("DriverVer") {
-            assert!(re.captures(line).is_some());
-        }
-    });
+    let line = file_content
+        .lines()
+        .find(|line| line.starts_with("DriverVer"))
+        .expect("DriverVer line not found in inf file");
+    assert!(re.captures(line).is_some());
 }
 
 // Helper to hash a file
