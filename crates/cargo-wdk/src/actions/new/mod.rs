@@ -120,7 +120,7 @@ impl<'a> NewAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        if let Err(e) = self.command_exec.run("cargo", &args, None) {
+        if let Err(e) = self.command_exec.run("cargo", &args, None, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }
         Ok(())

@@ -21,7 +21,7 @@ use std::{
 
 use anyhow::Context;
 use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
-use clap::{Args, Parser};
+use clap::{Args, ColorChoice, CommandFactory, FromArgMatches, Parser};
 use tracing::{instrument, trace};
 
 use crate::{
@@ -29,6 +29,7 @@ use crate::{
     utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number},
     ConfigError,
     CpuArchitecture,
+    IoError,
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -49,6 +50,7 @@ const WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR: &str = "WDK_BUILD_OUTPUT_DIRECTORY";
 /// build` and `cargo test` commands
 const CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR: &str = "CARGO_MAKE_CARGO_BUILD_TEST_FLAGS";
 
+const CARGO_MAKE_DISABLE_COLOR_ENV_VAR: &str = "CARGO_MAKE_DISABLE_COLOR";
 const CARGO_MAKE_PROFILE_ENV_VAR: &str = "CARGO_MAKE_PROFILE";
 const CARGO_MAKE_CARGO_PROFILE_ENV_VAR: &str = "CARGO_MAKE_CARGO_PROFILE";
 const CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_TRIPLE";
@@ -73,6 +75,7 @@ trait ParseCargoArgs {
 }
 
 #[derive(Parser, Debug)]
+#[command(styles = clap_cargo::style::CLAP_STYLING)]
 struct CommandLineInterface {
     #[command(flatten)]
     base: BaseOptions,
@@ -482,7 +485,20 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
         env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
-    CommandLineInterface::parse_from(env_args.iter()).parse_cargo_args();
+    CommandLineInterface::from_arg_matches_mut(
+        &mut CommandLineInterface::command()
+            .color(if is_cargo_make_color_disabled() {
+                ColorChoice::Never
+            } else {
+                // `ColorChoice::Always` is used instead of `ColorChoice::Auto` to force color.
+                // This function is always executed from rust-script invoked by cargo-make,
+                // whose piping of stdout/stderr disables color by default.
+                ColorChoice::Always
+            })
+            .get_matches_from(env_args),
+    )
+    .unwrap_or_else(|err| err.exit())
+    .parse_cargo_args();
 
     [
         CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
@@ -494,6 +510,19 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     .into_iter()
     .filter(|env_var_name| env::var_os(env_var_name).is_some())
     .map(ToString::to_string)
+}
+
+fn is_cargo_make_color_disabled() -> bool {
+    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR)
+        .map(|value| {
+            !matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                // when color is enabled in cargo-make, the env var is guaranteed to be set to one
+                // of the below values, or not be set at all
+                "0" | "false" | "no" | ""
+            )
+        })
+        .unwrap_or(false)
 }
 
 /// Prepends the path variable with the necessary paths to access WDK(+SDK)
@@ -520,22 +549,29 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version);
 
-    let host_windows_sdk_ver_bin_path = absolute(wdk_bin_root.join(host_arch.as_windows_str()))?
-        .to_str()
-        .expect("WDK bin path should be valid UTF-8")
-        .to_string();
+    let host_windows_sdk_ver_bin_path = {
+        let path = wdk_bin_root.join(host_arch.as_windows_str());
+        absolute(&path).map_err(|source| IoError::with_path(path, source))?
+    }
+    .to_str()
+    .expect("WDK bin path should be valid UTF-8")
+    .to_string();
 
-    let x86_windows_sdk_ver_bin_path = absolute(wdk_bin_root.join("x86"))?
-        .to_str()
-        .expect("WDK x86 bin path should be valid UTF-8")
-        .to_string();
+    let x86_windows_sdk_ver_bin_path = {
+        let path = wdk_bin_root.join("x86");
+        absolute(&path).map_err(|source| IoError::with_path(path, source))?
+    }
+    .to_str()
+    .expect("WDK x86 bin path should be valid UTF-8")
+    .to_string();
 
     if let Ok(sdk_bin_path) = env::var("WindowsSdkBinPath") {
-        let sdk_bin_path = absolute(
-            PathBuf::from(sdk_bin_path)
+        let sdk_bin_path = {
+            let path = PathBuf::from(sdk_bin_path)
                 .join(&sdk_version)
-                .join(host_arch.as_windows_str()),
-        )?
+                .join(host_arch.as_windows_str());
+            absolute(&path).map_err(|source| IoError::with_path(path, source))?
+        }
         .to_str()
         .expect("WindowsSdkBinPath should be valid UTF-8")
         .to_string();
@@ -548,11 +584,13 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     );
 
     let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, sdk_version);
-    let host_windows_sdk_version_tool_path =
-        absolute(wdk_tool_root.join(host_arch.as_windows_str()))?
-            .to_str()
-            .expect("WDK tool path should be valid UTF-8")
-            .to_string();
+    let host_windows_sdk_version_tool_path = {
+        let path = wdk_tool_root.join(host_arch.as_windows_str());
+        absolute(&path).map_err(|source| IoError::with_path(path, source))?
+    }
+    .to_str()
+    .expect("WDK tool path should be valid UTF-8")
+    .to_string();
     prepend_to_semicolon_delimited_env_var(PATH_ENV_VAR, host_windows_sdk_version_tool_path);
 
     Ok([PATH_ENV_VAR].map(ToString::to_string))
@@ -719,7 +757,8 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
     let package_folder_path: PathBuf =
         get_wdk_build_output_directory().join(format!("{}_package", get_current_package_name()));
     if !package_folder_path.exists() {
-        std::fs::create_dir(&package_folder_path)?;
+        std::fs::create_dir(&package_folder_path)
+            .map_err(|source| IoError::with_path(&package_folder_path, source))?;
     }
 
     let destination_path = package_folder_path.join(
@@ -727,7 +766,8 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
             .file_name()
             .expect("path_to_copy should always end with a valid file or directory name"),
     );
-    std::fs::copy(path_to_copy, destination_path)?;
+    std::fs::copy(path_to_copy, &destination_path)
+        .map_err(|source| IoError::with_src_dest_paths(path_to_copy, destination_path, source))?;
 
     Ok(())
 }
@@ -838,7 +878,8 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .manifest_path
         .parent()
         .expect("The parsed manifest_path should have a valid parent directory")
-        .join(&makefile_name);
+        .join(&makefile_name)
+        .into_std_path_buf();
 
     let cargo_make_workspace_working_directory =
         env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
@@ -852,18 +893,29 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
     // Only create a new symlink if the existing one is not already pointing to the
     // correct file
     if !destination_path.exists() {
-        return Ok(std::os::windows::fs::symlink_file(
-            rust_driver_makefile_toml_path,
-            destination_path,
-        )?);
+        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+            .map_err(|source| {
+                IoError::with_src_dest_paths(
+                    rust_driver_makefile_toml_path,
+                    destination_path,
+                    source,
+                )
+            })?;
     } else if !destination_path.is_symlink()
-        || std::fs::read_link(&destination_path)? != rust_driver_makefile_toml_path
+        || std::fs::read_link(&destination_path)
+            .map_err(|source| IoError::with_path(&destination_path, source))?
+            != rust_driver_makefile_toml_path
     {
-        std::fs::remove_file(&destination_path)?;
-        return Ok(std::os::windows::fs::symlink_file(
-            rust_driver_makefile_toml_path,
-            destination_path,
-        )?);
+        std::fs::remove_file(&destination_path)
+            .map_err(|source| IoError::with_path(&destination_path, source))?;
+        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+            .map_err(|source| {
+                IoError::with_src_dest_paths(
+                    rust_driver_makefile_toml_path,
+                    destination_path,
+                    source,
+                )
+            })?;
     }
 
     // Symlink is already up to date
