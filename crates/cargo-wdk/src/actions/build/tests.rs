@@ -107,7 +107,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -177,7 +178,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -247,7 +249,8 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -318,7 +321,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -389,8 +393,8 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -462,8 +466,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -554,8 +558,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -627,8 +631,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -781,7 +785,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -842,7 +847,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -905,7 +911,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -969,7 +976,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -1035,7 +1043,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -1103,7 +1112,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
     assert!(matches!(
         run_result.as_ref().expect_err("expected error"),
@@ -1316,8 +1326,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -1424,8 +1434,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
@@ -1540,8 +1550,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         test_build_action.mock_metadata_provider(),
     );
     assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
+    let build_action = build_action.expect("Failed to init build action");
+    let run_result = crate::tests::with_env::<&str, &str, _, _>(&[], || build_action.run());
     assert!(run_result.is_ok());
 }
 
