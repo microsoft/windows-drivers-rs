@@ -320,7 +320,7 @@ impl<'a> PackageTask<'a> {
             Ok(version) if !version.trim().is_empty() => {
                 // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
                 // and populates DriverVer.
-                info!("Using {STAMPINF_VERSION_ENV_VAR} env var to set DriverVer: {version}");
+                debug!("Using {STAMPINF_VERSION_ENV_VAR} env var to set DriverVer: {version}");
             }
             _ => {
                 args.extend(["-v", "*"]);

@@ -16,7 +16,7 @@ const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
     with_file_lock::<&str, &str, _>(&[], || {
-        run_clean_cmd("tests/mixed-package-kmdf-workspace");
+        run_cargo_clean("tests/mixed-package-kmdf-workspace");
         let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
 
         assert!(stdout.contains("Building package driver"));
@@ -83,7 +83,7 @@ fn emulated_workspace_builds_successfully() {
         let emulated_workspace_path = "tests/emulated-workspace";
         let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
 
-        run_clean_cmd(&umdf_driver_workspace_path);
+        run_cargo_clean(&umdf_driver_workspace_path);
         let stdout = run_build_cmd(emulated_workspace_path);
 
         assert!(stdout.contains("Building package driver_1"));
@@ -99,7 +99,7 @@ fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
 
-    run_clean_cmd(&driver_path);
+    run_cargo_clean(&driver_path);
     let stdout = run_build_cmd(&driver_path);
 
     assert!(stdout.contains(&format!("Building package {driver_name}")));
@@ -118,7 +118,7 @@ fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str
     );
 }
 
-fn run_clean_cmd(driver_path: &str) {
+fn run_cargo_clean(driver_path: &str) {
     let mut cmd = Command::new("cargo");
     cmd.args(["clean"]).current_dir(driver_path);
     cmd.assert().success();
