@@ -203,10 +203,21 @@ fn assert_file_hash(path1: &str, path2: &str) {
 }
 
 fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
-    // Read the INF as raw bytes and produce a best‑effort UTF-8 view
+    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
     let file_content =
         fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
-    let file_content = String::from_utf8_lossy(&file_content);
+    let file_content = if file_content.starts_with(&[0xFF, 0xFE]) {
+        // Handle UTF-16 LE (BOM 0xFF 0xFE).
+        let file_content = file_content
+            .chunks(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<u16>>();
+        String::from_utf16_lossy(&file_content)
+    } else {
+        // Otherwise, treat the content as UTF-8; our test setups do not include UTF-16
+        // BE encoded .inx files.
+        String::from_utf8_lossy(&file_content).to_string()
+    };
 
     // Example: DriverVer = 09/13/2023,1.0.0.0
     let driver_version_regex = driver_version.unwrap_or(r"\d+\.\d+\.\d+\.\d+");
