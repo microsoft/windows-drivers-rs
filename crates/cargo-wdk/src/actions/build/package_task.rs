@@ -658,51 +658,52 @@ mod tests {
         ];
 
         for (name, env_val, expect_skip_v) in scenarios {
-            let result = crate::tests::with_env(&[(STAMPINF_VERSION_ENV_VAR, env_val)], || {
-                let package_name = "driver";
-                let working_dir = PathBuf::from("C:/abs/driver");
-                let target_dir = PathBuf::from("C:/abs/driver/target/debug");
-                let arch = CpuArchitecture::Amd64;
+            let result =
+                crate::test_utils::with_env(&[(STAMPINF_VERSION_ENV_VAR, env_val)], || {
+                    let package_name = "driver";
+                    let working_dir = PathBuf::from("C:/abs/driver");
+                    let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+                    let arch = CpuArchitecture::Amd64;
 
-                let params = PackageTaskParams {
-                    package_name,
-                    working_dir: &working_dir,
-                    target_dir: &target_dir,
-                    target_arch: &arch,
-                    driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
-                    sample_class: false,
-                    verify_signature: false,
-                };
+                    let params = PackageTaskParams {
+                        package_name,
+                        working_dir: &working_dir,
+                        target_dir: &target_dir,
+                        target_arch: &arch,
+                        driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+                        sample_class: false,
+                        verify_signature: false,
+                    };
 
-                let wdk_build = WdkBuild::default();
-                let fs = Fs::default();
-                let mut command_exec = CommandExec::default();
+                    let wdk_build = WdkBuild::default();
+                    let fs = Fs::default();
+                    let mut command_exec = CommandExec::default();
 
-                command_exec
-                    .expect_run()
-                    .withf(move |cmd: &str, args: &[&str], _, _| {
-                        if cmd != "stampinf" {
-                            return false;
-                        }
-                        let has_v = args.contains(&"-v");
-                        if expect_skip_v {
-                            !has_v
-                        } else {
-                            args.windows(2).any(|w| w == ["-v", "*"])
-                        }
-                    })
-                    .once()
-                    .return_once(|_, _, _, _| {
-                        Ok(Output {
-                            status: ExitStatus::default(),
-                            stdout: vec![],
-                            stderr: vec![],
+                    command_exec
+                        .expect_run()
+                        .withf(move |cmd: &str, args: &[&str], _, _| {
+                            if cmd != "stampinf" {
+                                return false;
+                            }
+                            let has_v = args.contains(&"-v");
+                            if expect_skip_v {
+                                !has_v
+                            } else {
+                                args.windows(2).any(|w| w == ["-v", "*"])
+                            }
                         })
-                    });
+                        .once()
+                        .return_once(|_, _, _, _| {
+                            Ok(Output {
+                                status: ExitStatus::default(),
+                                stdout: vec![],
+                                stderr: vec![],
+                            })
+                        });
 
-                let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
-                task.run_stampinf()
-            });
+                    let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+                    task.run_stampinf()
+                });
 
             assert!(
                 result.is_ok(),
