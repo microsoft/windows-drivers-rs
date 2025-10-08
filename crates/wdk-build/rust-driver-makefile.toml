@@ -159,8 +159,8 @@ let serialized_wdk_metadata_map = wdk_build::metadata::to_map_with_prefix::<std:
 
 #[cfg(not(target_os = "windows"))]
 compile_error!(
-    "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. Please build using a Windows target. Current target: {}", 
-    std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+    "windows-drivers-rs is designed to be run on a Windows host machine in a WDK \
+    environment. Please build using a Windows target."
 );
 
 for (key, value) in &serialized_wdk_metadata_map {

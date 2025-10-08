@@ -24,8 +24,7 @@ pub fn set_crt_static_flag() {
         #[cfg(not(target_os = "windows"))]
         compile_error!(
             "windows-drivers-rs is designed to be run on a Windows host machine in a WDK \
-             environment. Please build using a Windows target. Current target: {}",
-            env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+             environment. Please build using a Windows target."
         );
 
         println!("RUSTFLAGS set, adding the +crt-static: {rustflags:?}");
@@ -39,8 +38,7 @@ pub fn set_crt_static_flag() {
         #[cfg(not(target_os = "windows"))]
         compile_error!(
             "windows-drivers-rs is designed to be run on a Windows host machine in a WDK \
-             environment. Please build using a Windows target. Current target: {}",
-            env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+             environment. Please build using a Windows target."
         );
 
         println!(

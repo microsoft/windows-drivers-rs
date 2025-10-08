@@ -381,8 +381,7 @@ where
 {
     compile_error!(
         "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
-         Please build using a Windows target. Current target: {}",
-        env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+         Please build using a Windows target."
     );
 }
 
@@ -417,8 +416,7 @@ where
 {
     compile_error!(
         "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
-         Please build using a Windows target. Current target: {}",
-        env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| "unknown".to_string())
+         Please build using a Windows target."
     );
 }
 
