@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use mockall_double::double;
-use tracing::{debug, info};
+use tracing::debug;
 
 #[double]
 use crate::providers::exec::CommandExec;
@@ -77,7 +77,7 @@ impl<'a> BuildTask<'a> {
     /// * `BuildTaskError::CargoBuild` - If there is an error running the cargo
     ///   build command
     pub fn run(&self) -> Result<(), BuildTaskError> {
-        info!("Running cargo build for package: {}", self.package_name);
+        debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
@@ -102,11 +102,12 @@ impl<'a> BuildTask<'a> {
             .iter()
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
+
         // Run cargo build from the provided working directory so that config.toml
         // is respected
         self.command_exec
             .run("cargo", &args, None, Some(self.working_dir))?;
-        debug!("Done");
+        debug!("cargo build done");
         Ok(())
     }
 }
