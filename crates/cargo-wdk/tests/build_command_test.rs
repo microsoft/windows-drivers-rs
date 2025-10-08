@@ -221,7 +221,7 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
 
     // Example: DriverVer = 09/13/2023,1.0.0.0
     let driver_version_regex =
-        driver_version.map_or(r"\d+\.\d+\.\d+\.\d+".to_string(), regex::escape);
+        driver_version.map_or_else(|| r"\d+\.\d+\.\d+\.\d+".to_string(), regex::escape);
     let re = regex::Regex::new(&format!(
         r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
     ))
