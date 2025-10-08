@@ -15,17 +15,23 @@ use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
-    CpuArchitecture, DriverConfig,
+    CpuArchitecture,
+    DriverConfig,
 };
 
 #[double]
 use crate::providers::{
-    exec::CommandExec, fs::Fs, metadata::Metadata as MetadataProvider, wdk_build::WdkBuild,
+    exec::CommandExec,
+    fs::Fs,
+    metadata::Metadata as MetadataProvider,
+    wdk_build::WdkBuild,
 };
 use crate::{
     actions::{
         build::{BuildAction, BuildActionError, BuildActionParams},
-        to_target_triple, Profile, TargetArch,
+        to_target_triple,
+        Profile,
+        TargetArch,
     },
     providers::error::{CommandError, FileError},
 };
