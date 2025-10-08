@@ -1359,7 +1359,7 @@ fn assert_build_action_run_is_success(
     target_arch: TargetArch,
     verify_signature: bool,
     sample_class: bool,
-    test_build_action: &impl TestSetupPackageExpectations,
+    test_build_action: &TestBuildAction,
 ) {
     let build_action = initialize_build_action(
         cwd,
@@ -1380,7 +1380,7 @@ fn initialize_build_action<'a>(
     target_arch: TargetArch,
     verify_signature: bool,
     sample_class: bool,
-    test_build_action: &'a impl TestSetupPackageExpectations,
+    test_build_action: &'a TestBuildAction,
 ) -> Result<BuildAction<'a>, anyhow::Error> {
     BuildAction::new(
         &BuildActionParams {
@@ -1418,7 +1418,7 @@ fn assert_build_action_run_with_env_is_success(
     target_arch: TargetArch,
     verify_signature: bool,
     sample_class: bool,
-    test_build_action: &impl TestSetupPackageExpectations,
+    test_build_action: &TestBuildAction,
 ) {
     let build_action = initialize_build_action(
         cwd,
@@ -1456,135 +1456,6 @@ struct TestBuildAction {
     mock_metadata_provider: MetadataProvider,
 }
 
-// Presence of method ensures specific mock expectation is set
-// Dir argument in any method means to operate on the relevant dir
-// Output argument in any method means to override return output from default
-// success with no stdout/stderr
-trait TestSetupPackageExpectations {
-    fn expect_default_build_task_steps(self, driver_name: &str) -> Self;
-    fn expect_default_package_task_steps(
-        self,
-        driver_name: &str,
-        driver_type: &str,
-        verify_signature: bool,
-    ) -> Self;
-    fn expect_default_package_task_steps_for_workspace(
-        self,
-        driver_name: &str,
-        driver_type: &str,
-        verify_signature: bool,
-    ) -> Self;
-
-    fn expect_root_manifest_exists(self, root_dir: &Path, does_exist: bool) -> Self;
-    fn expect_self_signed_cert_file_exists(self, driver_dir: &Path, does_exist: bool) -> Self;
-    fn expect_final_package_dir_exists(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        does_exist: bool,
-    ) -> Self;
-    fn expect_dir_created(self, driver_name: &str, driver_dir: &Path, created: bool) -> Self;
-    fn expect_cargo_build(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_inx_file_exists(self, driver_name: &str, driver_dir: &Path, does_exist: bool)
-        -> Self;
-    fn expect_rename_driver_binary_dll_to_sys(self, driver_name: &str, driver_dir: &Path) -> Self;
-    fn expect_copy_driver_binary_sys_to_package_folder(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self;
-    fn expect_copy_pdb_file_to_package_folder(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self;
-    fn expect_copy_inx_file_to_package_folder(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-        workspace_root_dir: &Path,
-    ) -> Self;
-    fn expect_copy_map_file_to_package_folder(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self;
-    fn expect_copy_self_signed_cert_file_to_package_folder(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self;
-
-    fn expect_stampinf(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_inf2cat(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_certmgr_exists_check(self, override_output: Option<Output>) -> Self;
-    fn expect_certmgr_create_cert_from_store(
-        self,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_makecert(self, driver_dir: &Path, override_output: Option<Output>) -> Self;
-
-    fn expect_signtool_sign_driver_binary_sys_file(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_signtool_sign_cat_file(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_signtool_verify_driver_binary_sys_file(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-    fn expect_signtool_verify_cat_file(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self;
-
-    fn expect_detect_wdk_build_number(self, expected_wdk_build_number: u32) -> Self;
-    fn expect_infverif(
-        self,
-        driver_name: &str,
-        driver_dir: &Path,
-        driver_type: &str,
-        override_output: Option<Output>,
-    ) -> Self;
-
-    fn mock_wdk_build_provider(&self) -> &WdkBuild;
-    fn mock_run_command(&self) -> &CommandExec;
-    fn mock_fs_provider(&self) -> &Fs;
-    fn mock_metadata_provider(&self) -> &MetadataProvider;
-}
-
 impl TestBuildAction {
     fn new(
         cwd: PathBuf,
@@ -1613,7 +1484,7 @@ impl TestBuildAction {
     fn set_up_standalone_driver_project(
         mut self,
         package_metadata: (TestMetadataWorkspaceMemberId, TestMetadataPackage),
-    ) -> impl TestSetupPackageExpectations {
+    ) -> Self {
         let cargo_toml_metadata = get_cargo_metadata(
             &self.cwd,
             vec![package_metadata.1],
@@ -1637,7 +1508,7 @@ impl TestBuildAction {
         workspace_root_dir: &Path,
         workspace_additional_metadata: Option<TestWdkMetadata>,
         package_metadata_list: Vec<(TestMetadataWorkspaceMemberId, TestMetadataPackage)>,
-    ) -> impl TestSetupPackageExpectations {
+    ) -> Self {
         let cargo_toml_metadata = get_cargo_metadata(
             workspace_root_dir,
             package_metadata_list.iter().map(|p| p.1.clone()).collect(),
@@ -1661,10 +1532,7 @@ impl TestBuildAction {
         self
     }
 
-    fn set_up_with_custom_toml(
-        mut self,
-        cargo_toml_metadata: &str,
-    ) -> impl TestSetupPackageExpectations {
+    fn set_up_with_custom_toml(mut self, cargo_toml_metadata: &str) -> Self {
         let cargo_toml_metadata =
             serde_json::from_str::<cargo_metadata::Metadata>(cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
@@ -1692,7 +1560,13 @@ impl TestBuildAction {
     }
 }
 
-impl TestSetupPackageExpectations for TestBuildAction {
+// Presence of method ensures specific mock expectation is set
+// Dir argument in any method means to operate on the relevant dir
+// Output argument in any method means to override return output from default
+// is_success boolean means success result of copy operation
+// does_exist boolean means existence of the file or dir
+// is_created boolean means whether the dir was created or not
+impl TestBuildAction {
     fn expect_default_build_task_steps(self, driver_name: &str) -> Self {
         let cwd = self.cwd.clone();
         self.expect_detect_wdk_build_number(25100u32)
@@ -2687,19 +2561,19 @@ impl TestSetupPackageExpectations for TestBuildAction {
         self
     }
 
-    fn mock_wdk_build_provider(&self) -> &WdkBuild {
+    const fn mock_wdk_build_provider(&self) -> &WdkBuild {
         &self.mock_wdk_build_provider
     }
 
-    fn mock_run_command(&self) -> &CommandExec {
+    const fn mock_run_command(&self) -> &CommandExec {
         &self.mock_run_command
     }
 
-    fn mock_fs_provider(&self) -> &Fs {
+    const fn mock_fs_provider(&self) -> &Fs {
         &self.mock_fs_provider
     }
 
-    fn mock_metadata_provider(&self) -> &MetadataProvider {
+    const fn mock_metadata_provider(&self) -> &MetadataProvider {
         &self.mock_metadata_provider
     }
 }
