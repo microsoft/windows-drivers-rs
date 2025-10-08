@@ -23,6 +23,8 @@ use wdk_sys::{
     call_unsafe_wdf_function_binding, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT, ULONG,
     WDFDRIVER, WDF_DRIVER_CONFIG, WDF_NO_HANDLE, WDF_NO_OBJECT_ATTRIBUTES,
 };
+// SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
+// No other function in this compilation unit exports this name, preventing symbol conflicts.
 #[unsafe(export_name = "DriverEntry")]
 pub extern "system" fn driver_entry(
     driver: PDRIVER_OBJECT,

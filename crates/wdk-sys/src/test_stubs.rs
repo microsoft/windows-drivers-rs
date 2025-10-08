@@ -27,6 +27,8 @@ use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
     driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF"
 ))]
+// SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
+// No other function in this compilation unit exports this name, preventing symbol conflicts.
 #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub const unsafe extern "system" fn driver_entry_stub(
     _driver: &mut DRIVER_OBJECT,
