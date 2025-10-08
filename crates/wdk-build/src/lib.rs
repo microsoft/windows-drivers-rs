@@ -14,7 +14,7 @@
 use std::{
     env,
     fmt,
-    path::{absolute, PathBuf},
+    path::{PathBuf, absolute},
     str::FromStr,
     sync::LazyLock,
 };
@@ -1339,7 +1339,7 @@ impl CpuArchitecture {
 #[tracing::instrument(level = "debug")]
 pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
-        PathBuf::from(var("OUT_DIR").expect(
+        PathBuf::from(env::var("OUT_DIR").expect(
             "Cargo should have set the OUT_DIR environment variable when executing build.rs",
         ));
 
@@ -1506,8 +1506,7 @@ mod tests {
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
     use super::*;
-
-    use crate::utils::{set_var, remove_var};
+    use crate::utils::{remove_var, set_var};
 
     mod two_part_version {
         use super::*;
@@ -1759,7 +1758,7 @@ mod tests {
         for (key, _) in env_vars_key_value_pairs {
             original_env_vars.get(key).map_or_else(
                 || {
-                   remove_var(key);
+                    remove_var(key);
                 },
                 |value| {
                     set_var(key, value);

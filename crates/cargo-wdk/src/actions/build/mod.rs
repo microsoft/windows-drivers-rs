@@ -13,7 +13,7 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf, absolute},
     result::Result::Ok,
 };
 

@@ -15,7 +15,7 @@ use core::{fmt, ops::RangeFrom};
 use std::{
     env,
     panic::UnwindSafe,
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf, absolute},
     process::Command,
 };
 
@@ -28,12 +28,7 @@ use crate::{
     ConfigError,
     CpuArchitecture,
     metadata,
-    utils::{
-        detect_wdk_content_root,
-        detect_windows_sdk_version,
-        get_wdk_version_number,
-        set_var,
-    },
+    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number, set_var},
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
