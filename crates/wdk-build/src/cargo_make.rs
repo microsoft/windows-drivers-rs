@@ -699,8 +699,9 @@ pub fn setup_infverif_for_samples<S: AsRef<str> + ToString + ?Sized>(
         .parse::<i32>()
         .expect("Unable to parse the build number of the WDK version string as an int!");
     let sample_flag = if version > MINIMUM_SAMPLES_FLAG_WDK_VERSION {
-        "/samples" // Note: Not currently implemented, so in samples TOML we
-    // currently skip infverif
+        // Note: Not currently implemented, so in samples TOML we currently skip
+        // infverif
+        "/samples"
     } else {
         "/msft"
     };
