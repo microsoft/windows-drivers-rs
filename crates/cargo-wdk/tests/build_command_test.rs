@@ -8,21 +8,21 @@ use std::{
 };
 
 use assert_cmd::prelude::*;
-use common::{set_crt_static_flag, with_file_lock};
+use common::{set_crt_static_flag, with_env, with_file_lock};
 use sha2::{Digest, Sha256};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    with_file_lock::<&str, &str, _>(&[], || {
+    let stdout = with_file_lock(|| {
         run_cargo_clean("tests/mixed-package-kmdf-workspace");
-        let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
-
-        assert!(stdout.contains("Building package driver"));
-        assert!(stdout.contains("Building package non_driver_crate"));
-        verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
+        run_build_cmd("tests/mixed-package-kmdf-workspace")
     });
+
+    assert!(stdout.contains("Building package driver"));
+    assert!(stdout.contains("Building package non_driver_crate"));
+    verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
 }
 
 #[test]
@@ -57,42 +57,41 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    with_file_lock::<&str, &str, _>(&[], || clean_and_build_driver_project("kmdf", None));
+    with_file_lock(|| clean_and_build_driver_project("kmdf", None));
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    with_file_lock::<&str, &str, _>(&[], || clean_and_build_driver_project("umdf", None));
+    with_file_lock(|| clean_and_build_driver_project("umdf", None));
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    with_file_lock::<&str, &str, _>(&[], || clean_and_build_driver_project("wdm", None));
+    with_file_lock(|| clean_and_build_driver_project("wdm", None));
 }
 
 #[test]
 fn wdm_driver_builds_successfully_with_given_version() {
-    with_file_lock::<&str, &str, _>(&[(STAMPINF_VERSION_ENV_VAR, "5.1.0")], || {
+    with_env(&[(STAMPINF_VERSION_ENV_VAR, Some("5.1.0"))], || {
         clean_and_build_driver_project("wdm", Some("5.1.0.0"));
     });
 }
 
 #[test]
 fn emulated_workspace_builds_successfully() {
-    with_file_lock::<&str, &str, _>(&[], || {
-        let emulated_workspace_path = "tests/emulated-workspace";
-        let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-
+    let emulated_workspace_path = "tests/emulated-workspace";
+    let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
+    let stdout = with_file_lock(|| {
         run_cargo_clean(&umdf_driver_workspace_path);
-        let stdout = run_build_cmd(emulated_workspace_path);
-
-        assert!(stdout.contains("Building package driver_1"));
-        assert!(stdout.contains("Building package driver_2"));
-        assert!(stdout.contains("Build completed successfully"));
-
-        verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
-        verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
+        run_build_cmd(emulated_workspace_path)
     });
+
+    assert!(stdout.contains("Building package driver_1"));
+    assert!(stdout.contains("Building package driver_2"));
+    assert!(stdout.contains("Build completed successfully"));
+
+    verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
+    verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
 }
 
 fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str>) {

@@ -35,42 +35,72 @@ pub fn set_crt_static_flag() {
 /// * Panics if the lock file cannot be created.
 /// * Panics if the lock cannot be acquired.
 /// * Panics if the lock cannot be released.
-pub fn with_file_lock<K, V, F>(env_vars_key_value_pairs: &[(K, V)], f: F)
+pub fn with_file_lock<F, R>(f: F) -> R
 where
-    K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
-    V: AsRef<OsStr>,
-    F: FnOnce(),
+    F: FnOnce() -> R,
 {
     let lock_file = std::fs::File::create("cargo-wdk-test.lock")
         .expect("Unable to create lock file for cargo-wdk tests");
     FileExt::lock_exclusive(&lock_file).expect("Unable to cargo-wdk-test.lock file");
-    let mut original_env_vars = HashMap::new();
+    let result = f();
+    FileExt::unlock(&lock_file).expect("Unable to unlock cargo-wdk-test.lock file");
+    result
+}
 
-    // set requested environment variables
-    for (key, value) in env_vars_key_value_pairs {
-        if let Ok(original_value) = std::env::var(key) {
-            let insert_result = original_env_vars.insert(key, original_value);
-            assert!(
-                insert_result.is_none(),
-                "Duplicate environment variable keys were provided"
+/// Runs function after modifying environment variables, and returns the
+/// function's return value.
+///
+/// The environment is guaranteed to be not modified during the execution
+/// of the function, and the environment is reset to its original state
+/// after execution of the function. No testing asserts should be called in
+/// the function, since a failing test will poison the mutex, and cause all
+/// remaining tests to fail.
+///
+/// # Panics
+///
+/// * Panics if called with duplicate environment variable keys.
+/// * If the lock file cannot be created/locked/released.
+pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, Option<V>)], f: F) -> R
+where
+    K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
+    V: AsRef<OsStr>,
+    F: FnOnce() -> R,
+{
+    with_file_lock(|| {
+        let mut original_env_vars = HashMap::new();
+
+        // set requested environment variables
+        for (key, value) in env_vars_key_value_pairs {
+            if let Ok(original_value) = std::env::var(key) {
+                let insert_result = original_env_vars.insert(key, original_value);
+                assert!(
+                    insert_result.is_none(),
+                    "Duplicate environment variable keys were provided"
+                );
+            }
+
+            // Remove the env var if value is None
+            if let Some(value) = value {
+                std::env::set_var(key, value);
+            } else {
+                std::env::remove_var(key);
+            }
+        }
+
+        let result = f();
+
+        // reset all set environment variables
+        for (key, _) in env_vars_key_value_pairs {
+            original_env_vars.get(key).map_or_else(
+                || {
+                    std::env::remove_var(key);
+                },
+                |value| {
+                    std::env::set_var(key, value);
+                },
             );
         }
 
-        std::env::set_var(key, value);
-    }
-
-    f();
-
-    // reset all set environment variables
-    for (key, _) in env_vars_key_value_pairs {
-        original_env_vars.get(key).map_or_else(
-            || {
-                std::env::remove_var(key);
-            },
-            |value| {
-                std::env::set_var(key, value);
-            },
-        );
-    }
-    FileExt::unlock(&lock_file).expect("Unable to unlock cargo-wdk-test.lock file");
+        result
+    })
 }
