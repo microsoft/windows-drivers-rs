@@ -40,7 +40,7 @@ impl Timer {
                 WdfTimerCreate,
                 timer_config,
                 attributes,
-                &raw mut timer.wdf_timer,
+                &mut timer.wdf_timer as *mut _,
             );
         }
         nt_success(nt_status).then_some(timer).ok_or(nt_status)
