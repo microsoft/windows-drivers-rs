@@ -42,7 +42,7 @@ impl SpinLock {
             nt_status = call_unsafe_wdf_function_binding!(
                 WdfSpinLockCreate,
                 attributes,
-                &raw mut spin_lock.wdf_spin_lock,
+                &mut spin_lock.wdf_spin_lock as *mut _,
             );
         }
         nt_success(nt_status).then_some(spin_lock).ok_or(nt_status)
