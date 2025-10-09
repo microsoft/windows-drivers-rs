@@ -117,20 +117,26 @@ mod macros;
 // necessary due to LLVM being too eager to set it: it checks the LLVM IR for
 // floating point instructions - even if soft-float is enabled!
 #[allow(missing_docs)]
-#[no_mangle]
+// SAFETY: _fltused is a required Windows linker symbol for floating point support.
+// No other symbols in this crate export this name, preventing linker conflicts.
+#[unsafe(no_mangle)]
 pub static _fltused: () = ();
 
 // FIXME: Is there any way to avoid these stubs? See https://github.com/rust-lang/rust/issues/101134
 #[cfg(panic = "abort")]
 #[allow(missing_docs)]
-#[no_mangle]
+// SAFETY: __CxxFrameHandler3 is a required Windows C++ exception handler symbol.
+// No other symbols in this crate export this name, preventing linker conflicts.
+#[unsafe(no_mangle)]
 pub const extern "system" fn __CxxFrameHandler3() -> i32 {
     0
 }
 
 #[cfg(panic = "abort")]
 #[allow(missing_docs)]
-#[no_mangle]
+// SAFETY: __CxxFrameHandler4 is a required Windows C++ exception handler symbol.
+// No other symbols in this crate export this name, preventing linker conflicts.
+#[unsafe(no_mangle)]
 pub const extern "system" fn __CxxFrameHandler4() -> i32 {
     // This is a stub for the C++ exception handling frame handler. It's never
     // called but it needs to be distinct from __CxxFrameHandler3 to not confuse
@@ -140,7 +146,9 @@ pub const extern "system" fn __CxxFrameHandler4() -> i32 {
 
 #[cfg(panic = "abort")]
 #[allow(missing_docs)]
-#[no_mangle]
+// SAFETY: __GSHandlerCheck_EH4 is a required Windows C++ exception handler symbol.
+// No other symbols in this crate export this name, preventing linker conflicts.
+#[unsafe(no_mangle)]
 pub const extern "system" fn __GSHandlerCheck_EH4() -> i32 {
     // This is a stub for the C++ exception handling frame handler. It's never
     // called but it needs to be distinct from __CxxFrameHandler3 and

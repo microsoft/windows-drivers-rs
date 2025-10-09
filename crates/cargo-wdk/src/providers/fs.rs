@@ -11,7 +11,7 @@
 #![allow(clippy::unused_self)]
 
 use std::{
-    fs::{copy, create_dir, read_dir, rename, DirEntry, File, FileType, OpenOptions},
+    fs::{DirEntry, File, FileType, OpenOptions, copy, create_dir, read_dir, rename},
     io::{Read, Write},
     path::Path,
 };

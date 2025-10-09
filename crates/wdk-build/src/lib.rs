@@ -14,7 +14,7 @@
 use std::{
     env,
     fmt,
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf, absolute},
     str::FromStr,
     sync::LazyLock,
 };
@@ -1385,7 +1385,7 @@ impl CpuArchitecture {
 #[tracing::instrument(level = "debug")]
 pub fn find_top_level_cargo_manifest() -> PathBuf {
     let out_dir =
-        PathBuf::from(std::env::var("OUT_DIR").expect(
+        PathBuf::from(env::var("OUT_DIR").expect(
             "Cargo should have set the OUT_DIR environment variable when executing build.rs",
         ));
 
@@ -1552,6 +1552,7 @@ mod tests {
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
     use super::*;
+    use crate::utils::{remove_var, set_var};
 
     mod two_part_version {
         use super::*;
@@ -1787,14 +1788,14 @@ mod tests {
 
         // set requested environment variables
         for (key, value) in env_vars_key_value_pairs {
-            if let Ok(original_value) = std::env::var(key) {
+            if let Ok(original_value) = env::var(key) {
                 let insert_result = original_env_vars.insert(key, original_value);
                 assert!(
                     insert_result.is_none(),
                     "Duplicate environment variable keys were provided"
                 );
             }
-            std::env::set_var(key, value);
+            set_var(key, value);
         }
 
         let f_return_value = f();
@@ -1803,10 +1804,10 @@ mod tests {
         for (key, _) in env_vars_key_value_pairs {
             original_env_vars.get(key).map_or_else(
                 || {
-                    std::env::remove_var(key);
+                    remove_var(key);
                 },
                 |value| {
-                    std::env::set_var(key, value);
+                    set_var(key, value);
                 },
             );
         }

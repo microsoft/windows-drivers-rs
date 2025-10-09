@@ -2,8 +2,9 @@
 // License: MIT OR Apache-2.0
 #![no_main]
 #![deny(warnings)]
-
-#[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+// SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
+// No other function in this compilation unit exports this name, preventing symbol conflicts.
+#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub extern "system" fn driver_entry(
     driver: wdk_sys::PDRIVER_OBJECT,
     registry_path: wdk_sys::PCUNICODE_STRING,

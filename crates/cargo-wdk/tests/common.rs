@@ -14,10 +14,33 @@ use fs4::fs_std::FileExt;
 pub fn set_crt_static_flag() {
     if let Ok(rustflags) = std::env::var("RUSTFLAGS") {
         let updated_rust_flags = format!("{rustflags} -C target-feature=+crt-static");
-        std::env::set_var("RUSTFLAGS", updated_rust_flags);
+
+        #[cfg(target_os = "windows")]
+        // SAFETY: This is only called on Windows hosts, so this is safe.
+        unsafe {
+            std::env::set_var("RUSTFLAGS", updated_rust_flags);
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        compile_error!(
+            "windows-drivers-rs is designed to be run on a Windows host machine in a WDK \
+             environment. Please build using a Windows target."
+        );
+
         println!("RUSTFLAGS set, adding the +crt-static: {rustflags:?}");
     } else {
-        std::env::set_var("RUSTFLAGS", "-C target-feature=+crt-static");
+        #[cfg(target_os = "windows")]
+        // SAFETY: This is only called on Windows hosts, so this is safe.
+        unsafe {
+            std::env::set_var("RUSTFLAGS", "-C target-feature=+crt-static");
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        compile_error!(
+            "windows-drivers-rs is designed to be run on a Windows host machine in a WDK \
+             environment. Please build using a Windows target."
+        );
+
         println!(
             "No RUSTFLAGS set, setting it to: {:?}",
             std::env::var("RUSTFLAGS").expect("RUSTFLAGS not set")

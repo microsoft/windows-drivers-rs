@@ -14,7 +14,7 @@ use tracing::debug;
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{build::error::BuildTaskError, to_target_triple, Profile, TargetArch},
+    actions::{Profile, TargetArch, build::error::BuildTaskError, to_target_triple},
     trace,
 };
 
