@@ -47,6 +47,9 @@ where
     result
 }
 
+// FIXME: For whatever reason, clippy flags this function as dead code, even
+// though it is used in build_command_test.rs
+#[allow(dead_code)]
 /// Runs function after modifying environment variables, and returns the
 /// function's return value.
 ///

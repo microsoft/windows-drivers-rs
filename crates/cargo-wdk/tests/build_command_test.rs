@@ -1,14 +1,14 @@
 //! System level tests for cargo wdk build flow
 #![allow(clippy::literal_string_with_formatting_args)]
-mod common;
+mod _test_utils;
 use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
 };
 
+use _test_utils::{set_crt_static_flag, with_env, with_file_lock};
 use assert_cmd::prelude::*;
-use common::{set_crt_static_flag, with_env, with_file_lock};
 use sha2::{Digest, Sha256};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
