@@ -214,8 +214,8 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
             .collect::<Vec<u16>>();
         String::from_utf16_lossy(&file_content)
     } else {
-        // Otherwise, treat the content as UTF-8; our test setups do not include UTF-16
-        // BE encoded .inx files.
+        // Otherwise, treat the content as UTF-8; our test setups do not include
+        // UTF16-BE encoded .inx files.
         String::from_utf8_lossy(&file_content).to_string()
     };
 

@@ -318,8 +318,9 @@ impl<'a> PackageTask<'a> {
 
         match std::env::var(STAMPINF_VERSION_ENV_VAR) {
             Ok(version) if !version.trim().is_empty() => {
-                // When STAMPINF_VERSION is set we intentionally omit -v so stampinf reads it
-                // and populates DriverVer.
+                // When STAMPINF_VERSION is set to a non-empty, non-whitespace value, we
+                // intentionally omit -v so stampinf reads it and populates
+                // DriverVer. (Whitespace-only values are ignored.)
                 debug!(
                     DriverVer = version,
                     "Using {STAMPINF_VERSION_ENV_VAR} env var to set DriverVer"
