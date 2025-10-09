@@ -86,7 +86,7 @@ pub extern "system" fn driver_entry(
                             ::core::panicking::panic_fmt(
                                 format_args!(
                                     "internal error: entered unreachable code: {0}",
-                                    format_args!("Option should never be None"),
+                                    format_args!("Option should never be None")
                                 ),
                             );
                         };
