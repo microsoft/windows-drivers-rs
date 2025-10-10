@@ -1,6 +1,7 @@
-//! Common methods for tests.
-
-#![allow(clippy::literal_string_with_formatting_args)]
+//! Utility methods for tests.
+//! Note: The current layout (`tests/test_utils/mod.rs`) is intentional; using a
+//! subdirectory prevents Cargo from treating this as an independent integration
+//! test crate and instead lets other tests import it as a regular module.
 
 use std::{collections::HashMap, ffi::OsStr};
 

@@ -1,12 +1,11 @@
 //! System level tests for cargo wdk new flow
-#![allow(clippy::literal_string_with_formatting_args)]
-mod _test_utils;
+mod test_utils;
 use std::path::PathBuf;
 
-use _test_utils::{set_crt_static_flag, with_file_lock};
 use assert_cmd::Command;
 use assert_fs::{assert::PathAssert, prelude::PathChild, TempDir};
 use mockall::PredicateBooleanExt;
+use test_utils::{set_crt_static_flag, with_file_lock};
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
