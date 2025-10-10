@@ -42,7 +42,7 @@ pub mod error {
             Self::CommandFailed {
                 command: command.to_string(),
                 args: args.iter().map(|&s| s.to_string()).collect(),
-                status: output.status.code().expect("Failed to get status code"),
+                status: output.status.code().unwrap_or(-1),
                 stdout: String::from_utf8_lossy(&output.stdout).to_string(),
                 stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             }

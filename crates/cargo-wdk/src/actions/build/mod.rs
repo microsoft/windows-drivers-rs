@@ -102,8 +102,8 @@ impl<'a> BuildAction<'a> {
     /// Entry point method to execute the packaging action flow.
     ///
     /// # Returns
-    /// * `Result<Self>` - A result containing an empty tuple or an error of
-    ///   type `BuildActionError`.
+    /// * `Result<(), BuildActionError>` - A result containing an empty tuple or
+    ///   an error of type `BuildActionError`.
     ///
     /// # Errors
     /// * `BuildActionError::NotAWorkspaceMember` - If the working directory is
