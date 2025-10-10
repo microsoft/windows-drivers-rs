@@ -48,9 +48,11 @@ where
     result
 }
 
-// FIXME: For whatever reason, clippy flags this function as dead code, even
-// though it is used in build_command_test.rs
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "This method is used only in build_command_test.rs; appears unused in other \
+              integration test crates when running with --all-targets."
+)]
 /// Runs function after modifying environment variables, and returns the
 /// function's return value.
 ///
