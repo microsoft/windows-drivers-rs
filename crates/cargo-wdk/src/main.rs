@@ -16,6 +16,9 @@ use clap::Parser;
 use cli::Cli;
 use tracing::error;
 
+#[cfg(test)]
+mod test_utils;
+
 /// Main function for the [`cargo-wdk`][crate] CLI application.
 ///
 /// The main function parses the CLI input, sets up tracing and executes the

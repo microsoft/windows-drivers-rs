@@ -1,6 +1,5 @@
 //! System level tests for cargo wdk build flow
-#![allow(clippy::literal_string_with_formatting_args)]
-mod common;
+mod test_utils;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -8,18 +7,21 @@ use std::{
 };
 
 use assert_cmd::prelude::*;
-use common::{set_crt_static_flag, with_file_lock};
 use sha2::{Digest, Sha256};
+use test_utils::{set_crt_static_flag, with_env, with_file_lock};
+
+const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    with_file_lock(|| {
-        let stdout = run_build_cmd("tests/mixed-package-kmdf-workspace");
-
-        assert!(stdout.contains("Building package driver"));
-        assert!(stdout.contains("Building package non_driver_crate"));
-        verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys");
+    let stdout = with_file_lock(|| {
+        run_cargo_clean("tests/mixed-package-kmdf-workspace");
+        run_build_cmd("tests/mixed-package-kmdf-workspace")
     });
+
+    assert!(stdout.contains("Building package driver"));
+    assert!(stdout.contains("Building package non_driver_crate"));
+    verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
 }
 
 #[test]
@@ -54,39 +56,48 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    with_file_lock(|| build_driver_project("kmdf"));
+    with_file_lock(|| clean_and_build_driver_project("kmdf", None));
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    with_file_lock(|| build_driver_project("umdf"));
+    with_file_lock(|| clean_and_build_driver_project("umdf", None));
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    with_file_lock(|| build_driver_project("wdm"));
+    with_file_lock(|| clean_and_build_driver_project("wdm", None));
+}
+
+#[test]
+fn wdm_driver_builds_successfully_with_given_version() {
+    with_env(&[(STAMPINF_VERSION_ENV_VAR, Some("5.1.0"))], || {
+        clean_and_build_driver_project("wdm", Some("5.1.0.0"));
+    });
 }
 
 #[test]
 fn emulated_workspace_builds_successfully() {
-    with_file_lock(|| {
-        let emulated_workspace_path = "tests/emulated-workspace";
-        let stdout = run_build_cmd(emulated_workspace_path);
-
-        assert!(stdout.contains("Building package driver_1"));
-        assert!(stdout.contains("Building package driver_2"));
-        assert!(stdout.contains("Build completed successfully"));
-
-        let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-        verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll");
-        verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll");
+    let emulated_workspace_path = "tests/emulated-workspace";
+    let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
+    let stdout = with_file_lock(|| {
+        run_cargo_clean(&umdf_driver_workspace_path);
+        run_build_cmd(emulated_workspace_path)
     });
+
+    assert!(stdout.contains("Building package driver_1"));
+    assert!(stdout.contains("Building package driver_2"));
+    assert!(stdout.contains("Build completed successfully"));
+
+    verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
+    verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
 }
 
-fn build_driver_project(driver_type: &str) {
+fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str>) {
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
 
+    run_cargo_clean(&driver_path);
     let stdout = run_build_cmd(&driver_path);
 
     assert!(stdout.contains(&format!("Building package {driver_name}")));
@@ -97,7 +108,18 @@ fn build_driver_project(driver_type: &str) {
         _ => panic!("Unsupported driver type: {driver_type}"),
     };
 
-    verify_driver_package_files(&driver_path, &driver_name, driver_binary_extension);
+    verify_driver_package_files(
+        &driver_path,
+        &driver_name,
+        driver_binary_extension,
+        driver_version,
+    );
+}
+
+fn run_cargo_clean(driver_path: &str) {
+    let mut cmd = Command::new("cargo");
+    cmd.args(["clean"]).current_dir(driver_path);
+    cmd.assert().success();
 }
 
 fn run_build_cmd(driver_path: &str) -> String {
@@ -117,6 +139,7 @@ fn verify_driver_package_files(
     driver_or_workspace_path: &str,
     driver_name: &str,
     driver_binary_extension: &str,
+    driver_version: Option<&str>,
 ) {
     let driver_name = driver_name.replace('-', "_");
     let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
@@ -146,6 +169,8 @@ fn verify_driver_package_files(
         &format!("{package_path}/WDRLocalTestCert.cer"),
         &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
     );
+
+    assert_driver_ver(&package_path, &driver_name, driver_version);
 }
 
 fn assert_dir_exists(path: &str) {
@@ -173,6 +198,38 @@ fn assert_file_hash(path1: &str, path2: &str) {
         digest_file(PathBuf::from(path2)),
         "Hash mismatch between {path1} and {path2}"
     );
+}
+
+fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
+    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
+    let file_content =
+        fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
+    let file_content = if file_content.starts_with(&[0xFF, 0xFE]) {
+        // Handle UTF-16 LE (BOM 0xFF 0xFE).
+        let file_content = file_content
+            .chunks(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<u16>>();
+        String::from_utf16_lossy(&file_content)
+    } else {
+        // Otherwise, treat the content as UTF-8; our test setups do not include
+        // UTF16-BE encoded .inx files.
+        String::from_utf8_lossy(&file_content).to_string()
+    };
+
+    // Example: DriverVer = 09/13/2023,1.0.0.0
+    let driver_version_regex =
+        driver_version.map_or_else(|| r"\d+\.\d+\.\d+\.\d+".to_string(), regex::escape);
+    let re = regex::Regex::new(&format!(
+        r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
+    ))
+    .unwrap();
+
+    let line = file_content
+        .lines()
+        .find(|line| line.starts_with("DriverVer"))
+        .expect("DriverVer line not found in inf file");
+    assert!(re.captures(line).is_some());
 }
 
 // Helper to hash a file

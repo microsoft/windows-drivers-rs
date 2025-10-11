@@ -1,12 +1,11 @@
 //! System level tests for cargo wdk new flow
-#![allow(clippy::literal_string_with_formatting_args)]
-mod common;
+mod test_utils;
 use std::path::PathBuf;
 
 use assert_cmd::Command;
 use assert_fs::{assert::PathAssert, prelude::PathChild, TempDir};
-use common::{set_crt_static_flag, with_file_lock};
 use mockall::PredicateBooleanExt;
+use test_utils::{set_crt_static_flag, with_file_lock};
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
@@ -60,17 +59,14 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    with_file_lock(|| {
-        let (stdout, _stderr) = create_and_build_new_driver_project(driver_type);
-        assert!(stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
-        ));
-        assert!(stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-        assert!(stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
-        assert!(stdout.contains("INF is NOT VALID"));
-    });
+    let (stdout, _stderr) = with_file_lock(|| create_and_build_new_driver_project(driver_type));
+    assert!(stdout
+        .contains("Required directive Provider missing, empty, or invalid in [Version] section."));
+    assert!(stdout
+        .contains("Required directive Class missing, empty, or invalid in [Version] section."));
+    assert!(stdout
+        .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
+    assert!(stdout.contains("INF is NOT VALID"));
 }
 
 fn test_command_invocation<F: FnOnce(&str, &str)>(
@@ -79,7 +75,7 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
     command_succeeds: bool,
     assert: F,
 ) {
-    with_file_lock(|| {
+    let mut cmd = with_file_lock(|| {
         let mut args = args
             .iter()
             .map(ToString::to_string)
@@ -96,21 +92,22 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
 
         let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
         cmd.args(args);
-
-        let cmd_assertion = cmd.assert();
-        let cmd_assertion = if command_succeeds {
-            cmd_assertion.success()
-        } else {
-            cmd_assertion.failure()
-        };
-        let output = cmd_assertion.get_output();
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("stdout: {stdout}");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("stderr: {stderr}");
-
-        assert(&stdout, &stderr);
+        cmd
     });
+
+    let cmd_assertion = cmd.assert();
+    let cmd_assertion = if command_succeeds {
+        cmd_assertion.success()
+    } else {
+        cmd_assertion.failure()
+    };
+    let output = cmd_assertion.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("stdout: {stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!("stderr: {stderr}");
+
+    assert(&stdout, &stderr);
 }
 
 fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {

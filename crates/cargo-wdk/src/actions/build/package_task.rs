@@ -26,6 +26,7 @@ use crate::{actions::build::error::PackageTaskError, providers::error::FileError
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
+const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[derive(Debug)]
 pub struct PackageTaskParams<'a> {
@@ -313,9 +314,23 @@ impl<'a> PackageTask<'a> {
             &arch,
             "-c",
             &cat_file_path,
-            "-v",
-            "*",
         ];
+
+        match std::env::var(STAMPINF_VERSION_ENV_VAR) {
+            Ok(version) if !version.trim().is_empty() => {
+                // When STAMPINF_VERSION is set to a non-empty, non-whitespace value, we
+                // intentionally omit -v so stampinf reads it and populates
+                // DriverVer. (Whitespace-only values are ignored.)
+                debug!(
+                    DriverVer = version,
+                    "Using {STAMPINF_VERSION_ENV_VAR} env var to set DriverVer"
+                );
+            }
+            _ => {
+                args.extend(["-v", "*"]);
+            }
+        }
+
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
@@ -514,7 +529,10 @@ impl<'a> PackageTask<'a> {
 }
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{
+        path::PathBuf,
+        process::{ExitStatus, Output},
+    };
 
     use wdk_build::{CpuArchitecture, KmdfConfig};
 
@@ -631,5 +649,70 @@ mod tests {
         let fs = Fs::default();
 
         PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+    }
+
+    #[test]
+    fn stampinf_version_overrides_with_env_var() {
+        // verify both with and without the env var set scenarios
+        let scenarios = [
+            ("env_set", Some("1.2.3.4"), true),
+            ("env_empty", Some(""), false),
+            ("env_spaces", Some("  "), false),
+            ("env_unset", None, false),
+        ];
+
+        for (name, env_val, expect_skip_v) in scenarios {
+            let result =
+                crate::test_utils::with_env(&[(STAMPINF_VERSION_ENV_VAR, env_val)], || {
+                    let package_name = "driver";
+                    let working_dir = PathBuf::from("C:/abs/driver");
+                    let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+                    let arch = CpuArchitecture::Amd64;
+
+                    let params = PackageTaskParams {
+                        package_name,
+                        working_dir: &working_dir,
+                        target_dir: &target_dir,
+                        target_arch: &arch,
+                        driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+                        sample_class: false,
+                        verify_signature: false,
+                    };
+
+                    let wdk_build = WdkBuild::default();
+                    let fs = Fs::default();
+                    let mut command_exec = CommandExec::default();
+
+                    command_exec
+                        .expect_run()
+                        .withf(move |cmd: &str, args: &[&str], _, _| {
+                            if cmd != "stampinf" {
+                                return false;
+                            }
+                            let has_v = args.contains(&"-v");
+                            if expect_skip_v {
+                                !has_v
+                            } else {
+                                args.windows(2).any(|w| w == ["-v", "*"])
+                            }
+                        })
+                        .once()
+                        .return_once(|_, _, _, _| {
+                            Ok(Output {
+                                status: ExitStatus::default(),
+                                stdout: vec![],
+                                stderr: vec![],
+                            })
+                        });
+
+                    let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+                    task.run_stampinf()
+                });
+
+            assert!(
+                result.is_ok(),
+                "scenario {name} failed (env_set={env_val:?})"
+            );
+        }
     }
 }
