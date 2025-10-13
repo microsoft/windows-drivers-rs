@@ -11,17 +11,26 @@ use sha2::{Digest, Sha256};
 use test_utils::{set_crt_static_flag, with_env, with_file_lock};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
+const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
     let stdout = with_file_lock(|| {
         run_cargo_clean("tests/mixed-package-kmdf-workspace");
-        run_build_cmd("tests/mixed-package-kmdf-workspace")
+        run_build_cmd("tests/mixed-package-kmdf-workspace", None)
     });
 
     assert!(stdout.contains("Building package driver"));
     assert!(stdout.contains("Building package non_driver_crate"));
-    verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
+    verify_driver_package_files(
+        "tests/mixed-package-kmdf-workspace",
+        "driver",
+        "sys",
+        None,
+        None,
+        None,
+    );
 }
 
 #[test]
@@ -56,23 +65,23 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    with_file_lock(|| clean_and_build_driver_project("kmdf", None));
+    with_file_lock(|| clean_and_build_driver_project("kmdf", None, None));
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    with_file_lock(|| clean_and_build_driver_project("umdf", None));
+    with_file_lock(|| clean_and_build_driver_project("umdf", None, None));
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    with_file_lock(|| clean_and_build_driver_project("wdm", None));
+    with_file_lock(|| clean_and_build_driver_project("wdm", None, None));
 }
 
 #[test]
 fn wdm_driver_builds_successfully_with_given_version() {
     with_env(&[(STAMPINF_VERSION_ENV_VAR, Some("5.1.0"))], || {
-        clean_and_build_driver_project("wdm", Some("5.1.0.0"));
+        clean_and_build_driver_project("wdm", Some("5.1.0.0"), None);
     });
 }
 
@@ -82,23 +91,144 @@ fn emulated_workspace_builds_successfully() {
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
     let stdout = with_file_lock(|| {
         run_cargo_clean(&umdf_driver_workspace_path);
-        run_build_cmd(emulated_workspace_path)
+        run_build_cmd(emulated_workspace_path, None)
     });
 
     assert!(stdout.contains("Building package driver_1"));
     assert!(stdout.contains("Building package driver_2"));
     assert!(stdout.contains("Build completed successfully"));
 
-    verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
-    verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
+    verify_driver_package_files(
+        &umdf_driver_workspace_path,
+        "driver_1",
+        "dll",
+        None,
+        None,
+        None,
+    );
+    verify_driver_package_files(
+        &umdf_driver_workspace_path,
+        "driver_2",
+        "dll",
+        None,
+        None,
+        None,
+    );
 }
 
-fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str>) {
+#[test]
+fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
+    let driver_path = "tests/kmdf-driver";
+    with_file_lock(|| {
+        run_cargo_clean(driver_path);
+        run_build_cmd(driver_path, Some(vec!["--target-arch", "arm64"]))
+    });
+    verify_driver_package_files(
+        driver_path,
+        "kmdf-driver",
+        "sys",
+        None,
+        Some("aarch64-pc-windows-msvc"),
+        None,
+    );
+}
+
+#[test]
+fn kmdf_driver_with_target_override_via_config_toml() {
+    let driver_path = "tests/kmdf-driver-with-target-override";
+    let stdout = with_file_lock(|| {
+        run_cargo_clean(driver_path);
+        run_build_cmd(driver_path, None)
+    });
+    assert!(stdout.contains("Building package kmdf-driver-with-target-override"));
+    assert!(stdout.contains("Finished building kmdf-driver-with-target-override"));
+    verify_driver_package_files(
+        driver_path,
+        "kmdf-driver-with-target-override",
+        "sys",
+        None,
+        Some("x86_64-pc-windows-msvc"),
+        None,
+    );
+}
+
+#[test]
+fn kmdf_driver_with_target_override_env_wins() {
+    let driver = "kmdf-driver-with-target-override";
+    let driver_path = format!("tests/{driver}");
+    let stdout = with_env(
+        &[("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))],
+        || {
+            run_cargo_clean(&driver_path);
+            run_build_cmd(&driver_path, None)
+        },
+    );
+    assert!(stdout.contains(&format!("Building package {driver}")));
+    assert!(stdout.contains(&format!("Finished building {driver}")));
+    verify_driver_package_files(
+        &driver_path,
+        driver,
+        "sys",
+        None,
+        Some(AARCH64_TARGET_TRIPLE_NAME),
+        None,
+    );
+}
+
+#[test]
+fn kmdf_driver_with_target_override_cli_wins() {
+    let driver_path = "tests/kmdf-driver-with-target-override";
+    let stdout = with_env(
+        &[("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME))],
+        || {
+            run_cargo_clean(driver_path);
+            run_build_cmd(driver_path, Some(vec!["--target-arch", "arm64"]))
+        },
+    );
+    assert!(stdout.contains("Building package kmdf-driver-with-target-override"));
+    assert!(stdout.contains("Finished building kmdf-driver-with-target-override"));
+    verify_driver_package_files(
+        driver_path,
+        "kmdf-driver-with-target-override",
+        "sys",
+        None,
+        Some("aarch64-pc-windows-msvc"),
+        None,
+    );
+}
+
+#[test]
+fn umdf_driver_with_target_arch_and_release_profile() {
+    let driver_path = "tests/umdf-driver";
+    let stdout = with_file_lock(|| {
+        run_cargo_clean(driver_path);
+        run_build_cmd(
+            driver_path,
+            Some(vec!["--target-arch", "arm64", "--profile", "release"]),
+        )
+    });
+    assert!(stdout.contains("Building package umdf-driver"));
+    assert!(stdout.contains("Finished building umdf-driver"));
+    verify_driver_package_files(
+        driver_path,
+        "umdf-driver",
+        "dll",
+        None,
+        Some(AARCH64_TARGET_TRIPLE_NAME),
+        Some("release"),
+    );
+}
+
+fn clean_and_build_driver_project(
+    driver_type: &str,
+    driver_version: Option<&str>,
+    args: Option<Vec<&str>>,
+) {
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
 
     run_cargo_clean(&driver_path);
-    let stdout = run_build_cmd(&driver_path);
+    let stdout = run_build_cmd(&driver_path, args);
 
     assert!(stdout.contains(&format!("Building package {driver_name}")));
 
@@ -113,6 +243,8 @@ fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str
         &driver_name,
         driver_binary_extension,
         driver_version,
+        None,
+        None,
     );
 }
 
@@ -122,16 +254,16 @@ fn run_cargo_clean(driver_path: &str) {
     cmd.assert().success();
 }
 
-fn run_build_cmd(driver_path: &str) -> String {
+fn run_build_cmd(driver_path: &str, args: Option<Vec<&str>>) -> String {
     set_crt_static_flag();
-
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build"]).current_dir(driver_path);
-
-    // assert command output
+    let mut full_args = vec!["build"];
+    if let Some(args) = args {
+        full_args.extend(args);
+    }
+    cmd.args(full_args).current_dir(driver_path);
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
-
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
@@ -140,10 +272,19 @@ fn verify_driver_package_files(
     driver_name: &str,
     driver_binary_extension: &str,
     driver_version: Option<&str>,
+    target_triple: Option<&str>,
+    profile: Option<&str>,
 ) {
     let driver_name = driver_name.replace('-', "_");
-    let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
-    let package_path = format!("{debug_folder_path}/{driver_name}_package");
+    let profile = profile.unwrap_or("debug");
+    let target_folder_path = target_triple.map_or_else(
+        || format!("{driver_or_workspace_path}/target/{profile}"),
+        |target_triple| format!("{driver_or_workspace_path}/target/{target_triple}/{profile}"),
+    );
+    let package_path = PathBuf::from(&target_folder_path)
+        .join(format!("{driver_name}_package"))
+        .to_string_lossy()
+        .to_string();
 
     // Verify files exist in package folder
     assert_dir_exists(&package_path);
@@ -157,17 +298,17 @@ fn verify_driver_package_files(
     // Verify hashes of files copied from debug to package folder
     assert_file_hash(
         &format!("{package_path}/{driver_name}.map"),
-        &format!("{debug_folder_path}/deps/{driver_name}.map"),
+        &format!("{target_folder_path}/deps/{driver_name}.map"),
     );
 
     assert_file_hash(
         &format!("{package_path}/{driver_name}.pdb"),
-        &format!("{debug_folder_path}/{driver_name}.pdb"),
+        &format!("{target_folder_path}/{driver_name}.pdb"),
     );
 
     assert_file_hash(
         &format!("{package_path}/WDRLocalTestCert.cer"),
-        &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
+        &format!("{target_folder_path}/WDRLocalTestCert.cer"),
     );
 
     assert_driver_ver(&package_path, &driver_name, driver_version);

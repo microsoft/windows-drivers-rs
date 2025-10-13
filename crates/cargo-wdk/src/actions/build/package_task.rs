@@ -32,11 +32,11 @@ const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
-    pub target_dir: &'a Path,
+    pub artifacts_dir: &'a Path,
     pub target_arch: &'a CpuArchitecture,
     pub verify_signature: bool,
     pub sample_class: bool,
-    pub driver_model: DriverConfig,
+    pub driver_model: &'a DriverConfig,
 }
 
 /// Supports low level driver packaging operations
@@ -64,7 +64,7 @@ pub struct PackageTask<'a> {
 
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
-    driver_model: DriverConfig,
+    driver_model: &'a DriverConfig,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -93,7 +93,7 @@ impl<'a> PackageTask<'a> {
     /// * If `params.working_dir` is not absolute
     /// * If `params.target_dir` is not absolute
     pub fn new(
-        params: PackageTaskParams<'a>,
+        params: &PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
@@ -105,9 +105,9 @@ impl<'a> PackageTask<'a> {
             params.working_dir.display()
         );
         assert!(
-            params.target_dir.is_absolute(),
-            "Target directory path must be absolute. Input path: {}",
-            params.target_dir.display()
+            params.artifacts_dir.is_absolute(),
+            "Build artifacts directory path must be absolute. Input path: {}",
+            params.artifacts_dir.display()
         );
         let package_name = params.package_name.replace('-', "_");
         // src paths
@@ -116,14 +116,16 @@ impl<'a> PackageTask<'a> {
 
         // all paths inside target directory
         let src_driver_binary_file_path = params
-            .target_dir
+            .artifacts_dir
             .join(format!("{package_name}.{src_driver_binary_extension}"));
-        let src_pdb_file_path = params.target_dir.join(format!("{package_name}.pdb"));
+        let src_pdb_file_path = params.artifacts_dir.join(format!("{package_name}.pdb"));
         let src_map_file_path = params
-            .target_dir
+            .artifacts_dir
             .join("deps")
             .join(format!("{package_name}.map"));
-        let src_cert_file_path = params.target_dir.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
+        let src_cert_file_path = params
+            .artifacts_dir
+            .join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
 
         // destination paths
         let dest_driver_binary_extension = match params.driver_model {
@@ -132,10 +134,10 @@ impl<'a> PackageTask<'a> {
         };
 
         let src_renamed_driver_binary_file_path = params
-            .target_dir
+            .artifacts_dir
             .join(format!("{package_name}.{dest_driver_binary_extension}"));
         let dest_root_package_folder: PathBuf =
-            params.target_dir.join(format!("{package_name}_package"));
+            params.artifacts_dir.join(format!("{package_name}_package"));
         let dest_inf_file_path = dest_root_package_folder.join(format!("{package_name}.inf"));
         let dest_driver_binary_path =
             dest_root_package_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
@@ -352,7 +354,6 @@ impl<'a> PackageTask<'a> {
             &format!("/os:{}", self.os_mapping),
             "/uselocaltime",
         ];
-
         if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
@@ -519,7 +520,6 @@ impl<'a> PackageTask<'a> {
             args.push(additional_args);
         }
         args.push(&inf_path);
-
         if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
@@ -548,9 +548,9 @@ mod tests {
         let package_task_params = PackageTaskParams {
             package_name,
             working_dir: &working_dir,
-            target_dir: &target_dir,
+            artifacts_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -559,7 +559,7 @@ mod tests {
         let command_exec = CommandExec::default();
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
-        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        let task = PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
         assert_eq!(task.package_name, package_name.replace('-', "_"));
         assert!(!task.verify_signature);
         assert!(!task.sample_class);
@@ -600,9 +600,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Target directory path must be absolute. Input path: \
-                               ../relative/path/to/target/dir")]
-    fn new_panics_when_target_dir_is_not_absolute() {
+    #[should_panic(
+        expected = "Build artifacts directory path must be absolute. Input path: \
+                    ../relative/path/to/target/dir"
+    )]
+    fn new_panics_when_build_artifacts_dir_is_not_absolute() {
         let package_name = "test_package";
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let target_dir = PathBuf::from("../relative/path/to/target/dir");
@@ -611,9 +613,9 @@ mod tests {
         let package_task_params = PackageTaskParams {
             package_name,
             working_dir: &working_dir,
-            target_dir: &target_dir,
+            artifacts_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -622,7 +624,7 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
     }
 
     #[test]
@@ -637,9 +639,9 @@ mod tests {
         let package_task_params = PackageTaskParams {
             package_name,
             working_dir: &working_dir,
-            target_dir: &target_dir,
+            artifacts_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -648,7 +650,7 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+        PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
     }
 
     #[test]
@@ -666,15 +668,15 @@ mod tests {
                 crate::test_utils::with_env(&[(STAMPINF_VERSION_ENV_VAR, env_val)], || {
                     let package_name = "driver";
                     let working_dir = PathBuf::from("C:/abs/driver");
-                    let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+                    let artifacts_dir = PathBuf::from("C:/abs/driver/target/debug");
                     let arch = CpuArchitecture::Amd64;
 
                     let params = PackageTaskParams {
                         package_name,
                         working_dir: &working_dir,
-                        target_dir: &target_dir,
+                        artifacts_dir: &artifacts_dir,
                         target_arch: &arch,
-                        driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+                        driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
                         sample_class: false,
                         verify_signature: false,
                     };
@@ -705,7 +707,7 @@ mod tests {
                             })
                         });
 
-                    let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+                    let task = PackageTask::new(&params, &wdk_build, &command_exec, &fs);
                     task.run_stampinf()
                 });
 
