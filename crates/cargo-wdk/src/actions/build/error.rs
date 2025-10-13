@@ -31,20 +31,14 @@ pub enum BuildActionError {
     PackageTask(#[from] PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
-    #[error(
-        "One or more rust (possibly driver) projects failed to build in the emulated workspace: \
-         {0}"
-    )]
+    #[error("One or more packages failed to build in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
     #[error("Unsupported target arch was detected: {0}")]
     UnsupportedArchitecture(String),
-    #[error(
-        "Failed to detect target architecture using `cargo rustc -- --print cfg`. Error details: \
-         {0}"
-    )]
-    DetectTargetArch(String),
+    #[error("Failed to detect target arch from `cargo rustc -- --print cfg` output")]
+    DetectTargetArch,
     #[error("Driver binary (.dll) parent directory missing")]
     DriverBinaryMissingParent,
 }

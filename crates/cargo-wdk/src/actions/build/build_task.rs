@@ -105,6 +105,7 @@ impl<'a> BuildTask<'a> {
             .iter()
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
+
         // Run cargo build from the provided working directory so that config.toml
         // is respected
         let output = self

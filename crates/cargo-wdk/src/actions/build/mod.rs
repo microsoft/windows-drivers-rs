@@ -144,7 +144,7 @@ impl<'a> BuildAction<'a> {
 
         // Emulated workspaces support
         let dirs = self.fs.read_dir_entries(&self.working_dir)?;
-        info!(
+        debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
@@ -175,55 +175,49 @@ impl<'a> BuildAction<'a> {
             ));
         }
 
-        debug!("Iterating over each dir entry and process valid Rust(possibly driver) projects");
+        info!("Building packages in {}", self.working_dir.display());
+
         let mut failed_atleast_one_project = false;
         for dir in dirs {
-            debug!(
-                "Verifying the dir entry if it is a valid Rust project: {}",
-                dir.path().display()
-            );
+            debug!("Checking dir entry: {}", dir.path().display());
             if !self.fs.dir_file_type(&dir)?.is_dir()
                 || !self.fs.exists(&dir.path().join("Cargo.toml"))
             {
-                debug!("Skipping the dir entry as it is not a valid Rust project");
+                debug!("Dir entry is not a valid Rust package");
                 continue;
             }
 
-            info!(
-                "Processing Rust(possibly driver) project: {}",
-                dir.path()
-                    .file_name()
-                    .expect("package sub directory name ended with \"..\" which is not expected")
-                    .to_string_lossy()
-            );
+            let working_dir_path = dir.path(); // Avoids a short-lived temporary
+            let sub_dir = working_dir_path
+                .file_name()
+                .expect("package sub directory name ended with \"..\" which is not expected")
+                .to_string_lossy();
+
+            debug!("Building package(s) in dir {sub_dir}");
             if let Err(e) = self.run_from_workspace_root(&dir.path()) {
                 failed_atleast_one_project = true;
                 err!(
-                    "Error building the child project: {}, error: {:?}",
-                    dir.path()
-                        .file_name()
-                        .expect(
-                            "package sub directory name ended with \"..\" which is not expected"
-                        )
-                        .to_string_lossy(),
+                    "Error building project: {sub_dir}, error: {:?}",
                     anyhow::Error::new(e)
                 );
             }
         }
 
-        debug!("Done checking for valid Rust(possibly driver) projects in the working directory");
+        debug!("Done building packages in {}", self.working_dir.display());
         if failed_atleast_one_project {
             return Err(BuildActionError::OneOrMoreRustProjectsFailedToBuild(
                 self.working_dir.clone(),
             ));
         }
 
-        info!("Build completed successfully");
+        info!(
+            "Build completed successfully for packages in {}",
+            self.working_dir.display()
+        );
         Ok(())
     }
 
-    // Method to initiate the build and package tasks for the given working
-    // directory and the cargo metadata
+    // Runs build for the given working directory and the cargo metadata
     fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
         let wdk_metadata = Wdk::try_from(cargo_metadata);
@@ -250,7 +244,7 @@ impl<'a> BuildAction<'a> {
                 let package_root_path = absolute(package_root_path.as_path())
                     .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
                 debug!(
-                    "Processing workspace member package: {}",
+                    "Building workspace member package: {}",
                     package_root_path.display()
                 );
                 if let Err(e) =
@@ -307,7 +301,7 @@ impl<'a> BuildAction<'a> {
             }
         }
 
-        info!(
+        debug!(
             "Build completed successfully for path: {}",
             working_dir.display()
         );
@@ -333,7 +327,7 @@ impl<'a> BuildAction<'a> {
         wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
         package_name: &str,
     ) -> Result<(), BuildActionError> {
-        info!("Processing package: {}", package_name);
+        info!("Building package {package_name}");
         let (dll_path, wdk_metadata) = match BuildTask::new(
             package_name,
             working_dir,
@@ -368,8 +362,8 @@ impl<'a> BuildAction<'a> {
             Err(e) => return Err(BuildActionError::BuildTask(e)),
         };
 
-        let artifacts_dir = Self::artifacts_dir(&dll_path)?;
-        let target_arch = self.determine_target_arch(working_dir, &artifacts_dir)?;
+        let (target_arch, artifacts_dir) =
+            self.determine_target_arch_and_artifacts_dir(working_dir, &dll_path)?;
 
         // Set up the `PATH` system environment variable with WDK/SDK bin and tools
         // paths.
@@ -395,44 +389,27 @@ impl<'a> BuildAction<'a> {
         )
         .run()?;
 
-        info!("Processing completed for package: {}", package_name);
+        info!("Finished building {package_name}");
         Ok(())
     }
 
-    fn arch_from_triple(triple: &str) -> Result<CpuArchitecture, BuildActionError> {
-        if triple.contains("x86_64") {
-            Ok(CpuArchitecture::Amd64)
-        } else if triple.contains("aarch64") {
-            Ok(CpuArchitecture::Arm64)
-        } else {
-            Err(BuildActionError::UnsupportedArchitecture(
-                triple.to_string(),
-            ))
-        }
-    }
-
-    /// Determine the artifacts directory (parent of the driver .dll).
-    fn artifacts_dir(dll_path: &Path) -> Result<PathBuf, BuildActionError> {
-        let dll_parent_rel = dll_path
-            .parent()
-            .ok_or(BuildActionError::DriverBinaryMissingParent)?;
-        let dll_parent_dir = absolute(dll_parent_rel)
-            .map_err(|e| BuildActionError::NotAbsolute(dll_parent_rel.to_path_buf(), e))?;
-        debug!(
-            "Driver artifacts parent directory: {}",
-            dll_parent_dir.display()
-        );
-        Ok(dll_parent_dir)
-    }
-
     /// Determine the effective target architecture for packaging.
-    fn determine_target_arch(
+    fn determine_target_arch_and_artifacts_dir(
         &self,
         working_dir: &Path,
-        artifacts_dir: &Path,
-    ) -> Result<CpuArchitecture, BuildActionError> {
+        dll_path: &Path,
+    ) -> Result<(CpuArchitecture, PathBuf), BuildActionError> {
+        let artifacts_dir = dll_path
+            .parent()
+            .ok_or(BuildActionError::DriverBinaryMissingParent)?;
+        let artifacts_dir = absolute(artifacts_dir)
+            .map_err(|e| BuildActionError::NotAbsolute(artifacts_dir.to_path_buf(), e))?;
+        debug!(
+            "Driver artifacts parent directory: {}",
+            artifacts_dir.display()
+        );
         if let Some(explicit) = self.target_arch {
-            return Ok(*explicit);
+            return Ok((*explicit, artifacts_dir));
         }
         let expected_profile_dir = if matches!(self.profile, Some(Profile::Release)) {
             "release"
@@ -448,21 +425,26 @@ impl<'a> BuildAction<'a> {
                 let triple = &components[tgt_idx + 1];
                 if let Ok(a) = Self::arch_from_triple(triple) {
                     debug!("Inferred architecture {:?} from artifact layout", a);
-                    return Ok(a);
+                    return Ok((a, artifacts_dir));
                 }
             }
         }
-        match self.detect_target_arch_using_cargo_rustc(working_dir) {
-            Ok(a) => {
-                debug!("Detected architecture {:?} via cargo rustc", a);
-                Ok(a)
-            }
-            Err(e) => {
-                warn!("Failed to detect arch via cargo rustc: {e:?}");
-                Err(BuildActionError::DetectTargetArch(
-                    "Failed to determine target arch for packaging".into(),
-                ))
-            }
+        Ok((
+            self.detect_target_arch_using_cargo_rustc(working_dir)?,
+            artifacts_dir,
+        ))
+    }
+
+    // Maps a target triple string to a CPU architecture.
+    fn arch_from_triple(triple: &str) -> Result<CpuArchitecture, BuildActionError> {
+        if triple.contains("x86_64") {
+            Ok(CpuArchitecture::Amd64)
+        } else if triple.contains("aarch64") {
+            Ok(CpuArchitecture::Arm64)
+        } else {
+            Err(BuildActionError::UnsupportedArchitecture(
+                triple.to_string(),
+            ))
         }
     }
 
@@ -485,8 +467,7 @@ impl<'a> BuildAction<'a> {
         let args = ["rustc", "--", "--print", "cfg"];
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(working_dir))
-            .map_err(|e| BuildActionError::DetectTargetArch(e.to_string()))?;
+            .run("cargo", &args, None, Some(working_dir))?;
         for line in output.stdout.split(|b| *b == b'\n') {
             if let Some(rest) = line.strip_prefix(b"target_arch=\"") {
                 if let Some(end_quote) = rest.iter().position(|b| *b == b'"') {
@@ -494,15 +475,16 @@ impl<'a> BuildAction<'a> {
                     return match arch {
                         b"x86_64" => Ok(CpuArchitecture::Amd64),
                         b"aarch64" => Ok(CpuArchitecture::Arm64),
-                        _ => Err(BuildActionError::UnsupportedArchitecture(
-                            String::from_utf8_lossy(arch).into(),
-                        )),
+                        _ => {
+                            return Err(BuildActionError::UnsupportedArchitecture(
+                                String::from_utf8_lossy(arch).into(),
+                            ))
+                        }
                     };
                 }
             }
         }
-        Err(BuildActionError::DetectTargetArch(
-            String::from_utf8_lossy(&output.stderr).into(),
-        ))
+
+        Err(BuildActionError::DetectTargetArch)
     }
 }

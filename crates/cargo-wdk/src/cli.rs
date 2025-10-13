@@ -113,6 +113,7 @@ pub enum Subcmd {
     author = env!("CARGO_PKG_AUTHORS"),
     about = ABOUT_STRING,
 )]
+#[command(styles = clap_cargo::style::CLAP_STYLING)]
 pub struct Cli {
     #[clap(name = "cargo command", default_value = "wdk", hide = true)]
     pub cargo_command: String,
