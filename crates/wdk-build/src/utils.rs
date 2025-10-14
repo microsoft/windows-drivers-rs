@@ -695,6 +695,7 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "windows")]
     mod safe_env_vars {
         use super::*;
 
