@@ -164,8 +164,8 @@ compile_error!(
 );
 
 for (key, value) in &serialized_wdk_metadata_map {
-    // SAFETY: We've verified this is targeted for Windows, where std::env::set_var
-    // is always safe according to documentation.
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::set_var is always safe for windows targets
     unsafe {
         std::env::set_var(key, value);
     } 
