@@ -291,3 +291,407 @@ impl<'a> NewAction<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::os::windows::process::ExitStatusExt;
+    use std::path::PathBuf;
+    use std::process::ExitStatus;
+    use std::{path::Path, process::Output};
+
+    use clap_verbosity_flag::Verbosity;
+
+    use super::error::NewActionError;
+    use crate::actions::{new::NewAction, DriverType};
+    use crate::providers::{
+        error::{CommandError, FileError},
+        exec::MockCommandExec,
+        fs::MockFs,
+    };
+
+    #[test]
+    fn new_project_created_successfully() {
+        let path = Path::new("test_driver");
+        let driver_type = DriverType::Kmdf;
+
+        let cases = vec![
+            (Verbosity::default(), None),                   // Default
+            (Verbosity::new(0, 1), Some("-q".to_string())), // Quiet
+            (Verbosity::new(1, 0), Some("-v".to_string())), // Verbose
+        ];
+
+        for (verbosity_level, expected_flag) in cases {
+            let test_new_action = TestNewAction::new(path)
+                .expect_cargo_new(None, expected_flag)
+                .expect_copy_lib_rs_template(true)
+                .expect_update_cargo_toml(true, true, true)
+                .expect_create_inx_file(true)
+                .expect_copy_build_rs_template(true)
+                .expect_copy_cargo_config(true);
+            let result = NewAction::new(
+                path,
+                driver_type,
+                verbosity_level,
+                &test_new_action.mock_exec,
+                &test_new_action.mock_fs,
+            )
+            .run();
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn when_cargo_new_fails_then_returns_cargo_new_command_error() {
+        let path = Path::new("test_driver_fail_cargo_new");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+
+        // Build test action with failing cargo new
+        let test_new_action = TestNewAction::new(path).expect_cargo_new(
+            Some(Output {
+                status: ExitStatus::from_raw(1),
+                stdout: vec![],
+                stderr: "some error".into(),
+            }),
+            None,
+        ); // Force failure here
+
+        let result = NewAction::new(
+            path,
+            driver_type,
+            verbosity_level,
+            &test_new_action.mock_exec,
+            &test_new_action.mock_fs,
+        )
+        .run();
+        assert!(
+            matches!(result, Err(NewActionError::CargoNewCommand(_))),
+            "Expected CargoNewCommand error"
+        );
+    }
+
+    #[test]
+    fn when_copy_lib_rs_template_fails_then_returns_filesystem_error() {
+        let path = Path::new("test_driver_fail_lib");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+
+        let test_new_action = TestNewAction::new(path)
+            .expect_cargo_new(None, None)
+            .expect_copy_lib_rs_template(false); // Force failure here
+
+        let result = NewAction::new(
+            path,
+            driver_type,
+            verbosity_level,
+            &test_new_action.mock_exec,
+            &test_new_action.mock_fs,
+        )
+        .run();
+        assert!(
+            matches!(
+                result,
+                Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+            ),
+            "Expected FileSystem WriteError from copy_lib_rs_template"
+        );
+    }
+
+    #[test]
+    fn when_update_cargo_toml_read_fails_then_returns_filesystem_error() {
+        let path = Path::new("test_driver_fail_cargo_toml_read");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+
+        let test_new_action = TestNewAction::new(path)
+            .expect_cargo_new(None, None)
+            .expect_copy_lib_rs_template(true)
+            .expect_update_cargo_toml(false, true, true); // Fail on read
+
+        let result = NewAction::new(
+            path,
+            driver_type,
+            verbosity_level,
+            &test_new_action.mock_exec,
+            &test_new_action.mock_fs,
+        )
+        .run();
+        assert!(
+            matches!(
+                result,
+                Err(NewActionError::FileSystem(FileError::NotFound(_)))
+            ),
+            "Expected FileSystem NotFound error from update_cargo_toml read"
+        );
+    }
+
+    #[test]
+    fn when_create_inx_file_called_with_invalid_path_then_returns_invalid_driver_crate_name() {
+        // Use an empty path component so file_name returns None
+        let empty_path = Path::new("");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+        let test_new_action = TestNewAction::new(empty_path)
+            .expect_cargo_new(None, None)
+            .expect_copy_lib_rs_template(true)
+            .expect_update_cargo_toml(true, true, true);
+        let new_action = NewAction::new(
+            empty_path,
+            driver_type,
+            verbosity_level,
+            &test_new_action.mock_exec,
+            &test_new_action.mock_fs,
+        );
+        let result = new_action.run();
+        assert!(
+            matches!(result, Err(NewActionError::InvalidDriverCrateName(_))),
+            "Expected InvalidDriverCrateName error"
+        );
+    }
+
+    #[test]
+    fn when_copy_build_rs_template_fails_then_returns_filesystem_error() {
+        let path = Path::new("test_driver_fail_build_rs");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+
+        let test_new_action = TestNewAction::new(path)
+            .expect_cargo_new(None, None)
+            .expect_copy_lib_rs_template(true)
+            .expect_update_cargo_toml(true, true, true)
+            .expect_create_inx_file(true)
+            .expect_copy_build_rs_template(false); // Fail here
+
+        let result = NewAction::new(
+            path,
+            driver_type,
+            verbosity_level,
+            &test_new_action.mock_exec,
+            &test_new_action.mock_fs,
+        )
+        .run();
+        assert!(
+            matches!(
+                result,
+                Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+            ),
+            "Expected FileSystem WriteError from copy_build_rs_template"
+        );
+    }
+
+    #[test]
+    fn when_copy_cargo_config_fails_then_returns_filesystem_error() {
+        let path = Path::new("test_driver_fail_cargo_config");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+
+        let test_new_action = TestNewAction::new(path)
+            .expect_cargo_new(None, None)
+            .expect_copy_lib_rs_template(true)
+            .expect_update_cargo_toml(true, true, true)
+            .expect_create_inx_file(true)
+            .expect_copy_build_rs_template(true)
+            .expect_copy_cargo_config(false); // Fail here
+
+        let result = NewAction::new(
+            path,
+            driver_type,
+            verbosity_level,
+            &test_new_action.mock_exec,
+            &test_new_action.mock_fs,
+        )
+        .run();
+        assert!(
+            matches!(
+                result,
+                Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+            ),
+            "Expected FileSystem WriteError from copy_cargo_config"
+        );
+    }
+
+    struct TestNewAction<'a> {
+        path: &'a Path,
+        mock_exec: MockCommandExec,
+        mock_fs: MockFs,
+    }
+
+    impl<'a> TestNewAction<'a> {
+        fn new(path: &'a Path) -> Self {
+            Self {
+                path,
+                mock_exec: MockCommandExec::new(),
+                mock_fs: MockFs::new(),
+            }
+        }
+
+        fn expect_cargo_new(
+            mut self,
+            override_output: Option<Output>,
+            expected_flag: Option<String>,
+        ) -> Self {
+            let expected_path = self.path.to_string_lossy().to_string();
+            self.mock_exec
+                .expect_run()
+                .withf(move |cmd, args, _, _| {
+                    let matched = cmd == "cargo"
+                        && args.len() >= 5
+                        && args[0] == "new"
+                        && args[1] == "--lib"
+                        && args[2] == expected_path
+                        && args[3] == "--vcs"
+                        && args[4] == "none";
+
+                    if let Some(flag) = expected_flag.clone() {
+                        matched && args[5] == flag
+                    } else {
+                        matched
+                    }
+                })
+                .returning(move |_, _, _, _| match override_output.clone() {
+                    Some(output) => match output.status.code() {
+                        Some(0) => Ok(Output {
+                            status: ExitStatus::from_raw(0),
+                            stdout: vec![],
+                            stderr: vec![],
+                        }),
+                        _ => Err(CommandError::from_output("cargo", &[], &output)),
+                    },
+                    None => Ok(Output {
+                        status: ExitStatus::default(),
+                        stdout: vec![],
+                        stderr: vec![],
+                    }),
+                });
+            self
+        }
+
+        fn expect_copy_lib_rs_template(mut self, is_copy_success: bool) -> Self {
+            let lib_rs_path = self.path.join("src").join("lib.rs");
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, _| path == lib_rs_path)
+                .returning(move |_, _| {
+                    if !is_copy_success {
+                        return Err(crate::providers::error::FileError::WriteError(
+                            PathBuf::from("src/lib.rs"),
+                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
+                        ));
+                    }
+                    Ok(())
+                });
+            self
+        }
+
+        fn expect_update_cargo_toml(
+            mut self,
+            is_read_success: bool,
+            is_write_success: bool,
+            is_append_success: bool,
+        ) -> Self {
+            let cargo_toml_path = self.path.join("Cargo.toml");
+            let expected_file_to_write = cargo_toml_path.clone();
+            let expected_file_to_append = cargo_toml_path.clone();
+            self.mock_fs
+                .expect_read_file_to_string()
+                .withf(move |path| path == cargo_toml_path)
+                .returning(move |_| {
+                    if !is_read_success {
+                        Err(crate::providers::error::FileError::NotFound(PathBuf::from(
+                            "Cargo.toml",
+                        )))
+                    } else {
+                        Ok(
+                            "[package]\nname = \"test_driver\"\nversion = \"0.1.0\"\n\n[dependencies]\n"
+                                .to_string(),
+                        )
+                    }
+                });
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, content| path == expected_file_to_write && !content.is_empty())
+                .returning(move |_, _| {
+                    if !is_write_success {
+                        Err(crate::providers::error::FileError::WriteError(
+                            PathBuf::from("Cargo.toml"),
+                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                });
+            self.mock_fs
+                .expect_append_to_file()
+                .withf(move |path, content| path == expected_file_to_append && !content.is_empty())
+                .returning(move |_, _| {
+                    if !is_append_success {
+                        Err(crate::providers::error::FileError::AppendError(
+                            PathBuf::from("Cargo.toml"),
+                            std::io::Error::new(std::io::ErrorKind::Other, "Append error"),
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                });
+            self
+        }
+
+        fn expect_create_inx_file(mut self, is_create_success: bool) -> Self {
+            let driver_crate_name = self.path.file_name().unwrap().to_string_lossy().to_string();
+            let underscored_driver_crate_name = driver_crate_name.replace('-', "_");
+            let inx_output_path = self
+                .path
+                .join(format!("{underscored_driver_crate_name}.inx"));
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, content| path == &inx_output_path && !content.is_empty())
+                .returning(move |_, _| {
+                    if !is_create_success {
+                        Err(crate::providers::error::FileError::WriteError(
+                            PathBuf::from("some_driver.inx"),
+                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                });
+            self
+        }
+
+        fn expect_copy_build_rs_template(mut self, is_copy_success: bool) -> Self {
+            let build_rs_path = self.path.join("build.rs");
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, _| path == &build_rs_path)
+                .returning(move |_, _| {
+                    if !is_copy_success {
+                        Err(crate::providers::error::FileError::WriteError(
+                            PathBuf::from("build.rs"),
+                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                });
+            self
+        }
+
+        fn expect_copy_cargo_config(mut self, is_copy_success: bool) -> Self {
+            let cargo_config_path = self.path.join(".cargo").join("config.toml");
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, _| path == &cargo_config_path)
+                .returning(move |_, _| {
+                    if !is_copy_success {
+                        Err(crate::providers::error::FileError::WriteError(
+                            PathBuf::from(".cargo/config.toml"),
+                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                });
+            self
+        }
+    }
+}
