@@ -184,6 +184,7 @@ dependencies = [
  "mockall",
  "mockall_double",
  "predicates",
+ "regex",
  "serde_json",
  "sha2",
  "thiserror",
