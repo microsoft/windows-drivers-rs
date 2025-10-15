@@ -402,7 +402,7 @@ where
     K: AsRef<OsStr>,
 {
     // SAFETY: this function is only conditionally compiled for windows targets, and
-    // env::set_var is always safe for windows targets
+    // env::remove_var is always safe for windows targets
     unsafe {
         env::remove_var(key);
     }
