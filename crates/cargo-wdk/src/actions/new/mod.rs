@@ -615,7 +615,7 @@ mod tests {
 
                     expected_flag
                         .clone()
-                        .map_or(matched, |flag| matched && args[5] == flag)
+                        .map_or(matched, |flag| matched && args.len() > 5 && args[5] == flag)
                 })
                 .returning(move |_, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
