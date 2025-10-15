@@ -294,20 +294,31 @@ impl<'a> NewAction<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::os::windows::process::ExitStatusExt;
-    use std::path::PathBuf;
-    use std::process::ExitStatus;
-    use std::{path::Path, process::Output};
+    use std::{
+        io::Error,
+        os::windows::process::ExitStatusExt,
+        path::{Path, PathBuf},
+        process::{ExitStatus, Output},
+    };
 
     use clap_verbosity_flag::Verbosity;
 
     use super::error::NewActionError;
-    use crate::actions::{new::NewAction, DriverType};
-    use crate::providers::{
-        error::{CommandError, FileError},
-        exec::MockCommandExec,
-        fs::MockFs,
+    use crate::{
+        actions::{new::NewAction, DriverType},
+        providers::{
+            error::{CommandError, FileError},
+            exec::MockCommandExec,
+            fs::MockFs,
+        },
     };
+
+    struct FailureConditions {
+        is_read_success: bool,
+        is_dep_removal_success: bool,
+        is_template_append_success: bool,
+        assert_fn: fn(Result<(), NewActionError>),
+    }
 
     #[test]
     fn new_project_created_successfully() {
@@ -346,7 +357,7 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        // Build test action with failing cargo new
+        // Set up mocks with failure at cargo new step
         let test_new_action = TestNewAction::new(path).expect_cargo_new(
             Some(Output {
                 status: ExitStatus::from_raw(1),
@@ -354,7 +365,7 @@ mod tests {
                 stderr: "some error".into(),
             }),
             None,
-        ); // Force failure here
+        );
 
         let result = NewAction::new(
             path,
@@ -376,6 +387,7 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
+        // Set up mocks with failure at copy lib rs template to driver project step
         let test_new_action = TestNewAction::new(path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(false); // Force failure here
@@ -398,31 +410,86 @@ mod tests {
     }
 
     #[test]
-    fn when_update_cargo_toml_read_fails_then_returns_filesystem_error() {
+    fn when_update_cargo_toml_fails_for_multiple_cases_then_returns_filesystem_error() {
         let path = Path::new("test_driver_fail_cargo_toml_read");
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        let test_new_action = TestNewAction::new(path)
-            .expect_cargo_new(None, None)
-            .expect_copy_lib_rs_template(true)
-            .expect_update_cargo_toml(false, true, true); // Fail on read
+        let cases: [FailureConditions; 3] = [
+            FailureConditions {
+                is_read_success: false,
+                is_dep_removal_success: true,
+                is_template_append_success: true,
+                assert_fn: |result: Result<(), NewActionError>| {
+                    assert!(
+                        matches!(
+                            result,
+                            Err(NewActionError::FileSystem(FileError::NotFound(_)))
+                        ),
+                        "Expected FileSystem NotFound error from update_cargo_toml read"
+                    );
+                },
+            }, // Fail on reading the generated Cargo.toml
+            FailureConditions {
+                is_read_success: true,
+                is_dep_removal_success: false,
+                is_template_append_success: true,
+                assert_fn: |result: Result<(), NewActionError>| {
+                    assert!(
+                        matches!(
+                            result,
+                            Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                        ),
+                        "Expected FileSystem WriteError from update_cargo_toml dependency section \
+                         removal"
+                    );
+                },
+            }, // Fail on updating the cargo toml with default dependencies section removed
+            FailureConditions {
+                is_read_success: true,
+                is_dep_removal_success: true,
+                is_template_append_success: false,
 
-        let result = NewAction::new(
-            path,
-            driver_type,
-            verbosity_level,
-            &test_new_action.mock_exec,
-            &test_new_action.mock_fs,
-        )
-        .run();
-        assert!(
-            matches!(
-                result,
-                Err(NewActionError::FileSystem(FileError::NotFound(_)))
-            ),
-            "Expected FileSystem NotFound error from update_cargo_toml read"
-        );
+                assert_fn: |result: Result<(), NewActionError>| {
+                    assert!(
+                        matches!(
+                            result,
+                            Err(NewActionError::FileSystem(FileError::AppendError(_, _)))
+                        ),
+                        "Expected FileSystem AppendError from update_cargo_toml template append"
+                    );
+                },
+            }, // Fail on appending cargo toml template to the Cargo.toml
+        ];
+
+        // Set up mocks with different failure cases for update_cargo_toml
+        for FailureConditions {
+            is_read_success,
+            is_dep_removal_success,
+            is_template_append_success,
+            assert_fn,
+        } in cases
+        {
+            let test_new_action = TestNewAction::new(path)
+                .expect_cargo_new(None, None)
+                .expect_copy_lib_rs_template(true)
+                .expect_update_cargo_toml(
+                    is_read_success,
+                    is_dep_removal_success,
+                    is_template_append_success,
+                ); // Force failure here
+
+            let result = NewAction::new(
+                path,
+                driver_type,
+                verbosity_level,
+                &test_new_action.mock_exec,
+                &test_new_action.mock_fs,
+            )
+            .run();
+
+            assert_fn(result);
+        }
     }
 
     #[test]
@@ -431,10 +498,12 @@ mod tests {
         let empty_path = Path::new("");
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
+
+        // Set up mocks with failure at parsing driver crate name step
         let test_new_action = TestNewAction::new(empty_path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
-            .expect_update_cargo_toml(true, true, true);
+            .expect_update_cargo_toml(true, true, true); // Force failure here
         let new_action = NewAction::new(
             empty_path,
             driver_type,
@@ -455,12 +524,13 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
+        // Set up mocks with failure at copy build rs template to driver project step
         let test_new_action = TestNewAction::new(path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
             .expect_update_cargo_toml(true, true, true)
             .expect_create_inx_file(true)
-            .expect_copy_build_rs_template(false); // Fail here
+            .expect_copy_build_rs_template(false); // Force failure here
 
         let result = NewAction::new(
             path,
@@ -485,13 +555,14 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
+        // Set up mocks with failure at copy cargo config to driver project step
         let test_new_action = TestNewAction::new(path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
             .expect_update_cargo_toml(true, true, true)
             .expect_create_inx_file(true)
             .expect_copy_build_rs_template(true)
-            .expect_copy_cargo_config(false); // Fail here
+            .expect_copy_cargo_config(false); // Force failure here
 
         let result = NewAction::new(
             path,
@@ -542,11 +613,9 @@ mod tests {
                         && args[3] == "--vcs"
                         && args[4] == "none";
 
-                    if let Some(flag) = expected_flag.clone() {
-                        matched && args[5] == flag
-                    } else {
-                        matched
-                    }
+                    expected_flag
+                        .clone()
+                        .map_or(matched, |flag| matched && args[5] == flag)
                 })
                 .returning(move |_, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
@@ -573,9 +642,9 @@ mod tests {
                 .withf(move |path, _| path == lib_rs_path)
                 .returning(move |_, _| {
                     if !is_copy_success {
-                        return Err(crate::providers::error::FileError::WriteError(
+                        return Err(FileError::WriteError(
                             PathBuf::from("src/lib.rs"),
-                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
+                            Error::other("Write error"),
                         ));
                     }
                     Ok(())
@@ -585,9 +654,9 @@ mod tests {
 
         fn expect_update_cargo_toml(
             mut self,
-            is_read_success: bool,
-            is_write_success: bool,
-            is_append_success: bool,
+            is_cargo_toml_read_success: bool,
+            is_dep_section_removal_success: bool,
+            is_template_append_to_cargo_toml_success: bool,
         ) -> Self {
             let cargo_toml_path = self.path.join("Cargo.toml");
             let expected_file_to_write = cargo_toml_path.clone();
@@ -596,41 +665,38 @@ mod tests {
                 .expect_read_file_to_string()
                 .withf(move |path| path == cargo_toml_path)
                 .returning(move |_| {
-                    if !is_read_success {
-                        Err(crate::providers::error::FileError::NotFound(PathBuf::from(
-                            "Cargo.toml",
-                        )))
+                    if is_cargo_toml_read_success {
+                        Ok("[package]\nname = \"test_driver\"\nversion = \
+                            \"0.1.0\"\n\n[dependencies]\n"
+                            .to_string())
                     } else {
-                        Ok(
-                            "[package]\nname = \"test_driver\"\nversion = \"0.1.0\"\n\n[dependencies]\n"
-                                .to_string(),
-                        )
+                        Err(FileError::NotFound(PathBuf::from("Cargo.toml")))
                     }
                 });
             self.mock_fs
                 .expect_write_to_file()
                 .withf(move |path, content| path == expected_file_to_write && !content.is_empty())
                 .returning(move |_, _| {
-                    if !is_write_success {
-                        Err(crate::providers::error::FileError::WriteError(
-                            PathBuf::from("Cargo.toml"),
-                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
-                        ))
-                    } else {
+                    if is_dep_section_removal_success {
                         Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            PathBuf::from("Cargo.toml"),
+                            Error::other("Write error"),
+                        ))
                     }
                 });
             self.mock_fs
                 .expect_append_to_file()
                 .withf(move |path, content| path == expected_file_to_append && !content.is_empty())
                 .returning(move |_, _| {
-                    if !is_append_success {
-                        Err(crate::providers::error::FileError::AppendError(
-                            PathBuf::from("Cargo.toml"),
-                            std::io::Error::new(std::io::ErrorKind::Other, "Append error"),
-                        ))
-                    } else {
+                    if is_template_append_to_cargo_toml_success {
                         Ok(())
+                    } else {
+                        Err(FileError::AppendError(
+                            PathBuf::from("Cargo.toml"),
+                            Error::other("Append error"),
+                        ))
                     }
                 });
             self
@@ -644,15 +710,15 @@ mod tests {
                 .join(format!("{underscored_driver_crate_name}.inx"));
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, content| path == &inx_output_path && !content.is_empty())
+                .withf(move |path, content| path == inx_output_path && !content.is_empty())
                 .returning(move |_, _| {
-                    if !is_create_success {
-                        Err(crate::providers::error::FileError::WriteError(
-                            PathBuf::from("some_driver.inx"),
-                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
-                        ))
-                    } else {
+                    if is_create_success {
                         Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            PathBuf::from("some_driver.inx"),
+                            Error::other("Write error"),
+                        ))
                     }
                 });
             self
@@ -662,15 +728,15 @@ mod tests {
             let build_rs_path = self.path.join("build.rs");
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, _| path == &build_rs_path)
+                .withf(move |path, _| path == build_rs_path)
                 .returning(move |_, _| {
-                    if !is_copy_success {
-                        Err(crate::providers::error::FileError::WriteError(
-                            PathBuf::from("build.rs"),
-                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
-                        ))
-                    } else {
+                    if is_copy_success {
                         Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            PathBuf::from("build.rs"),
+                            Error::other("Write error"),
+                        ))
                     }
                 });
             self
@@ -680,15 +746,15 @@ mod tests {
             let cargo_config_path = self.path.join(".cargo").join("config.toml");
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, _| path == &cargo_config_path)
+                .withf(move |path, _| path == cargo_config_path)
                 .returning(move |_, _| {
-                    if !is_copy_success {
-                        Err(crate::providers::error::FileError::WriteError(
-                            PathBuf::from(".cargo/config.toml"),
-                            std::io::Error::new(std::io::ErrorKind::Other, "Write error"),
-                        ))
-                    } else {
+                    if is_copy_success {
                         Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            PathBuf::from(".cargo/config.toml"),
+                            Error::other("Write error"),
+                        ))
                     }
                 });
             self
