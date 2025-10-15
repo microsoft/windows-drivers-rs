@@ -672,7 +672,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
     }
 
     set_var(WDK_VERSION_ENV_VAR, detected_sdk_version);
-    Ok([WDK_VERSION_ENV_VAR].map(std::string::ToString::to_string))
+    Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string))
 }
 
 /// Sets the `WDK_INFVERIF_SAMPLE_FLAG` environment variable to contain the

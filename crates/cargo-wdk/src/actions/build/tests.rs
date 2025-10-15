@@ -1727,7 +1727,7 @@ impl TestBuildAction {
             &manifest_path,
         ]
         .into_iter()
-        .map(std::string::ToString::to_string)
+        .map(ToString::to_string)
         .collect();
         if let Some(profile) = self.profile {
             expected_cargo_build_args.push("--profile".to_string());

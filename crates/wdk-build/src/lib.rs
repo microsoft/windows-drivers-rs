@@ -794,7 +794,7 @@ impl Config {
             "--warn-=no-microsoft",
         ]
         .into_iter()
-        .map(std::string::ToString::to_string)
+        .map(ToString::to_string)
     }
 
     /// Returns a [`String`] iterator over all the headers for a given
@@ -949,7 +949,7 @@ impl Config {
                 "Usbpmapi.h",
             ]
             .iter()
-            .map(std::string::ToString::to_string),
+            .map(ToString::to_string),
         );
         if matches!(
             self.driver_config,
@@ -958,7 +958,7 @@ impl Config {
             headers.extend(
                 ["usbbusif.h", "usbdlib.h", "usbfnattach.h", "usbfnioctl.h"]
                     .iter()
-                    .map(std::string::ToString::to_string),
+                    .map(ToString::to_string),
             );
         }
 
@@ -981,7 +981,7 @@ impl Config {
                     "urs/1.0/UrsCx.h",
                 ]
                 .iter()
-                .map(std::string::ToString::to_string),
+                .map(ToString::to_string),
             );
 
             let latest_ucx_header_path = self.ucx_header()?;
