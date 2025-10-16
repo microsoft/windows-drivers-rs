@@ -313,7 +313,9 @@ mod tests {
         },
     };
 
-    struct FailureConditions {
+    // Helper struct for setting up different failure scenarios in the
+    // `update_cargo_toml` step.
+    struct UpdateCargoTomlCase {
         is_read_success: bool,
         is_dep_removal_success: bool,
         is_template_append_success: bool,
@@ -415,8 +417,8 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        let cases: [FailureConditions; 3] = [
-            FailureConditions {
+        let cases: [UpdateCargoTomlCase; 3] = [
+            UpdateCargoTomlCase {
                 is_read_success: false,
                 is_dep_removal_success: true,
                 is_template_append_success: true,
@@ -426,11 +428,11 @@ mod tests {
                             result,
                             Err(NewActionError::FileSystem(FileError::NotFound(_)))
                         ),
-                        "Expected FileSystem NotFound error from update_cargo_toml read"
+                        "Expected FileSystem NotFound error from update_cargo_toml read step"
                     );
                 },
             }, // Fail on reading the generated Cargo.toml
-            FailureConditions {
+            UpdateCargoTomlCase {
                 is_read_success: true,
                 is_dep_removal_success: false,
                 is_template_append_success: true,
@@ -441,11 +443,11 @@ mod tests {
                             Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
                         ),
                         "Expected FileSystem WriteError from update_cargo_toml dependency section \
-                         removal"
+                         removal step"
                     );
                 },
             }, // Fail on updating the cargo toml with default dependencies section removed
-            FailureConditions {
+            UpdateCargoTomlCase {
                 is_read_success: true,
                 is_dep_removal_success: true,
                 is_template_append_success: false,
@@ -456,14 +458,15 @@ mod tests {
                             result,
                             Err(NewActionError::FileSystem(FileError::AppendError(_, _)))
                         ),
-                        "Expected FileSystem AppendError from update_cargo_toml template append"
+                        "Expected FileSystem AppendError from update_cargo_toml template append \
+                         step"
                     );
                 },
             }, // Fail on appending cargo toml template to the Cargo.toml
         ];
 
         // Set up mocks with different failure cases for update_cargo_toml
-        for FailureConditions {
+        for UpdateCargoTomlCase {
             is_read_success,
             is_dep_removal_success,
             is_template_append_success,
@@ -503,7 +506,7 @@ mod tests {
         let test_new_action = TestNewAction::new(empty_path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
-            .expect_update_cargo_toml(true, true, true); // Force failure here
+            .expect_update_cargo_toml(true, true, true);
         let new_action = NewAction::new(
             empty_path,
             driver_type,
@@ -545,7 +548,7 @@ mod tests {
                 result,
                 Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
             ),
-            "Expected FileSystem WriteError from copy_build_rs_template"
+            "Expected FileSystem WriteError from copy_build_rs_template step"
         );
     }
 
@@ -577,7 +580,7 @@ mod tests {
                 result,
                 Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
             ),
-            "Expected FileSystem WriteError from copy_cargo_config"
+            "Expected FileSystem WriteError from copy_cargo_config step"
         );
     }
 
@@ -643,7 +646,7 @@ mod tests {
                 .returning(move |_, _| {
                     if !is_copy_success {
                         return Err(FileError::WriteError(
-                            PathBuf::from("src/lib.rs"),
+                            PathBuf::from("/some_random_path/src/lib.rs"),
                             Error::other("Write error"),
                         ));
                     }
@@ -681,7 +684,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("Cargo.toml"),
+                            PathBuf::from("/some_random_path/Cargo.toml"),
                             Error::other("Write error"),
                         ))
                     }
@@ -694,7 +697,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::AppendError(
-                            PathBuf::from("Cargo.toml"),
+                            PathBuf::from("/some_random_path/Cargo.toml"),
                             Error::other("Append error"),
                         ))
                     }
@@ -716,7 +719,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("some_driver.inx"),
+                            PathBuf::from("/some_random_path/some_driver.inx"),
                             Error::other("Write error"),
                         ))
                     }
@@ -734,7 +737,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("build.rs"),
+                            PathBuf::from("/some_random_path/build.rs"),
                             Error::other("Write error"),
                         ))
                     }
@@ -752,7 +755,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from(".cargo/config.toml"),
+                            PathBuf::from("/some_random_path/.cargo/config.toml"),
                             Error::other("Write error"),
                         ))
                     }
