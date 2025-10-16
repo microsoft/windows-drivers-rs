@@ -113,6 +113,7 @@ pub enum Subcmd {
     author = env!("CARGO_PKG_AUTHORS"),
     about = ABOUT_STRING,
 )]
+#[command(styles = clap_cargo::style::CLAP_STYLING)]
 pub struct Cli {
     #[clap(name = "cargo command", default_value = "wdk", hide = true)]
     pub cargo_command: String,
@@ -133,6 +134,21 @@ impl Cli {
 
         match self.sub_cmd {
             Subcmd::New(cli_args) => {
+                // TODO: Support extended path as cargo supports it
+                if let Some(path) = &cli_args.path {
+                    const EXTENDED_PATH_PREFIX: &str = r"\\?\";
+                    if path
+                        .as_os_str()
+                        .to_string_lossy()
+                        .starts_with(EXTENDED_PATH_PREFIX)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not \
+                             currently supported"
+                        ));
+                    }
+                }
+
                 NewAction::new(
                     cli_args.path.as_ref().unwrap_or(&std::env::current_dir()?),
                     cli_args.driver_type(),
@@ -150,7 +166,7 @@ impl Cli {
                     let detected_arch = Self::detect_default_target_arch_using_rustc()?;
                     TargetArch::Default(detected_arch)
                 };
-                let build_action = BuildAction::new(
+                BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
@@ -162,8 +178,8 @@ impl Cli {
                     &wdk_build,
                     &fs,
                     &metadata,
-                )?;
-                build_action.run()?;
+                )?
+                .run()?;
                 Ok(())
             }
         }
@@ -177,7 +193,7 @@ impl Cli {
     /// * `anyhow::Error` if the command fails to execute or the output is not
     ///   in the expected format.
     fn detect_default_target_arch_using_rustc() -> Result<CpuArchitecture> {
-        CommandExec::run("rustc", &["--print", "host-tuple"], None).map_or_else(
+        CommandExec::run("rustc", &["--print", "host-tuple"], None, None).map_or_else(
             |e| Err(anyhow::anyhow!("Unable to read rustc host tuple: {e}")),
             |output| {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -292,7 +308,8 @@ mod tests {
             .withf(
                 move |command: &str,
                       args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>|
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      _working_dir: &Option<&std::path::Path>|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
@@ -303,7 +320,7 @@ mod tests {
                 },
             )
             .once()
-            .return_once(|_, _, _| expected_cli_result);
+            .return_once(|_, _, _, _| expected_cli_result);
 
         Cli::detect_default_target_arch_using_rustc()
     }
@@ -339,5 +356,28 @@ mod tests {
             path: None,
         };
         assert_eq!(args.driver_type(), DriverType::Wdm);
+    }
+
+    #[test]
+    fn verbatim_path_is_rejected() {
+        use std::path::PathBuf;
+
+        let cli = Cli {
+            cargo_command: "wdk".to_string(),
+            sub_cmd: crate::cli::Subcmd::New(NewArgs {
+                kmdf: true,
+                umdf: false,
+                wdm: false,
+                path: Some(PathBuf::from(r"\\?\C:\some\path")),
+            }),
+            verbose: clap_verbosity_flag::Verbosity::default(),
+        };
+
+        let result = cli.run();
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "Extended/Verbatim paths (i.e. paths starting with '\\?') are not currently supported"
+        );
     }
 }

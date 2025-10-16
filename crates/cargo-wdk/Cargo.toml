@@ -15,6 +15,7 @@ categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 anyhow.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
+clap-cargo.workspace = true
 clap-verbosity-flag.workspace = true
 fs4.workspace = true
 include_dir.workspace = true
@@ -30,6 +31,7 @@ assert_fs.workspace = true
 mockall.workspace = true
 mockall_double.workspace = true
 predicates.workspace = true
+regex.workspace = true
 sha2.workspace = true
 
 [lints.rust]

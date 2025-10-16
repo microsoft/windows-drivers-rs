@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Winget
         if: matrix.runner.name == 'windows-11-arm'
@@ -82,5 +82,13 @@ jobs:
         with:
           tool: cargo-expand@1.0.85
 
-      - name: Run Cargo Test
+      - name: Install Cargo Make
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
+
+      - name: Run Cargo Test (workspace)
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
+
+      - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
