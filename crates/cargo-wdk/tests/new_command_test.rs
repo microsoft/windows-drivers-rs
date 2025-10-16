@@ -3,7 +3,7 @@ mod test_utils;
 use std::path::PathBuf;
 
 use assert_cmd::Command;
-use assert_fs::{assert::PathAssert, prelude::PathChild, TempDir};
+use assert_fs::{TempDir, assert::PathAssert, prelude::PathChild};
 use mockall::PredicateBooleanExt;
 use test_utils::{set_crt_static_flag, with_file_lock};
 
@@ -60,12 +60,19 @@ fn help_works() {
 
 fn project_is_created(driver_type: &str) {
     let (stdout, _stderr) = with_file_lock(|| create_and_build_new_driver_project(driver_type));
-    assert!(stdout
-        .contains("Required directive Provider missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Required directive Class missing, empty, or invalid in [Version] section."));
-    assert!(stdout
-        .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."));
+    assert!(
+        stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        )
+    );
+    assert!(
+        stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
+    );
+    assert!(
+        stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
+    );
     assert!(stdout.contains("INF is NOT VALID"));
 }
 
@@ -140,20 +147,26 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     assert!(tmp_dir.join(&driver_name).is_dir());
     assert!(tmp_dir.join(&driver_name).join("build.rs").is_file());
     assert!(tmp_dir.join(&driver_name).join("Cargo.toml").is_file());
-    assert!(tmp_dir
-        .join(&driver_name)
-        .join(format!("{driver_name_underscored}.inx"))
-        .is_file());
-    assert!(tmp_dir
-        .join(&driver_name)
-        .join("src")
-        .join("lib.rs")
-        .is_file());
-    assert!(tmp_dir
-        .join(&driver_name)
-        .join(".cargo")
-        .join("config.toml")
-        .is_file());
+    assert!(
+        tmp_dir
+            .join(&driver_name)
+            .join(format!("{driver_name_underscored}.inx"))
+            .is_file()
+    );
+    assert!(
+        tmp_dir
+            .join(&driver_name)
+            .join("src")
+            .join("lib.rs")
+            .is_file()
+    );
+    assert!(
+        tmp_dir
+            .join(&driver_name)
+            .join(".cargo")
+            .join("config.toml")
+            .is_file()
+    );
 
     // assert content
     let driver_name_path = PathBuf::from(&driver_name);

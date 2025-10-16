@@ -14,9 +14,9 @@ use cargo_metadata::Metadata as CargoMetadata;
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
-    metadata::{TryFromCargoMetadataError, Wdk},
     CpuArchitecture,
     DriverConfig,
+    metadata::{TryFromCargoMetadataError, Wdk},
 };
 
 #[double]
@@ -28,10 +28,10 @@ use crate::providers::{
 };
 use crate::{
     actions::{
-        build::{BuildAction, BuildActionError, BuildActionParams},
-        to_target_triple,
         Profile,
         TargetArch,
+        build::{BuildAction, BuildActionError, BuildActionParams},
+        to_target_triple,
     },
     providers::error::{CommandError, FileError},
 };
@@ -139,8 +139,8 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
 }
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_then_it_builds_successfully(
-) {
+pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_then_it_builds_successfully()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = Some(Profile::Release);
@@ -781,8 +781,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 }
 
 #[test]
-pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_metadata_are_provided_then_build_should_be_successful(
-) {
+pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_metadata_are_provided_then_build_should_be_successful()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -811,8 +811,8 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_m
 }
 
 #[test]
-pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail(
-) {
+pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp\\sample-driver");
     let profile = None;
@@ -851,8 +851,8 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
 /// Workspace tests
 ////////////////////////////////////////////////////////////////////////////////
 #[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_default_values_are_provided_then_it_packages_successfully(
-) {
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_default_values_are_provided_then_it_packages_successfully()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -923,8 +923,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
 }
 
 #[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_driver_project_then_it_packages_driver_project_successfully(
-) {
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_driver_project_then_it_packages_driver_project_successfully()
+ {
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("sample-kmdf-1");
@@ -1011,8 +1011,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 }
 
 #[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verify_signature_is_false_then_it_skips_verify_tasks(
-) {
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verify_signature_is_false_then_it_skips_verify_tasks()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -1083,8 +1083,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
 }
 
 #[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_driver_project_then_it_builds_but_skips_packaging(
-) {
+pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_driver_project_then_it_builds_but_skips_packaging()
+ {
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
@@ -1147,8 +1147,8 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 }
 
 #[test]
-pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
-) {
+pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -1214,8 +1214,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
 }
 
 #[test]
-pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail(
-) {
+pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -1281,8 +1281,8 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
 }
 
 #[test]
-pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_build_should_be_successful(
-) {
+pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_build_should_be_successful()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -1318,8 +1318,8 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_roo
 }
 
 #[test]
-pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_build_should_be_successful(
-) {
+pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_build_should_be_successful()
+ {
     // Input CLI args
     let workspace_root_dir = PathBuf::from("C:\\tmp");
     let cwd = workspace_root_dir.join("non-driver");
@@ -1727,7 +1727,7 @@ impl TestBuildAction {
             &manifest_path,
         ]
         .into_iter()
-        .map(std::string::ToString::to_string)
+        .map(ToString::to_string)
         .collect();
         if let Some(profile) = self.profile {
             expected_cargo_build_args.push("--profile".to_string());

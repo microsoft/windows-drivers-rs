@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-use wdk_sys::{call_unsafe_wdf_function_binding, NTSTATUS, WDFSPINLOCK, WDF_OBJECT_ATTRIBUTES};
+use wdk_sys::{NTSTATUS, WDF_OBJECT_ATTRIBUTES, WDFSPINLOCK, call_unsafe_wdf_function_binding};
 
 use crate::nt_success;
 
@@ -42,7 +42,7 @@ impl SpinLock {
             nt_status = call_unsafe_wdf_function_binding!(
                 WdfSpinLockCreate,
                 attributes,
-                &mut spin_lock.wdf_spin_lock,
+                &mut spin_lock.wdf_spin_lock as *mut _,
             );
         }
         nt_success(nt_status).then_some(spin_lock).ok_or(nt_status)
