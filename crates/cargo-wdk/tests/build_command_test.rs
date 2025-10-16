@@ -91,6 +91,7 @@ fn emulated_workspace_builds_successfully() {
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
     let stdout = with_file_lock(|| {
         run_cargo_clean(&umdf_driver_workspace_path);
+        run_cargo_clean(&format!("{emulated_workspace_path}/rust-project"));
         run_build_cmd(emulated_workspace_path, None)
     });
 
