@@ -315,7 +315,7 @@ mod tests {
 
     // Helper struct for setting up different failure scenarios in the
     // `update_cargo_toml` step.
-    struct UpdateCargoTomlCase {
+    struct UpdateCargoTomlCaseSetupHelper {
         is_read_success: bool,
         is_dep_removal_success: bool,
         is_template_append_success: bool,
@@ -417,8 +417,8 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        let cases: [UpdateCargoTomlCase; 3] = [
-            UpdateCargoTomlCase {
+        let cases: [UpdateCargoTomlCaseSetupHelper; 3] = [
+            UpdateCargoTomlCaseSetupHelper {
                 is_read_success: false,
                 is_dep_removal_success: true,
                 is_template_append_success: true,
@@ -432,7 +432,7 @@ mod tests {
                     );
                 },
             }, // Fail on reading the generated Cargo.toml
-            UpdateCargoTomlCase {
+            UpdateCargoTomlCaseSetupHelper {
                 is_read_success: true,
                 is_dep_removal_success: false,
                 is_template_append_success: true,
@@ -447,7 +447,7 @@ mod tests {
                     );
                 },
             }, // Fail on updating the cargo toml with default dependencies section removed
-            UpdateCargoTomlCase {
+            UpdateCargoTomlCaseSetupHelper {
                 is_read_success: true,
                 is_dep_removal_success: true,
                 is_template_append_success: false,
@@ -466,7 +466,7 @@ mod tests {
         ];
 
         // Set up mocks with different failure cases for update_cargo_toml
-        for UpdateCargoTomlCase {
+        for UpdateCargoTomlCaseSetupHelper {
             is_read_success,
             is_dep_removal_success,
             is_template_append_success,
