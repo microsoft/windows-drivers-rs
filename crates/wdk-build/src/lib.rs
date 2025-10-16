@@ -12,7 +12,6 @@
 
 #![cfg_attr(nightly_toolchain, feature(assert_matches))]
 use std::{
-    borrow::Cow,
     env,
     fmt,
     path::{Path, PathBuf, absolute},
@@ -816,7 +815,7 @@ impl Config {
             ApiSubset::Base => self.base_headers(),
             ApiSubset::Wdf => self.wdf_headers(),
             ApiSubset::Gpio => self.gpio_headers(),
-            ApiSubset::Hid => self.hid_headers(),
+            ApiSubset::Hid => return self.hid_headers().map(std::iter::IntoIterator::into_iter),
             ApiSubset::ParallelPorts => self.parallel_ports_headers(),
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
@@ -862,31 +861,32 @@ impl Config {
         headers
     }
 
-    fn kernel_mode_include_path(&self) -> PathBuf {
+    fn kernel_mode_include_path(&self) -> Result<PathBuf, ConfigError> {
+        let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
         let include_directory = self.wdk_content_root.join("Include");
-        let sdk_version = utils::get_latest_windows_sdk_version(include_directory.as_path())
-            .expect("sdk version");
-        include_directory.join(sdk_version).join("km")
+        Ok(include_directory.join(sdk_version).join("km"))
     }
 
-    fn hid_headers(&self) -> Vec<Cow<'static, str>> {
-        let mut headers: Vec<Cow<'static, str>> = ["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"]
-            .map(Cow::Borrowed)
-            .into();
+    fn hid_headers(&self) -> Result<Vec<String>, ConfigError> {
+        let mut headers = Vec::<String>::new();
 
+        let common = ["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
         let common_wdm_kmdf = ["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"];
+
+        headers.extend(common.map(String::from));
 
         match &self.driver_config {
             DriverConfig::Wdm => {
-                headers.extend(common_wdm_kmdf.map(Cow::Borrowed));
+                headers.extend(common_wdm_kmdf.map(String::from));
             }
             DriverConfig::Kmdf(_) => {
-                headers.extend(common_wdm_kmdf.map(Cow::Borrowed));
+                headers.extend(common_wdm_kmdf.map(String::from));
                 headers.push("HidSpiCx/1.0/hidspicx.h".into());
             }
             DriverConfig::Umdf(_) => {
+                let hidports_path = self.kernel_mode_include_path()?.join("hidport.h");
                 let hidports_path =
-                    path::absolute(self.kernel_mode_include_path().join("hidport.h"))
+                    absolute(hidports_path)
                         .unwrap()
                         .to_string_lossy()
                         .replace('\\', "/");
@@ -895,7 +895,7 @@ impl Config {
             }
         }
 
-        headers
+        Ok(headers)
     }
 
     #[tracing::instrument(level = "trace")]
