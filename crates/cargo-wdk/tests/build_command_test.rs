@@ -376,7 +376,8 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
 
 // Helper to hash a file
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
-    let file_contents = fs::read(path).expect("Failed to read file");
+    let file_contents = fs::read(&path)
+        .expect(format!("Failed to read file. Path: {}", path.as_ref().display()).as_str());
     let result = Sha256::digest(&file_contents);
     format!("{result:x}")
 }
