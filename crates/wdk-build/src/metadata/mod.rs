@@ -363,8 +363,7 @@ mod tests {
             None => String::from("null"),
         };
         (
-            TestMetadataWorkspaceMemberId(package_id),
-            #[allow(clippy::format_in_format_args)]
+            TestMetadataWorkspaceMemberId(package_id.clone()),
             TestMetadataPackage(format!(
                 r#"
             {{
@@ -399,12 +398,7 @@ mod tests {
         "#,
                 default_package_name,
                 default_package_version,
-                format!(
-                    "path+file:///{}#{}@{}",
-                    root_dir.to_string_lossy().escape_default(),
-                    default_package_name,
-                    default_package_version
-                ),
+                package_id,
                 default_package_name,
                 root_dir
                     .join("src")
