@@ -630,7 +630,7 @@ mod tests {
                         _ => Err(CommandError::from_output("cargo", &[], &output)),
                     },
                     None => Ok(Output {
-                        status: ExitStatus::default(),
+                        status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
