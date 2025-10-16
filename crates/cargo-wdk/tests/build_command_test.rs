@@ -148,7 +148,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
         "kmdf-driver-with-target-override",
         "sys",
         None,
-        Some("x86_64-pc-windows-msvc"),
+        Some(X86_64_TARGET_TRIPLE_NAME),
         None,
     );
 }
@@ -157,67 +157,68 @@ fn kmdf_driver_with_target_override_via_config_toml() {
 fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
-    let stdout = with_env(
+    with_env(
         &[("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))],
         || {
             run_cargo_clean(&driver_path);
-            run_build_cmd(&driver_path, None)
+            let stdout = run_build_cmd(&driver_path, None);
+            assert!(stdout.contains(&format!("Building package {driver}")));
+            assert!(stdout.contains(&format!("Finished building {driver}")));
+            verify_driver_package_files(
+                &driver_path,
+                driver,
+                "sys",
+                None,
+                Some(AARCH64_TARGET_TRIPLE_NAME),
+                None,
+            );
         },
-    );
-    assert!(stdout.contains(&format!("Building package {driver}")));
-    assert!(stdout.contains(&format!("Finished building {driver}")));
-    verify_driver_package_files(
-        &driver_path,
-        driver,
-        "sys",
-        None,
-        Some(AARCH64_TARGET_TRIPLE_NAME),
-        None,
     );
 }
 
 #[test]
 fn kmdf_driver_with_target_override_cli_wins() {
-    let driver_path = "tests/kmdf-driver-with-target-override";
-    let stdout = with_env(
+    let driver = "kmdf-driver-with-target-override";
+    let driver_path = format!("tests/{driver}");
+    with_env(
         &[("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME))],
         || {
-            run_cargo_clean(driver_path);
-            run_build_cmd(driver_path, Some(vec!["--target-arch", "arm64"]))
+            run_cargo_clean(&driver_path);
+            let stdout = run_build_cmd(&driver_path, Some(vec!["--target-arch", "arm64"]));
+            assert!(stdout.contains("Building package kmdf-driver-with-target-override"));
+            assert!(stdout.contains("Finished building kmdf-driver-with-target-override"));
+            verify_driver_package_files(
+                &driver_path,
+                "kmdf-driver-with-target-override",
+                "sys",
+                None,
+                Some(AARCH64_TARGET_TRIPLE_NAME),
+                None,
+            );
         },
-    );
-    assert!(stdout.contains("Building package kmdf-driver-with-target-override"));
-    assert!(stdout.contains("Finished building kmdf-driver-with-target-override"));
-    verify_driver_package_files(
-        driver_path,
-        "kmdf-driver-with-target-override",
-        "sys",
-        None,
-        Some("aarch64-pc-windows-msvc"),
-        None,
     );
 }
 
 #[test]
 fn umdf_driver_with_target_arch_and_release_profile() {
     let driver_path = "tests/umdf-driver";
-    let stdout = with_file_lock(|| {
+    with_file_lock(|| {
         run_cargo_clean(driver_path);
-        run_build_cmd(
+        let stdout = run_build_cmd(
             driver_path,
             Some(vec!["--target-arch", "arm64", "--profile", "release"]),
-        )
+        );
+        assert!(stdout.contains("Building package umdf-driver"));
+        assert!(stdout.contains("Finished building umdf-driver"));
+        verify_driver_package_files(
+            driver_path,
+            "umdf-driver",
+            "dll",
+            None,
+            Some(AARCH64_TARGET_TRIPLE_NAME),
+            Some("release"),
+        );
     });
-    assert!(stdout.contains("Building package umdf-driver"));
-    assert!(stdout.contains("Finished building umdf-driver"));
-    verify_driver_package_files(
-        driver_path,
-        "umdf-driver",
-        "dll",
-        None,
-        Some(AARCH64_TARGET_TRIPLE_NAME),
-        Some("release"),
-    );
 }
 
 fn clean_and_build_driver_project(
