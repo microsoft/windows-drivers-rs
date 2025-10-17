@@ -23,7 +23,7 @@ use wdk_sys::{
     call_unsafe_wdf_function_binding, NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT, ULONG,
     WDFDRIVER, WDF_DRIVER_CONFIG, WDF_NO_HANDLE, WDF_NO_OBJECT_ATTRIBUTES,
 };
-#[export_name = "DriverEntry"]
+#[unsafe(export_name = "DriverEntry")]
 pub extern "system" fn driver_entry(
     driver: PDRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
@@ -86,7 +86,7 @@ pub extern "system" fn driver_entry(
                             ::core::panicking::panic_fmt(
                                 format_args!(
                                     "internal error: entered unreachable code: {0}",
-                                    format_args!("Option should never be None"),
+                                    format_args!("Option should never be None")
                                 ),
                             );
                         };

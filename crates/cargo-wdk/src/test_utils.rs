@@ -39,9 +39,9 @@ where
 
         // Remove the env var if value is None
         if let Some(value) = value {
-            std::env::set_var(key, value);
+            set_var(key, value);
         } else {
-            std::env::remove_var(key);
+            remove_var(key);
         }
     }
 
@@ -51,13 +51,83 @@ where
     for (key, _) in env_vars_key_value_pairs {
         original_env_vars.get(key).map_or_else(
             || {
-                std::env::remove_var(key);
+                remove_var(key);
             },
             |value| {
-                std::env::set_var(key, value);
+                set_var(key, value);
             },
         );
     }
 
     f_return_value
+}
+
+/// Safely sets an environment variable. Will not compile if crate is not
+/// targeted for Windows.
+///
+/// This function provides a safe wrapper around [`std::env::set_var`] that
+/// became unsafe in Rust 2024 edition.
+///
+/// # Panics
+///
+/// This function may panic if key is empty, contains an ASCII equals sign '='
+/// or the NUL character '\0', or when value contains the NUL character.
+#[cfg(target_os = "windows")]
+pub fn set_var<K, V>(key: K, value: V)
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::set_var is always safe for windows targets
+    unsafe {
+        std::env::set_var(key, value);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_var<K, V>(_key: K, _value: V)
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
+         Please build using a Windows target."
+    );
+}
+
+/// Safely removes an environment variable. Will not compile if crate is not
+/// targeted for Windows.
+///
+/// This function provides a safe wrapper around [`std::env::remove_var`] that
+/// became unsafe in Rust 2024 edition.
+///
+/// # Panics
+///
+/// This function may panic if key is empty, contains an ASCII equals sign '='
+/// or the NUL character '\0', or when value contains the NUL character.
+#[allow(dead_code)]
+#[cfg(target_os = "windows")]
+pub fn remove_var<K>(key: K)
+where
+    K: AsRef<OsStr>,
+{
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::remove_var is always safe for windows targets
+    unsafe {
+        std::env::remove_var(key);
+    }
+}
+
+#[allow(dead_code)]
+#[cfg(not(target_os = "windows"))]
+pub fn remove_var<K>(_key: K)
+where
+    K: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
+         Please build using a Windows target."
+    );
 }

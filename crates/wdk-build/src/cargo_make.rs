@@ -15,21 +15,21 @@ use core::{fmt, ops::RangeFrom};
 use std::{
     env,
     panic::UnwindSafe,
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf, absolute},
     process::Command,
 };
 
 use anyhow::Context;
-use cargo_metadata::{camino::Utf8Path, Metadata, MetadataCommand};
+use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use clap::{Args, ColorChoice, CommandFactory, FromArgMatches, Parser};
 use tracing::{instrument, trace};
 
 use crate::{
-    metadata,
-    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number},
     ConfigError,
     CpuArchitecture,
     IoError,
+    metadata,
+    utils::{detect_wdk_content_root, detect_windows_sdk_version, get_wdk_version_number, set_var},
 };
 
 /// The filename of the main makefile for Rust Windows drivers.
@@ -378,7 +378,7 @@ impl ParseCargoArgs for CompilationOptions {
             }
         };
 
-        env::set_var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR, &cargo_make_cargo_profile);
+        set_var(CARGO_MAKE_CARGO_PROFILE_ENV_VAR, &cargo_make_cargo_profile);
 
         if let Some(jobs) = &jobs {
             append_to_space_delimited_env_var(
@@ -388,7 +388,7 @@ impl ParseCargoArgs for CompilationOptions {
         }
 
         if let Some(target) = &target {
-            env::set_var(CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR, target);
+            set_var(CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR, target);
             append_to_space_delimited_env_var(
                 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS_ENV_VAR,
                 format!("--target {target}").as_str(),
@@ -482,7 +482,7 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
     };
 
     if let Some(toolchain) = toolchain_arg {
-        env::set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
+        set_var(CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR, toolchain);
     }
 
     CommandLineInterface::from_arg_matches_mut(
@@ -671,7 +671,7 @@ pub fn setup_wdk_version() -> Result<impl IntoIterator<Item = String>, ConfigErr
         });
     }
 
-    env::set_var(WDK_VERSION_ENV_VAR, detected_sdk_version);
+    set_var(WDK_VERSION_ENV_VAR, detected_sdk_version);
     Ok([WDK_VERSION_ENV_VAR].map(ToString::to_string))
 }
 
@@ -699,8 +699,9 @@ pub fn setup_infverif_for_samples<S: AsRef<str> + ToString + ?Sized>(
         .parse::<i32>()
         .expect("Unable to parse the build number of the WDK version string as an int!");
     let sample_flag = if version > MINIMUM_SAMPLES_FLAG_WDK_VERSION {
-        "/samples" // Note: Not currently implemented, so in samples TOML we
-                   // currently skip infverif
+        // Note: Not currently implemented, so in samples TOML we currently skip
+        // infverif
+        "/samples"
     } else {
         "/msft"
     };
@@ -1155,7 +1156,7 @@ fn configure_wdf_build_output_dir(target_arg: Option<&String>, cargo_make_cargo_
 
         output_dir
     };
-    env::set_var(
+    set_var(
         WDK_BUILD_OUTPUT_DIRECTORY_ENV_VAR,
         wdk_build_output_directory,
     );
@@ -1172,7 +1173,7 @@ where
     let mut env_var_value: String = env::var(env_var_name).unwrap_or_default();
     env_var_value.push(' ');
     env_var_value.push_str(string_to_append);
-    env::set_var(env_var_name, env_var_value.trim());
+    set_var(env_var_name, env_var_value.trim());
 }
 
 fn prepend_to_semicolon_delimited_env_var<S, T>(env_var_name: S, string_to_prepend: T)
@@ -1186,7 +1187,7 @@ where
     let mut env_var_value = string_to_prepend.to_string();
     env_var_value.push(';');
     env_var_value.push_str(env::var(env_var_name).unwrap_or_default().as_str());
-    env::set_var(env_var_name, env_var_value);
+    set_var(env_var_name, env_var_value);
 }
 
 /// `cargo-make` condition script for `infverif` task in

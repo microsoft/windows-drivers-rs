@@ -6,22 +6,22 @@
 
 use std::{
     env,
-    ffi::CStr,
+    ffi::{CStr, OsStr},
     io,
     path::{Path, PathBuf},
 };
 
 use windows::{
-    core::{s, PCSTR},
     Win32::System::Registry::{
-        RegCloseKey,
-        RegGetValueA,
-        RegOpenKeyExA,
         HKEY,
         HKEY_LOCAL_MACHINE,
         KEY_READ,
         RRF_RT_REG_SZ,
+        RegCloseKey,
+        RegGetValueA,
+        RegOpenKeyExA,
     },
+    core::{PCSTR, s},
 };
 
 use crate::{ConfigError, CpuArchitecture, IoError, TwoPartVersion};
@@ -142,7 +142,7 @@ pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, C
 /// or if the cargo architecture is unsupported.
 #[must_use]
 pub fn detect_cpu_architecture_in_build_script() -> CpuArchitecture {
-    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect(
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").expect(
         "Cargo should have set the CARGO_CFG_TARGET_ARCH environment variable when executing \
          build.rs",
     );
@@ -350,17 +350,120 @@ pub fn find_max_version_in_directory<P: AsRef<Path>>(
         })
 }
 
+/// Safely sets an environment variable. Will not compile if crate is not
+/// targeted for Windows.
+///
+/// This function provides a safe wrapper around [`std::env::set_var`] that
+/// became unsafe in Rust 2024 edition.
+///
+/// # Panics
+///
+/// This function may panic if key is empty, contains an ASCII equals sign '='
+/// or the NUL character '\0', or when value contains the NUL character.
+#[cfg(target_os = "windows")]
+pub fn set_var<K, V>(key: K, value: V)
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::set_var is always safe for windows targets
+    unsafe {
+        env::set_var(key, value);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_var<K, V>(_key: K, _value: V)
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
+         Please build using a Windows target."
+    );
+}
+
+/// Safely removes an environment variable. Will not compile if crate is not
+/// targeted for Windows.
+///
+/// This function provides a safe wrapper around [`std::env::remove_var`] that
+/// became unsafe in Rust 2024 edition.
+///
+/// # Panics
+///
+/// This function may panic if key is empty, contains an ASCII equals sign '='
+/// or the NUL character '\0', or when value contains the NUL character.
+#[allow(dead_code)]
+#[cfg(target_os = "windows")]
+pub fn remove_var<K>(key: K)
+where
+    K: AsRef<OsStr>,
+{
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::remove_var is always safe for windows targets
+    unsafe {
+        env::remove_var(key);
+    }
+}
+
+#[allow(dead_code)]
+#[cfg(not(target_os = "windows"))]
+pub fn remove_var<K>(_key: K)
+where
+    K: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
+         Please build using a Windows target."
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use assert_fs::prelude::*;
 
     use super::*;
 
+    // Function with_clean_env clears the inputted environment variable and runs the
+    // closure
+    fn with_clean_env<F>(key: &str, f: F)
+    where
+        F: FnOnce(),
+    {
+        let original = env::var(key).ok();
+
+        // SAFETY: We have verified that this is built for a Windows host due to no
+        // compile errors from building `set_var`.
+        unsafe {
+            env::remove_var(key);
+        }
+
+        f();
+
+        if let Some(val) = &original {
+            // SAFETY: We have verified that this is built for a Windows host due to no
+            // compile errors from building `set_var`.
+            unsafe {
+                env::set_var(key, val);
+            }
+        } else {
+            // SAFETY: We have verified that this is built for a Windows host due to no
+            // compile errors from building `set_var`.
+            unsafe {
+                env::remove_var(key);
+            }
+        }
+
+        assert!(env::var(key).ok() == original);
+    }
+
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
             FOLDERID_ProgramFiles,
-            SHGetKnownFolderPath,
             KF_FLAG_DEFAULT,
+            SHGetKnownFolderPath,
         };
 
         use super::*;
@@ -584,11 +687,27 @@ mod tests {
             temp_dir.child("a.b").create_dir_all().unwrap(); // Invalid: non-numeric
             temp_dir.child("not_version").touch().unwrap(); // File: ignored
             temp_dir.child("3.0").touch().unwrap(); // File: ignored
-                                                    // Should find the maximum among valid version directories only
+            // Should find the maximum among valid version directories only
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()).unwrap(),
                 TwoPartVersion(2, 0)
             );
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    mod safe_env_vars {
+        use super::*;
+
+        #[test]
+        fn set_var_and_remove_var() {
+            let key = "WDK_BUILD_TEST_VAR";
+            with_clean_env(key, || {
+                set_var(key, "test_value");
+                assert_eq!(env::var(key).unwrap(), "test_value");
+                remove_var(key);
+                assert!(env::var(key).is_err());
+            });
         }
     }
 }
