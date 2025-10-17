@@ -16,17 +16,23 @@ use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
-    CpuArchitecture, DriverConfig,
+    CpuArchitecture,
+    DriverConfig,
 };
 
 #[double]
 use crate::providers::{
-    exec::CommandExec, fs::Fs, metadata::Metadata as MetadataProvider, wdk_build::WdkBuild,
+    exec::CommandExec,
+    fs::Fs,
+    metadata::Metadata as MetadataProvider,
+    wdk_build::WdkBuild,
 };
 use crate::{
     actions::{
         build::{BuildAction, BuildActionError, BuildActionParams},
-        to_target_triple, Profile, TargetArch,
+        to_target_triple,
+        Profile,
+        TargetArch,
     },
     providers::{
         error::{CommandError, FileError},
@@ -385,21 +391,20 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         .expect_default_build_task_steps(driver_name)
         .expect_inx_file_exists(driver_name, &cwd, false);
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -427,21 +432,20 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, false);
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -479,21 +483,20 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, Some(expected_stampinf_output));
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -532,21 +535,20 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_stampinf(driver_name, &cwd, None)
         .expect_inf2cat(driver_name, &cwd, Some(expected_inf2cat_output));
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -587,21 +589,20 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_output));
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -643,21 +644,20 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, Some(expected_output));
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -701,21 +701,20 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, Some(expected_output));
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -761,21 +760,20 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
         .expect_infverif(driver_name, &cwd, "KMDF", Some(expected_output));
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
 }
 
 #[test]
@@ -826,23 +824,25 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
         .set_up_with_custom_toml(&cargo_toml_metadata)
         .expect_default_build_task_steps(driver_name);
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::WdkMetadataParse(
+                    TryFromCargoMetadataError::WdkMetadataDeserialization {
+                        metadata_source: _,
+                        error_source: _
+                    }
+                )
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::WdkMetadataParse(TryFromCargoMetadataError::WdkMetadataDeserialization {
-            metadata_source: _,
-            error_source: _
-        })
-    ));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1190,25 +1190,24 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::WdkMetadataParse(
+                    TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
+                        wdk_metadata_configurations: _
+                    }
+                )
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        BuildActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
-                wdk_metadata_configurations: _
-            }
-        )
-    ));
 }
 
 #[test]
@@ -1257,25 +1256,24 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
         .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
 
-    let build_action = initialize_build_action(
+    assert_build_action_run_with_env_is_failure(
         &cwd,
-        profile.as_ref(),
+        profile,
         target_arch,
         verify_signature,
         sample_class,
         test_build_action,
+        |result| {
+            assert!(matches!(
+                result.as_ref().expect_err("expected error"),
+                BuildActionError::WdkMetadataParse(
+                    TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
+                        wdk_metadata_configurations: _
+                    }
+                )
+            ));
+        },
     );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        BuildActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
-                wdk_metadata_configurations: _
-            }
-        )
-    ));
 }
 
 #[test]
@@ -1413,6 +1411,28 @@ fn get_certmgr_success_output() -> Output {
             .to_vec(),
         stderr: vec![],
     }
+}
+
+fn assert_build_action_run_with_env_is_failure(
+    cwd: &PathBuf,
+    profile: Option<Profile>,
+    target_arch: TargetArch,
+    verify_signature: bool,
+    sample_class: bool,
+    test_build_action: &TestBuildAction,
+    assert_fn: fn(Result<(), BuildActionError>),
+) {
+    let build_action = initialize_build_action(
+        cwd,
+        profile.as_ref(),
+        target_arch,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+    assert!(build_action.is_ok());
+    let run_result = run_build_action(build_action);
+    assert_fn(run_result);
 }
 
 fn assert_build_action_run_with_env_is_success(

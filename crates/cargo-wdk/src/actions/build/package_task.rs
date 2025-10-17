@@ -524,7 +524,6 @@ mod tests {
         process::{ExitStatus, Output},
     };
 
-    use assert_cmd::Command;
     use wdk_build::{CpuArchitecture, KmdfConfig};
 
     use super::*;
