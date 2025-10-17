@@ -1,7 +1,8 @@
+//! This module contains utility functions to be used in child modules' unit
+//! tests.
+
 use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
-/// This is a helper function used in child module unit tests.
-///
 /// Runs function after modifying environment variables, and returns the
 /// function's return value.
 ///
@@ -22,42 +23,52 @@ where
 {
     // Tests can execute in multiple threads in the same process, so mutex must be
     // used to guard access to the environment variables
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    with_lock(|| {
+        let mut original_env_vars = HashMap::new();
 
-    let _mutex_guard = ENV_MUTEX.lock().unwrap();
-    let mut original_env_vars = HashMap::new();
+        // set requested environment variables
+        for (key, value) in env_vars_key_value_pairs {
+            if let Ok(original_value) = std::env::var(key) {
+                let insert_result = original_env_vars.insert(key, original_value);
+                assert!(
+                    insert_result.is_none(),
+                    "Duplicate environment variable keys were provided"
+                );
+            }
 
-    // set requested environment variables
-    for (key, value) in env_vars_key_value_pairs {
-        if let Ok(original_value) = std::env::var(key) {
-            let insert_result = original_env_vars.insert(key, original_value);
-            assert!(
-                insert_result.is_none(),
-                "Duplicate environment variable keys were provided"
+            // Remove the env var if value is None
+            if let Some(value) = value {
+                std::env::set_var(key, value);
+            } else {
+                std::env::remove_var(key);
+            }
+        }
+
+        let f_return_value = f();
+
+        // reset all set environment variables
+        for (key, _) in env_vars_key_value_pairs {
+            original_env_vars.get(key).map_or_else(
+                || {
+                    std::env::remove_var(key);
+                },
+                |value| {
+                    std::env::set_var(key, value);
+                },
             );
         }
 
-        // Remove the env var if value is None
-        if let Some(value) = value {
-            std::env::set_var(key, value);
-        } else {
-            std::env::remove_var(key);
-        }
-    }
+        f_return_value
+    })
+}
 
-    let f_return_value = f();
-
-    // reset all set environment variables
-    for (key, _) in env_vars_key_value_pairs {
-        original_env_vars.get(key).map_or_else(
-            || {
-                std::env::remove_var(key);
-            },
-            |value| {
-                std::env::set_var(key, value);
-            },
-        );
-    }
-
-    f_return_value
+/// Runs function with a mutex lock to prevent concurrent execution and returns
+/// the function's return value.
+pub fn with_lock<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    let _guard = ENV_MUTEX.lock().unwrap();
+    f()
 }

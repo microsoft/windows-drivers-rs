@@ -1460,7 +1460,7 @@ fn run_build_action(
     build_action: Result<BuildAction<'_>, anyhow::Error>,
 ) -> Result<(), BuildActionError> {
     let build_action = build_action.expect("Failed to init build action");
-    crate::test_utils::with_env::<&str, &str, _, _>(&[], || build_action.run())
+    crate::test_utils::with_lock(|| build_action.run())
 }
 
 /// Helper functions
