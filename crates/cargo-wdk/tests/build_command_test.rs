@@ -89,49 +89,50 @@ fn wdm_driver_builds_successfully_with_given_version() {
 fn emulated_workspace_builds_successfully() {
     let emulated_workspace_path = "tests/emulated-workspace";
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-    let stdout = with_file_lock(|| {
+    with_file_lock(|| {
         run_cargo_clean(&umdf_driver_workspace_path);
         run_cargo_clean(&format!("{emulated_workspace_path}/rust-project"));
-        run_build_cmd(emulated_workspace_path, None)
+        let stdout = run_build_cmd(emulated_workspace_path, None);
+        assert!(stdout.contains("Building package driver_1"));
+        assert!(stdout.contains("Building package driver_2"));
+        assert!(stdout.contains("Build completed successfully"));
+        verify_driver_package_files(
+            &umdf_driver_workspace_path,
+            "driver_1",
+            "dll",
+            None,
+            None,
+            None,
+        );
+        verify_driver_package_files(
+            &umdf_driver_workspace_path,
+            "driver_2",
+            "dll",
+            None,
+            None,
+            None,
+        );
     });
-
-    assert!(stdout.contains("Building package driver_1"));
-    assert!(stdout.contains("Building package driver_2"));
-    assert!(stdout.contains("Build completed successfully"));
-
-    verify_driver_package_files(
-        &umdf_driver_workspace_path,
-        "driver_1",
-        "dll",
-        None,
-        None,
-        None,
-    );
-    verify_driver_package_files(
-        &umdf_driver_workspace_path,
-        "driver_2",
-        "dll",
-        None,
-        None,
-        None,
-    );
 }
 
 #[test]
 fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
-    let driver_path = "tests/kmdf-driver";
+    let driver = "kmdf-driver";
+    let driver_path = format!("tests/{driver}");
     with_file_lock(|| {
-        run_cargo_clean(driver_path);
-        run_build_cmd(driver_path, Some(vec!["--target-arch", "arm64"]))
+        run_cargo_clean(&driver_path);
+        let stdout = run_build_cmd(&driver_path, Some(vec!["--target-arch", "arm64"]));
+        assert!(stdout.contains(&format!("Building package {driver}")));
+        assert!(stdout.contains(&format!("Finished building {driver}")));
+        verify_driver_package_files(
+            &driver_path,
+            driver,
+            "sys",
+            None,
+            Some(AARCH64_TARGET_TRIPLE_NAME),
+            None,
+        );
     });
-    verify_driver_package_files(
-        driver_path,
-        "kmdf-driver",
-        "sys",
-        None,
-        Some("aarch64-pc-windows-msvc"),
-        None,
-    );
 }
 
 #[test]
