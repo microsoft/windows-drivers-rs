@@ -12,14 +12,15 @@ inputs:
     architectures:
         description: "Comma or whitespace separated list of architectures (amd64, arm64). Required when using NuGet source."
         required: false
+        default: "amd64"
 
 outputs:
-    package-root:
-        description: "Root directory containing downloaded NuGet packages."
-        value: ${{ steps.finalize.outputs.package-root }}
-    sdk-version-number:
-        description: "Full SDK version number (base version with trailing .0)."
-        value: ${{ steps.finalize.outputs.sdk-version-number }}
+  package-root:
+    description: "Root directory containing downloaded NuGet packages."
+    value: ${{ steps.finalize.outputs.package-root }}
+  sdk-version-number:
+    description: "Full SDK version number (base version with trailing .0)."
+    value: ${{ steps.finalize.outputs.sdk-version-number }}
 
 runs:
     using: "composite"
@@ -99,23 +100,6 @@ runs:
             $ErrorActionPreference = 'Stop'
             $ProgressPreference = 'SilentlyContinue'
 
-            function Select-SinglePackage {
-                param(
-                    [Parameter(Mandatory)]
-                    [object[]]$Packages,
-                    [Parameter(Mandatory)]
-                    [string]$PackageType
-                )
-
-                if ($Packages.Count -eq 1) {
-                    return $Packages[0]
-                } elseif ($Packages.Count -gt 1) {
-                    throw "Multiple $PackageType packages found: $($Packages.Name -join ', '). Expected exactly one."
-                } else {
-                    throw "No $PackageType package found."
-                }
-            }
-
             $architecturesInfo = ConvertFrom-Json -InputObject '${{ steps.validate.outputs.architectures-json }}'
             if ($null -eq $architecturesInfo) {
                 throw 'No architectures available for NuGet installation.'
@@ -126,7 +110,6 @@ runs:
 
             $inputVersion = '${{ inputs.version }}'
             $versionParts = $inputVersion.Split('.')
-            $sdkVersion = $versionParts[0..2] -join '.'
 
             if ($versionParts.Length -eq 3) {
                 Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
@@ -155,46 +138,45 @@ runs:
 
             $packages = 'C:\packages'
 
+            $resolvedVersionParts = $version.Split('.')
+            if ($resolvedVersionParts.Length -lt 3) {
+                throw "Resolved WDK version '$version' does not contain at least three components."
+            }
+
+            $sdkVersion = ($resolvedVersionParts[0..2] -join '.')
+            $sdkVersionNumber = "$sdkVersion.0"
+
             $packagesToInstall = @()
             foreach ($archInfo in $architecturesInfo) {
                 $packageName = "Microsoft.Windows.WDK.$($archInfo.nuget)"
-                if ($packagesToInstall -notcontains $packageName) {
-                    $packagesToInstall += $packageName
+                if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq $packageName })) {
+                    $packagesToInstall += [PSCustomObject]@{
+                        PackageId   = $packageName
+                        Version     = $version
+                        DisplayName = $packageName
+                    }
                 }
             }
 
-            Write-Host "Installing WDK NuGet packages for version $version..."
-            Write-Host "Required packages: $($packagesToInstall -join ', ')"
+            $sdkPackageDisplayName = "Microsoft.Windows.SDK.CPP.$sdkVersionNumber"
+            if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq 'Microsoft.Windows.SDK.CPP' })) {
+                $packagesToInstall += [PSCustomObject]@{
+                    PackageId   = 'Microsoft.Windows.SDK.CPP'
+                    Version     = $sdkVersionNumber
+                    DisplayName = $sdkPackageDisplayName
+                }
+            }
 
-            foreach ($packageName in $packagesToInstall) {
-                Write-Host "Installing $packageName version $version..."
-                nuget install $packageName -Version $version -OutputDirectory $packages
+            Write-Host "Installing WDK and SDK NuGet packages..."
+            foreach ($package in $packagesToInstall) {
+                Write-Host "Installing $($package.DisplayName) (package id: $($package.PackageId)) version $($package.Version)..."
+                nuget install $package.PackageId -Version $package.Version -OutputDirectory $packages
                 if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to install $packageName version $version"
+                    throw "Failed to install $($package.DisplayName) version $($package.Version)"
                 }
             }
 
-            Write-Host "Successfully installed all WDK packages and dependencies for version $version"
-
-            Write-Host "Discovering installed package paths..."
-            $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
-            Write-Host "Found $($packageDirs.Count) package directories."
-
-            $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like 'Microsoft.Windows.SDK.CPP*' })
-            if ($sdkPackageDirs.Count -eq 0) {
-                throw 'No SDK packages found in packages folder.'
-            }
-
-            $baseSDKPackages = @($sdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\\.Windows\\.SDK\\.CPP\.$sdkVersion(\\.\d+)?$" })
-            $sdkPackageDir = Select-SinglePackage -Packages $baseSDKPackages -PackageType 'architecture-neutral SDK'
-
-            $sdkRoot = $sdkPackageDir.FullName
-            $sdkBinPath = Join-Path $sdkRoot 'c\bin'
-            if (-not (Test-Path $sdkBinPath)) {
-                throw "Critical path not found: Windows SDK bin path = $sdkBinPath"
-            }
-
-            $sdkVersionNumber = "$sdkVersion.0"
+            Write-Host "Successfully installed required WDK and SDK packages."
 
             @"
             package-root=$packages
@@ -266,6 +248,10 @@ runs:
 
             $packageRoot = "${{ steps.install-nuget.outputs.package-root }}"
             $sdkVersionNumber = "${{ steps.install-nuget.outputs.sdk-version-number }}"
+
+            if ([string]::IsNullOrWhiteSpace($packageRoot) -and '${{ inputs.source }}' -eq 'nuget') {
+                $packageRoot = 'C:\packages'
+            }
 
             if ([string]::IsNullOrWhiteSpace($sdkVersionNumber)) {
                 $sdkVersionNumber = "${{ steps.winget-metadata.outputs.sdk-version-number }}"

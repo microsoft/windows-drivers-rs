@@ -102,14 +102,26 @@ jobs:
               throw "Unable to locate WDK package directory using pattern '$wdkPackagePattern' under '$packageRoot'."
           }
 
-          $sdkPackageRegex = "^Microsoft\.Windows\.SDK\.CPP\.$sdkVersionBase(\.\d+)?$"
-          $sdkPackageDir = Get-ChildItem -Path $packageRoot -Directory |
-            Where-Object { $_.Name -match $sdkPackageRegex } |
+          $sdkPackageCandidates = Get-ChildItem -Path $packageRoot -Directory |
+            Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$sdkVersionBase*" }
+
+          if ($sdkPackageCandidates.Count -eq 0) {
+              throw "Unable to locate Windows SDK packages under '$packageRoot' for base version '$sdkVersionBase'."
+          }
+
+          $sdkPackageDir = $sdkPackageCandidates |
+            Where-Object { $_.Name -notmatch '\.(x64|arm64)\.\d+$' } |
             Sort-Object Name |
             Select-Object -Last 1
 
           if ($null -eq $sdkPackageDir) {
-              throw "Unable to locate Windows SDK package matching '$sdkPackageRegex' under '$packageRoot'."
+              $sdkPackageDir = $sdkPackageCandidates |
+                Sort-Object Name |
+                Select-Object -Last 1
+          }
+
+          if ($null -eq $sdkPackageDir) {
+              throw "Unable to determine Windows SDK package directory under '$packageRoot'."
           }
 
           $wdkContentRoot = Join-Path $wdkPackageDir.FullName 'c'
