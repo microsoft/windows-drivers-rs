@@ -158,11 +158,11 @@ runs:
                 }
             }
 
-            $sdkPackageDisplayName = "Microsoft.Windows.SDK.CPP.$sdkVersionNumber"
+            $sdkPackageDisplayName = "Microsoft.Windows.SDK.CPP.$sdkVersion"
             if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq 'Microsoft.Windows.SDK.CPP' })) {
                 $packagesToInstall += [PSCustomObject]@{
                     PackageId   = 'Microsoft.Windows.SDK.CPP'
-                    Version     = $sdkVersionNumber
+                    Version     = $sdkVersion
                     DisplayName = $sdkPackageDisplayName
                 }
             }
