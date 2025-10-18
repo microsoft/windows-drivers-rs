@@ -8,6 +8,7 @@
 //! validating, verifying and generating artefacts for the driver package.
 
 use std::{
+    ffi::{CStr, CString},
     ops::RangeFrom,
     path::{Path, PathBuf},
     result::Result,
@@ -16,6 +17,13 @@ use std::{
 use mockall_double::double;
 use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
+use windows::{
+    Win32::{
+        Foundation::{CloseHandle, GetLastError, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0},
+        System::Threading::{CreateMutexA, INFINITE, ReleaseMutex, WaitForSingleObject},
+    },
+    core::{Error as WinError, PCSTR},
+};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
@@ -368,8 +376,25 @@ impl<'a> PackageTask<'a> {
         if self.is_self_signed_certificate_in_store()? {
             self.create_cert_file_from_store()?;
         } else {
-            self.create_self_signed_cert_in_store()?;
+            // This mutex prevents multiple instances of this app from racing and
+            // creating more than one cert in the store. It is not a correctness
+            // problem. We just want to avoid littering the store with certs
+            // especially during testing when there are lots of parallel runs
+            let mutex_name = CString::new("WDRCertStoreMutex_bd345cf9330") // Unique enough
+                .expect("string is a valid C string");
+            let mutex = NamedMutex::acquire(&mutex_name);
+            debug!("Acquired cert store mutex");
+
+            // Check again for an existing cert. Another instance might have
+            // created it while we waited for the mutex
+            if self.is_self_signed_certificate_in_store()? {
+                drop(mutex);
+                self.create_cert_file_from_store()?;
+            } else {
+                self.create_self_signed_cert_in_store()?;
+            }
         }
+
         Ok(())
     }
 
@@ -527,6 +552,59 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 }
+
+/// An RAII wrapper over a Win API named mutex
+struct NamedMutex {
+    handle: HANDLE,
+}
+
+impl NamedMutex {
+    /// Acquire named mutex
+    pub fn acquire(name: &CStr) -> Result<Self, WinError> {
+        fn get_last_error() -> WinError {
+            // SAFETY: We have to just assume this function is safe to call
+            // because the windows crate has no documentation for it and
+            // the MSDN documentation does not specify any preconditions
+            // for calling it
+            unsafe { GetLastError().into() }
+        }
+
+        // SAFETY: The name ptr is valid because it comes from a CStr
+        let handle = unsafe { CreateMutexA(None, false, PCSTR(name.as_ptr() as *const u8))? };
+        if handle.is_invalid() {
+            return Err(get_last_error());
+        }
+
+        // SAFETY: The handle is valid since it was created right above
+        match unsafe { WaitForSingleObject(handle, INFINITE) } {
+            res if res == WAIT_OBJECT_0 || res == WAIT_ABANDONED => Ok(Self { handle }),
+            _ => {
+                // SAFETY: The handle is valid since it was created right above
+                unsafe { CloseHandle(handle)? };
+                return Err(get_last_error());
+            }
+        }
+    }
+}
+
+impl Drop for NamedMutex {
+    fn drop(&mut self) {
+        // SAFETY: the handle is guaranteed to be valid
+        // because this type itself created it and it
+        // was never exposed outside
+        unsafe {
+            // This Cannot fail as the calling thread is guaranteed
+            // to own the handle since we do not implement Send
+            let _ = ReleaseMutex(self.handle);
+
+            // Documentation doesn't say under what conditions
+            // CloseHandle fails, but if it's due to an invalid
+            // handle that won't be a problem here
+            let _ = CloseHandle(self.handle);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{

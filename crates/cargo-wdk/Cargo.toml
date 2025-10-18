@@ -26,6 +26,7 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wdk-build.workspace = true
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Threading", "Win32_Security"] }
 
 [dev-dependencies]
 assert_cmd.workspace = true

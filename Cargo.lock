@@ -191,6 +191,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wdk-build",
+ "windows",
 ]
 
 [[package]]
