@@ -59,12 +59,76 @@ jobs:
           version: ${{ matrix.llvm }}
 
       - name: Install WDK (${{ matrix.wdk.version }})
+        id: install_wdk
         uses: ./.github/actions/install-wdk
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
-          target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+          architectures: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+
+      - name: Configure WDK environment (NuGet)
+        if: matrix.wdk.source == 'nuget'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $packageRoot = '${{ steps.install_wdk.outputs.package-root }}'
+          $sdkVersionNumber = '${{ steps.install_wdk.outputs.sdk-version-number }}'
+
+          if ([string]::IsNullOrWhiteSpace($packageRoot)) {
+              throw 'install-wdk action did not return a package-root output.'
+          }
+
+          if ([string]::IsNullOrWhiteSpace($sdkVersionNumber)) {
+              throw 'install-wdk action did not return an sdk-version-number output.'
+          }
+
+          $runnerArch = '${{ matrix.runner.arch }}'
+          $nugetArch = switch ($runnerArch) {
+              'amd64' { 'x64' }
+              'arm64' { 'ARM64' }
+              default { throw "Unsupported runner architecture: $runnerArch" }
+          }
+
+          $sdkVersionBase = $sdkVersionNumber -replace "\.0$",""
+          $wdkPackagePattern = "Microsoft.Windows.WDK.$nugetArch.$sdkVersionBase*"
+
+          $wdkPackageDir = Get-ChildItem -Path $packageRoot -Directory -Filter $wdkPackagePattern |
+            Sort-Object Name |
+            Select-Object -Last 1
+
+          if ($null -eq $wdkPackageDir) {
+              throw "Unable to locate WDK package directory using pattern '$wdkPackagePattern' under '$packageRoot'."
+          }
+
+          $sdkPackageRegex = "^Microsoft\.Windows\.SDK\.CPP\.$sdkVersionBase(\.\d+)?$"
+          $sdkPackageDir = Get-ChildItem -Path $packageRoot -Directory |
+            Where-Object { $_.Name -match $sdkPackageRegex } |
+            Sort-Object Name |
+            Select-Object -Last 1
+
+          if ($null -eq $sdkPackageDir) {
+              throw "Unable to locate Windows SDK package matching '$sdkPackageRegex' under '$packageRoot'."
+          }
+
+          $wdkContentRoot = Join-Path $wdkPackageDir.FullName 'c'
+          $wdkBinRoot = Join-Path $wdkContentRoot 'bin'
+          $wdkToolRoot = Join-Path $wdkContentRoot 'tools'
+          $windowsSdkContentRoot = Join-Path $sdkPackageDir.FullName 'c'
+          $windowsSdkBinPath = Join-Path $windowsSdkContentRoot 'bin'
+
+          foreach ($path in @($wdkContentRoot, $wdkBinRoot, $wdkToolRoot, $windowsSdkBinPath)) {
+              if (-not (Test-Path $path)) {
+                  throw "Required path not found: $path"
+              }
+          }
+
+          "WDKContentRoot=$wdkContentRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WDKBinRoot=$wdkBinRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WDKToolRoot=$wdkToolRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WindowsSdkBinPath=$windowsSdkBinPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Version_Number=$sdkVersionNumber" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly

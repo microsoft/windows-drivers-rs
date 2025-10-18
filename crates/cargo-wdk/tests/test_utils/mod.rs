@@ -35,16 +35,32 @@ pub fn set_crt_static_flag() {
 /// # Panics
 /// * Panics if the lock file cannot be created.
 /// * Panics if the lock cannot be acquired.
-/// * Panics if the lock cannot be released.
 pub fn with_file_lock<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
+    struct FileLockGuard {
+        file: std::fs::File,
+    }
+
+    impl Drop for FileLockGuard {
+        fn drop(&mut self) {
+            if let Err(err) = FileExt::unlock(&self.file) {
+                if std::thread::panicking() {
+                    eprintln!("Unable to unlock cargo-wdk-test.lock file: {err}");
+                } else {
+                    panic!("Unable to unlock cargo-wdk-test.lock file: {err}");
+                }
+            }
+        }
+    }
+
     let lock_file = std::fs::File::create("cargo-wdk-test.lock")
         .expect("Unable to create lock file for cargo-wdk tests");
-    FileExt::lock_exclusive(&lock_file).expect("Unable to cargo-wdk-test.lock file");
+    FileExt::lock_exclusive(&lock_file).expect("Unable to lock cargo-wdk-test.lock file");
+    let guard = FileLockGuard { file: lock_file };
     let result = f();
-    FileExt::unlock(&lock_file).expect("Unable to unlock cargo-wdk-test.lock file");
+    drop(guard);
     result
 }
 
@@ -58,9 +74,7 @@ where
 ///
 /// The environment is guaranteed to be not modified during the execution
 /// of the function, and the environment is reset to its original state
-/// after execution of the function. No testing asserts should be called in
-/// the function, since a failing test will poison the mutex, and cause all
-/// remaining tests to fail.
+/// after execution of the function, even if the closure panics.
 ///
 /// # Panics
 ///
@@ -93,7 +107,7 @@ where
             }
         }
 
-        let result = f();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
         // reset all set environment variables
         for (key, _) in env_vars_key_value_pairs {
@@ -107,6 +121,9 @@ where
             );
         }
 
-        result
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     })
 }
