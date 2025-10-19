@@ -141,6 +141,7 @@ jobs:
           "WDKToolRoot=$wdkToolRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WindowsSdkBinPath=$windowsSdkBinPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "Version_Number=$sdkVersionNumber" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CARGO_WDK_NUGET_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
