@@ -64,7 +64,7 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          architectures: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+          architectures: ${{ matrix.wdk.source == 'nuget' && 'x64 ARM64' || '' }}
 
       - name: Configure WDK environment (NuGet)
         if: matrix.wdk.source == 'nuget'
@@ -73,11 +73,11 @@ jobs:
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
-          $packageRoot = '${{ steps.install_wdk.outputs.package-root }}'
+          $packageRoot = '${{ steps.install_wdk.outputs.nuget-package-root }}'
           $sdkVersionNumber = '${{ steps.install_wdk.outputs.sdk-version-number }}'
 
           if ([string]::IsNullOrWhiteSpace($packageRoot)) {
-              throw 'install-wdk action did not return a package-root output.'
+              throw 'install-wdk action did not return a nuget-package-root output.'
           }
 
           if ([string]::IsNullOrWhiteSpace($sdkVersionNumber)) {
