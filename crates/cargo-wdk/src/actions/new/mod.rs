@@ -334,7 +334,7 @@ mod tests {
         ];
 
         for (verbosity_level, expected_flag) in cases {
-            let test_new_action = TestNewAction::new(path)
+            let test_new_action = TestSetup::new(path)
                 .expect_cargo_new(None, expected_flag)
                 .expect_copy_lib_rs_template(true)
                 .expect_update_cargo_toml(true, true, true)
@@ -360,7 +360,7 @@ mod tests {
         let verbosity_level = Verbosity::default();
 
         // Set up mocks with failure at cargo new step
-        let test_new_action = TestNewAction::new(path).expect_cargo_new(
+        let test_new_action = TestSetup::new(path).expect_cargo_new(
             Some(Output {
                 status: ExitStatus::from_raw(1),
                 stdout: vec![],
@@ -390,7 +390,7 @@ mod tests {
         let verbosity_level = Verbosity::default();
 
         // Set up mocks with failure at copy lib rs template to driver project step
-        let test_new_action = TestNewAction::new(path)
+        let test_new_action = TestSetup::new(path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(false); // Force failure here
 
@@ -473,7 +473,7 @@ mod tests {
             assert_fn,
         } in cases
         {
-            let test_new_action = TestNewAction::new(path)
+            let test_new_action = TestSetup::new(path)
                 .expect_cargo_new(None, None)
                 .expect_copy_lib_rs_template(true)
                 .expect_update_cargo_toml(
@@ -503,7 +503,7 @@ mod tests {
         let verbosity_level = Verbosity::default();
 
         // Set up mocks with failure at parsing driver crate name step
-        let test_new_action = TestNewAction::new(empty_path)
+        let test_new_action = TestSetup::new(empty_path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
             .expect_update_cargo_toml(true, true, true);
@@ -528,7 +528,7 @@ mod tests {
         let verbosity_level = Verbosity::default();
 
         // Set up mocks with failure at copy build rs template to driver project step
-        let test_new_action = TestNewAction::new(path)
+        let test_new_action = TestSetup::new(path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
             .expect_update_cargo_toml(true, true, true)
@@ -559,7 +559,7 @@ mod tests {
         let verbosity_level = Verbosity::default();
 
         // Set up mocks with failure at copy cargo config to driver project step
-        let test_new_action = TestNewAction::new(path)
+        let test_new_action = TestSetup::new(path)
             .expect_cargo_new(None, None)
             .expect_copy_lib_rs_template(true)
             .expect_update_cargo_toml(true, true, true)
@@ -584,13 +584,13 @@ mod tests {
         );
     }
 
-    struct TestNewAction<'a> {
+    struct TestSetup<'a> {
         path: &'a Path,
         mock_exec: MockCommandExec,
         mock_fs: MockFs,
     }
 
-    impl<'a> TestNewAction<'a> {
+    impl<'a> TestSetup<'a> {
         fn new(path: &'a Path) -> Self {
             Self {
                 path,
