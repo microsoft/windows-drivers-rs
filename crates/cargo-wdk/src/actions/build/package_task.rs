@@ -9,6 +9,7 @@
 
 use std::{
     ffi::{CStr, CString},
+    marker::PhantomData,
     ops::RangeFrom,
     path::{Path, PathBuf},
     result::Result,
@@ -556,10 +557,14 @@ impl<'a> PackageTask<'a> {
 /// An RAII wrapper over a Win API named mutex
 struct NamedMutex {
     handle: HANDLE,
+    // `ReleaseMutex` requires that it is called
+    // only by threads that own the mutex handle.
+    // Being `!Send` ensures that's always the case.
+    _not_send: PhantomData<*const ()>,
 }
 
 impl NamedMutex {
-    /// Acquire named mutex
+    /// Acquires named mutex
     pub fn acquire(name: &CStr) -> Result<Self, WinError> {
         fn get_last_error() -> WinError {
             // SAFETY: We have to just assume this function is safe to call
@@ -577,7 +582,10 @@ impl NamedMutex {
 
         // SAFETY: The handle is valid since it was created right above
         match unsafe { WaitForSingleObject(handle, INFINITE) } {
-            res if res == WAIT_OBJECT_0 || res == WAIT_ABANDONED => Ok(Self { handle }),
+            res if res == WAIT_OBJECT_0 || res == WAIT_ABANDONED => Ok(Self {
+                handle,
+                _not_send: PhantomData,
+            }),
             _ => {
                 // SAFETY: The handle is valid since it was created right above
                 unsafe { CloseHandle(handle)? };
@@ -593,7 +601,7 @@ impl Drop for NamedMutex {
         // because this type itself created it and it
         // was never exposed outside
         unsafe {
-            // This Cannot fail as the calling thread is guaranteed
+            // This cannot fail as the calling thread is guaranteed
             // to own the handle since we do not implement Send
             let _ = ReleaseMutex(self.handle);
 
