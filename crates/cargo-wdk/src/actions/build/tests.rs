@@ -1740,14 +1740,11 @@ impl TestBuildAction {
         }
 
         expected_cargo_build_args.push("-v".to_string());
-        let expected_output = override_output.map_or_else(
-            || Output {
-                status: ExitStatus::default(),
-                stdout: vec![],
-                stderr: vec![],
-            },
-            |output| output,
-        );
+        let expected_output = override_output.unwrap_or_else(|| Output {
+            status: ExitStatus::default(),
+            stdout: vec![],
+            stderr: vec![],
+        });
         self.mock_run_command
             .expect_run()
             .withf(
@@ -2158,7 +2155,6 @@ impl TestBuildAction {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
-            .once()
             .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
