@@ -49,7 +49,7 @@ where
 {
     // Append an arbitrary suffix to minimize the chance of
     // collisions with something else on the machine
-    let mutex_name = format!("{}_104da4527a7", mutex_name);
+    let mutex_name = format!("{mutex_name}_104da4527a7");
     let mutex_name = CString::new(mutex_name).expect("mutex_name is not a valid C string");
     let _mutex = NamedMutex::acquire(&mutex_name).expect("failed to acquire mutex");
 
