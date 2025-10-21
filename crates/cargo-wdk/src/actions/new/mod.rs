@@ -326,23 +326,26 @@ mod tests {
             (Verbosity::new(1, 0), Some("-v".to_string())), // Verbose
         ];
 
+        // Set up mocks to assert a successful driver project creation.
+        // The for loop below tests various verbosity levels as well
         for (verbosity_level, expected_flag) in cases {
-            let test_new_action = TestSetup::new(path)
-                .expect_cargo_new(None, expected_flag)
-                .expect_copy_lib_rs_template(true)
-                .expect_update_cargo_toml(true, true, true)
-                .expect_create_inx_file(true)
-                .expect_copy_build_rs_template(true)
-                .expect_copy_cargo_config(true);
-            let result = NewAction::new(
+            setup_and_assert(
                 path,
                 driver_type,
                 verbosity_level,
-                &test_new_action.mock_exec,
-                &test_new_action.mock_fs,
-            )
-            .run();
-            assert!(result.is_ok());
+                |test_setup| {
+                    test_setup
+                        .expect_cargo_new(None, expected_flag)
+                        .expect_copy_lib_rs_template(true)
+                        .expect_update_cargo_toml(true, true, true)
+                        .expect_create_inx_file(true)
+                        .expect_copy_build_rs_template(true)
+                        .expect_copy_cargo_config(true)
+                },
+                |result| {
+                    assert!(result.is_ok());
+                },
+            );
         }
     }
 
@@ -352,27 +355,27 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        // Set up mocks with failure at cargo new step
-        let test_new_action = TestSetup::new(path).expect_cargo_new(
-            Some(Output {
-                status: ExitStatus::from_raw(1),
-                stdout: vec![],
-                stderr: "some error".into(),
-            }),
-            None,
-        );
-
-        let result = NewAction::new(
+        setup_and_assert(
             path,
             driver_type,
             verbosity_level,
-            &test_new_action.mock_exec,
-            &test_new_action.mock_fs,
-        )
-        .run();
-        assert!(
-            matches!(result, Err(NewActionError::CargoNewCommand(_))),
-            "Expected CargoNewCommand error"
+            |test_setup| {
+                // Set up mocks with failure at cargo new step
+                test_setup.expect_cargo_new(
+                    Some(Output {
+                        status: ExitStatus::from_raw(1),
+                        stdout: vec![],
+                        stderr: "some error".into(),
+                    }),
+                    None,
+                )
+            },
+            |result| {
+                assert!(
+                    matches!(result, Err(NewActionError::CargoNewCommand(_))),
+                    "Expected CargoNewCommand error"
+                );
+            },
         );
     }
 
@@ -382,25 +385,25 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        // Set up mocks with failure at copy lib rs template to driver project step
-        let test_new_action = TestSetup::new(path)
-            .expect_cargo_new(None, None)
-            .expect_copy_lib_rs_template(false); // Force failure here
-
-        let result = NewAction::new(
+        setup_and_assert(
             path,
             driver_type,
             verbosity_level,
-            &test_new_action.mock_exec,
-            &test_new_action.mock_fs,
-        )
-        .run();
-        assert!(
-            matches!(
-                result,
-                Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
-            ),
-            "Expected FileSystem WriteError from copy_lib_rs_template"
+            |test_setup| {
+                // Set up mocks with failure at copy lib rs template to driver project step
+                test_setup
+                    .expect_cargo_new(None, None)
+                    .expect_copy_lib_rs_template(false) // Force failure here
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from copy_lib_rs_template"
+                );
+            },
         );
     }
 
@@ -450,25 +453,24 @@ mod tests {
         for (is_read_success, is_dep_removal_success, is_template_append_success, assert_fn) in
             cases
         {
-            let test_new_action = TestSetup::new(path)
-                .expect_cargo_new(None, None)
-                .expect_copy_lib_rs_template(true)
-                .expect_update_cargo_toml(
-                    is_read_success,
-                    is_dep_removal_success,
-                    is_template_append_success,
-                ); // Force failure here
-
-            let result = NewAction::new(
+            setup_and_assert(
                 path,
                 driver_type,
                 verbosity_level,
-                &test_new_action.mock_exec,
-                &test_new_action.mock_fs,
-            )
-            .run();
-
-            assert_fn(result);
+                |test_setup| {
+                    test_setup
+                        .expect_cargo_new(None, None)
+                        .expect_copy_lib_rs_template(true)
+                        .expect_update_cargo_toml(
+                            is_read_success,
+                            is_dep_removal_success,
+                            is_template_append_success,
+                        ) // Force failure here
+                },
+                |result| {
+                    assert_fn(result);
+                },
+            );
         }
     }
 
@@ -479,22 +481,23 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        // Set up mocks with failure at parsing driver crate name step
-        let test_new_action = TestSetup::new(empty_path)
-            .expect_cargo_new(None, None)
-            .expect_copy_lib_rs_template(true)
-            .expect_update_cargo_toml(true, true, true);
-        let new_action = NewAction::new(
+        setup_and_assert(
             empty_path,
             driver_type,
             verbosity_level,
-            &test_new_action.mock_exec,
-            &test_new_action.mock_fs,
-        );
-        let result = new_action.run();
-        assert!(
-            matches!(result, Err(NewActionError::InvalidDriverCrateName(_))),
-            "Expected InvalidDriverCrateName error"
+            |test_setup| {
+                // Set up mocks with failure at parsing driver crate name step
+                test_setup
+                    .expect_cargo_new(None, None)
+                    .expect_copy_lib_rs_template(true)
+                    .expect_update_cargo_toml(true, true, true)
+            },
+            |result| {
+                assert!(
+                    matches!(result, Err(NewActionError::InvalidDriverCrateName(_))),
+                    "Expected InvalidDriverCrateName error"
+                );
+            },
         );
     }
 
@@ -504,28 +507,28 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        // Set up mocks with failure at copy build rs template to driver project step
-        let test_new_action = TestSetup::new(path)
-            .expect_cargo_new(None, None)
-            .expect_copy_lib_rs_template(true)
-            .expect_update_cargo_toml(true, true, true)
-            .expect_create_inx_file(true)
-            .expect_copy_build_rs_template(false); // Force failure here
-
-        let result = NewAction::new(
+        setup_and_assert(
             path,
             driver_type,
             verbosity_level,
-            &test_new_action.mock_exec,
-            &test_new_action.mock_fs,
-        )
-        .run();
-        assert!(
-            matches!(
-                result,
-                Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
-            ),
-            "Expected FileSystem WriteError from copy_build_rs_template step"
+            |test_setup| {
+                // Set up mocks with failure at copy build rs template to driver project step
+                test_setup
+                    .expect_cargo_new(None, None)
+                    .expect_copy_lib_rs_template(true)
+                    .expect_update_cargo_toml(true, true, true)
+                    .expect_create_inx_file(true)
+                    .expect_copy_build_rs_template(false) // Force failure here
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from copy_build_rs_template step"
+                );
+            },
         );
     }
 
@@ -535,30 +538,59 @@ mod tests {
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        // Set up mocks with failure at copy cargo config to driver project step
-        let test_new_action = TestSetup::new(path)
-            .expect_cargo_new(None, None)
-            .expect_copy_lib_rs_template(true)
-            .expect_update_cargo_toml(true, true, true)
-            .expect_create_inx_file(true)
-            .expect_copy_build_rs_template(true)
-            .expect_copy_cargo_config(false); // Force failure here
+        setup_and_assert(
+            path,
+            driver_type,
+            verbosity_level,
+            |test_setup| {
+                // Set up mocks with failure at copy cargo config to driver project step
+                test_setup
+                    .expect_cargo_new(None, None)
+                    .expect_copy_lib_rs_template(true)
+                    .expect_update_cargo_toml(true, true, true)
+                    .expect_create_inx_file(true)
+                    .expect_copy_build_rs_template(true)
+                    .expect_copy_cargo_config(false) // Force failure here
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from copy_cargo_config step"
+                );
+            },
+        );
+    }
+
+    /// Helper function to set up mock expectations and assert on the result.
+    ///
+    /// This function takes a closure to configure the test setup (e.g., mock
+    /// expectations) and another closure to perform assertions on the
+    /// result of running the action. Usage: pass a closure to
+    /// `set_expectations_fn` to configure mocks, and a closure to `assert_fn`
+    /// to check the outcome.
+    fn setup_and_assert(
+        path: &Path,
+        driver_type: DriverType,
+        verbosity_level: Verbosity,
+        set_expectations_fn: impl FnOnce(TestSetup) -> TestSetup,
+        assert_fn: impl FnOnce(Result<(), NewActionError>),
+    ) {
+        let test_setup = TestSetup::new(path);
+        let test_setup = set_expectations_fn(test_setup);
 
         let result = NewAction::new(
             path,
             driver_type,
             verbosity_level,
-            &test_new_action.mock_exec,
-            &test_new_action.mock_fs,
+            &test_setup.mock_exec,
+            &test_setup.mock_fs,
         )
         .run();
-        assert!(
-            matches!(
-                result,
-                Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
-            ),
-            "Expected FileSystem WriteError from copy_cargo_config step"
-        );
+
+        assert_fn(result);
     }
 
     struct TestSetup<'a> {
