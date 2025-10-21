@@ -303,24 +303,17 @@ mod tests {
 
     use clap_verbosity_flag::Verbosity;
 
-    use super::error::NewActionError;
     use crate::{
-        actions::{new::NewAction, DriverType},
+        actions::{
+            new::{NewAction, NewActionError},
+            DriverType,
+        },
         providers::{
             error::{CommandError, FileError},
             exec::MockCommandExec,
             fs::MockFs,
         },
     };
-
-    // Helper struct for setting up different failure scenarios in the
-    // `update_cargo_toml` step.
-    struct UpdateCargoTomlCaseSetupHelper {
-        is_read_success: bool,
-        is_dep_removal_success: bool,
-        is_template_append_success: bool,
-        assert_fn: fn(Result<(), NewActionError>),
-    }
 
     #[test]
     fn new_project_created_successfully() {
@@ -412,66 +405,50 @@ mod tests {
     }
 
     #[test]
-    fn when_update_cargo_toml_fails_for_multiple_cases_then_returns_filesystem_error() {
+    fn when_update_cargo_toml_fails_then_returns_filesystem_error() {
         let path = Path::new("test_driver_fail_cargo_toml_read");
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        let cases: [UpdateCargoTomlCaseSetupHelper; 3] = [
-            UpdateCargoTomlCaseSetupHelper {
-                is_read_success: false,
-                is_dep_removal_success: true,
-                is_template_append_success: true,
-                assert_fn: |result: Result<(), NewActionError>| {
-                    assert!(
-                        matches!(
-                            result,
-                            Err(NewActionError::FileSystem(FileError::NotFound(_)))
-                        ),
-                        "Expected FileSystem NotFound error from update_cargo_toml read step"
-                    );
-                },
-            }, // Fail on reading the generated Cargo.toml
-            UpdateCargoTomlCaseSetupHelper {
-                is_read_success: true,
-                is_dep_removal_success: false,
-                is_template_append_success: true,
-                assert_fn: |result: Result<(), NewActionError>| {
-                    assert!(
-                        matches!(
-                            result,
-                            Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
-                        ),
-                        "Expected FileSystem WriteError from update_cargo_toml dependency section \
-                         removal step"
-                    );
-                },
-            }, // Fail on updating the cargo toml with default dependencies section removed
-            UpdateCargoTomlCaseSetupHelper {
-                is_read_success: true,
-                is_dep_removal_success: true,
-                is_template_append_success: false,
-
-                assert_fn: |result: Result<(), NewActionError>| {
-                    assert!(
-                        matches!(
-                            result,
-                            Err(NewActionError::FileSystem(FileError::AppendError(_, _)))
-                        ),
-                        "Expected FileSystem AppendError from update_cargo_toml template append \
-                         step"
-                    );
-                },
-            }, // Fail on appending cargo toml template to the Cargo.toml
+        #[allow(
+            clippy::type_complexity,
+            reason = "This suppression is required to avoid creating a type for the below complex \
+                      type declaration."
+        )]
+        let cases: [(bool, bool, bool, fn(Result<(), NewActionError>)); 3] = [
+            (false, true, true, |result: Result<(), NewActionError>| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::NotFound(_)))
+                    ),
+                    "Expected FileSystem NotFound error from update_cargo_toml read step"
+                );
+            }), // Fail on reading the generated Cargo.toml
+            (true, false, true, |result: Result<(), NewActionError>| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from update_cargo_toml dependency section \
+                     removal step"
+                );
+            }), // Fail on updating the cargo toml with default dependencies section removed
+            (true, true, false, |result: Result<(), NewActionError>| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::AppendError(_, _)))
+                    ),
+                    "Expected FileSystem AppendError from update_cargo_toml template append step"
+                );
+            }), // Fail on appending cargo toml template to the Cargo.toml
         ];
 
         // Set up mocks with different failure cases for update_cargo_toml
-        for UpdateCargoTomlCaseSetupHelper {
-            is_read_success,
-            is_dep_removal_success,
-            is_template_append_success,
-            assert_fn,
-        } in cases
+        for (is_read_success, is_dep_removal_success, is_template_append_success, assert_fn) in
+            cases
         {
             let test_new_action = TestSetup::new(path)
                 .expect_cargo_new(None, None)
