@@ -56,6 +56,7 @@ const CARGO_MAKE_CARGO_PROFILE_ENV_VAR: &str = "CARGO_MAKE_CARGO_PROFILE";
 const CARGO_MAKE_CRATE_TARGET_TRIPLE_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_TRIPLE";
 const CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY_ENV_VAR: &str =
     "CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY";
+const CARGO_MAKE_CRATE_TARGET_DIRECTORY_ENV_VAR: &str = "CARGO_MAKE_CRATE_TARGET_DIRECTORY";
 const CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN_ENV_VAR: &str = "CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN";
 const CARGO_MAKE_CRATE_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_NAME";
 const CARGO_MAKE_CRATE_FS_NAME_ENV_VAR: &str = "CARGO_MAKE_CRATE_FS_NAME";
@@ -791,8 +792,9 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
 ///
 /// # Panics
 ///
-/// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
-/// environment variable is not set
+/// This function will panic if neither the
+/// `CARGO_MAKE_CRATE_TARGET_DIRECTORY` nor the
+/// `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY` environment variables are set.
 pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
     load_wdk_build_makefile(RUST_DRIVER_MAKEFILE_NAME)
 }
@@ -815,8 +817,9 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
 ///
 /// # Panics
 ///
-/// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
-/// environment variable is not set
+/// This function will panic if neither the
+/// `CARGO_MAKE_CRATE_TARGET_DIRECTORY` nor the
+/// `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY` environment variables are set.
 pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
     load_wdk_build_makefile(RUST_DRIVER_SAMPLE_MAKEFILE_NAME)
 }
@@ -845,8 +848,9 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 ///
 /// # Panics
 ///
-/// This function will panic if the `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY`
-/// environment variable is not set
+/// This function will panic if neither the
+/// `CARGO_MAKE_CRATE_TARGET_DIRECTORY` nor the
+/// `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY` environment variables are set.
 #[instrument(level = "trace")]
 fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::Debug>(
     makefile_name: S,
@@ -882,14 +886,17 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .join(&makefile_name)
         .into_std_path_buf();
 
-    let cargo_make_workspace_working_directory =
-        env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
-            panic!("{CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make")
-        });
-
-    let destination_path = Path::new(&cargo_make_workspace_working_directory)
-        .join("target")
-        .join(&makefile_name);
+    let destination_path = env::var(CARGO_MAKE_CRATE_TARGET_DIRECTORY_ENV_VAR).map_or_else(
+        |_| {
+            let cargo_make_workspace_working_directory =
+                env::var(CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR).unwrap_or_else(|_| {
+                    panic!("Either {CARGO_MAKE_CRATE_TARGET_DIRECTORY_ENV_VAR} or {CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR} should be set by cargo-make")
+                });
+            Path::new(&cargo_make_workspace_working_directory)
+                .join("target")
+        },
+        PathBuf::from,
+    ).join(&makefile_name);
 
     // Only create a new symlink if the existing one is not already pointing to the
     // correct file
