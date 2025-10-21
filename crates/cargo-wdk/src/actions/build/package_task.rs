@@ -383,7 +383,8 @@ impl<'a> PackageTask<'a> {
             // especially during testing when there are lots of parallel runs
             let mutex_name = CString::new("WDRCertStoreMutex_bd345cf9330") // Unique enough
                 .expect("string is a valid C string");
-            let mutex = NamedMutex::acquire(&mutex_name);
+            let mutex = NamedMutex::acquire(&mutex_name)
+                .map_err(|e| PackageTaskError::CertMutexError(e.code().0))?;
             debug!("Acquired cert store mutex");
 
             // Check again for an existing cert. Another instance might have
