@@ -377,10 +377,10 @@ impl<'a> PackageTask<'a> {
         if self.is_self_signed_certificate_in_store()? {
             self.create_cert_file_from_store()?;
         } else {
-            // This mutex prevents multiple instances of this app from racing and
-            // creating more than one cert in the store. It is not a correctness
-            // problem. We just want to avoid littering the store with certs
-            // especially during testing when there are lots of parallel runs
+            // This mutex prevents multiple instances of this app from racing to
+            // create a cert in the store. It is not a correctness problem. We
+            // just don't want to litter the store with certs especially during
+            // tests when there are lots of parallel runs
             let mutex_name = CString::new("WDRCertStoreMutex_bd345cf9330") // Unique enough
                 .expect("string is a valid C string");
             let mutex = NamedMutex::acquire(&mutex_name)
