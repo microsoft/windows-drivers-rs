@@ -75,6 +75,7 @@ jobs:
 
           $packageRoot = '${{ steps.install_wdk.outputs.nuget-package-root }}'
           $sdkVersionNumber = '${{ steps.install_wdk.outputs.sdk-version-number }}'
+          $fullVersionNumber = '${{ steps.install_wdk.outputs.full-version-number }}'
 
           if ([string]::IsNullOrWhiteSpace($packageRoot)) {
               throw 'install-wdk action did not return a nuget-package-root output.'
@@ -141,7 +142,8 @@ jobs:
           "WDKToolRoot=$wdkToolRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WindowsSdkBinPath=$windowsSdkBinPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "Version_Number=$sdkVersionNumber" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "CARGO_WDK_NUGET_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Nuget_Packages_Root=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Full_Version_Number=$fullVersionNumber" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly

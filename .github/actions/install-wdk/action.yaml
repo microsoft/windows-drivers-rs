@@ -19,8 +19,11 @@ outputs:
     description: "Root directory containing downloaded NuGet packages."
     value: ${{ steps.finalize.outputs.nuget-package-root }}
   sdk-version-number:
-    description: "Full SDK version number (base version with trailing .0)."
+    description: "SDK version number (base version with trailing .0)."
     value: ${{ steps.finalize.outputs.sdk-version-number }}
+  full-version-number:
+    description: "Full SDK/WDK version number (with the QFE)"
+    value: ${{ steps.finalize.outputs.full-version-number }}
 
 runs:
     using: "composite"
@@ -177,6 +180,7 @@ runs:
             @"
             nuget-package-root=$packages
             sdk-version-number=$sdkVersionNumber
+            full-version-number=$version
             "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
         - name: Remove existing Windows SDK packages
