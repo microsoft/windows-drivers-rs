@@ -420,13 +420,14 @@ impl<'a> BuildAction<'a> {
             .components()
             .map(|c| c.as_os_str().to_string_lossy().to_string())
             .collect();
-        if let Some(tgt_idx) = components.iter().rposition(|c| c == "target") {
-            if components.len() > tgt_idx + 2 && components[tgt_idx + 2] == expected_profile_dir {
-                let triple = &components[tgt_idx + 1];
-                if let Ok(a) = Self::arch_from_triple(triple) {
-                    debug!("Inferred architecture {:?} from artifact layout", a);
-                    return Ok((a, artifacts_dir));
-                }
+        if let Some(tgt_idx) = components.iter().rposition(|c| c == "target")
+            && components.len() > tgt_idx + 2
+            && components[tgt_idx + 2] == expected_profile_dir
+        {
+            let triple = &components[tgt_idx + 1];
+            if let Ok(a) = Self::arch_from_triple(triple) {
+                debug!("Inferred architecture {:?} from artifact layout", a);
+                return Ok((a, artifacts_dir));
             }
         }
         Ok((
@@ -469,19 +470,19 @@ impl<'a> BuildAction<'a> {
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;
         for line in output.stdout.split(|b| *b == b'\n') {
-            if let Some(rest) = line.strip_prefix(b"target_arch=\"") {
-                if let Some(end_quote) = rest.iter().position(|b| *b == b'"') {
-                    let arch = &rest[..end_quote];
-                    return match arch {
-                        b"x86_64" => Ok(CpuArchitecture::Amd64),
-                        b"aarch64" => Ok(CpuArchitecture::Arm64),
-                        _ => {
-                            return Err(BuildActionError::UnsupportedArchitecture(
-                                String::from_utf8_lossy(arch).into(),
-                            ));
-                        }
-                    };
-                }
+            if let Some(rest) = line.strip_prefix(b"target_arch=\"")
+                && let Some(end_quote) = rest.iter().position(|b| *b == b'"')
+            {
+                let arch = &rest[..end_quote];
+                return match arch {
+                    b"x86_64" => Ok(CpuArchitecture::Amd64),
+                    b"aarch64" => Ok(CpuArchitecture::Arm64),
+                    _ => {
+                        return Err(BuildActionError::UnsupportedArchitecture(
+                            String::from_utf8_lossy(arch).into(),
+                        ));
+                    }
+                };
             }
         }
 
