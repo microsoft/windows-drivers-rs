@@ -13,7 +13,7 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf, absolute},
     result::Result::Ok,
 };
 
@@ -25,11 +25,11 @@ use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, warn};
 use wdk_build::{
-    metadata::{TryFromCargoMetadataError, Wdk},
     CpuArchitecture,
+    metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::{build::error::BuildTaskError, Profile};
+use crate::actions::{Profile, build::error::BuildTaskError};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -478,7 +478,7 @@ impl<'a> BuildAction<'a> {
                         _ => {
                             return Err(BuildActionError::UnsupportedArchitecture(
                                 String::from_utf8_lossy(arch).into(),
-                            ))
+                            ));
                         }
                     };
                 }

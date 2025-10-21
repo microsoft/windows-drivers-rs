@@ -16,7 +16,7 @@ use wdk_build::CpuArchitecture;
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{build::error::BuildTaskError, to_target_triple, Profile},
+    actions::{Profile, build::error::BuildTaskError, to_target_triple},
     trace,
 };
 

@@ -4,13 +4,13 @@
 use std::{borrow::Borrow, fmt};
 
 use bindgen::{
-    callbacks::{ItemInfo, ItemKind, ParseCallbacks},
     Builder,
+    callbacks::{ItemInfo, ItemKind, ParseCallbacks},
 };
 use cargo_metadata::MetadataCommand;
 use tracing::debug;
 
-use crate::{find_top_level_cargo_manifest, Config, ConfigError, DriverConfig};
+use crate::{Config, ConfigError, DriverConfig, find_top_level_cargo_manifest};
 
 /// An extension trait that provides a way to create a [`bindgen::Builder`]
 /// configured for generating bindings to the wdk

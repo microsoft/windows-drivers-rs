@@ -1,6 +1,6 @@
 #![no_main]
 #![deny(warnings)]
-#[export_name = "DriverEntry"]
+#[unsafe(export_name = "DriverEntry")]
 pub extern "system" fn driver_entry(
     driver: wdk_sys::PDRIVER_OBJECT,
     registry_path: wdk_sys::PCUNICODE_STRING,
@@ -63,7 +63,7 @@ pub extern "system" fn driver_entry(
                             ::core::panicking::panic_fmt(
                                 format_args!(
                                     "internal error: entered unreachable code: {0}",
-                                    format_args!("Option should never be None"),
+                                    format_args!("Option should never be None")
                                 ),
                             );
                         };
