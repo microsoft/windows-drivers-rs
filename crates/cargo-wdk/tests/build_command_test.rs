@@ -141,7 +141,7 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Package_Root") {
+    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
             clean_build_and_verify_driver_project(
@@ -175,7 +175,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "x64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Package_Root") {
+    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
             clean_build_and_verify_driver_project(
@@ -208,7 +208,7 @@ fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Package_Root") {
+    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(
             &[
@@ -250,7 +250,7 @@ fn kmdf_driver_with_target_override_cli_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Package_Root") {
+    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(
             &[
@@ -292,7 +292,7 @@ fn umdf_driver_with_target_arch_and_release_profile() {
     let driver_path = "tests/umdf-driver";
     let target_arch = "arm64";
     let profile = "release";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Package_Root") {
+    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(&wdk_content_root))], || {
             clean_build_and_verify_driver_project(
