@@ -576,7 +576,7 @@ impl NamedMutex {
         }
 
         // SAFETY: The name ptr is valid because it comes from a CStr
-        let handle = unsafe { CreateMutexA(None, false, PCSTR(name.as_ptr() as *const u8))? };
+        let handle = unsafe { CreateMutexA(None, false, PCSTR(name.as_ptr().cast()))? };
         if handle.is_invalid() {
             return Err(get_last_error());
         }
@@ -590,7 +590,7 @@ impl NamedMutex {
             _ => {
                 // SAFETY: The handle is valid since it was created right above
                 unsafe { CloseHandle(handle)? };
-                return Err(get_last_error());
+                Err(get_last_error())
             }
         }
     }
@@ -600,17 +600,13 @@ impl Drop for NamedMutex {
     fn drop(&mut self) {
         // SAFETY: the handle is guaranteed to be valid
         // because this type itself created it and it
-        // was never exposed outside
-        unsafe {
-            // This cannot fail as the calling thread is guaranteed
-            // to own the handle since we do not implement Send
-            let _ = ReleaseMutex(self.handle);
+        // was never exposed outside. Also the requirement
+        // that the calling thread must own the handle
+        // is upheld because this type is `!Send`
+        let _ = unsafe { ReleaseMutex(self.handle) };
 
-            // Documentation doesn't say under what conditions
-            // CloseHandle fails, but if it's due to an invalid
-            // handle that won't be a problem here
-            let _ = CloseHandle(self.handle);
-        }
+        // SAFETY: the handle is valid as explained above.
+        let _ = unsafe { CloseHandle(self.handle) };
     }
 }
 
