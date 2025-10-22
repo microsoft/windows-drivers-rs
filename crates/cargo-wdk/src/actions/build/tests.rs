@@ -1615,14 +1615,11 @@ impl TestBuildAction {
         }
 
         expected_cargo_build_args.push("-v".to_string());
-        let expected_output = override_output.map_or_else(
-            || Output {
-                status: ExitStatus::default(),
-                stdout: vec![],
-                stderr: vec![],
-            },
-            |output| output,
-        );
+        let expected_output = override_output.unwrap_or_else(|| Output {
+            status: ExitStatus::default(),
+            stdout: vec![],
+            stderr: vec![],
+        });
         self.mock_run_command
             .expect_run()
             .withf(

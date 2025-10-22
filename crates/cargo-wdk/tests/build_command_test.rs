@@ -353,11 +353,7 @@ fn clean_build_and_verify_driver_project(
         _ => panic!("Unsupported driver type: {driver_type}"),
     };
 
-    let target_triple = if let Some(target_arch_for_verification) = target_arch_for_verification {
-        to_target_triple(target_arch_for_verification)
-    } else {
-        None
-    };
+    let target_triple = target_arch_for_verification.and_then(to_target_triple);
 
     verify_driver_package_files(
         driver_path,
