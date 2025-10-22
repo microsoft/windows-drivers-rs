@@ -84,6 +84,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+          targets: |
+            x86_64-pc-windows-msvc
+            aarch64-pc-windows-msvc
 
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
