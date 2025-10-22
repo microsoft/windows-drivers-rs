@@ -333,7 +333,7 @@ mod tests {
                 path,
                 driver_type,
                 verbosity_level,
-                |test_setup| test_setup.set_expectations(None, expected_flag),
+                |test_setup| test_setup.set_expectations_with(None, expected_flag),
                 |result| {
                     assert!(result.is_ok());
                 },
@@ -353,7 +353,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at cargo new step
-                test_setup.set_expectations(
+                test_setup.set_expectations_with(
                     Some(FailureStep::CargoNew(Output {
                         status: ExitStatus::from_raw(1),
                         stdout: vec![],
@@ -383,7 +383,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at copy lib rs template to driver project step
-                test_setup.set_expectations(Some(FailureStep::CopyLibRsTemplate), None)
+                test_setup.set_expectations_with(Some(FailureStep::CopyLibRsTemplate), None)
             },
             |result| {
                 assert!(
@@ -397,6 +397,7 @@ mod tests {
         );
     }
 
+    /// Type alias for assertion functions used in tests.
     type AssertionFn = fn(Result<(), NewActionError>);
 
     #[test]
@@ -445,7 +446,7 @@ mod tests {
                 driver_type,
                 verbosity_level,
                 |test_setup| {
-                    test_setup.set_expectations(
+                    test_setup.set_expectations_with(
                         Some(FailureStep::UpdateCargoToml(
                             is_read_success,
                             is_dep_removal_success,
@@ -473,7 +474,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at creating inx file step
-                test_setup.set_expectations(Some(FailureStep::CreateInxFile), None)
+                test_setup.set_expectations_with(Some(FailureStep::CreateInxFile), None)
             },
             |result| {
                 assert!(
@@ -500,8 +501,10 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at parsing driver crate name step
-                test_setup
-                    .set_expectations(Some(FailureStep::UpdateCargoToml(true, true, true)), None)
+                test_setup.set_expectations_with(
+                    Some(FailureStep::UpdateCargoToml(true, true, true)),
+                    None,
+                )
             },
             |result| {
                 assert!(
@@ -524,7 +527,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at copy build rs template to driver project step
-                test_setup.set_expectations(Some(FailureStep::CopyBuildRsTemplate), None)
+                test_setup.set_expectations_with(Some(FailureStep::CopyBuildRsTemplate), None)
             },
             |result| {
                 assert!(
@@ -550,7 +553,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at copy cargo config to driver project step
-                test_setup.set_expectations(Some(FailureStep::CopyCargoConfig), None)
+                test_setup.set_expectations_with(Some(FailureStep::CopyCargoConfig), None)
             },
             |result| {
                 assert!(
@@ -593,6 +596,9 @@ mod tests {
         assert_fn(result);
     }
 
+    /// Enum representing different steps where failures can be injected during
+    /// tests. Used to configure mock expectations for specific failure
+    /// scenarios.
     enum FailureStep {
         CargoNew(Output),
         CopyLibRsTemplate,
@@ -602,9 +608,36 @@ mod tests {
         CopyCargoConfig,
     }
 
+    /// Test helper struct that provides a fluent API for configuring mock
+    /// providers.
+    ///
+    /// This struct holds mock implementations of `CommandExec` and `Fs`
+    /// providers along with the driver project path. It provides methods to
+    /// set up mock expectations for various stages of the driver project
+    /// creation workflow.
+    ///
+    /// # Usage
+    ///
+    /// Create a new instance with [`TestSetup::new`], then chain calls to
+    /// configure mocks for each step of the workflow. Use
+    /// [`TestSetup::set_expectations_with`] to configure all mocks at once
+    /// based on an optional failure point, or call individual `expect_*`
+    /// methods for fine-grained control.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let test_setup = TestSetup::new(Path::new("test_driver"))
+    ///     .set_expectations_with(Some(FailureStep::CopyLibRsTemplate), None);
+    ///
+    /// // Now use test_setup.mock_exec and test_setup.mock_fs in your test
+    /// ```
     struct TestSetup<'a> {
+        /// The path to the driver project being created in the test.
         path: &'a Path,
+        /// Mock implementation of the command execution provider.
         mock_exec: MockCommandExec,
+        /// Mock implementation of the file system provider.
         mock_fs: MockFs,
     }
 
@@ -617,7 +650,7 @@ mod tests {
             }
         }
 
-        fn set_expectations(
+        fn set_expectations_with(
             mut self,
             failure_step: Option<FailureStep>,
             expected_flag: Option<String>,
