@@ -148,7 +148,7 @@ runs:
         "WDKBinRoot=$wdkBinRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "WDKToolRoot=$wdkToolRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "WindowsSdkBinPath=$windowsSdkBinPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        "Version_Number=$sdkVersionBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "Version_Number=$sdkVersionBase.0" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "Nuget_Packages_Root=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "Full_Version_Number=$sdkVersionFull" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
