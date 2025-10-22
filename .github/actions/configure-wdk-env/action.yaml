@@ -58,8 +58,8 @@ runs:
             switch ($Architecture.ToLowerInvariant()) {
                 'amd64' { return 'x64' }
                 'x64' { return 'x64' }
-                'arm64' { return 'arm64' }
-                'aarch64' { return 'arm64' }
+                'arm64' { return 'ARM64' }
+                'aarch64' { return 'ARM64' }
                 '' { throw "$Context cannot be empty." }
                 default { throw "Unsupported architecture '$Architecture' for $Context." }
             }
@@ -108,8 +108,9 @@ runs:
             Get-WdkPackageDirectory -Root $packageRoot -Arch $targetNugetArch -FullVersionNumber $sdkVersionFull
         }
 
-        $sdkPackageCandidates = Get-ChildItem -Path $packageRoot -Directory |
+        $sdkPackageCandidates = @(Get-ChildItem -Path $packageRoot -Directory |
             Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$sdkVersionFull*" }
+        )
 
         if ($sdkPackageCandidates.Count -eq 0) {
             throw "Unable to locate Windows SDK packages under '$packageRoot' for version '$sdkVersionFull'."
