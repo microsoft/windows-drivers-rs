@@ -24,7 +24,7 @@ const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Profile {
-    Debug,
+    Dev,
     Release,
 }
 impl FromStr for Profile {
@@ -32,7 +32,7 @@ impl FromStr for Profile {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "debug" => std::result::Result::Ok(Self::Debug),
+            "dev" => std::result::Result::Ok(Self::Dev),
             "release" => std::result::Result::Ok(Self::Release),
             _ => Err(format!("'{s}' is not a valid profile")),
         }
@@ -41,7 +41,7 @@ impl FromStr for Profile {
 impl Display for Profile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Self::Debug => "debug",
+            Self::Dev => "dev",
             Self::Release => "release",
         };
         write!(f, "{s}")

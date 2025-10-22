@@ -88,9 +88,9 @@ jobs:
         uses: ./.github/actions/configure-wdk-env
         with:
           package-root: ${{ steps.install_wdk.outputs.nuget-package-root }}
-          sdk-version-number: ${{ steps.install_wdk.outputs.sdk-version-number }}
           full-version-number: ${{ steps.install_wdk.outputs.full-version-number }}
           runner-arch: ${{ matrix.runner.arch }}
+          target-arch: ${{ matrix.target_triple.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master

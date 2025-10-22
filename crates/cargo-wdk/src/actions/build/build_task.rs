@@ -185,7 +185,7 @@ mod tests {
     fn new_succeeds_for_valid_args() {
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let package_name = "test_package";
-        let profile = Profile::Debug;
+        let profile = Profile::Dev;
         let target_arch = Some(&CpuArchitecture::Amd64);
         let verbosity_level = clap_verbosity_flag::Verbosity::default();
         let command_exec = CommandExec::new();
@@ -218,7 +218,7 @@ mod tests {
     fn new_panics_when_working_dir_is_not_absolute() {
         let working_dir = PathBuf::from("relative/path/to/working/dir");
         let package_name = "test_package";
-        let profile = Some(Profile::Debug);
+        let profile = Some(Profile::Dev);
         let target_arch = Some(&CpuArchitecture::Arm64);
         let verbosity_level = clap_verbosity_flag::Verbosity::default();
         let command_exec = CommandExec::new();
@@ -292,7 +292,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -321,7 +321,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -348,7 +348,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -376,7 +376,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -405,7 +405,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -437,7 +437,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -457,7 +457,7 @@ mod tests {
         let task = BuildTask::new(
             "my-driver",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
@@ -486,7 +486,7 @@ mod tests {
         let task = BuildTask::new(
             "pkg",
             &working_dir,
-            Some(&Profile::Debug),
+            Some(&Profile::Dev),
             None,
             clap_verbosity_flag::Verbosity::default(),
             &mock,

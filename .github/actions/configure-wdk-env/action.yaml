@@ -2,23 +2,19 @@ name: Configure WDK Environment (NuGet)
 description: "Derive WDK and Windows SDK paths from NuGet installation outputs and export them as environment variables"
 
 inputs:
-  package-root:
-    description: "Root directory containing downloaded NuGet packages"
-    required: true
-  sdk-version-number:
-    description: "SDK version number (base version with trailing .0)"
-    required: true
-  full-version-number:
-    description: "Full SDK/WDK version number (with QFE if present)"
-    required: false
-    default: ""
-  runner-arch:
-    description: "Architecture of the runner (amd64 or arm64) used to resolve the correct WDK package"
-    required: true
-  target-arch:
-    description: "Optional target architecture (amd64, arm64, x64, aarch64) used to select WDKContentRoot. Defaults to runner-arch when omitted."
-    required: false
-    default: ""
+    package-root:
+        description: "Root directory containing downloaded NuGet packages"
+        required: true
+    full-version-number:
+        description: "Full SDK/WDK version number (with QFE if present)"
+        required: true
+    runner-arch:
+        description: "Architecture of the runner (amd64 or arm64) used to resolve the correct WDK package"
+        required: true
+    target-arch:
+        description: "Optional target architecture (amd64, arm64, x64, aarch64) used to select WDKContentRoot. Defaults to runner-arch when omitted."
+        required: false
+        default: ""
 
 runs:
   using: composite
@@ -30,100 +26,108 @@ runs:
         $ErrorActionPreference = 'Stop'
 
         $packageRoot = '${{ inputs.package-root }}'
-        $sdkVersionNumber = '${{ inputs.sdk-version-number }}'
         $fullVersionNumber = '${{ inputs.full-version-number }}'
-        $runnerArch = '${{ inputs.runner-arch }}'
-        $targetArchInput = '${{ inputs.target-arch }}'
+        $runnerArchRaw = '${{ inputs.runner-arch }}'
+        $targetArchInputRaw = '${{ inputs.target-arch }}'
 
         if ([string]::IsNullOrWhiteSpace($packageRoot)) {
-          throw 'configure-wdk-env action requires a non-empty package-root input.'
+            throw 'configure-wdk-env action requires a non-empty package-root input.'
         }
 
-        if ([string]::IsNullOrWhiteSpace($sdkVersionNumber)) {
-          throw 'configure-wdk-env action requires a non-empty sdk-version-number input.'
+        if ([string]::IsNullOrWhiteSpace($runnerArchRaw)) {
+            throw 'configure-wdk-env action requires a non-empty runner-arch input.'
         }
 
-        if ([string]::IsNullOrWhiteSpace($runnerArch)) {
-          throw 'configure-wdk-env action requires a non-empty runner-arch input.'
+        if ([string]::IsNullOrWhiteSpace($fullVersionNumber)) {
+            throw 'configure-wdk-env action requires a non-empty full-version-number input.'
+        }
+
+        $runnerArch = $runnerArchRaw.Trim()
+        $targetArchInput = if ([string]::IsNullOrWhiteSpace($targetArchInputRaw)) {
+            $runnerArch
+        } else {
+            $targetArchInputRaw.Trim()
         }
 
         function Convert-ToNugetArch {
-          param(
-            [Parameter(Mandatory = $true)] [string] $Architecture,
-            [Parameter(Mandatory = $true)] [string] $Context
-          )
+            param(
+                [Parameter(Mandatory = $true)] [string] $Architecture,
+                [Parameter(Mandatory = $true)] [string] $Context
+            )
 
-          switch ($Architecture.ToLowerInvariant()) {
-            'amd64' { return 'x64' }
-            'x64' { return 'x64' }
-            'arm64' { return 'ARM64' }
-            'aarch64' { return 'ARM64' }
-            '' { throw "$Context cannot be empty." }
-            default { throw "Unsupported architecture '$Architecture' for $Context." }
-          }
+            switch ($Architecture.ToLowerInvariant()) {
+                'amd64' { return 'x64' }
+                'x64' { return 'x64' }
+                'arm64' { return 'arm64' }
+                'aarch64' { return 'arm64' }
+                '' { throw "$Context cannot be empty." }
+                default { throw "Unsupported architecture '$Architecture' for $Context." }
+            }
         }
 
         function Get-WdkPackageDirectory {
-          param(
-            [Parameter(Mandatory = $true)] [string] $Root,
-            [Parameter(Mandatory = $true)] [string] $Arch,
-            [Parameter(Mandatory = $true)] [string] $SdkVersionBase
-          )
+            param(
+                [Parameter(Mandatory = $true)] [string] $Root,
+                [Parameter(Mandatory = $true)] [string] $Arch,
+                [Parameter(Mandatory = $true)] [string] $FullVersionNumber
+            )
 
-          $pattern = "Microsoft.Windows.WDK.$Arch.$SdkVersionBase*"
-          $directory = Get-ChildItem -Path $Root -Directory -Filter $pattern |
-            Sort-Object Name |
-            Select-Object -Last 1
+            $pattern = "Microsoft.Windows.WDK.$Arch.$FullVersionNumber*"
+            $directory = Get-ChildItem -Path $Root -Directory -Filter $pattern |
+                Sort-Object Name |
+                Select-Object -Last 1
 
-          if ($null -eq $directory) {
-            throw "Unable to locate WDK package directory using pattern '$pattern' under '$Root'."
-          }
+            if ($null -eq $directory) {
+                throw "Unable to locate WDK package directory using pattern '$pattern' under '$Root'."
+            }
 
-          return $directory
+            return $directory
         }
 
         $hostNugetArch = Convert-ToNugetArch -Architecture $runnerArch -Context 'runner-arch input'
+        $targetNugetArch = Convert-ToNugetArch -Architecture $targetArchInput -Context 'target-arch input'
 
-        $effectiveTargetArch = if ([string]::IsNullOrWhiteSpace($targetArchInput)) {
-          $runnerArch
-        } else {
-          $targetArchInput
+        $fullVersionNumberTrimmed = $fullVersionNumber.Trim()
+
+        $fullVersionParts = $fullVersionNumberTrimmed.Split('.')
+        if ($fullVersionParts.Count -lt 3) {
+            throw "full-version-number must contain at least three components: '$fullVersionNumberTrimmed'."
         }
 
-        $targetNugetArch = Convert-ToNugetArch -Architecture $effectiveTargetArch -Context 'target-arch input'
-
-        $sdkVersionBase = $sdkVersionNumber -replace '\.0$', ''
+        $sdkVersionBase = ($fullVersionParts[0..2] -join '.')
         if ([string]::IsNullOrWhiteSpace($sdkVersionBase)) {
-          throw "Unable to derive SDK base version from '$sdkVersionNumber'."
+            throw "Unable to derive SDK base version from '$fullVersionNumberTrimmed'."
         }
 
-        $hostWdkPackageDir = Get-WdkPackageDirectory -Root $packageRoot -Arch $hostNugetArch -SdkVersionBase $sdkVersionBase
+        $sdkVersionFull = $fullVersionNumberTrimmed
+
+        $hostWdkPackageDir = Get-WdkPackageDirectory -Root $packageRoot -Arch $hostNugetArch -FullVersionNumber $sdkVersionFull
         $targetWdkPackageDir = if ($targetNugetArch -eq $hostNugetArch) {
-          $hostWdkPackageDir
+            $hostWdkPackageDir
         } else {
-          Get-WdkPackageDirectory -Root $packageRoot -Arch $targetNugetArch -SdkVersionBase $sdkVersionBase
+            Get-WdkPackageDirectory -Root $packageRoot -Arch $targetNugetArch -FullVersionNumber $sdkVersionFull
         }
 
         $sdkPackageCandidates = Get-ChildItem -Path $packageRoot -Directory |
-          Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$sdkVersionBase*" }
+            Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$sdkVersionFull*" }
 
         if ($sdkPackageCandidates.Count -eq 0) {
-          throw "Unable to locate Windows SDK packages under '$packageRoot' for base version '$sdkVersionBase'."
+            throw "Unable to locate Windows SDK packages under '$packageRoot' for version '$sdkVersionFull'."
         }
 
         $sdkPackageDir = $sdkPackageCandidates |
-          Where-Object { $_.Name -notmatch '\.(x64|arm64)\.\d+$' } |
-          Sort-Object Name |
-          Select-Object -Last 1
-
-        if ($null -eq $sdkPackageDir) {
-          $sdkPackageDir = $sdkPackageCandidates |
+            Where-Object { $_.Name -notmatch '\.(x64|arm64)\.\d+$' } |
             Sort-Object Name |
             Select-Object -Last 1
+
+        if ($null -eq $sdkPackageDir) {
+            $sdkPackageDir = $sdkPackageCandidates |
+                Sort-Object Name |
+                Select-Object -Last 1
         }
 
         if ($null -eq $sdkPackageDir) {
-          throw "Unable to determine Windows SDK package directory under '$packageRoot'."
+            throw "Unable to determine Windows SDK package directory under '$packageRoot'."
         }
 
         $hostWdkContentRoot = Join-Path $hostWdkPackageDir.FullName 'c'
@@ -134,20 +138,17 @@ runs:
         $windowsSdkBinPath = Join-Path $windowsSdkContentRoot 'bin'
 
         foreach ($path in @($targetWdkContentRoot, $hostWdkContentRoot, $wdkBinRoot, $wdkToolRoot, $windowsSdkBinPath)) {
-          if (-not (Test-Path $path)) {
-            throw "Required path not found: $path"
-          }
+            if (-not (Test-Path $path)) {
+                throw "Required path not found: $path"
+            }
         }
 
         "WDKContentRoot=$targetWdkContentRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "WDKBinRoot=$wdkBinRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "WDKToolRoot=$wdkToolRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "WindowsSdkBinPath=$windowsSdkBinPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        "Version_Number=$sdkVersionNumber" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "Version_Number=$sdkVersionBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "Nuget_Packages_Root=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-        if (-not [string]::IsNullOrWhiteSpace($fullVersionNumber)) {
-          "Full_Version_Number=$fullVersionNumber" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        }
+        "Full_Version_Number=$sdkVersionFull" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
         Write-Host "✅ Configured WDK environment variables from NuGet packages."
