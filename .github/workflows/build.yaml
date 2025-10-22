@@ -1,0 +1,135 @@
+name: Build
+
+on:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
+  merge_group:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: 0 11 * * *
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  RUSTFLAGS: >-
+    -D warnings
+    -C target-feature=+crt-static
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      fail-fast: false # Allow all matrix variants to complete even if some fail
+      matrix:
+        runner:
+          - name: windows-2025
+            arch: amd64
+          - name: windows-11-arm
+            arch: arm64
+
+        wdk:
+          - version: 10.0.22621 # NI WDK
+            source: winget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
+
+        llvm:
+          - 17.0.6
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+        cargo_profile:
+          - dev
+          - release
+
+        target_triple:
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
+    
+    runs-on: ${{ matrix.runner.name }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Install Winget
+        if: matrix.runner.name == 'windows-11-arm'
+        uses: ./.github/actions/install-winget
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Winget PowerShell Module
+        shell: pwsh
+        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+      - name: Install LLVM ${{ matrix.llvm }}
+        uses: ./.github/actions/install-llvm
+        with:
+          version: ${{ matrix.llvm }}
+
+      - name: Install WDK (${{ matrix.wdk.version }})
+        id: install_wdk
+        uses: ./.github/actions/install-wdk
+        with:
+          version: ${{ matrix.wdk.version }}
+          source: ${{ matrix.wdk.source }}
+          architectures: ${{ matrix.wdk.source == 'nuget' && 'x64 ARM64' || '' }}
+
+      - name: Configure WDK environment (NuGet)
+        if: matrix.wdk.source == 'nuget'
+        uses: ./.github/actions/configure-wdk-env
+        with:
+          package-root: ${{ steps.install_wdk.outputs.nuget-package-root }}
+          sdk-version-number: ${{ steps.install_wdk.outputs.sdk-version-number }}
+          full-version-number: ${{ steps.install_wdk.outputs.full-version-number }}
+          runner-arch: ${{ matrix.runner.arch }}
+
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          targets: |
+            ${{ matrix.target_triple.name }}
+
+      - name: Run Cargo Build
+        run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
+
+      - name: Install Cargo Make
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
+
+      - name: Run Cargo Make (package-driver-flow) in Workspace
+        run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace
+
+      - name: Build Examples (via Cargo Make)
+        run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Package Examples (via Cargo Make)
+        run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Build Tests (via Cargo Make)
+        run: cargo make --cwd ./tests build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Package Tests (via Cargo Make)
+        run: cargo make --cwd ./tests package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      # Run cargo-wdk on examples and tests
+      - name: Install cargo-wdk
+        run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
+
+      - name: Build & Package Examples (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
+        working-directory: ./examples
+
+      - name: Run build on tests folder (via cargo-wdk)
+        run: cargo +${{ matrix.rust_toolchain }} wdk build --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
+        working-directory: ./tests

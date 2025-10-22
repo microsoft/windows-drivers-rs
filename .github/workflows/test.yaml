@@ -1,5 +1,3 @@
-name: Local Development Makefile
-
 on:
   push:
     branches-ignore:
@@ -9,16 +7,15 @@ on:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 
+name: Test
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-env:
-  RUSTFLAGS: -D warnings
-
 jobs:
-  build:
-    name: Test WDR's local cargo-make Makefile
+  test:
+    name: Test
     strategy:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
@@ -36,6 +33,15 @@ jobs:
 
         llvm:
           - 17.0.6
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+        cargo_profile:
+          - dev
+          - release
 
     runs-on: ${{ matrix.runner.name }}
 
@@ -75,34 +81,23 @@ jobs:
           full-version-number: ${{ steps.install_wdk.outputs.full-version-number }}
           runner-arch: ${{ matrix.runner.arch }}
 
-      - name: Install Nightly Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+        uses: dtolnay/rust-toolchain@master
         with:
-          components: clippy, rustfmt
-          targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
+          toolchain: ${{ matrix.rust_toolchain }}
 
-      - name: Install Beta Rust Toolchain
-        uses: dtolnay/rust-toolchain@beta
+      - name: Install Cargo Expand
+        uses: taiki-e/install-action@v2
         with:
-          components: clippy
-          targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
-
-      - name: Install Stable Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-          targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
+          tool: cargo-expand@1.0.85
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-make
 
-      - name: Test wdk-pre-commit-flow cargo-make task
-        run: cargo make wdk-pre-commit-flow
+      - name: Run Cargo Test (workspace)
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
+
+      - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}

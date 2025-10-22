@@ -1,4 +1,4 @@
-name: Local Development Makefile
+name: Lint
 
 on:
   push:
@@ -14,11 +14,14 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  RUSTFLAGS: -D warnings
+  RUSTFLAGS: >-
+    -D warnings
 
 jobs:
-  build:
-    name: Test WDR's local cargo-make Makefile
+  clippy:
+    name: Clippy
+    permissions:
+      checks: write
     strategy:
       fail-fast: false # Allow all matrix variants to complete even if some fail
       matrix:
@@ -36,6 +39,21 @@ jobs:
 
         llvm:
           - 17.0.6
+
+        rust_toolchain:
+          - stable
+          - beta
+          - nightly
+
+        cargo_profile:
+          - dev
+          - release
+
+        target_triple:
+          - name: x86_64-pc-windows-msvc
+            arch: amd64
+          - name: aarch64-pc-windows-msvc
+            arch: arm64
 
     runs-on: ${{ matrix.runner.name }}
 
@@ -74,35 +92,36 @@ jobs:
           sdk-version-number: ${{ steps.install_wdk.outputs.sdk-version-number }}
           full-version-number: ${{ steps.install_wdk.outputs.full-version-number }}
           runner-arch: ${{ matrix.runner.arch }}
+          target-arch: ${{ matrix.target_triple.arch }}
 
-      - name: Install Nightly Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+        uses: dtolnay/rust-toolchain@master
         with:
-          components: clippy, rustfmt
-          targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
-
-      - name: Install Beta Rust Toolchain
-        uses: dtolnay/rust-toolchain@beta
-        with:
+          toolchain: ${{ matrix.rust_toolchain }}
           components: clippy
-          targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
+          targets: ${{ matrix.target_triple.name }}
 
-      - name: Install Stable Rust Toolchain
+      - name: Run Cargo Clippy
+        # Due to passing `--target`, `RUSTFLAGS` is not passed to proc-macros or build scripts: https://github.com/rust-lang/cargo/issues/14046
+        # To work around this, `-D warnings` is explicitly passed to clippy-driver.
+        # Possible future solution: https://github.com/rust-lang/cargo/issues/14802
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features -- -D warnings
+
+  unused_deps:
+    name: Detect Unused Cargo Dependencies
+    runs-on: windows-2025
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-          targets: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
 
-      - name: Install Cargo Make
+      - name: Install Cargo Machete
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-make
+          tool: cargo-machete
 
-      - name: Test wdk-pre-commit-flow cargo-make task
-        run: cargo make wdk-pre-commit-flow
+      - name: Run Cargo Machete
+        run: cargo machete --skip-target-dir
