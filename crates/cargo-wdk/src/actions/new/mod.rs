@@ -766,9 +766,12 @@ mod tests {
                 .withf(move |path| path == cargo_toml_path)
                 .returning(move |_| {
                     if is_cargo_toml_read_success {
-                        Ok("[package]\nname = \"test_driver\"\nversion = \
-                            \"0.1.0\"\n\n[dependencies]\n"
-                            .to_string())
+                        Ok(r#"[package]
+                               name = "test_driver"
+                               version = "0.1.0"
+                              [dependencies]
+                              "#
+                        .to_string())
                     } else {
                         Err(FileError::NotFound(PathBuf::from("Cargo.toml")))
                     }
