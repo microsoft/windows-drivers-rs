@@ -305,8 +305,8 @@ mod tests {
 
     use crate::{
         actions::{
-            new::{NewAction, NewActionError},
             DriverType,
+            new::{NewAction, NewActionError},
         },
         providers::{
             error::{CommandError, FileError},
@@ -333,15 +333,7 @@ mod tests {
                 path,
                 driver_type,
                 verbosity_level,
-                |test_setup| {
-                    test_setup
-                        .expect_cargo_new(None, expected_flag)
-                        .expect_copy_lib_rs_template(true)
-                        .expect_update_cargo_toml(true, true, true)
-                        .expect_create_inx_file(true)
-                        .expect_copy_build_rs_template(true)
-                        .expect_copy_cargo_config(true)
-                },
+                |test_setup| test_setup.set_expectations(None, expected_flag),
                 |result| {
                     assert!(result.is_ok());
                 },
@@ -361,12 +353,12 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at cargo new step
-                test_setup.expect_cargo_new(
-                    Some(Output {
+                test_setup.set_expectations(
+                    Some(FailureStep::CargoNew(Output {
                         status: ExitStatus::from_raw(1),
                         stdout: vec![],
                         stderr: "some error".into(),
-                    }),
+                    })),
                     None,
                 )
             },
@@ -381,7 +373,7 @@ mod tests {
 
     #[test]
     fn when_copy_lib_rs_template_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_lib");
+        let path = Path::new("test_driver_fail_lib_copy");
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
@@ -391,9 +383,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at copy lib rs template to driver project step
-                test_setup
-                    .expect_cargo_new(None, None)
-                    .expect_copy_lib_rs_template(false) // Force failure here
+                test_setup.set_expectations(Some(FailureStep::CopyLibRsTemplate), None)
             },
             |result| {
                 assert!(
@@ -407,18 +397,15 @@ mod tests {
         );
     }
 
+    type AssertionFn = fn(Result<(), NewActionError>);
+
     #[test]
     fn when_update_cargo_toml_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_cargo_toml_read");
+        let path = Path::new("test_driver_fail_cargo_toml_update");
         let driver_type = DriverType::Kmdf;
         let verbosity_level = Verbosity::default();
 
-        #[allow(
-            clippy::type_complexity,
-            reason = "This suppression is required to avoid creating a type for the below complex \
-                      type declaration."
-        )]
-        let cases: [(bool, bool, bool, fn(Result<(), NewActionError>)); 3] = [
+        let cases: [(bool, bool, bool, AssertionFn); 3] = [
             (false, true, true, |result: Result<(), NewActionError>| {
                 assert!(
                     matches!(
@@ -458,20 +445,46 @@ mod tests {
                 driver_type,
                 verbosity_level,
                 |test_setup| {
-                    test_setup
-                        .expect_cargo_new(None, None)
-                        .expect_copy_lib_rs_template(true)
-                        .expect_update_cargo_toml(
+                    test_setup.set_expectations(
+                        Some(FailureStep::UpdateCargoToml(
                             is_read_success,
                             is_dep_removal_success,
                             is_template_append_success,
-                        ) // Force failure here
+                        )),
+                        None,
+                    )
                 },
                 |result| {
                     assert_fn(result);
                 },
             );
         }
+    }
+
+    #[test]
+    fn when_create_inx_file_fails_then_returns_filesystem_error() {
+        let path = Path::new("test_driver_fail_create_inx_file");
+        let driver_type = DriverType::Kmdf;
+        let verbosity_level = Verbosity::default();
+
+        setup_and_assert(
+            path,
+            driver_type,
+            verbosity_level,
+            |test_setup| {
+                // Set up mocks with failure at creating inx file step
+                test_setup.set_expectations(Some(FailureStep::CreateInxFile), None)
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from create_inx_file step"
+                );
+            },
+        );
     }
 
     #[test]
@@ -488,14 +501,12 @@ mod tests {
             |test_setup| {
                 // Set up mocks with failure at parsing driver crate name step
                 test_setup
-                    .expect_cargo_new(None, None)
-                    .expect_copy_lib_rs_template(true)
-                    .expect_update_cargo_toml(true, true, true)
+                    .set_expectations(Some(FailureStep::UpdateCargoToml(true, true, true)), None)
             },
             |result| {
                 assert!(
                     matches!(result, Err(NewActionError::InvalidDriverCrateName(_))),
-                    "Expected InvalidDriverCrateName error"
+                    "Expected InvalidDriverCrateName error from create_inx_file step"
                 );
             },
         );
@@ -513,12 +524,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at copy build rs template to driver project step
-                test_setup
-                    .expect_cargo_new(None, None)
-                    .expect_copy_lib_rs_template(true)
-                    .expect_update_cargo_toml(true, true, true)
-                    .expect_create_inx_file(true)
-                    .expect_copy_build_rs_template(false) // Force failure here
+                test_setup.set_expectations(Some(FailureStep::CopyBuildRsTemplate), None)
             },
             |result| {
                 assert!(
@@ -544,13 +550,7 @@ mod tests {
             verbosity_level,
             |test_setup| {
                 // Set up mocks with failure at copy cargo config to driver project step
-                test_setup
-                    .expect_cargo_new(None, None)
-                    .expect_copy_lib_rs_template(true)
-                    .expect_update_cargo_toml(true, true, true)
-                    .expect_create_inx_file(true)
-                    .expect_copy_build_rs_template(true)
-                    .expect_copy_cargo_config(false) // Force failure here
+                test_setup.set_expectations(Some(FailureStep::CopyCargoConfig), None)
             },
             |result| {
                 assert!(
@@ -593,6 +593,15 @@ mod tests {
         assert_fn(result);
     }
 
+    enum FailureStep {
+        CargoNew(Output),
+        CopyLibRsTemplate,
+        UpdateCargoToml(bool, bool, bool),
+        CreateInxFile,
+        CopyBuildRsTemplate,
+        CopyCargoConfig,
+    }
+
     struct TestSetup<'a> {
         path: &'a Path,
         mock_exec: MockCommandExec,
@@ -606,6 +615,52 @@ mod tests {
                 mock_exec: MockCommandExec::new(),
                 mock_fs: MockFs::new(),
             }
+        }
+
+        fn set_expectations(
+            mut self,
+            failure_step: Option<FailureStep>,
+            expected_flag: Option<String>,
+        ) -> Self {
+            if let Some(FailureStep::CargoNew(override_output)) = failure_step {
+                return self.expect_cargo_new(Some(override_output), expected_flag);
+            }
+            self = self.expect_cargo_new(None, expected_flag);
+
+            if matches!(failure_step, Some(FailureStep::CopyLibRsTemplate)) {
+                return self.expect_copy_lib_rs_template(false);
+            }
+            self = self.expect_copy_lib_rs_template(true);
+
+            if let Some(FailureStep::UpdateCargoToml(
+                is_cargo_toml_read_success,
+                is_dep_section_removal_success,
+                is_template_append_to_cargo_toml_success,
+            )) = failure_step
+            {
+                return self.expect_update_cargo_toml(
+                    is_cargo_toml_read_success,
+                    is_dep_section_removal_success,
+                    is_template_append_to_cargo_toml_success,
+                );
+            }
+            self = self.expect_update_cargo_toml(true, true, true);
+
+            if matches!(failure_step, Some(FailureStep::CreateInxFile)) {
+                return self.expect_create_inx_file(false);
+            }
+            self = self.expect_create_inx_file(true);
+
+            if matches!(failure_step, Some(FailureStep::CopyBuildRsTemplate)) {
+                return self.expect_copy_build_rs_template(false);
+            }
+            self = self.expect_copy_build_rs_template(true);
+
+            if matches!(failure_step, Some(FailureStep::CopyCargoConfig)) {
+                return self.expect_copy_cargo_config(false);
+            }
+
+            self.expect_copy_cargo_config(true)
         }
 
         fn expect_cargo_new(
