@@ -134,8 +134,10 @@ impl<'a> BuildAction<'a> {
             "Initialized build for project at: {}",
             self.working_dir.display()
         );
-        let build_number = self.wdk_build.detect_wdk_build_number()?;
-        debug!("WDK build number: {}", build_number);
+        debug!(
+            "WDK build number: {}",
+            self.wdk_build.detect_wdk_build_number()?
+        );
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
@@ -399,9 +401,12 @@ impl<'a> BuildAction<'a> {
         working_dir: &Path,
         dll_path: &Path,
     ) -> Result<(CpuArchitecture, PathBuf), BuildActionError> {
-        let artifacts_dir = dll_path
-            .parent()
-            .ok_or(BuildActionError::DriverBinaryMissingParent)?;
+        let artifacts_dir =
+            dll_path
+                .parent()
+                .ok_or(BuildActionError::DriverBinaryMissingParent(
+                    dll_path.to_path_buf(),
+                ))?;
         let artifacts_dir = absolute(artifacts_dir)
             .map_err(|e| BuildActionError::NotAbsolute(artifacts_dir.to_path_buf(), e))?;
         debug!(
@@ -438,14 +443,13 @@ impl<'a> BuildAction<'a> {
 
     // Maps a target triple string to a CPU architecture.
     fn arch_from_triple(triple: &str) -> Result<CpuArchitecture, BuildActionError> {
-        if triple.contains("x86_64") {
-            Ok(CpuArchitecture::Amd64)
-        } else if triple.contains("aarch64") {
-            Ok(CpuArchitecture::Arm64)
-        } else {
-            Err(BuildActionError::UnsupportedArchitecture(
+        let arch = triple.split('-').next().unwrap_or(triple);
+        match arch {
+            "x86_64" => Ok(CpuArchitecture::Amd64),
+            "aarch64" => Ok(CpuArchitecture::Arm64),
+            _ => Err(BuildActionError::UnsupportedArchitecture(
                 triple.to_string(),
-            ))
+            )),
         }
     }
 

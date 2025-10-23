@@ -64,14 +64,14 @@ impl CommandExec {
 
         if !output.status.success() {
             debug!(
-                "Command: {}\n Args:{:?} returned status code: {}\n",
+                "Command: {}\n Args: {:?} returned status code: {}\n",
                 command, args, output.status
             );
             return Err(CommandError::from_output(command, args, &output));
         }
 
         debug!(
-            "Command: {}\n Args:{:?}\n executed successfully.",
+            "Command: {}\n Args: {:?}\n executed successfully.",
             command, args
         );
         Ok(output)

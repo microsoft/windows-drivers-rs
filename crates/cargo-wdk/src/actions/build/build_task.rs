@@ -171,8 +171,6 @@ impl<'a> BuildTask<'a> {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(windows)]
-    use std::os::windows::process::ExitStatusExt;
     use std::process::Output;
 
     use mockall::predicate::*;
@@ -266,7 +264,7 @@ mod tests {
 
     fn output_from_stdout(stdout: &str) -> Output {
         Output {
-            status: std::process::ExitStatus::from_raw(0),
+            status: std::process::ExitStatus::default(),
             stdout: stdout.as_bytes().to_vec(),
             stderr: Vec::new(),
         }
@@ -478,7 +476,7 @@ mod tests {
         let mut mock = MockCommandExec::new();
         mock.expect_run().returning(|_, _, _, _| {
             Ok(Output {
-                status: std::process::ExitStatus::from_raw(0),
+                status: std::process::ExitStatus::default(),
                 stdout: Vec::new(),
                 stderr: Vec::new(),
             })

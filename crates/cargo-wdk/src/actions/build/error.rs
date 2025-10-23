@@ -39,8 +39,8 @@ pub enum BuildActionError {
     UnsupportedArchitecture(String),
     #[error("Failed to detect target arch from `cargo rustc -- --print cfg` output")]
     DetectTargetArch,
-    #[error("Driver binary (.dll) parent directory missing")]
-    DriverBinaryMissingParent,
+    #[error("Driver (cdylib) binary's parent directory is missing. Driver binary (.dll) path: {0}")]
+    DriverBinaryMissingParent(PathBuf),
 }
 
 /// Errors for the low level build task layer
@@ -52,7 +52,7 @@ pub enum BuildTaskError {
     CargoBuild(#[from] CommandError),
     #[error(transparent)]
     FileIo(#[from] FileError),
-    #[error("Missing driver build artifacts (.dll) in cargo build output")]
+    #[error("Driver (cdylib) build artifact (.dll) missing in cargo build output")]
     DllNotFound,
 }
 
