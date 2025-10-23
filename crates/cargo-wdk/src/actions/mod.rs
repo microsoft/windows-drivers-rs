@@ -19,9 +19,7 @@ use wdk_build::CpuArchitecture;
 pub const KMDF_STR: &str = "kmdf";
 pub const UMDF_STR: &str = "umdf";
 pub const WDM_STR: &str = "wdm";
-/// `x86_64/Amd64` target triple name
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
-/// `aarch64/Arm64` target triple name
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,15 +46,6 @@ impl Display for Profile {
         };
         write!(f, "{s}")
     }
-}
-
-/// Enum is used to determine the architecture for which the driver is being
-/// built. It can be either a selected architecture passed via CLI or a default
-/// host architecture.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetArch {
-    Selected(CpuArchitecture),
-    Default(CpuArchitecture),
 }
 
 /// Converts `CpuArchitecture` to its corresponding target triple name.
