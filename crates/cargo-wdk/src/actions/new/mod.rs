@@ -294,9 +294,12 @@ impl<'a> NewAction<'a> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(windows))]
+    use std::os::unix::process::ExitStatusExt;
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
     use std::{
         io::Error,
-        os::windows::process::ExitStatusExt,
         path::{Path, PathBuf},
         process::{ExitStatus, Output},
     };
