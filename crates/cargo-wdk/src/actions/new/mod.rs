@@ -685,9 +685,9 @@ mod tests {
                         && args[3] == "--vcs"
                         && args[4] == "none";
 
-                    expected_flag
-                        .clone()
-                        .map_or(matched, |flag| matched && args.len() > 5 && args[5] == flag)
+                    expected_flag.as_ref().map_or(matched, |flag| {
+                        matched && args.len() > 5 && args[5] == flag.as_str()
+                    })
                 })
                 .returning(move |_, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
@@ -778,7 +778,12 @@ mod tests {
         }
 
         fn expect_create_inx_file(mut self, is_create_success: bool) -> Self {
-            let driver_crate_name = self.path.file_name().unwrap().to_string_lossy().to_string();
+            let driver_crate_name = self
+                .path
+                .file_name()
+                .expect("Path must not be empty or terminate in '..' when creating INX file")
+                .to_string_lossy()
+                .to_string();
             let underscored_driver_crate_name = driver_crate_name.replace('-', "_");
             let inx_output_path = self
                 .path
