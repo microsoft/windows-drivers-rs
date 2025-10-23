@@ -320,9 +320,6 @@ mod tests {
 
     #[test]
     fn new_project_created_successfully() {
-        let path = Path::new("test_driver");
-        let driver_type = DriverType::Kmdf;
-
         let cases = vec![
             (Verbosity::default(), None),                   // Default
             (Verbosity::new(0, 1), Some("-q".to_string())), // Quiet
@@ -333,8 +330,8 @@ mod tests {
         // The for loop below tests various verbosity levels as well
         for (verbosity_level, expected_flag) in cases {
             setup_and_assert(
-                path,
-                driver_type,
+                Path::new("test_driver"),
+                DriverType::Kmdf,
                 verbosity_level,
                 |test_setup| test_setup.set_expectations_with(None, expected_flag),
                 |result| {
@@ -346,14 +343,10 @@ mod tests {
 
     #[test]
     fn when_cargo_new_fails_then_returns_cargo_new_command_error() {
-        let path = Path::new("test_driver_fail_cargo_new");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         setup_and_assert(
-            path,
-            driver_type,
-            verbosity_level,
+            Path::new("test_driver_fail_cargo_new"),
+            DriverType::Kmdf,
+            Verbosity::default(),
             |test_setup| {
                 // Set up mocks with failure at cargo new step
                 test_setup.set_expectations_with(
@@ -376,14 +369,10 @@ mod tests {
 
     #[test]
     fn when_copy_lib_rs_template_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_lib_copy");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         setup_and_assert(
-            path,
-            driver_type,
-            verbosity_level,
+            Path::new("test_driver_fail_lib_copy"),
+            DriverType::Kmdf,
+            Verbosity::default(),
             |test_setup| {
                 // Set up mocks with failure at copy lib rs template to driver project step
                 test_setup.set_expectations_with(Some(FailureStep::CopyLibRsTemplate), None)
@@ -405,10 +394,6 @@ mod tests {
 
     #[test]
     fn when_update_cargo_toml_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_cargo_toml_update");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         let cases: [(bool, bool, bool, AssertionFn); 3] = [
             (false, true, true, |result: Result<(), NewActionError>| {
                 assert!(
@@ -445,9 +430,9 @@ mod tests {
             cases
         {
             setup_and_assert(
-                path,
-                driver_type,
-                verbosity_level,
+                Path::new("test_driver_fail_cargo_toml_update"),
+                DriverType::Kmdf,
+                Verbosity::default(),
                 |test_setup| {
                     test_setup.set_expectations_with(
                         Some(FailureStep::UpdateCargoToml(
@@ -467,14 +452,10 @@ mod tests {
 
     #[test]
     fn when_create_inx_file_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_create_inx_file");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         setup_and_assert(
-            path,
-            driver_type,
-            verbosity_level,
+            Path::new("test_driver_fail_create_inx_file"),
+            DriverType::Kmdf,
+            Verbosity::default(),
             |test_setup| {
                 // Set up mocks with failure at creating inx file step
                 test_setup.set_expectations_with(Some(FailureStep::CreateInxFile), None)
@@ -493,15 +474,11 @@ mod tests {
 
     #[test]
     fn when_create_inx_file_called_with_invalid_path_then_returns_invalid_driver_crate_name() {
-        // Use an empty path component so file_name returns None
-        let empty_path = Path::new("");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         setup_and_assert(
-            empty_path,
-            driver_type,
-            verbosity_level,
+            // Use an empty path component so file_name returns None
+            Path::new(""),
+            DriverType::Kmdf,
+            Verbosity::default(),
             |test_setup| {
                 // Set up mocks with failure at parsing driver crate name step
                 test_setup.set_expectations_with(
@@ -520,14 +497,10 @@ mod tests {
 
     #[test]
     fn when_copy_build_rs_template_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_build_rs");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         setup_and_assert(
-            path,
-            driver_type,
-            verbosity_level,
+            Path::new("test_driver_fail_build_rs"),
+            DriverType::Kmdf,
+            Verbosity::default(),
             |test_setup| {
                 // Set up mocks with failure at copy build rs template to driver project step
                 test_setup.set_expectations_with(Some(FailureStep::CopyBuildRsTemplate), None)
@@ -546,14 +519,10 @@ mod tests {
 
     #[test]
     fn when_copy_cargo_config_fails_then_returns_filesystem_error() {
-        let path = Path::new("test_driver_fail_cargo_config");
-        let driver_type = DriverType::Kmdf;
-        let verbosity_level = Verbosity::default();
-
         setup_and_assert(
-            path,
-            driver_type,
-            verbosity_level,
+            Path::new("test_driver_fail_cargo_config"),
+            DriverType::Kmdf,
+            Verbosity::default(),
             |test_setup| {
                 // Set up mocks with failure at copy cargo config to driver project step
                 test_setup.set_expectations_with(Some(FailureStep::CopyCargoConfig), None)
