@@ -2405,7 +2405,6 @@ impl TestBuildAction {
     fn expect_detect_wdk_build_number(mut self, expected_wdk_build_number: u32) -> Self {
         self.mock_wdk_build_provider
             .expect_detect_wdk_build_number()
-            .once()
             .returning(move || Ok(expected_wdk_build_number));
         self
     }

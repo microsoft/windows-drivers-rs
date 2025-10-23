@@ -490,6 +490,6 @@ impl<'a> BuildAction<'a> {
             }
         }
 
-        Err(BuildActionError::DetectTargetArch)
+        Err(BuildActionError::CannotDetectTargetArch)
     }
 }

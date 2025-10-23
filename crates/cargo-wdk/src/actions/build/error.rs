@@ -35,10 +35,10 @@ pub enum BuildActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
-    #[error("Unsupported target arch was detected: {0}")]
+    #[error("Unsupported target arch: {0}")]
     UnsupportedArchitecture(String),
-    #[error("Failed to detect target arch from `cargo rustc -- --print cfg` output")]
-    DetectTargetArch,
+    #[error("Failed to detect target arch")]
+    CannotDetectTargetArch,
     #[error("Driver (cdylib) binary's parent directory is missing. Driver binary (.dll) path: {0}")]
     DriverBinaryMissingParent(PathBuf),
 }
