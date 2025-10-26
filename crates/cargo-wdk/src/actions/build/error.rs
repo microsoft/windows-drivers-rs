@@ -41,6 +41,8 @@ pub enum BuildActionError {
     CannotDetectTargetArch,
     #[error("Driver (cdylib) binary's parent directory is missing. Driver binary (.dll) path: {0}")]
     DriverBinaryMissingParent(PathBuf),
+    #[error("Driver (cdylib) build artifact (.dll) missing in cargo build output")]
+    DriverDllNotFound,
 }
 
 /// Errors for the low level build task layer
@@ -52,8 +54,6 @@ pub enum BuildTaskError {
     CargoBuild(#[from] CommandError),
     #[error(transparent)]
     FileIo(#[from] FileError),
-    #[error("Driver (cdylib) build artifact (.dll) missing in cargo build output")]
-    DllNotFound,
 }
 
 /// Errors for the low level package task layer

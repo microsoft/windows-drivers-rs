@@ -10,7 +10,7 @@ use std::{
     result::Result::Ok,
 };
 
-use cargo_metadata::Metadata as CargoMetadata;
+use cargo_metadata::{Metadata as CargoMetadata, Package};
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
@@ -53,7 +53,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
 
@@ -78,7 +78,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile.as_ref());
     let test_build_action = TestBuildAction::new(cwd.clone(), profile, None, false, false)
@@ -108,7 +108,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(
         driver_name,
@@ -145,7 +145,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(
         driver_name,
@@ -182,7 +182,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
     let test_build_action = TestBuildAction::new(cwd.clone(), None, None, false, sample_class)
@@ -214,7 +214,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
     let test_build_action = TestBuildAction::new(cwd.clone(), None, None, verify_signature, false)
@@ -248,7 +248,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
     let expected_certmgr_output = Output {
         status: ExitStatus::default(),
         stdout: r"==============Certificate # 1 ==========
@@ -317,7 +317,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
     let expected_certmgr_output = get_certmgr_success_output();
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
@@ -357,7 +357,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
 
@@ -388,7 +388,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(
         driver_name,
@@ -434,7 +434,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let expected_stampinf_output = Output {
         status: ExitStatus::from_raw(1),
@@ -483,7 +483,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let expected_inf2cat_output = Output {
         status: ExitStatus::from_raw(1),
@@ -533,7 +533,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
@@ -580,7 +580,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
@@ -628,7 +628,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
 
@@ -678,7 +678,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     let driver_version = "0.0.1";
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, None);
 
@@ -810,13 +810,13 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         &cwd.join(driver_name_1),
         driver_name_1,
         driver_version_1,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
         &cwd.join(driver_name_2),
         driver_name_2,
         driver_version_2,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_3, package_3) =
         get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
@@ -866,13 +866,13 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         &workspace_root_dir.join(driver_name_1),
         driver_name_1,
         driver_version_1,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
         &workspace_root_dir.join(driver_name_2),
         driver_name_2,
         driver_version_2,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_3, package_3) = get_cargo_metadata_package(
         &workspace_root_dir.join(non_driver),
@@ -973,13 +973,13 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         &cwd.join(driver_name_1),
         driver_name_1,
         driver_version_1,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
         &cwd.join(driver_name_2),
         driver_name_2,
         driver_version_2,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_3, package_3) =
         get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
@@ -1028,13 +1028,13 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         &workspace_root_dir.join(driver_name_1),
         driver_name_1,
         driver_version_1,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
         &workspace_root_dir.join(driver_name_2),
         driver_name_2,
         driver_version_2,
-        Some(wdk_metadata.clone()),
+        Some(&wdk_metadata),
     );
     let (workspace_member_3, package_3) = get_cargo_metadata_package(
         &workspace_root_dir.join(non_driver),
@@ -1080,13 +1080,13 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_works
         &cwd.join(driver_name_1),
         driver_name_1,
         driver_version_1,
-        Some(wdk_metadata_1.clone()),
+        Some(&wdk_metadata_1),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
         &cwd.join(driver_name_2),
         driver_name_2,
         driver_version_2,
-        Some(wdk_metadata_2),
+        Some(&wdk_metadata_2),
     );
 
     let test_build_action = TestBuildAction::new(cwd.clone(), None, None, false, false)
@@ -1135,13 +1135,13 @@ pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_w
         &cwd.join(driver_name_1),
         driver_name_1,
         driver_version_1,
-        Some(wdk_metadata_1.clone()),
+        Some(&wdk_metadata_1),
     );
     let (workspace_member_2, package_2) = get_cargo_metadata_package(
         &cwd.join(driver_name_2),
         driver_name_2,
         driver_version_2,
-        Some(wdk_metadata_1),
+        Some(&wdk_metadata_1),
     );
 
     let test_build_action = TestBuildAction::new(cwd.clone(), None, None, false, false)
@@ -2481,6 +2481,263 @@ impl TestBuildAction {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+/// `get_dll_from_cargo_build_output` tests
+////////////////////////////////////////////////////////////////////////////////
+#[test]
+fn given_non_cdylib_artifact_when_extracting_driver_dll_then_it_returns_not_found() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let manifest_path = package.manifest_path.as_str();
+    let normalized_name = package.name.replace('-', "_");
+    let expected_dll_path = package_root
+        .join("target")
+        .join("debug")
+        .join(format!("{normalized_name}.dll"));
+    let expected_dll_path_json = expected_dll_path.to_string_lossy().replace('\\', "/");
+    let filenames: [&str; 1] = [expected_dll_path_json.as_str()];
+    let json = artifact_json(
+        package.name.as_str(),
+        &normalized_name,
+        manifest_path,
+        &["lib"],
+        &["lib"],
+        &filenames,
+    );
+    let output = output_from_stdout(&(json + "\n"));
+
+    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
+}
+
+#[test]
+fn given_target_name_mismatch_when_extracting_driver_dll_then_it_returns_not_found() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let manifest_path = package.manifest_path.as_str();
+    let other_dll_path = package_root
+        .join("target")
+        .join("debug")
+        .join("other_crate.dll");
+    let other_dll_json = other_dll_path.to_string_lossy().replace('\\', "/");
+    let filenames: [&str; 1] = [other_dll_json.as_str()];
+    let json = artifact_json(
+        "other-crate",
+        "other_crate",
+        manifest_path,
+        &["cdylib"],
+        &["cdylib"],
+        &filenames,
+    );
+    let output = output_from_stdout(&(json + "\n"));
+
+    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
+}
+
+#[test]
+fn given_manifest_path_mismatch_when_extracting_driver_dll_then_it_returns_not_found() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let normalized_name = package.name.replace('-', "_");
+    let expected_dll_path = package_root
+        .join("target")
+        .join("debug")
+        .join(format!("{normalized_name}.dll"));
+    let expected_dll_path_json = expected_dll_path.to_string_lossy().replace('\\', "/");
+    let filenames: [&str; 1] = [expected_dll_path_json.as_str()];
+    let json = artifact_json(
+        package.name.as_str(),
+        &normalized_name,
+        "C:/abs/other/Cargo.toml",
+        &["cdylib"],
+        &["cdylib"],
+        &filenames,
+    );
+    let output = output_from_stdout(&(json + "\n"));
+
+    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
+}
+
+#[test]
+fn given_empty_filenames_when_extracting_driver_dll_then_it_returns_not_found() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let manifest_path = package.manifest_path.as_str();
+    let normalized_name = package.name.replace('-', "_");
+    let filenames: [&str; 0] = [];
+    let json = artifact_json(
+        package.name.as_str(),
+        &normalized_name,
+        manifest_path,
+        &["cdylib"],
+        &["cdylib"],
+        &filenames,
+    );
+    let output = output_from_stdout(&(json + "\n"));
+
+    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
+}
+
+#[test]
+fn given_crate_type_mismatch_when_extracting_driver_dll_then_it_returns_not_found() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let manifest_path = package.manifest_path.as_str();
+    let normalized_name = package.name.replace('-', "_");
+    let expected_dll_path = package_root
+        .join("target")
+        .join("debug")
+        .join(format!("{normalized_name}.dll"));
+    let expected_dll_path_json = expected_dll_path.to_string_lossy().replace('\\', "/");
+    let filenames: [&str; 1] = [expected_dll_path_json.as_str()];
+    let json = artifact_json(
+        package.name.as_str(),
+        &normalized_name,
+        manifest_path,
+        &["cdylib"],
+        &["lib"],
+        &filenames,
+    );
+    let output = output_from_stdout(&(json + "\n"));
+
+    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
+}
+
+#[test]
+fn given_unparsable_cargo_output_when_extracting_driver_dll_then_it_returns_not_found() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let output = output_from_stdout("{not-json}\n");
+    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
+}
+
+#[test]
+fn given_matching_cdylib_artifact_when_extracting_driver_dll_then_it_returns_path() {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let (package_root, package) = create_test_package(&workspace_root, "my-driver");
+    let test_build_action = TestBuildAction::new(package_root.clone(), None, None, false, false);
+    let _build_action =
+        initialize_build_action(&package_root, None, None, false, false, &test_build_action)
+            .expect("Failed to init build action");
+
+    let manifest_path = package.manifest_path.as_str();
+    let normalized_name = package.name.replace('-', "_");
+    let expected_dll_path = package_root
+        .join("target")
+        .join("debug")
+        .join(format!("{normalized_name}.dll"));
+    let expected_pdb_path = package_root
+        .join("target")
+        .join("debug")
+        .join(format!("{normalized_name}.pdb"));
+    let expected_dll_path_json = expected_dll_path.to_string_lossy().replace('\\', "/");
+    let expected_pdb_path_json = expected_pdb_path.to_string_lossy().replace('\\', "/");
+    let filenames: [&str; 2] = [
+        expected_dll_path_json.as_str(),
+        expected_pdb_path_json.as_str(),
+    ];
+    let json = artifact_json(
+        package.name.as_str(),
+        &normalized_name,
+        manifest_path,
+        &["cdylib"],
+        &["cdylib"],
+        &filenames,
+    );
+    let output = output_from_stdout(&(json + "\n"));
+
+    let dll_path = BuildAction::get_dll_from_cargo_build_output(&package, &output)
+        .expect("expected driver dll path");
+    let dll_path_json = dll_path.to_string_lossy().replace('\\', "/");
+
+    assert_eq!(dll_path_json, expected_dll_path_json);
+}
+
+fn create_test_package(workspace_root: &Path, package_name: &str) -> (PathBuf, Package) {
+    let package_root = workspace_root.join(package_name);
+    let (_, package_metadata) =
+        get_cargo_metadata_package(&package_root, package_name, "0.0.1", None);
+    let package = package_from_metadata(&package_metadata);
+    (package_root, package)
+}
+
+fn package_from_metadata(metadata: &TestMetadataPackage) -> Package {
+    serde_json::from_str(&metadata.0)
+        .expect("Failed to parse package metadata into cargo_metadata::Package")
+}
+
+fn artifact_json(
+    package_id_name: &str,
+    target_name: &str,
+    manifest_path: &str,
+    kinds: &[&str],
+    crate_types: &[&str],
+    filenames: &[&str],
+) -> String {
+    let mp_norm = manifest_path.replace('\\', "/");
+    let kinds_json = kinds
+        .iter()
+        .map(|k| format!("\"{k}\""))
+        .collect::<Vec<_>>()
+        .join(",");
+    let crate_types_json = crate_types
+        .iter()
+        .map(|t| format!("\"{t}\""))
+        .collect::<Vec<_>>()
+        .join(",");
+    let files_json = filenames
+        .iter()
+        .map(|f| format!("\"{}\"", f.replace('\\', "/")))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        r#"{{"reason":"compiler-artifact","package_id":"{package_id_name} 0.1.0 (path+file:///{mp_norm})","manifest_path":"{mp_norm}","target":{{"name":"{target_name}","kind":[{kinds_json}],"crate_types":[{crate_types_json}],"src_path":"{mp_norm}","edition":"2021"}},"profile":{{"opt_level":"0","debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":[{files_json}],"executable":null,"fresh":false}}"#
+    )
+}
+
+fn output_from_stdout(stdout: &str) -> Output {
+    Output {
+        status: ExitStatus::default(),
+        stdout: stdout.as_bytes().to_vec(),
+        stderr: Vec::new(),
+    }
+}
+
 fn invalid_driver_cargo_toml() -> String {
     r#"
         {
@@ -2617,7 +2874,7 @@ fn get_cargo_metadata_package(
     root_dir: &Path,
     default_package_name: &str,
     default_package_version: &str,
-    metadata: Option<TestWdkMetadata>,
+    metadata: Option<&TestWdkMetadata>,
 ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage) {
     let package_id = format!(
         "path+file:///{}#{}@{}",
@@ -2625,10 +2882,23 @@ fn get_cargo_metadata_package(
         default_package_name,
         default_package_version
     );
-    let metadata_section = match metadata {
-        Some(metadata) => metadata.0,
-        None => String::from("null"),
+    let metadata_section = metadata.map_or_else(|| "null".into(), |metadata| metadata.clone().0);
+    let (target_kind, crate_type, source_file) = if metadata.is_some() {
+        ("cdylib", "cdylib", "main.rs")
+    } else {
+        ("lib", "lib", "lib.rs")
     };
+    let manifest_path = root_dir
+        .join("Cargo.toml")
+        .to_string_lossy()
+        .escape_default()
+        .to_string();
+    let source_path = root_dir
+        .join("src")
+        .join(source_file)
+        .to_string_lossy()
+        .escape_default()
+        .to_string();
     (
         TestMetadataWorkspaceMemberId(package_id),
         #[allow(clippy::format_in_format_args)]
@@ -2642,10 +2912,10 @@ fn get_cargo_metadata_package(
             "targets": [
                 {{
                     "kind": [
-                        "cdylib"
+                        "{}"
                     ],
                     "crate_types": [
-                        "cdylib"
+                        "{}"
                     ],
                     "name": "{}",
                     "src_path": "{}",
@@ -2672,16 +2942,11 @@ fn get_cargo_metadata_package(
                 default_package_name,
                 default_package_version
             ),
+            target_kind,
+            crate_type,
             default_package_name,
-            root_dir
-                .join("src")
-                .join("main.rs")
-                .to_string_lossy()
-                .escape_default(),
-            root_dir
-                .join("Cargo.toml")
-                .to_string_lossy()
-                .escape_default(),
+            source_path,
+            manifest_path,
             metadata_section
         )),
     )
