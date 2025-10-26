@@ -179,7 +179,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use super::Wdk;
-    use crate::{metadata::TryFromCargoMetadataError, DriverConfig, KmdfConfig};
+    use crate::{DriverConfig, KmdfConfig, metadata::TryFromCargoMetadataError};
 
     #[test]
     fn exactly_one_wdk_configuration() {
