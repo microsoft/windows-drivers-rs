@@ -283,6 +283,8 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 /// - All env vars starting with "CARGO" or "RUST"
 /// - Entries added to the "PATH" variable by cargo
 fn sanitize_env_vars(cmd: &mut Command) {
+    const PATH_VAR: &str = "PATH";
+
     // Remove all vars added by cargo
     let vars_to_remove = env::vars().filter_map(|(var, _)| {
         let var_upper = var.to_uppercase();
@@ -299,9 +301,8 @@ fn sanitize_env_vars(cmd: &mut Command) {
 
     // Remove paths in the PATH variable that were
     // added by cargo
-    const PATH_VAR: &str = "PATH";
-    let path_value = env::var(PATH_VAR).expect(&format!("{PATH_VAR} env var not found"));
-    let paths = path_value.split(";");
+    let path_value = env::var(PATH_VAR).expect("PATH env var not found");
+    let paths = path_value.split(';');
 
     let paths_to_keep = paths
         .filter(|path| {
