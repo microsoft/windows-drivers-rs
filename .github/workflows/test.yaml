@@ -72,10 +72,16 @@ jobs:
           host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
           target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
 
-      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }}) and LLVM tools
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
@@ -87,8 +93,15 @@ jobs:
         with:
           tool: cargo-make
 
-      - name: Run Cargo Test (workspace)
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
+      - name: Run Tests (workspace)
+        run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: target/codecov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
