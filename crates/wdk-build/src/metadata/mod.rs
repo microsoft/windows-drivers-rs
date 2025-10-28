@@ -181,6 +181,8 @@ mod tests {
     use super::Wdk;
     use crate::{DriverConfig, KmdfConfig, metadata::TryFromCargoMetadataError};
 
+    const TEST_ROOT_DIR: &str = "C:\\tmp";
+
     #[test]
     fn exactly_one_wdk_configuration() {
         let (member_id, package, cwd) = init_kmdf_package_metadata(1, 33);
@@ -234,7 +236,7 @@ mod tests {
 
     #[test]
     fn no_wdk_configuration() {
-        let cwd = PathBuf::from("C:\\tmp");
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
         let (member_id, package) = get_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", None);
 
         setup_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
@@ -247,7 +249,7 @@ mod tests {
 
     #[test]
     fn invalid_wdk_metadata() {
-        let cwd = PathBuf::from("C:\\tmp");
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
         let wdk_metadata = TestWdkMetadata(
             r#"
                 {
@@ -291,7 +293,7 @@ mod tests {
         kmdf_version_major: u8,
         target_kmdf_version_minor: u8,
     ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage, PathBuf) {
-        let cwd = PathBuf::from("C:\\tmp");
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
         let driver_type = "KMDF";
         let driver_name = "sample-kmdf";
         let driver_version = "0.0.1";
