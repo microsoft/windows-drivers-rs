@@ -244,7 +244,10 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     cmd_args: Option<&[&str]>,
     cwd: Option<P>,
 ) -> Command {
-    assert!(cmd_name == "build" || cmd_name == "new"); // The only commands supported right now
+    assert!(
+        cmd_name == "build" || cmd_name == "new",
+        "Only 'build' and 'new' commands are supported"
+    );
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
 
