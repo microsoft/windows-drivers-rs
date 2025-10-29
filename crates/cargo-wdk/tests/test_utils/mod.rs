@@ -308,7 +308,6 @@ fn sanitize_env_vars(cmd: &mut Command) {
     let paths = env::split_paths(&path_value);
 
     let paths_to_keep = paths.filter(|path| {
-        println!("Examining PATH entry: {}", path.display());
         // Paths we are looking to remove are those added by
         // cargo-llvm-cov, which may be used to run tests, and
         // Rust toolchain paths
