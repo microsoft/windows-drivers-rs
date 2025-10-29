@@ -272,9 +272,9 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 /// variables typically set by cargo.
 ///
 /// This is useful when both the command and its parent
-/// process is a cargo invocation.  In such situations
+/// process is a cargo invocation. In such situations
 /// the parent might set cargo-related environment
-/// variables that might affect with the child.
+/// variables that might affect the child.
 ///
 /// This function wipes the slate clean and ensures
 /// the child runs in a clean environment.
@@ -302,26 +302,24 @@ fn sanitize_env_vars(cmd: &mut Command) {
     // Remove paths in the PATH variable that were
     // added by cargo
     let path_value = env::var(PATH_VAR).expect("PATH env var not found");
-    let paths = path_value.split(';');
+    let paths = env::split_paths(&path_value);
 
-    let paths_to_keep = paths
-        .filter(|path| {
-            // Normalize to backward slashes
-            let normalized_path = path.replace('/', "\\").to_lowercase();
+    let paths_to_keep = paths.filter(|path| {
+        println!("Examining PATH entry: {}", path.display());
+        // Paths we are looking to remove are those added by
+        // cargo-llvm-cov, which may be used to run tests, and
+        // Rust toolchain paths
+        !(path.ends_with("target/llvm-cov-target/debug")
+            || path.ends_with("target/llvm-cov-target/debug/deps")
+            || path.ends_with("target/llvm-cov-target/release")
+            || path.ends_with("target/llvm-cov-target/release/deps")
+            || path
+                .to_string_lossy()
+                .replace("\\", "/")
+                .contains(".rustup/toolchain"))
+    });
 
-            // Paths we are looking to remove here are the Rust output folders
-            // and Rust toolchain paths. But this is a blunt weapon. It could
-            // remove more than that. However, that is fine as cargo-wdk is
-            // unlikely to depend on those false positives either
-            !(normalized_path.ends_with("target\\debug")
-                || normalized_path.ends_with("target\\debug\\deps")
-                || normalized_path.ends_with("target\\release")
-                || normalized_path.ends_with("target\\release\\deps")
-                || normalized_path.contains(".rustup\\toolchain"))
-        })
-        .collect::<Vec<_>>();
-
-    let new_value = paths_to_keep.join(";");
+    let new_value = env::join_paths(paths_to_keep).expect("unable to join PATH entries");
 
     cmd.env(PATH_VAR, new_value);
 }
