@@ -4,13 +4,14 @@
 #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
 use std::{
     collections::HashMap,
+    io::Cursor,
     os::windows::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{ExitStatus, Output},
     result::Result::Ok,
 };
 
-use cargo_metadata::{Metadata as CargoMetadata, Package};
+use cargo_metadata::{Message, MessageIter, Metadata as CargoMetadata, Package};
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
@@ -2509,9 +2510,9 @@ fn given_non_cdylib_artifact_when_extracting_driver_dll_then_it_returns_not_foun
         &["lib"],
         &filenames,
     );
-    let output = output_from_stdout(&(json + "\n"));
+    let messages = message_iter_from_stdout(&(json + "\n"));
 
-    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    let result = BuildAction::get_target_dir_for_packaging(&package, messages);
     assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
 }
 
@@ -2539,9 +2540,9 @@ fn given_target_name_mismatch_when_extracting_driver_dll_then_it_returns_not_fou
         &["cdylib"],
         &filenames,
     );
-    let output = output_from_stdout(&(json + "\n"));
+    let messages = message_iter_from_stdout(&(json + "\n"));
 
-    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    let result = BuildAction::get_target_dir_for_packaging(&package, messages);
     assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
 }
 
@@ -2569,9 +2570,9 @@ fn given_manifest_path_mismatch_when_extracting_driver_dll_then_it_returns_not_f
         &["cdylib"],
         &filenames,
     );
-    let output = output_from_stdout(&(json + "\n"));
+    let messages = message_iter_from_stdout(&(json + "\n"));
 
-    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    let result = BuildAction::get_target_dir_for_packaging(&package, messages);
     assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
 }
 
@@ -2595,9 +2596,9 @@ fn given_empty_filenames_when_extracting_driver_dll_then_it_returns_not_found() 
         &["cdylib"],
         &filenames,
     );
-    let output = output_from_stdout(&(json + "\n"));
+    let messages = message_iter_from_stdout(&(json + "\n"));
 
-    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    let result = BuildAction::get_target_dir_for_packaging(&package, messages);
     assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
 }
 
@@ -2626,9 +2627,9 @@ fn given_crate_type_mismatch_when_extracting_driver_dll_then_it_returns_not_foun
         &["lib"],
         &filenames,
     );
-    let output = output_from_stdout(&(json + "\n"));
+    let messages = message_iter_from_stdout(&(json + "\n"));
 
-    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    let result = BuildAction::get_target_dir_for_packaging(&package, messages);
     assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
 }
 
@@ -2641,8 +2642,8 @@ fn given_unparsable_cargo_output_when_extracting_driver_dll_then_it_returns_not_
         initialize_build_action(&package_root, None, None, false, false, &test_build_action)
             .expect("Failed to init build action");
 
-    let output = output_from_stdout("{not-json}\n");
-    let result = BuildAction::get_dll_from_cargo_build_output(&package, &output);
+    let messages = message_iter_from_stdout("{not-json}\n");
+    let result = BuildAction::get_target_dir_for_packaging(&package, messages);
     assert!(matches!(result, Err(BuildActionError::DriverDllNotFound)));
 }
 
@@ -2667,6 +2668,10 @@ fn given_matching_cdylib_artifact_when_extracting_driver_dll_then_it_returns_pat
         .join(format!("{normalized_name}.pdb"));
     let expected_dll_path_json = expected_dll_path.to_string_lossy().replace('\\', "/");
     let expected_pdb_path_json = expected_pdb_path.to_string_lossy().replace('\\', "/");
+    let expected_target_dir = expected_dll_path
+        .parent()
+        .expect("expected dll path to have parent");
+    let expected_target_dir_json = expected_target_dir.to_string_lossy().replace('\\', "/");
     let filenames: [&str; 2] = [
         expected_dll_path_json.as_str(),
         expected_pdb_path_json.as_str(),
@@ -2679,13 +2684,13 @@ fn given_matching_cdylib_artifact_when_extracting_driver_dll_then_it_returns_pat
         &["cdylib"],
         &filenames,
     );
-    let output = output_from_stdout(&(json + "\n"));
+    let messages = message_iter_from_stdout(&(json + "\n"));
 
-    let dll_path = BuildAction::get_dll_from_cargo_build_output(&package, &output)
-        .expect("expected driver dll path");
-    let dll_path_json = dll_path.to_string_lossy().replace('\\', "/");
+    let target_dir = BuildAction::get_target_dir_for_packaging(&package, messages)
+        .expect("expected driver target directory");
+    let target_dir_json = target_dir.to_string_lossy().replace('\\', "/");
 
-    assert_eq!(dll_path_json, expected_dll_path_json);
+    assert_eq!(target_dir_json, expected_target_dir_json);
 }
 
 fn create_test_package(workspace_root: &Path, package_name: &str) -> (PathBuf, Package) {
@@ -2730,12 +2735,8 @@ fn artifact_json(
     )
 }
 
-fn output_from_stdout(stdout: &str) -> Output {
-    Output {
-        status: ExitStatus::default(),
-        stdout: stdout.as_bytes().to_vec(),
-        stderr: Vec::new(),
-    }
+fn message_iter_from_stdout(stdout: &str) -> MessageIter<Cursor<Vec<u8>>> {
+    Message::parse_stream(Cursor::new(stdout.as_bytes().to_vec()))
 }
 
 fn invalid_driver_cargo_toml() -> String {
@@ -3029,15 +3030,16 @@ fn create_cargo_artifact_json_with_manifest(
         .join(profile_dir)
         .join(format!("{normalized_name}.{file_ext}"));
 
-    let artifact_json = format!(
+    let mut artifact_json = format!(
         r#"{{"reason":"compiler-artifact","package_id":"{package_name} 0.0.1 (path+file:///{manifest})","manifest_path":"{manifest}","target":{{"kind":["{kind}"],"crate_types":["{crate_types}"],"name":"{normalized_name}","src_path":"src/lib.rs","edition":"2021","doc":false,"doctest":false,"test":false}},"profile":{{"opt_level":"0","debuginfo":2,"debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":["{artifact_path}"],"executable":null,"fresh":false}}"#,
         manifest = manifest_path.to_string_lossy().replace('\\', "/"),
         artifact_path = artifact_path.to_string_lossy().replace('\\', "/"),
     );
+    artifact_json.push('\n');
 
     Output {
         status: ExitStatus::default(),
-        stdout: artifact_json.as_bytes().to_vec(),
+        stdout: artifact_json.into_bytes(),
         stderr: vec![],
     }
 }

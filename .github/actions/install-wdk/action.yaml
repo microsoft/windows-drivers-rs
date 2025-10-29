@@ -2,250 +2,277 @@ name: Install WDK
 description: "Install Windows Driver Kit via NuGet or WinGet with robust error handling and verification"
 
 inputs:
-    version:
-        description: "WDK version to install. Format: 10.0.XXXXX or 10.0.XXXXX.YYYY. If QFE (4th component) is omitted, the latest available QFE is selected."
-        required: true
-    source:
-        description: "Source to install WDK from (nuget or winget)."
-        required: false
-        default: "nuget"
-    architectures:
-        description: "Comma or whitespace separated list of architectures (x64, ARM64). Required when using the NuGet source."
-        required: false
-        default: "x64"
-
-outputs:
-    nuget-package-root:
-        description: "Root directory containing downloaded NuGet packages."
-        value: ${{ steps.finalize.outputs.nuget-package-root }}
-    full-version-number:
-        description: "Full SDK/WDK version number (with the QFE)"
-        value: ${{ steps.finalize.outputs.full-version-number }}
+  version:
+    description: "WDK version to install. Format: 10.0.XXXXX or 10.0.XXXXX.YYYY. If QFE (4th component) is omitted, the latest available QFE is selected."
+    required: true
+  source:
+    description: "Source to install WDK from (nuget or winget)."
+    required: true
+    default: "nuget"
+  # required to set WDKBinRoot and WDKToolRoot based on the host architecture when using nuget
+  host:
+    description: "Host architecture (amd64 or arm64). Required when source is nuget."
+    required: true
+  # required to set WDKContentRoot based on the target architecture when using nuget
+  target:
+    description: "Target architecture (amd64 or arm64). Required when source is nuget."
+    required: false
 
 runs:
-    using: "composite"
-    steps:
-        - name: Validate inputs
-          id: validate
-          shell: pwsh
-          run: |
-            Set-StrictMode -Version Latest
-            $ErrorActionPreference = 'Stop'
+  using: "composite"
+  steps:
+    - name: Validate inputs
+      shell: pwsh
+      run: |
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
 
-            $source = '${{ inputs.source }}'
-            $version = '${{ inputs.version }}'
-            $architecturesRaw = '${{ inputs.architectures }}'
+        $source = '${{ inputs.source }}'
+        $version = '${{ inputs.version }}'
+        $hostArch = '${{ inputs.host }}'
+        $targetArch = '${{ inputs.target }}'
 
-            Write-Host "Validating WDK installation inputs..."
-            Write-Host "Source: $source"
-            Write-Host "Version: $version"
-            Write-Host "Architectures: $architecturesRaw"
+        Write-Host "Validating WDK installation inputs..."
+        Write-Host "Source: $source"
+        Write-Host "Version: $version"
+        Write-Host "Host: $hostArch"
+        Write-Host "Target: $targetArch"
 
-            # Validate source
-            if ($source -notin @('nuget', 'winget')) {
-                throw "Invalid source: $source. Must be 'nuget' or 'winget'."
+        # Validate source
+        if ($source -notin @('nuget', 'winget')) {
+            throw "Invalid source: $source. Must be 'nuget' or 'winget'."
+        }
+
+        # Validate version format
+        if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
+            throw "Invalid version format: $version. Expected format: 10.0.XXXXX or 10.0.XXXXX.YYYY"
+        }
+
+        # Validate architecture inputs for NuGet
+        if ($source -eq 'nuget') {
+            if ([string]::IsNullOrWhiteSpace($hostArch) -or $hostArch -notin @('amd64', 'arm64')) {
+                throw "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when source is nuget."
             }
-
-            # Validate version format
-            if ($version -notmatch '^10\.0\.\d{5}(\.\d{1,4})?$') {
-                throw "Invalid version format: $version. Expected format: 10.0.XXXXX or 10.0.XXXXX.YYYY"
+            # Set target architecture to host architecture if not specified
+            if ([string]::IsNullOrWhiteSpace($targetArch)) {
+                $targetArch = $hostArch
             }
+        }
 
-            # Validate architecture inputs for NuGet
-            if ($source -eq 'nuget') {
-                if ([string]::IsNullOrWhiteSpace($architecturesRaw)) {
-                    throw 'At least one architecture must be provided when using the NuGet source.'
-                }
-
-                $validArchitectures = @('x64', 'ARM64')
-                $architectures = @()
-
-                foreach ($entry in ($architecturesRaw -split '[,\s]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
-                    if ($validArchitectures -notcontains $entry) {
-                        $validList = $validArchitectures -join ', '
-                        throw "Unsupported architecture '$entry'. Supported values: $validList"
-                    }
-
-                    if ($architectures -notcontains $entry) {
-                        $architectures += $entry
-                    }
-                }
-
-                if ($architectures.Count -eq 0) {
-                    throw 'No valid architectures were provided for NuGet installation.'
-                }
-
-                $architectures = $architectures | Sort-Object -Unique
-                $architecturesJson = $architectures | ConvertTo-Json -Compress
-                "architectures-json=$architecturesJson" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        # Validate that host and target are not provided when using WinGet
+        if ($source -eq 'winget') {
+            if (-not [string]::IsNullOrWhiteSpace($hostArch)) {
+                throw "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
             }
-
-            if ($source -eq 'winget') {
-                if (-not [string]::IsNullOrWhiteSpace($architecturesRaw)) {
-                    throw 'Architectures should not be specified when using the WinGet source.'
-                }
+            if (-not [string]::IsNullOrWhiteSpace($targetArch)) {
+                throw "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
             }
+        }
 
-            Write-Host "✅ Input validation passed"
+        Write-Host "✅ Input validation passed"
 
-        - name: Install WDK via NuGet
-          if: inputs.source == 'nuget'
-          id: nuget-install
-          shell: pwsh
-          run: |
-            Set-StrictMode -Version Latest
-            $ErrorActionPreference = 'Stop'
-            $ProgressPreference = 'SilentlyContinue'
+    - name: Install WDK via NuGet
+      if: inputs.source == 'nuget'
+      shell: pwsh
+      run: |
+        # Optimization: Set strict mode and error handling
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+        $ProgressPreference = 'SilentlyContinue'
 
-            $architecturesInfo = ConvertFrom-Json -InputObject '${{ steps.validate.outputs.architectures-json }}'
-            if ($null -eq $architecturesInfo) {
-                throw 'No architectures available for NuGet installation.'
-            }
-            if ($architecturesInfo -isnot [System.Array]) {
-                $architecturesInfo = @($architecturesInfo)
-            }
-
-            $inputVersion = '${{ inputs.version }}'
-
-            if ($inputVersion.Split('.').Length -eq 3) {
-                Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
-                try {
-                    Write-Host "Querying NuGet API for available versions..."
-                    $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
-                    $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
-                    $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
-                    $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
-                    if ($matchingVersions.Count -gt 0) {
-                        $version = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
-                        Write-Host "Found latest QFE version: $version"
-                    } else {
-                        Write-Warning "No QFE versions found for base version $inputVersion; using base version."
-                        $version = $inputVersion
-                    }
-                } catch {
-                    Write-Warning "Failed to query NuGet for latest QFE version: $_"
-                    Write-Host "Using input version $inputVersion without QFE lookup"
-                    $version = $inputVersion
-                }
+        # Helper function to select a single package from a collection
+        function Select-SinglePackage {
+            param(
+                [Parameter(Mandatory)]
+                [object[]]$Packages,
+                [Parameter(Mandatory)]
+                [string]$PackageType
+            )
+            
+            if ($Packages.Count -eq 1) {
+                return $Packages[0]
+            } elseif ($Packages.Count -gt 1) {
+                throw "Multiple $PackageType packages found: $($Packages.Name -join ', '). Expected exactly one."
             } else {
-                $version = $inputVersion
-                Write-Host "Using specified version: $version"
+                throw "No $PackageType package found."
             }
+        }
 
-            $packages = 'C:\packages'
+        # Input validation and normalization
+        $hostArch = switch ('${{ inputs.host }}') {
+            'amd64' { 'x64' }
+            'arm64' { 'ARM64' }
+        }
+        $targetArch = switch ('${{ inputs.target }}') {
+            'amd64' { 'x64' }
+            'arm64' { 'ARM64' }
+        }
+        $inputVersion = '${{ inputs.version }}'
+        $versionParts = $inputVersion.Split('.')
+        $sdkVersion = $versionParts[0..2] -join '.'
+        $version = $inputVersion
 
-            $packagesToInstall = @()
-            foreach ($architecture in $architecturesInfo) {
-                $packageName = "Microsoft.Windows.WDK.$architecture"
-                if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq $packageName })) {
-                    $packagesToInstall += [PSCustomObject]@{
-                        PackageId   = $packageName
-                        Version     = $version
-                        DisplayName = $packageName
-                    }
+        if ($versionParts.Length -eq 3) {
+            # No QFE specified, find the latest QFE for this base version
+            Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
+            try {
+                Write-Host "Trying NuGet API..."
+                $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
+                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
+                $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
+                Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
+
+                # Filter versions that match the base version and find the latest QFE
+                $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
+                if (@($matchingVersions).Count -eq 0) {
+                    Write-Warning "No QFE versions found for base version $inputVersion, using base version..."
+                } else {
+                    $version = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
+                    Write-Host "Found latest QFE version: $version"
                 }
+            } catch {
+                Write-Warning "Failed to query NuGet for latest QFE version: $_"
+                Write-Host "Using input version $inputVersion without QFE lookup"
             }
+        } else {
+            Write-Host "Using specified version: $version"
+        }
 
-            $sdkPackageDisplayName = "Microsoft.Windows.SDK.CPP.$version"
-            if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq 'Microsoft.Windows.SDK.CPP' })) {
+        $packages = "C:\packages"
+
+        # Download all architectures supported by `windows-drivers-rs` and CPP SDK package
+        $architectures = @('x64', 'ARM64') 
+        $packagesToInstall = @()
+        foreach ($architecture in $architectures) {
+            $packageName = "Microsoft.Windows.WDK.$architecture"
+            if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq $packageName })) {
                 $packagesToInstall += [PSCustomObject]@{
-                    PackageId   = 'Microsoft.Windows.SDK.CPP'
+                    PackageId   = $packageName
                     Version     = $version
-                    DisplayName = $sdkPackageDisplayName
+                    DisplayName = "$packageName.$version"
                 }
             }
+        }
 
-            Write-Host "Installing WDK and SDK NuGet packages..."
-            foreach ($package in $packagesToInstall) {
-                Write-Host "Installing $($package.DisplayName) (package id: $($package.PackageId)) version $($package.Version)..."
-                nuget install $package.PackageId -Version $package.Version -OutputDirectory $packages -DependencyVersion Ignore
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to install $($package.DisplayName) version $($package.Version)"
-                }
+        $sdkPackageDisplayName = "Microsoft.Windows.SDK.CPP.$version"
+        if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq 'Microsoft.Windows.SDK.CPP' })) {
+            $packagesToInstall += [PSCustomObject]@{
+                PackageId   = 'Microsoft.Windows.SDK.CPP'
+                Version     = $version
+                DisplayName = $sdkPackageDisplayName
             }
+        }
 
-            Write-Host "Successfully installed required WDK and SDK packages."
-
-            @"
-            nuget-package-root=$packages
-            full-version-number=$version
-            "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-        - name: Remove existing Windows SDK packages
-          if: inputs.source == 'winget'
-          uses: ./.github/actions/uninstall-winget-package
-          with:
-            queries: |
-                Microsoft.WindowsSDK
-                Windows Software Development Kit
-
-        - name: Remove existing Windows Driver Kit packages
-          if: inputs.source == 'winget'
-          uses: ./.github/actions/uninstall-winget-package
-          with:
-            queries: |
-                Microsoft.WindowsWDK
-                Windows Driver Kit
-
-        - name: Calculate SDK version
-          if: inputs.source == 'winget'
-          id: winget-metadata
-          shell: pwsh
-          run: |
-            Set-StrictMode -Version Latest
-            $ErrorActionPreference = 'Stop'
-
-            $inputVersion = '${{ inputs.version }}'
-            Write-Host "Processing WDK version: $inputVersion"
-            $baseSdkVersion = $inputVersion.Split('.')[0..2] -join '.'
-            @"
-            base-sdk-version=$baseSdkVersion
-            "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-        - name: Install Windows SDK
-          if: inputs.source == 'winget'
-          uses: ./.github/actions/install-winget-package
-          with:
-            package-id: Microsoft.WindowsSDK.${{ steps.winget-metadata.outputs.base-sdk-version }}
-            # Workaround for 10.0.22621 SDK installer bug:
-            # The installer concatenates long strings to the log path provided by winget, creating paths exceeding 256 chars
-            # when winget appends `/log`. Specifying override args explicitly prevents winget from appending `/log`.
-            override-args: ${{ (inputs.version == '10.0.22621' || startsWith(inputs.version, '10.0.22621.')) && '/q' || '' }}
-            skip-if-installed: "true"
-            timeout-minutes: "10"
-
-        - name: Install Windows Driver Kit
-          if: inputs.source == 'winget'
-          uses: ./.github/actions/install-winget-package
-          with:
-            package-id: Microsoft.WindowsWDK.${{ inputs.version }}
-            skip-if-installed: "true"
-            timeout-minutes: "10"
-
-        - name: Finalize action outputs
-          id: finalize
-          shell: pwsh
-          run: |
-            Set-StrictMode -Version Latest
-            $ErrorActionPreference = 'Stop'
-
-            $nugetPackageRoot = "${{ steps.nuget-install.outputs.nuget-package-root }}"
-
-            if ('${{ inputs.source }}' -eq 'nuget') {
-                if ([string]::IsNullOrWhiteSpace($nugetPackageRoot)) {
-                    throw 'nuget install step did not expose nuget-package-root output.'
-                }
-            } else {
-                $nugetPackageRoot = ''
+        foreach ($package in $packagesToInstall) {
+            Write-Host "Installing $($package.DisplayName) (package id: $($package.PackageId)) version $($package.Version)..."
+            nuget install $package.PackageId -Version $package.Version -OutputDirectory $packages -DependencyVersion Ignore
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to install $($package.DisplayName) version $($package.Version)"
             }
+        }
 
-            $fullVersionNumber = "${{ steps.nuget-install.outputs.full-version-number }}"
+        Write-Host "✅ Successfully downloaded all packages for version `$version` to `$packages`"
 
-            if ([string]::IsNullOrWhiteSpace($fullVersionNumber)) {
-                $fullVersionNumber = '${{ inputs.version }}'
+        # Discover installed package paths in packages folder
+        Write-Host "Discovering installed package paths..."
+        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
+        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$version" })
+        Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
+        if ($wdkPackageDirs.Count -eq 0) {
+            throw "No WDK packages found in `$packages` folder"
+        }
+        foreach ($dir in $wdkPackageDirs) {
+            Write-Host "  - $($dir.Name)"
+        }
+        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$version" })
+        Write-Host "Found $($sdkPackageDirs.Count) SDK package(s):"
+        if ($sdkPackageDirs.Count -eq 0) {
+            throw "No SDK packages found in `$packages` folder"
+        }
+        foreach ($dir in $sdkPackageDirs) {
+            Write-Host "  - $($dir.Name)"
+        }
+
+        # Find host architecture WDK package
+        $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$hostArch.$version" }) -PackageType "WDK host ($hostArch architecture)").FullName
+        Write-Host "Using WDK host architecture ($hostArch) package: $hostWdkPackage"
+
+        # Find target architecture WDK package
+        $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$targetArch.$version" }) -PackageType "WDK target ($targetArch architecture)").FullName
+        Write-Host "Using WDK target architecture ($targetArch) package: $targetWdkPackage"
+
+        $envVars = @{
+            "Version_Number" = "$sdkVersion.0"
+            "WindowsSdkBinPath" = "$($sdkPackageDir)\c\bin"
+            "WDKContentRoot" = "$($targetWdkPackage)\c\"
+            "WDKBinRoot" = "$($hostWdkPackage)\c\bin"
+            "WDKToolRoot" = "$($hostWdkPackage)\c\tools"
+            "FullVersionNumber" = "$version"
+            "NugetPackagesRoot" = "$packages"
+        }
+
+        # Validate paths exist before setting environment variables
+        $paths = @("WindowsSdkBinPath", "WDKContentRoot", "WDKBinRoot", "WDKToolRoot")
+        foreach ($pathKey in $paths) {
+            $path = $envVars[$pathKey]
+            if (-not (Test-Path $path)) {
+                throw "Critical path not found: $pathKey = $path"
             }
+        }
 
-            @"
-            nuget-package-root=$nugetPackageRoot
-            full-version-number=$fullVersionNumber
-            "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $envVars.GetEnumerator() | ForEach-Object {
+            Write-Host "Setting $($_.Key) environment variable: $($_.Value)"
+            Write-Output "$($_.Key)=$($_.Value)" >> $env:GITHUB_ENV
+        }
+
+    - name: Remove existing Windows SDK packages
+      if: inputs.source == 'winget'
+      uses: ./.github/actions/uninstall-winget-package
+      with:
+        queries: |
+          Microsoft.WindowsSDK
+          Windows Software Development Kit
+
+    - name: Remove existing Windows Driver Kit packages
+      if: inputs.source == 'winget'
+      uses: ./.github/actions/uninstall-winget-package
+      with:
+        queries: |
+          Microsoft.WindowsWDK
+          Windows Driver Kit
+
+    - name: Calculate SDK version
+      if: inputs.source == 'winget'
+      shell: pwsh
+      run: |
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $inputVersion = '${{ inputs.version }}'
+        Write-Host "Processing WDK version: $inputVersion"
+
+        $versionParts = $inputVersion.Split('.')
+        $sdkVersion = $versionParts[0..2] -join '.'
+        Write-Host "Calculated SDK version: $sdkVersion from input version: $inputVersion"
+        Write-Output "SDK_VERSION=$sdkVersion" >> $env:GITHUB_ENV
+        Write-Output "Version_Number=$sdkVersion.0" >> $env:GITHUB_ENV
+
+    - name: Install Windows SDK
+      if: inputs.source == 'winget'
+      uses: ./.github/actions/install-winget-package
+      with:
+        package-id: Microsoft.WindowsSDK.${{ env.SDK_VERSION }}
+        # Workaround for 10.0.22621 SDK installer bug:
+        # The installer concatenates long strings to the log path provided by winget, creating paths exceeding 256 chars
+        # when winget appends `/log`. Specifying override args explicitly prevents winget from appending `/log`.
+        override-args: ${{ (inputs.version == '10.0.22621' || startsWith(inputs.version, '10.0.22621.')) && '/q' || '' }}
+        skip-if-installed: "true"
+        timeout-minutes: "10"
+
+    - name: Install Windows Driver Kit
+      if: inputs.source == 'winget'
+      uses: ./.github/actions/install-winget-package
+      with:
+        package-id: Microsoft.WindowsWDK.${{ inputs.version }}
+        skip-if-installed: "true"
+        timeout-minutes: "10"

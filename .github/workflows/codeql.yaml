@@ -71,16 +71,8 @@ jobs:
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        architectures: ${{ matrix.wdk.source == 'nuget' && 'x64 ARM64' || '' }}
-
-    - name: Configure WDK environment (NuGet)
-      if: matrix.wdk.source == 'nuget'
-      uses: ./.github/actions/configure-wdk-env
-      with:
-        package-root: ${{ steps.install_wdk.outputs.nuget-package-root }}
-        full-version-number: ${{ steps.install_wdk.outputs.full-version-number }}
-        runner-arch: amd64 # codeql runs only on amd64 at the moment
-        target-arch: ${{ matrix.target_triple.arch }}
+        host: 'amd64' # codeql runs only on amd64 at the moment
+        target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
       uses: dtolnay/rust-toolchain@master

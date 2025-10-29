@@ -141,7 +141,7 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
             clean_build_and_verify_driver_project(
@@ -175,7 +175,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "x64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
             clean_build_and_verify_driver_project(
@@ -208,7 +208,7 @@ fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(
             &[
@@ -250,7 +250,7 @@ fn kmdf_driver_with_target_override_cli_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(
             &[
@@ -292,7 +292,7 @@ fn umdf_driver_with_target_arch_and_release_profile() {
     let driver_path = "tests/umdf-driver";
     let target_arch = "arm64";
     let profile = "release";
-    if let Ok(nuget_package_root) = std::env::var("Nuget_Packages_Root") {
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(&wdk_content_root))], || {
             clean_build_and_verify_driver_project(
@@ -510,34 +510,32 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
 
 fn locate_wdk_content(target_arch: &'static str, nuget_package_root: &str) -> String {
     let package_root_path = Path::new(&nuget_package_root);
-    let target_arch_lower = target_arch.to_ascii_lowercase();
-    let full_version_number = std::env::var("Full_Version_Number")
-        .expect("Full_Version_Number must be set when using NuGet source");
-    let package_prefix = format!("microsoft.windows.wdk.{target_arch_lower}.{full_version_number}");
+    let full_version_number = std::env::var("FullVersionNumber")
+        .expect("FullVersionNumber must be set when using NuGet source");
+    let target_wdk_package =
+        format!("microsoft.windows.wdk.{target_arch}.{full_version_number}").to_ascii_lowercase();
 
-    let mut matching_packages: Vec<PathBuf> = fs::read_dir(package_root_path)
+    let wdk_package_dir = fs::read_dir(package_root_path)
         .unwrap_or_else(|err| {
             panic!("Failed to read NuGet package root '{nuget_package_root}': {err}")
         })
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .filter(|path| {
+        .find(|path| {
             path.is_dir()
                 && path.file_name().is_some_and(|name| {
-                    let name = name.to_string_lossy().to_ascii_lowercase();
-                    name.starts_with(&package_prefix)
+                    name.to_string_lossy()
+                        .to_string()
+                        .to_ascii_lowercase()
+                        .eq(&target_wdk_package)
                 })
         })
-        .collect();
-
-    matching_packages.sort();
-
-    let wdk_package_dir = matching_packages.pop().unwrap_or_else(|| {
-        panic!(
-            "Unable to locate WDK package for target architecture {target_arch} under \
-             '{nuget_package_root}'"
-        )
-    });
+        .unwrap_or_else(|| {
+            panic!(
+                "Unable to locate WDK package for target architecture {target_arch} under \
+                 '{nuget_package_root}'"
+            )
+        });
 
     let wdk_content_root_path = wdk_package_dir.join("c");
     assert!(

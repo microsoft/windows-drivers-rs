@@ -14,7 +14,6 @@ mod package_task;
 mod tests;
 use std::{
     path::{Path, PathBuf, absolute},
-    process::Output,
     result::Result::Ok,
 };
 
@@ -342,7 +341,7 @@ impl<'a> BuildAction<'a> {
         let package_name = package.name.as_str();
         info!("Building package {package_name}");
 
-        let build_output = BuildTask::new(
+        let output_message_iter = BuildTask::new(
             package_name,
             working_dir,
             self.profile,
@@ -368,11 +367,6 @@ impl<'a> BuildAction<'a> {
             return Ok(());
         }
 
-        let driver_dll_path = Self::get_dll_from_cargo_build_output(package, &build_output)?;
-
-        // target[/<target-triple>]/<profile>
-        let artifacts_dir = Self::get_dll_parent_dir_absolute(&driver_dll_path)?;
-
         // Resolve the target architecture for the packaging task
         let target_arch = if let Some(arch) = self.target_arch {
             arch
@@ -392,7 +386,7 @@ impl<'a> BuildAction<'a> {
             &PackageTaskParams {
                 package_name,
                 working_dir,
-                target_dir: &artifacts_dir,
+                target_dir: &Self::get_target_dir_for_packaging(package, output_message_iter)?,
                 target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
@@ -409,14 +403,14 @@ impl<'a> BuildAction<'a> {
     }
 
     // Extracts the driver DLL path from the Cargo build output
-    fn get_dll_from_cargo_build_output(
+    fn get_target_dir_for_packaging(
         package: &Package,
-        output: &Output,
+        message_iter: impl Iterator<Item = Result<Message, std::io::Error>>,
     ) -> Result<PathBuf, BuildActionError> {
         let normalized_pkg_name = package.name.replace('-', "_");
         let driver_file_name = format!("{normalized_pkg_name}.dll");
 
-        Message::parse_stream(std::io::Cursor::new(&output.stdout))
+        message_iter
             .filter_map(|message| match message {
                 Ok(Message::CompilerArtifact(artifact)) => Some(artifact),
                 Ok(_) => None,
@@ -450,39 +444,43 @@ impl<'a> BuildAction<'a> {
                     return None;
                 }
 
-                artifact
-                    .filenames
-                    .iter()
-                    .find(|path| path.file_name() == Some(driver_file_name.as_str()))
-                    .map(|path| {
-                        debug!(
-                            "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, \
-                             filenames={:?})",
-                            artifact.target.name,
-                            &artifact.target.kind,
-                            &artifact.target.crate_types,
-                            &artifact.filenames
-                        );
-                        path.as_std_path().to_path_buf()
-                    })
-            })
-            .ok_or(BuildActionError::DriverDllNotFound)
-    }
+                artifact.filenames.iter().find_map(|path| {
+                    if path.file_name() != Some(driver_file_name.as_str()) {
+                        return None;
+                    }
 
-    fn get_dll_parent_dir_absolute(driver_dll_path: &Path) -> Result<PathBuf, BuildActionError> {
-        let artifacts_dir =
-            driver_dll_path
-                .parent()
-                .ok_or(BuildActionError::DriverBinaryMissingParent(
-                    driver_dll_path.to_path_buf(),
-                ))?;
-        let artifacts_dir = absolute(artifacts_dir)
-            .map_err(|e| BuildActionError::NotAbsolute(artifacts_dir.to_path_buf(), e))?;
-        debug!(
-            "Driver artifacts parent directory: {}",
-            artifacts_dir.display()
-        );
-        Ok(artifacts_dir)
+                    debug!(
+                        "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, \
+                         filenames={:?})",
+                        artifact.target.name,
+                        &artifact.target.kind,
+                        &artifact.target.crate_types,
+                        &artifact.filenames
+                    );
+
+                    let dll_path = path.as_std_path();
+                    let Some(parent) = dll_path.parent() else {
+                        return Some(Err(BuildActionError::DriverBinaryMissingParent(
+                            dll_path.to_path_buf(),
+                        )));
+                    };
+
+                    match absolute(parent) {
+                        Ok(artifacts_dir) => {
+                            debug!(
+                                "Driver artifacts parent directory: {}",
+                                artifacts_dir.display()
+                            );
+                            Some(Ok(artifacts_dir))
+                        }
+                        Err(error) => Some(Err(BuildActionError::NotAbsolute(
+                            parent.to_path_buf(),
+                            error,
+                        ))),
+                    }
+                })
+            })
+            .unwrap_or_else(|| Err(BuildActionError::DriverDllNotFound))
     }
 
     /// Invokes `cargo rustc -- --print cfg` and finds the `target_arch` value

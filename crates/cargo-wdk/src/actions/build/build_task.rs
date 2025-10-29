@@ -5,12 +5,10 @@
 //! building a driver package with the provided options using the `cargo build`
 //! command.
 
-use std::{
-    path::{Path, PathBuf},
-    process::Output,
-};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use cargo_metadata::Message;
 use mockall_double::double;
 use tracing::info;
 use wdk_build::CpuArchitecture;
@@ -80,7 +78,9 @@ impl<'a> BuildTask<'a> {
     /// * `BuildTaskError::EmptyManifestPath` - If the manifest path cannot be
     ///   represented as UTF-8.
     /// * `BuildTaskError::CargoBuild` - If invoking `cargo` fails.
-    pub fn run(self) -> Result<Output, BuildTaskError> {
+    pub fn run(
+        self,
+    ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
         info!("Running cargo build for package: {}", self.package_name);
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json".to_string());
@@ -110,9 +110,12 @@ impl<'a> BuildTask<'a> {
 
         // Run cargo build from the provided working directory so that config.toml
         // is respected
-        self.command_exec
+        let output = self
+            .command_exec
             .run("cargo", &args, None, Some(self.working_dir))
-            .map_err(BuildTaskError::CargoBuild)
+            .map_err(BuildTaskError::CargoBuild)?;
+
+        Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
     }
 }
 
@@ -208,7 +211,8 @@ mod tests {
             expected_args.push(flag.to_string());
         }
         let expected_working_dir = working_dir.clone();
-        let expected_stdout = br#"{"artifact":"value"}"#.to_vec();
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
         let expected_stdout_for_mock = expected_stdout.clone();
 
         let mut mock = MockCommandExec::new();
@@ -241,9 +245,19 @@ mod tests {
             &mock,
         );
 
-        let output = task.run().expect("expected cargo output");
-        assert_eq!(output.stdout, expected_stdout);
-        assert!(output.stderr.is_empty());
+        let messages = task
+            .run()
+            .expect("expected cargo output")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+
+        assert_eq!(messages.len(), 1);
+        match &messages[0] {
+            Message::BuildFinished(message) => {
+                assert!(message.success, "expected build to succeed");
+            }
+            other => panic!("unexpected message: {other:?}"),
+        }
     }
 
     #[test]
@@ -272,7 +286,7 @@ mod tests {
             &mock,
         );
 
-        let err = task.run().expect_err("expected cargo failure");
+        let err = task.run().err().expect("expected cargo failure");
         assert!(matches!(err, BuildTaskError::CargoBuild(_)));
     }
 }
