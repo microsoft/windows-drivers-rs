@@ -79,6 +79,7 @@ jobs:
           components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
+        if: matrix.runner.name == 'windows-2025'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
@@ -93,15 +94,24 @@ jobs:
         with:
           tool: cargo-make
 
-      - name: Run Tests (workspace)
+      # Code coverage is generated only for amd64 because cargo-llvm-cov
+      # does not currently support Windows on arm64.
+      # See issue: # https://github.com/taiki-e/cargo-llvm-cov/issues/436
+      - name: Run Cargo Test with Coverage (workspace)
+        if: matrix.runner.name == 'windows-2025'
         run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Upload Coverage to Codecov
+        if: matrix.runner.name == 'windows-2025'
         uses: codecov/codecov-action@v5
         with:
           files: target/codecov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
+
+      - name: Run Cargo Test (workspace)
+        if: matrix.runner.name == 'windows-11-arm'
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
