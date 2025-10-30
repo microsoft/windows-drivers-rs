@@ -194,11 +194,11 @@ runs:
         }
 
         # Find host architecture WDK package
-        $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$hostArch.$version" }) -PackageType "WDK host ($hostArch architecture)").FullName
+        $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$hostArch.$version" }) -PackageType "WDK for host $hostArch").FullName
         Write-Host "Using WDK host architecture ($hostArch) package: $hostWdkPackage"
 
         # Find target architecture WDK package
-        $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$targetArch.$version" }) -PackageType "WDK target ($targetArch architecture)").FullName
+        $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$targetArch.$version" }) -PackageType "WDK for target $targetArch").FullName
         Write-Host "Using WDK target architecture ($targetArch) package: $targetWdkPackage"
 
         $envVars = @{
