@@ -46,11 +46,7 @@ where
     impl Drop for FileLockGuard {
         fn drop(&mut self) {
             if let Err(err) = FileExt::unlock(&self.file) {
-                if std::thread::panicking() {
-                    eprintln!("Unable to unlock cargo-wdk-test.lock file: {err}");
-                } else {
-                    panic!("Unable to unlock cargo-wdk-test.lock file: {err}");
-                }
+                eprintln!("Unable to unlock cargo-wdk-test.lock file: {err}");
             }
         }
     }

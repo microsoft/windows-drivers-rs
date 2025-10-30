@@ -222,7 +222,8 @@ runs:
 
         $envVars.GetEnumerator() | ForEach-Object {
             Write-Host "Setting $($_.Key) environment variable: $($_.Value)"
-            Write-Output "$($_.Key)=$($_.Value)" >> $env:GITHUB_ENV
+            $line = '{0}={1}' -f $_.Key, $_.Value
+            Add-Content -Path $env:GITHUB_ENV -Value $line
         }
 
     - name: Remove existing Windows SDK packages

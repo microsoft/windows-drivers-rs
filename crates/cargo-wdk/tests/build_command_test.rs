@@ -36,7 +36,10 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 #[test]
 fn kmdf_driver_builds_successfully() {
     // Setup for executables
-    wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
+    wdk_build::cargo_make::setup_path().expect(
+        "failed to set up paths for
+executables",
+    );
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
     // Create a self signed certificate in store if not already present
@@ -142,7 +145,7 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
             clean_build_and_verify_driver_project(
                 "kmdf",
@@ -176,7 +179,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
     let driver_path = format!("tests/{driver}");
     let target_arch = "x64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
             clean_build_and_verify_driver_project(
                 "kmdf",
@@ -209,7 +212,7 @@ fn kmdf_driver_with_target_override_env_wins() {
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(
             &[
                 ("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME)),
@@ -251,7 +254,7 @@ fn kmdf_driver_with_target_override_cli_wins() {
     let driver_path = format!("tests/{driver}");
     let target_arch = "arm64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(
             &[
                 ("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME)),
@@ -293,7 +296,7 @@ fn umdf_driver_with_target_arch_and_release_profile() {
     let target_arch = "arm64";
     let profile = "release";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = locate_wdk_content(target_arch, &nuget_package_root);
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(&wdk_content_root))], || {
             clean_build_and_verify_driver_project(
                 "umdf",
@@ -508,16 +511,16 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
     format!("{result:x}")
 }
 
-fn locate_wdk_content(target_arch: &'static str, nuget_package_root: &str) -> String {
-    let package_root_path = Path::new(&nuget_package_root);
+fn get_nuget_wdk_content_root(arch: &'static str, nuget_packages_root: &str) -> String {
+    let package_root_path = Path::new(&nuget_packages_root);
     let full_version_number = std::env::var("FullVersionNumber")
         .expect("FullVersionNumber must be set when using NuGet source");
     let target_wdk_package =
-        format!("microsoft.windows.wdk.{target_arch}.{full_version_number}").to_ascii_lowercase();
+        format!("microsoft.windows.wdk.{arch}.{full_version_number}").to_ascii_lowercase();
 
     let wdk_package_dir = fs::read_dir(package_root_path)
         .unwrap_or_else(|err| {
-            panic!("Failed to read NuGet package root '{nuget_package_root}': {err}")
+            panic!("Failed to read NuGet package root '{nuget_packages_root}': {err}")
         })
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -532,8 +535,8 @@ fn locate_wdk_content(target_arch: &'static str, nuget_package_root: &str) -> St
         })
         .unwrap_or_else(|| {
             panic!(
-                "Unable to locate WDK package for target architecture {target_arch} under \
-                 '{nuget_package_root}'"
+                "Unable to locate WDK package for target architecture {arch} under \
+                 '{nuget_packages_root}'"
             )
         });
 
