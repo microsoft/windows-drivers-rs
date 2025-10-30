@@ -175,7 +175,17 @@ runs:
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
+
         $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
+
+        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$version" })
+        if ($sdkPackageDirs.Count -eq 0) {
+            throw "No CPP SDK packages found in `$packages` folder"
+        }
+
+        $sdkPackageDir = (Select-SinglePackage -Packages $sdkPackageDirs -PackageType "Windows CPP SDK $version").FullName
+        Write-Host "Found CPP SDK at $sdkPackageDir"
+
         $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$version" })
         Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
         if ($wdkPackageDirs.Count -eq 0) {
@@ -184,29 +194,19 @@ runs:
         foreach ($dir in $wdkPackageDirs) {
             Write-Host "  - $($dir.Name)"
         }
-        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$version" })
-        Write-Host "Found $($sdkPackageDirs.Count) SDK package(s):"
-        if ($sdkPackageDirs.Count -eq 0) {
-            throw "No SDK packages found in `$packages` folder"
-        }
-        foreach ($dir in $sdkPackageDirs) {
-            Write-Host "  - $($dir.Name)"
-        }
-
         # Find host architecture WDK package
         $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$hostArch.$version" }) -PackageType "WDK for host $hostArch").FullName
         Write-Host "Using WDK host architecture ($hostArch) package: $hostWdkPackage"
-
         # Find target architecture WDK package
         $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$targetArch.$version" }) -PackageType "WDK for target $targetArch").FullName
         Write-Host "Using WDK target architecture ($targetArch) package: $targetWdkPackage"
 
         $envVars = @{
             "Version_Number" = "$sdkVersion.0"
-            "WindowsSdkBinPath" = "$($sdkPackageDir)\c\bin"
-            "WDKContentRoot" = "$($targetWdkPackage)\c\"
-            "WDKBinRoot" = "$($hostWdkPackage)\c\bin"
-            "WDKToolRoot" = "$($hostWdkPackage)\c\tools"
+            "WindowsSdkBinPath" = "$sdkPackageDir\c\bin"
+            "WDKContentRoot" = "$targetWdkPackage\c\"
+            "WDKBinRoot" = "$hostWdkPackage\c\bin"
+            "WDKToolRoot" = "$hostWdkPackage\c\tools"
             "FullVersionNumber" = "$version"
             "NugetPackagesRoot" = "$packages"
         }
