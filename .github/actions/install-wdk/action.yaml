@@ -62,10 +62,10 @@ runs:
         # Validate that host and target are not provided when using WinGet
         if ($source -eq 'winget') {
             if (-not [string]::IsNullOrWhiteSpace($hostArch)) {
-                throw "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
+                Write-Host "Ignoring host architecture input. WDK installed via WinGet includes all architectures."
             }
             if (-not [string]::IsNullOrWhiteSpace($targetArch)) {
-                throw "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
+                Write-Host "Ignoring target architecture input. WDK installed via WinGet includes all architectures."
             }
         }
 
