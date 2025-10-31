@@ -96,7 +96,7 @@ jobs:
 
       # Code coverage is generated only for amd64 because cargo-llvm-cov
       # does not currently support Windows on arm64.
-      # See issue: # https://github.com/taiki-e/cargo-llvm-cov/issues/436
+      # See issue: https://github.com/taiki-e/cargo-llvm-cov/issues/436
       - name: Run Cargo Test with Coverage (workspace)
         if: matrix.runner.name == 'windows-2025'
         run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
