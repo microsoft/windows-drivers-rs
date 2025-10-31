@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn exactly_one_wdk_configuration() {
         let (member_id, package, cwd) = init_kmdf_package_metadata(1, 33);
-        setup_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
+        set_up_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
             assert!(matches!(
                 wdk.unwrap().driver_model,
                 DriverConfig::Kmdf(KmdfConfig {
@@ -203,7 +203,7 @@ mod tests {
         let (member_id1, package1, _cwd) = init_kmdf_package_metadata(1, 33);
         let (member_id2, package2, cwd) = init_kmdf_package_metadata(1, 35);
 
-        setup_and_assert(
+        set_up_and_assert(
             &cwd,
             &[package1, package2],
             &[member_id1, member_id2],
@@ -222,9 +222,9 @@ mod tests {
     #[test]
     fn multiple_wdk_configurations_with_wdk_metadata_at_workspace_level() {
         let (member_id, package, cwd) = init_kmdf_package_metadata(1, 33);
-        let wdk_metadata = get_cargo_metadata_wdk_metadata("UMDF", 2, 33);
+        let wdk_metadata = create_cargo_metadata_wdk_metadata("UMDF", 2, 33);
 
-        setup_and_assert(&cwd, &[package], &[member_id], Some(wdk_metadata), |wdk| {
+        set_up_and_assert(&cwd, &[package], &[member_id], Some(wdk_metadata), |wdk| {
             assert!(matches!(
                 wdk.expect_err("expected an error"),
                 TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
@@ -237,9 +237,10 @@ mod tests {
     #[test]
     fn no_wdk_configuration() {
         let cwd = PathBuf::from(TEST_ROOT_DIR);
-        let (member_id, package) = get_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", None);
+        let (member_id, package) =
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", None);
 
-        setup_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
+        set_up_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
             assert!(matches!(
                 wdk.expect_err("expected an error"),
                 TryFromCargoMetadataError::NoWdkConfigurationsDetected
@@ -264,9 +265,9 @@ mod tests {
         );
 
         let (workspace_member, package) =
-            get_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(wdk_metadata));
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(wdk_metadata));
 
-        setup_and_assert(&cwd, &[package], &[workspace_member], None, |wdk| {
+        set_up_and_assert(&cwd, &[package], &[workspace_member], None, |wdk| {
             assert!(matches!(
                 wdk.expect_err("expected an error"),
                 TryFromCargoMetadataError::WdkMetadataDeserialization {
@@ -277,7 +278,7 @@ mod tests {
         });
     }
 
-    fn setup_and_assert(
+    fn set_up_and_assert(
         root_dir: &Path,
         package_list: &[TestMetadataPackage],
         workspace_member_list: &[TestMetadataWorkspaceMemberId],
@@ -285,7 +286,7 @@ mod tests {
         assert_fn: fn(Result<Wdk, TryFromCargoMetadataError>),
     ) {
         let cargo_toml_metadata =
-            get_cargo_metadata(root_dir, package_list, workspace_member_list, wdk_metadata);
+            create_cargo_metadata(root_dir, package_list, workspace_member_list, wdk_metadata);
         assert_fn(Wdk::try_from(&cargo_toml_metadata));
     }
 
@@ -294,16 +295,13 @@ mod tests {
         target_kmdf_version_minor: u8,
     ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage, PathBuf) {
         let cwd = PathBuf::from(TEST_ROOT_DIR);
-        let driver_type = "KMDF";
-        let driver_name = "sample-kmdf";
-        let driver_version = "0.0.1";
-        let wdk_metadata = get_cargo_metadata_wdk_metadata(
-            driver_type,
+        let wdk_metadata = create_cargo_metadata_wdk_metadata(
+            "KMDF",
             kmdf_version_major,
             target_kmdf_version_minor,
         );
         let (workspace_member, package) =
-            get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(wdk_metadata));
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(wdk_metadata));
 
         (workspace_member, package, cwd)
     }
@@ -317,7 +315,7 @@ mod tests {
 
     /// Construct a `cargo_metadata::Metadata` from the given packages,
     /// workspace member IDs, and optional WDK metadata.
-    fn get_cargo_metadata(
+    fn create_cargo_metadata(
         root_dir: &Path,
         package_list: &[TestMetadataPackage],
         workspace_member_list: &[TestMetadataWorkspaceMemberId],
@@ -361,9 +359,9 @@ mod tests {
 
     /// Construct a package id and package JSON wrapped in
     /// `TestMetadataWorkspaceMemberId` and `TestMetadataPackage` for the
-    /// given path. The JSON matches the structure expected by
+    /// given path respectively. The JSON matches the structure expected by
     /// `cargo_metadata::Metadata.packages`.
-    fn get_cargo_metadata_package(
+    fn create_cargo_metadata_package(
         root_dir: &Path,
         default_package_name: &str,
         default_package_version: &str,
@@ -434,7 +432,7 @@ mod tests {
     /// Construct WDK metadata wrapped in `TestWdkMetadata` for the given driver
     /// type and versions. The JSON matches the format expected by
     /// `cargo_metadata::Metadata.workspace_metadata`.
-    fn get_cargo_metadata_wdk_metadata(
+    fn create_cargo_metadata_wdk_metadata(
         driver_type: &str,
         kmdf_version_major: u8,
         target_kmdf_version_minor: u8,
