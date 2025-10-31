@@ -329,7 +329,7 @@ mod tests {
         // Set up mocks to assert a successful driver project creation.
         // The for loop below tests various verbosity levels as well
         for (verbosity_level, expected_flag) in cases {
-            setup_and_assert(
+            set_up_and_assert(
                 Path::new("test_driver"),
                 DriverType::Kmdf,
                 verbosity_level,
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn when_cargo_new_fails_then_returns_cargo_new_command_error() {
-        setup_and_assert(
+        set_up_and_assert(
             Path::new("test_driver_fail_cargo_new"),
             DriverType::Kmdf,
             Verbosity::default(),
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn when_copy_lib_rs_template_fails_then_returns_filesystem_error() {
-        setup_and_assert(
+        set_up_and_assert(
             Path::new("test_driver_fail_lib_copy"),
             DriverType::Kmdf,
             Verbosity::default(),
@@ -389,11 +389,10 @@ mod tests {
         );
     }
 
-    /// Type alias for assertion functions used in tests.
-    type AssertionFn = fn(Result<(), NewActionError>);
-
     #[test]
     fn when_update_cargo_toml_fails_then_returns_filesystem_error() {
+        type AssertionFn = fn(Result<(), NewActionError>);
+
         let cases: [(bool, bool, bool, AssertionFn); 3] = [
             (false, true, true, |result: Result<(), NewActionError>| {
                 assert!(
@@ -429,7 +428,7 @@ mod tests {
         for (is_read_success, is_dep_removal_success, is_template_append_success, assert_fn) in
             cases
         {
-            setup_and_assert(
+            set_up_and_assert(
                 Path::new("test_driver_fail_cargo_toml_update"),
                 DriverType::Kmdf,
                 Verbosity::default(),
@@ -452,7 +451,7 @@ mod tests {
 
     #[test]
     fn when_create_inx_file_fails_then_returns_filesystem_error() {
-        setup_and_assert(
+        set_up_and_assert(
             Path::new("test_driver_fail_create_inx_file"),
             DriverType::Kmdf,
             Verbosity::default(),
@@ -474,7 +473,7 @@ mod tests {
 
     #[test]
     fn when_create_inx_file_called_with_invalid_path_then_returns_invalid_driver_crate_name() {
-        setup_and_assert(
+        set_up_and_assert(
             // Use an empty path component so file_name returns None
             Path::new(""),
             DriverType::Kmdf,
@@ -497,7 +496,7 @@ mod tests {
 
     #[test]
     fn when_copy_build_rs_template_fails_then_returns_filesystem_error() {
-        setup_and_assert(
+        set_up_and_assert(
             Path::new("test_driver_fail_build_rs"),
             DriverType::Kmdf,
             Verbosity::default(),
@@ -519,7 +518,7 @@ mod tests {
 
     #[test]
     fn when_copy_cargo_config_fails_then_returns_filesystem_error() {
-        setup_and_assert(
+        set_up_and_assert(
             Path::new("test_driver_fail_cargo_config"),
             DriverType::Kmdf,
             Verbosity::default(),
@@ -546,7 +545,7 @@ mod tests {
     /// result of running the action. Usage: pass a closure to
     /// `set_expectations_fn` to configure mocks, and a closure to `assert_fn`
     /// to check the outcome.
-    fn setup_and_assert(
+    fn set_up_and_assert(
         path: &Path,
         driver_type: DriverType,
         verbosity_level: Verbosity,
