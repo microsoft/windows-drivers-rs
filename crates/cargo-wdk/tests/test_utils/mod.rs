@@ -54,10 +54,8 @@ where
     let lock_file = std::fs::File::create("cargo-wdk-test.lock")
         .expect("Unable to create lock file for cargo-wdk tests");
     FileExt::lock_exclusive(&lock_file).expect("Unable to lock cargo-wdk-test.lock file");
-    let guard = FileLockGuard { file: lock_file };
-    let result = f();
-    drop(guard);
-    result
+    let _guard = FileLockGuard { file: lock_file };
+    f()
 }
 
 #[allow(
