@@ -143,7 +143,7 @@ fn emulated_workspace_builds_successfully() {
 fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
-    let target_arch = "arm64";
+    let target_arch = "ARM64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(&[("WDKContentRoot", Some(wdk_content_root))], || {
@@ -210,7 +210,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
 fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
-    let target_arch = "arm64";
+    let target_arch = "ARM64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(
@@ -252,7 +252,7 @@ fn kmdf_driver_with_target_override_env_wins() {
 fn kmdf_driver_with_target_override_cli_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
-    let target_arch = "arm64";
+    let target_arch = "ARM64";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
         with_env(
@@ -293,7 +293,7 @@ fn kmdf_driver_with_target_override_cli_wins() {
 #[test]
 fn umdf_driver_with_target_arch_and_release_profile() {
     let driver_path = "tests/umdf-driver";
-    let target_arch = "arm64";
+    let target_arch = "ARM64";
     let profile = "release";
     if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
         let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
@@ -346,6 +346,7 @@ fn clean_build_and_verify_driver_project(
         args.push(profile);
     }
     let stdout = run_build_cmd(driver_path, Some(args));
+    println!("{}", stdout);
 
     assert!(stdout.contains(&format!("Building package {driver_name}")));
     assert!(stdout.contains(&format!("Finished building {driver_name}")));
@@ -382,16 +383,14 @@ fn run_cargo_clean(driver_path: &str) {
     cmd.assert().success();
 }
 
-fn run_build_cmd(driver_path: &str, args: Option<Vec<&str>>) -> String {
+fn run_build_cmd(driver_path: &str, additional_args: Option<Vec<&str>>) -> String {
     set_crt_static_flag();
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    let mut full_args = vec!["build"];
-    if let Some(args) = args
-        && !args.is_empty()
-    {
-        full_args.extend(args);
+    let mut args = vec!["build"];
+    if let Some(additional_args) = additional_args {
+        args.extend(additional_args);
     }
-    cmd.args(full_args).current_dir(driver_path);
+    cmd.args(args).current_dir(driver_path);
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
     String::from_utf8_lossy(&output.stdout).to_string()
@@ -512,13 +511,11 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
 }
 
 fn get_nuget_wdk_content_root(arch: &'static str, nuget_packages_root: &str) -> String {
-    let package_root_path = Path::new(&nuget_packages_root);
     let full_version_number = std::env::var("FullVersionNumber")
         .expect("FullVersionNumber must be set when using NuGet source");
-    let target_wdk_package =
-        format!("microsoft.windows.wdk.{arch}.{full_version_number}").to_ascii_lowercase();
+    let target_wdk_package = format!("Microsoft.Windows.WDK.{arch}.{full_version_number}");
 
-    let wdk_package_dir = fs::read_dir(package_root_path)
+    let wdk_package_dir = fs::read_dir(Path::new(nuget_packages_root))
         .unwrap_or_else(|err| {
             panic!("Failed to read NuGet package root '{nuget_packages_root}': {err}")
         })
@@ -526,12 +523,9 @@ fn get_nuget_wdk_content_root(arch: &'static str, nuget_packages_root: &str) -> 
         .map(|entry| entry.path())
         .find(|path| {
             path.is_dir()
-                && path.file_name().is_some_and(|name| {
-                    name.to_string_lossy()
-                        .to_string()
-                        .to_ascii_lowercase()
-                        .eq(&target_wdk_package)
-                })
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().to_string().eq(&target_wdk_package))
         })
         .unwrap_or_else(|| {
             panic!(

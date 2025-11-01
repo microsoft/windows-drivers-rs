@@ -53,9 +53,8 @@ runs:
             if ([string]::IsNullOrWhiteSpace($hostArch) -or $hostArch -notin @('amd64', 'arm64')) {
                 throw "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when source is nuget."
             }
-            # Set target architecture to host architecture if not specified
-            if ([string]::IsNullOrWhiteSpace($targetArch)) {
-                $targetArch = $hostArch
+            if ([string]::IsNullOrWhiteSpace($targetArch) -or $targetArch -notin @('amd64', 'arm64')) {
+                throw "Invalid or missing target architecture: '$targetArch'. Must be 'amd64' or 'arm64' when source is nuget."
             }
         }
 
@@ -133,7 +132,6 @@ runs:
                         Start-Sleep -Seconds ($initialDelaySeconds * $attempt)
                     }
                 }
-
                 if (-not $response) {
                     throw "Failed to query NuGet API after $maxAttempts attempts."
                 }
@@ -141,9 +139,8 @@ runs:
                 $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
                 if (@($matchingVersions).Count -eq 0) {
                     Write-Warning "No QFE versions found for $inputVersion"
-                }
-                else {
-                    $finalVersion= $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
+                } else {
+                    $finalVersion = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
                     Write-Host "Latest QFE version: $finalVersion"
                 }
             } catch {
@@ -151,7 +148,7 @@ runs:
             }
         }
 
-        $nugetPackagesRoot = "C:\packages"
+        $nugetPackagesRoot = "C:\Packages"
 
         Write-Host "Installing WDK and SDK nuget packages to $nugetPackagesRoot, version: $finalVersion"
 
