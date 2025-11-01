@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Winget
-        if: matrix.runner.name == 'windows-11-arm'
+        if: matrix.runner.arch == 'arm64'
         uses: ./.github/actions/install-winget
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,7 +79,7 @@ jobs:
           components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
-        if: matrix.runner.name == 'windows-2025'
+        if: matrix.runner.arch != 'arm64'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
@@ -98,11 +98,11 @@ jobs:
       # does not currently support Windows on arm64.
       # See issue: https://github.com/taiki-e/cargo-llvm-cov/issues/436
       - name: Run Cargo Test with Coverage (workspace)
-        if: matrix.runner.name == 'windows-2025'
+        if: matrix.runner.arch != 'arm64'
         run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Upload Coverage to Codecov
-        if: matrix.runner.name == 'windows-2025'
+        if: matrix.runner.arch != 'arm64'
         uses: codecov/codecov-action@v5
         with:
           files: target/codecov.info
@@ -110,7 +110,7 @@ jobs:
           fail_ci_if_error: true
 
       - name: Run Cargo Test (workspace)
-        if: matrix.runner.name == 'windows-11-arm'
+        if: matrix.runner.arch == 'arm64'
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
