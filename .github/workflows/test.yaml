@@ -69,13 +69,16 @@ jobs:
         with:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
-          host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
-          target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
+          host: ${{ matrix.runner.arch }}
+          target: ${{ matrix.runner.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+          targets: |
+            x86_64-pc-windows-msvc
+            aarch64-pc-windows-msvc
 
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2

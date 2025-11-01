@@ -42,6 +42,10 @@ impl CommandExec {
         let mut cmd = Command::new(command);
         cmd.args(args);
 
+        if let Some(dir) = working_dir {
+            cmd.current_dir(dir);
+        }
+
         if let Some(env) = env_vars {
             for (key, value) in env {
                 cmd.env(key, value);
@@ -59,16 +63,17 @@ impl CommandExec {
             .map_err(|e| CommandError::from_io_error(command, args, e))?;
 
         if !output.status.success() {
+            debug!(
+                "Command: {}\n Args: {:?} returned status code: {}\n",
+                command, args, output.status
+            );
             return Err(CommandError::from_output(command, args, &output));
         }
 
         debug!(
-            "COMMAND: {}\n ARGS:{:?}\n OUTPUT: {}\n",
-            command,
-            args,
-            String::from_utf8_lossy(&output.stdout)
+            "Command: {}\n Args: {:?}\n executed successfully.",
+            command, args
         );
-
         Ok(output)
     }
 }
