@@ -215,3 +215,36 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let stderr: String = String::from_utf8_lossy(&output.stderr).into();
     (stdout, stderr)
 }
+
+
+#[test]
+fn vcs_is_initialized_by_default() {
+    with_file_lock(|| {
+        let driver_name = "test-vcs-driver";
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        println!("Temp dir: {}", tmp_dir.path().display());
+        let driver_path = tmp_dir.join(driver_name);
+
+        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+        cmd.args([
+            "new",
+            "--kmdf", // Use an arbitrary driver type for the test
+            driver_path.to_string_lossy().as_ref(),
+        ]);
+
+        // Assert command success
+        let cmd_assertion = cmd.assert().success();
+        let output = cmd_assertion.get_output();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("stdout: {stdout}");
+        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+        println!("driver path: {}", driver_path.display());
+
+        // Assert the presence of a .git directory inside the newly created project
+        let git_dir = driver_path.join(".git");
+        assert!(git_dir.is_dir(), "Expected .git directory at {}", git_dir.display());
+
+        // Clean up temporary directory explicitly, matching existing test patterns
+        tmp_dir.close().expect("Unable to close temp dir after test");
+    });
+}
