@@ -65,6 +65,7 @@ jobs:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
           host: ${{ matrix.runner.arch }}
+          target: ${{ matrix.runner.arch }}
 
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly

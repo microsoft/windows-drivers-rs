@@ -70,6 +70,7 @@ jobs:
           version: ${{ matrix.wdk.version }}
           source: ${{ matrix.wdk.source }}
           host: ${{ matrix.runner.arch }}
+          target: ${{ matrix.runner.arch }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
         uses: dtolnay/rust-toolchain@master

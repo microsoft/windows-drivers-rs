@@ -16,7 +16,7 @@ inputs:
   # required to set WDKContentRoot based on the target architecture when using nuget
   target:
     description: "Target architecture (amd64 or arm64). Required when source is nuget."
-    required: false
+    required: true
 
 runs:
   using: "composite"
@@ -178,12 +178,11 @@ runs:
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
         $packageDirs = Get-ChildItem -Path $nugetPackagesRoot -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$finalVersion" }
-
-        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$finalVersion" })
-        if ($sdkPackageDirs.Count -eq 0) {
+        $sdkPackageName = "Microsoft.Windows.SDK.CPP.$finalVersion"
+        $sdkPackageDir = @($packageDirs | Where-Object { $_.Name -eq $sdkPackageName })
+        if (-not $sdkPackageDir) {
             throw "No CPP SDK packages found in $nugetPackagesRoot folder"
         }
-        $sdkPackageDir = (Select-SinglePackage -Packages $sdkPackageDirs -PackageType "Windows CPP SDK $finalVersion")
 
         $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$finalVersion" })
         Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
@@ -193,17 +192,23 @@ runs:
         foreach ($dir in $wdkPackageDirs) {
             Write-Host "  - $($dir.Name)"
         }
-        $hostWdk = "Microsoft.Windows.WDK.$hostArch.$finalVersion"
-        $targetWDK = "Microsoft.Windows.WDK.$targetArch.$finalVersion"
-        $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq $hostWdk }) -PackageType "WDK for host $hostArch")
-        $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq $targetWDK }) -PackageType "WDK for target $targetArch")
+        $hostWdkPackageName = "Microsoft.Windows.WDK.$hostArch.$finalVersion"
+        $targetWdkPackageName = "Microsoft.Windows.WDK.$targetArch.$finalVersion"
+        $hostWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $hostWdkPackageName })
+        $targetWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $targetWdkPackageName })
+        if (-not $hostWdkPackageDir) {
+            throw "No WDK package found for architecture $hostArch in $nugetPackagesRoot folder"
+        }
+        if (-not $targetWdkPackageDir) {
+            throw "No WDK package found for architecture $targetArch in $nugetPackagesRoot folder"
+        }
 
         $envVars = @{
             "Version_Number" = "$sdkVersion.0"
             "WindowsSdkBinPath" = "$($sdkPackageDir.FullName)\c\bin"
-            "WDKContentRoot" = "$($targetWdkPackage.FullName)\c\"
-            "WDKBinRoot" = "$($hostWdkPackage.FullName)\c\bin"
-            "WDKToolRoot" = "$($hostWdkPackage.FullName)\c\tools"
+            "WDKContentRoot" = "$($targetWdkPackageDir.FullName)\c\"
+            "WDKBinRoot" = "$($hostWdkPackageDir.FullName)\c\bin"
+            "WDKToolRoot" = "$($hostWdkPackageDir.FullName)\c\tools"
             "FullVersionNumber" = "$finalVersion"
             "NugetPackagesRoot" = "$nugetPackagesRoot"
         }
