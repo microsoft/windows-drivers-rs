@@ -88,7 +88,6 @@ runs:
                 [Parameter(Mandatory)]
                 [string]$PackageType
             )
-            
             if ($Packages.Count -eq 1) {
                 return $Packages[0]
             } elseif ($Packages.Count -gt 1) {
@@ -110,94 +109,94 @@ runs:
         $inputVersion = '${{ inputs.version }}'
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
-        $version = $inputVersion
+        $finalVersion= $inputVersion
 
         if ($versionParts.Length -eq 3) {
-            # No QFE specified, find the latest QFE for this base version
-            Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
+            Write-Host "QFE not specified, searching for latest QFE for $inputVersion..."
             try {
                 Write-Host "Trying NuGet API..."
                 $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
-                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
-                $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
-                Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
+                $maxAttempts = 3
+                $initialDelaySeconds = 5
+                $response = $null
 
-                # Filter versions that match the base version and find the latest QFE
+                for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+                    try {
+                        Write-Host "[$attempt/$maxAttempts] Querying NuGet API..."
+                        $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
+                        break
+                    } catch {
+                        Write-Warning ("NuGet API call failed on attempt {0}: {1}" -f $attempt, $_)
+                        if ($attempt -eq $maxAttempts) {
+                            throw
+                        }
+                        Start-Sleep -Seconds ($initialDelaySeconds * $attempt)
+                    }
+                }
+
+                if (-not $response) {
+                    throw "Failed to query NuGet API after $maxAttempts attempts."
+                }
+                $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
                 $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
                 if (@($matchingVersions).Count -eq 0) {
-                    Write-Warning "No QFE versions found for base version $inputVersion, using base version..."
-                } else {
-                    $version = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
-                    Write-Host "Found latest QFE version: $version"
+                    Write-Warning "No QFE versions found for $inputVersion"
+                }
+                else {
+                    $finalVersion= $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
+                    Write-Host "Latest QFE version: $finalVersion"
                 }
             } catch {
                 Write-Warning "Failed to query NuGet for latest QFE version: $_"
-                Write-Host "Using input version $inputVersion without QFE lookup"
             }
-        } else {
-            Write-Host "Using specified version: $version"
         }
 
-        $packages = "C:\packages"
+        $nugetPackagesRoot = "C:\packages"
+
+        Write-Host "Installing WDK and SDK nuget packages to $nugetPackagesRoot, version: $finalVersion"
 
         # Download all architectures supported by `windows-drivers-rs` and CPP SDK package
-        $architectures = @('x64', 'ARM64') 
-        $packagesToInstall = @()
+        $architectures = @("x64", "ARM64")
+        $packagesToInstall = @("Microsoft.Windows.SDK.CPP")
         foreach ($architecture in $architectures) {
             $packageName = "Microsoft.Windows.WDK.$architecture"
-            if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq $packageName })) {
-                $packagesToInstall += [PSCustomObject]@{
-                    PackageId   = $packageName
-                    Version     = $version
-                    DisplayName = "$packageName.$version"
-                }
-            }
-        }
-
-        $sdkPackageDisplayName = "Microsoft.Windows.SDK.CPP.$version"
-        if (-not ($packagesToInstall | Where-Object { $_.PackageId -eq 'Microsoft.Windows.SDK.CPP' })) {
-            $packagesToInstall += [PSCustomObject]@{
-                PackageId   = 'Microsoft.Windows.SDK.CPP'
-                Version     = $version
-                DisplayName = $sdkPackageDisplayName
+            if (-not ($packagesToInstall | Where-Object { $_ -eq $packageName })) {
+                $packagesToInstall += $packageName
             }
         }
 
         foreach ($package in $packagesToInstall) {
-            Write-Host "Installing $($package.DisplayName) (package id: $($package.PackageId)) version $($package.Version)..."
-            nuget install $package.PackageId -Version $package.Version -OutputDirectory $packages -DependencyVersion Ignore
+            Write-Host "Installing $package..."
+            nuget install $package -Version $finalVersion -OutputDirectory $nugetPackagesRoot -DependencyVersion Ignore
             if ($LASTEXITCODE -ne 0) {
-                throw "Failed to install $($package.DisplayName) version $($package.Version)"
+                throw "Failed to install $package"
             }
         }
 
-        Write-Host "✅ Successfully downloaded all packages for version `$version` to `$packages`"
+        Write-Host "✅ Successfully downloaded all packages for version $finalVersion to $nugetPackagesRoot"
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
-        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
+        $packageDirs = Get-ChildItem -Path $nugetPackagesRoot -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$finalVersion" }
 
-        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$version" })
+        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.$finalVersion" })
         if ($sdkPackageDirs.Count -eq 0) {
-            throw "No CPP SDK packages found in `$packages` folder"
+            throw "No CPP SDK packages found in $nugetPackagesRoot folder"
         }
-        $sdkPackageDir = (Select-SinglePackage -Packages $sdkPackageDirs -PackageType "Windows CPP SDK $version")
-        Write-Host "Found CPP SDK at $($sdkPackageDir.FullName)"
-        
-        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$version" })
+        $sdkPackageDir = (Select-SinglePackage -Packages $sdkPackageDirs -PackageType "Windows CPP SDK $finalVersion")
+
+        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$finalVersion" })
         Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
         if ($wdkPackageDirs.Count -eq 0) {
-            throw "No WDK packages found in `$packages` folder"
+            throw "No WDK packages found in $nugetPackagesRoot folder"
         }
         foreach ($dir in $wdkPackageDirs) {
             Write-Host "  - $($dir.Name)"
         }
-        # Find host architecture WDK package
-        $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$hostArch.$version" }) -PackageType "WDK for host $hostArch")
-        Write-Host "Using WDK host architecture ($hostArch) package: $($hostWdkPackage.FullName)"
-        # Find target architecture WDK package
-        $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq "Microsoft.Windows.WDK.$targetArch.$version" }) -PackageType "WDK for target $targetArch")
-        Write-Host "Using WDK target architecture ($targetArch) package: $($targetWdkPackage.FullName)"
+        $hostWdk = "Microsoft.Windows.WDK.$hostArch.$finalVersion"
+        $targetWDK = "Microsoft.Windows.WDK.$targetArch.$finalVersion"
+        $hostWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq $hostWdk }) -PackageType "WDK for host $hostArch")
+        $targetWdkPackage = (Select-SinglePackage -Packages ($wdkPackageDirs | Where-Object { $_.Name -eq $targetWDK }) -PackageType "WDK for target $targetArch")
 
         $envVars = @{
             "Version_Number" = "$sdkVersion.0"
@@ -205,8 +204,8 @@ runs:
             "WDKContentRoot" = "$($targetWdkPackage.FullName)\c\"
             "WDKBinRoot" = "$($hostWdkPackage.FullName)\c\bin"
             "WDKToolRoot" = "$($hostWdkPackage.FullName)\c\tools"
-            "FullVersionNumber" = "$version"
-            "NugetPackagesRoot" = "$packages"
+            "FullVersionNumber" = "$finalVersion"
+            "NugetPackagesRoot" = "$nugetPackagesRoot"
         }
 
         # Validate paths exist before setting environment variables
