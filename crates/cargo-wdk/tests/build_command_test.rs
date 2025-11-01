@@ -539,6 +539,5 @@ fn get_nuget_wdk_content_root(arch: &'static str, nuget_packages_root: &str) -> 
         "Expected WDK content root '{}' to exist",
         wdk_content_root_path.display()
     );
-
     wdk_content_root_path.to_string_lossy().into_owned()
 }
