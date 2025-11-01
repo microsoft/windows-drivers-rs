@@ -346,7 +346,6 @@ fn clean_build_and_verify_driver_project(
         args.push(profile);
     }
     let stdout = run_build_cmd(driver_path, Some(args));
-    println!("{}", stdout);
 
     assert!(stdout.contains(&format!("Building package {driver_name}")));
     assert!(stdout.contains(&format!("Finished building {driver_name}")));
