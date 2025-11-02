@@ -115,27 +115,11 @@ runs:
             try {
                 Write-Host "Trying NuGet API..."
                 $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
-                $maxAttempts = 3
-                $initialDelaySeconds = 5
-                $response = $null
-
-                for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-                    try {
-                        Write-Host "[$attempt/$maxAttempts] Querying NuGet API..."
-                        $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
-                        break
-                    } catch {
-                        Write-Warning ("NuGet API call failed on attempt {0}: {1}" -f $attempt, $_)
-                        if ($attempt -eq $maxAttempts) {
-                            throw
-                        }
-                        Start-Sleep -Seconds ($initialDelaySeconds * $attempt)
-                    }
-                }
-                if (-not $response) {
-                    throw "Failed to query NuGet API after $maxAttempts attempts."
-                }
+                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
                 $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
+                Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
+                
+                # Filter versions that match the base version and find the latest QFE
                 $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
                 if (@($matchingVersions).Count -eq 0) {
                     Write-Warning "No QFE versions found for $inputVersion"
