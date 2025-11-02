@@ -235,40 +235,32 @@ impl<'a> BuildAction<'a> {
                 "Running from standalone project or from a root of a workspace: {}",
                 working_dir.display()
             );
-            let failed_atleast_one_workspace_member =
-                workspace_packages
-                    .into_iter()
-                    .try_fold(false, |failed_any, package| {
-                        let package_root: PathBuf = package
-                            .manifest_path
-                            .parent()
-                            .expect("Unable to find package path from Cargo manifest path")
-                            .into();
+            let mut failed_atleast_one_workspace_member = false;
+            for package in workspace_packages {
+                let package_root_path: PathBuf = package
+                    .manifest_path
+                    .parent()
+                    .expect("Unable to find package path from Cargo manifest path")
+                    .into();
 
-                        let package_root = absolute(package_root.as_path())
-                            .map_err(|e| BuildActionError::NotAbsolute(package_root.clone(), e))?;
-                        debug!(
-                            "Building workspace member package: {}",
-                            package_root.display()
-                        );
+                let package_root_path = absolute(package_root_path.as_path())
+                    .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
+                debug!(
+                    "Building workspace member package: {}",
+                    package_root_path.display()
+                );
 
-                        match self.build_and_package(
-                            &package_root,
-                            wdk_metadata.as_ref().ok(),
-                            package,
-                        ) {
-                            Ok(()) => Ok::<bool, BuildActionError>(failed_any),
-                            Err(e) => {
-                                err!(
-                                    "Error building the workspace member project: {}, error: {:?}",
-                                    package_root.display(),
-                                    anyhow::Error::new(e)
-                                );
-                                Ok::<bool, BuildActionError>(true)
-                            }
-                        }
-                    })?;
-
+                if let Err(e) =
+                    self.build_and_package(&package_root_path, wdk_metadata.as_ref().ok(), package)
+                {
+                    failed_atleast_one_workspace_member = true;
+                    err!(
+                        "Error building the workspace member project: {}, error: {:?}",
+                        package_root_path.display(),
+                        anyhow::Error::new(e)
+                    );
+                }
+            }
             if let Err(e) = wdk_metadata {
                 // Ignore NoWdkConfigurationsDetected but propagate any other error
                 if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
