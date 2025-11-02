@@ -19,7 +19,7 @@ use std::{
 
 use anyhow::Result;
 use build_task::BuildTask;
-use cargo_metadata::{Message, Metadata as CargoMetadata, Package};
+use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
@@ -350,10 +350,9 @@ impl<'a> BuildAction<'a> {
         };
 
         // Skip packaging if the package does not produce a cdylib (.dll)
-        let emits_cdylib = package
-            .targets
-            .iter()
-            .any(|target| target.crate_types.iter().any(|c| c.to_string() == "cdylib"));
+        let emits_cdylib = package.targets.iter().any(|t| {
+            t.crate_types.contains(&CrateType::CDyLib) && t.kind.contains(&TargetKind::CDyLib)
+        });
         if !emits_cdylib {
             debug!("Package {package_name} does not produce a cdylib; skipping packaging");
             return Ok(());
@@ -361,7 +360,7 @@ impl<'a> BuildAction<'a> {
 
         // Resolve the target architecture for the packaging task
         let target_arch = if let Some(arch) = self.target_arch {
-            arch
+            *arch
         } else {
             self.probe_target_arch_from_cargo_rustc(working_dir)?
         };
@@ -379,7 +378,7 @@ impl<'a> BuildAction<'a> {
                 package_name,
                 working_dir,
                 target_dir: &Self::get_target_dir_for_packaging(package, output_message_iter)?,
-                target_arch,
+                target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
                 driver_model: &wdk_metadata.driver_model,
@@ -397,34 +396,25 @@ impl<'a> BuildAction<'a> {
     // Extracts the driver DLL path from the Cargo build output
     fn get_target_dir_for_packaging(
         package: &Package,
-        message_iter: impl Iterator<Item = Result<Message, std::io::Error>>,
+        mut message_iter: impl Iterator<Item = Result<Message, std::io::Error>>,
     ) -> Result<PathBuf, BuildActionError> {
         let normalized_pkg_name = package.name.replace('-', "_");
         let driver_file_name = format!("{normalized_pkg_name}.dll");
 
         message_iter
-            .filter_map(|message| match message {
-                Ok(Message::CompilerArtifact(artifact)) => Some(artifact),
-                Ok(_) => None,
-                Err(err) => {
-                    debug!("Skipping unparsable cargo message: {err}");
-                    None
-                }
-            })
-            .find_map(|artifact| {
+            .find_map(|message| {
+                let artifact = match message {
+                    Ok(Message::CompilerArtifact(artifact)) => artifact,
+                    Ok(_) => return None,
+                    Err(err) => {
+                        debug!("Skipping unparsable cargo message: {err}");
+                        return None;
+                    }
+                };
                 let package_matches = artifact.target.name == normalized_pkg_name
                     && artifact.manifest_path == package.manifest_path;
-                let is_cdylib = artifact
-                    .target
-                    .crate_types
-                    .iter()
-                    .any(|t| t.to_string() == "cdylib")
-                    && artifact
-                        .target
-                        .kind
-                        .iter()
-                        .any(|k| k.to_string() == "cdylib");
-
+                let is_cdylib = artifact.target.crate_types.contains(&CrateType::CDyLib)
+                    && artifact.target.kind.contains(&TargetKind::CDyLib);
                 if !(package_matches && is_cdylib) {
                     debug!(
                         "Skipping crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
@@ -435,12 +425,10 @@ impl<'a> BuildAction<'a> {
                     );
                     return None;
                 }
-
                 artifact.filenames.iter().find_map(|path| {
                     if path.file_name() != Some(driver_file_name.as_str()) {
                         return None;
                     }
-
                     debug!(
                         "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, \
                          filenames={:?})",
@@ -449,14 +437,12 @@ impl<'a> BuildAction<'a> {
                         &artifact.target.crate_types,
                         &artifact.filenames
                     );
-
                     let dll_path = path.as_std_path();
                     let Some(parent) = dll_path.parent() else {
                         return Some(Err(BuildActionError::DriverBinaryMissingParent(
                             dll_path.to_path_buf(),
                         )));
                     };
-
                     match absolute(parent) {
                         Ok(artifacts_dir) => {
                             debug!(
@@ -488,7 +474,7 @@ impl<'a> BuildAction<'a> {
     fn probe_target_arch_from_cargo_rustc(
         &self,
         working_dir: &Path,
-    ) -> Result<&CpuArchitecture, BuildActionError> {
+    ) -> Result<CpuArchitecture, BuildActionError> {
         let args = ["rustc", "--", "--print", "cfg"];
         let output = self
             .command_exec
@@ -499,8 +485,8 @@ impl<'a> BuildAction<'a> {
         });
 
         match arch {
-            Some(arch) if arch == b"x86_64" => Ok(&CpuArchitecture::Amd64),
-            Some(arch) if arch == b"aarch64" => Ok(&CpuArchitecture::Arm64),
+            Some(arch) if arch == b"x86_64" => Ok(CpuArchitecture::Amd64),
+            Some(arch) if arch == b"aarch64" => Ok(CpuArchitecture::Arm64),
             Some(arch) => Err(BuildActionError::UnsupportedArchitecture(
                 String::from_utf8_lossy(arch).into(),
             )),
