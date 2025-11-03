@@ -71,8 +71,8 @@ impl<'a> BuildTask<'a> {
         }
     }
 
-    /// Run `cargo build` with the configured options and return the raw
-    /// process output for downstream processing.
+    /// Run `cargo build` with the configured options and return an
+    /// iterator of parsed `Message` objects
     ///
     /// # Errors
     /// * `BuildTaskError::EmptyManifestPath` - If the manifest path cannot be
