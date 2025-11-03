@@ -92,7 +92,7 @@ If you have a workspace with a mix of sample and non-sample driver projects, the
 
 To sign driver artifacts `build` looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. Make sure you place your signing certificate there with that name. If no certificate is found, `build` will automatically generate a new self-signed one and add it for you.
 
-If the `--verify-signature` flag is provided, the signatures are verified after signing. For verfication to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually. 
+If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually. 
 
 #### Examples
 
