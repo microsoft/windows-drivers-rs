@@ -20,31 +20,22 @@ pub mod error {
     /// Error type for `std::process::command` execution failures
     #[derive(Debug, thiserror::Error)]
     pub enum CommandError {
-        #[error(
-            "Command exited with a non-zero status code: {status}.\nCOMMAND: '{command}'\nARGS: \
-             {args:?}\nSTDOUT: {stdout}\nSTDERR: {stderr}"
-        )]
+        #[error("Command '{command}' with args {args:?} failed \n STDOUT: {stdout}")]
         CommandFailed {
             command: String,
             args: Vec<String>,
-            status: i32,
             stdout: String,
-            stderr: String,
         },
-        #[error("Failed to run command: '{0}' with args: {1:?}\n IO Error: {2}")]
+        #[error("Command '{0}' with args {1:?} IO error")]
         IoError(String, Vec<String>, #[source] io::Error),
     }
 
     impl CommandError {
-        /// Create a `CommandError` from the `Output` of a command that returned
-        /// a non-zero status code
         pub fn from_output(command: &str, args: &[&str], output: &Output) -> Self {
             Self::CommandFailed {
                 command: command.to_string(),
                 args: args.iter().map(|&s| s.to_string()).collect(),
-                status: output.status.code().unwrap_or(-1),
                 stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             }
         }
 

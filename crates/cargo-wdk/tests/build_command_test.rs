@@ -36,10 +36,7 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 #[test]
 fn kmdf_driver_builds_successfully() {
     // Setup for executables
-    wdk_build::cargo_make::setup_path().expect(
-        "failed to set up paths for
-executables",
-    );
+    wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
     // Create a self signed certificate in store if not already present

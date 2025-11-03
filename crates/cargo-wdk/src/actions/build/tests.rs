@@ -126,7 +126,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
     assert_build_action_run_with_env_is_success(
         &cwd,
         None,
-        Some(&target_arch),
+        Some(target_arch),
         false,
         false,
         &test_build_action,
@@ -164,7 +164,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     assert_build_action_run_with_env_is_success(
         &cwd,
         profile.as_ref(),
-        Some(&target_arch),
+        Some(target_arch),
         false,
         false,
         &test_build_action,
@@ -410,7 +410,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let build_action = initialize_build_action(
         &cwd,
         None,
-        Some(&target_arch),
+        Some(target_arch),
         false,
         false,
         &test_build_action,
@@ -1239,7 +1239,7 @@ fn assert_build_action_run_is_success(
     let build_action = initialize_build_action(
         cwd,
         profile.as_ref(),
-        target_arch.as_ref(),
+        target_arch,
         verify_signature,
         sample_class,
         test_build_action,
@@ -1252,7 +1252,7 @@ fn assert_build_action_run_is_success(
 fn initialize_build_action<'a>(
     cwd: &'a PathBuf,
     profile: Option<&'a Profile>,
-    target_arch: Option<&'a CpuArchitecture>,
+    target_arch: Option<CpuArchitecture>,
     verify_signature: bool,
     sample_class: bool,
     test_build_action: &'a TestBuildAction,
@@ -1290,7 +1290,7 @@ fn get_certmgr_success_output() -> Output {
 fn assert_build_action_run_with_env_is_success(
     cwd: &PathBuf,
     profile: Option<&Profile>,
-    target_arch: Option<&CpuArchitecture>,
+    target_arch: Option<CpuArchitecture>,
     verify_signature: bool,
     sample_class: bool,
     test_build_action: &TestBuildAction,

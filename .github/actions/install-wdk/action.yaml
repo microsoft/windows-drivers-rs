@@ -11,11 +11,11 @@ inputs:
     default: "nuget"
   # required to set WDKBinRoot and WDKToolRoot based on the host architecture when using nuget
   host:
-    description: "Host architecture (amd64 or arm64). Required when source is nuget."
+    description: "Host architecture (amd64 or arm64). Required when using NuGet source."
     required: true
   # required to set WDKContentRoot based on the target architecture when using nuget
   target:
-    description: "Target architecture (amd64 or arm64). Required when source is nuget."
+    description: "Target architecture (amd64 or arm64). Required when using NuGet source."
     required: true
 
 runs:
@@ -51,20 +51,10 @@ runs:
         # Validate architecture inputs for NuGet
         if ($source -eq 'nuget') {
             if ([string]::IsNullOrWhiteSpace($hostArch) -or $hostArch -notin @('amd64', 'arm64')) {
-                throw "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when source is nuget."
+                throw "Invalid or missing host architecture: '$hostArch'. Must be 'amd64' or 'arm64' when using NuGet source."
             }
             if ([string]::IsNullOrWhiteSpace($targetArch) -or $targetArch -notin @('amd64', 'arm64')) {
-                throw "Invalid or missing target architecture: '$targetArch'. Must be 'amd64' or 'arm64' when source is nuget."
-            }
-        }
-
-        # Validate that host and target are not provided when using WinGet
-        if ($source -eq 'winget') {
-            if (-not [string]::IsNullOrWhiteSpace($hostArch)) {
-                Write-Host "Ignoring host architecture input. WDK installed via WinGet includes all architectures."
-            }
-            if (-not [string]::IsNullOrWhiteSpace($targetArch)) {
-                Write-Host "Ignoring target architecture input. WDK installed via WinGet includes all architectures."
+                throw "Invalid or missing target architecture: '$targetArch'. Must be 'amd64' or 'arm64' when using NuGet source."
             }
         }
 
@@ -108,10 +98,11 @@ runs:
         $inputVersion = '${{ inputs.version }}'
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
-        $finalVersion= $inputVersion
+        $finalVersion = $inputVersion
 
         if ($versionParts.Length -eq 3) {
-            Write-Host "QFE not specified, searching for latest QFE for $inputVersion..."
+            # No QFE specified, find the latest QFE for this base version
+            Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
             try {
                 Write-Host "Trying NuGet API..."
                 $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
@@ -154,7 +145,7 @@ runs:
             }
         }
 
-        Write-Host "✅ Successfully downloaded all packages for version $finalVersion to $nugetPackagesRoot"
+        Write-Host "Successfully installed all WDK packages and dependencies for version $finalVersion"
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."

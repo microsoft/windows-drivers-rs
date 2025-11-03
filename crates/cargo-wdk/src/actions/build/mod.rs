@@ -23,7 +23,7 @@ use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, Tar
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
-use tracing::{debug, error as err, info, warn};
+use tracing::{debug, error as err, info};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -36,7 +36,7 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
-    pub target_arch: Option<&'a CpuArchitecture>,
+    pub target_arch: Option<CpuArchitecture>,
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -47,7 +47,7 @@ pub struct BuildActionParams<'a> {
 pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
-    target_arch: Option<&'a CpuArchitecture>,
+    target_arch: Option<CpuArchitecture>,
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -250,9 +250,7 @@ impl<'a> BuildAction<'a> {
                     package_root_path.display()
                 );
 
-                if let Err(e) =
-                    self.build_and_package(&package_root_path, wdk_metadata.as_ref().ok(), package)
-                {
+                if let Err(e) = self.build_and_package(&package_root_path, &wdk_metadata, package) {
                     failed_atleast_one_workspace_member = true;
                     err!(
                         "Error building the workspace member project: {}, error: {:?}",
@@ -294,7 +292,7 @@ impl<'a> BuildAction<'a> {
             let package = package
                 .ok_or_else(|| BuildActionError::NotAWorkspaceMember(working_dir.to_owned()))?;
 
-            self.build_and_package(working_dir, wdk_metadata.as_ref().ok(), package)?;
+            self.build_and_package(working_dir, &wdk_metadata, package)?;
 
             if let Err(e) = wdk_metadata {
                 // Ignore NoWdkConfigurationsDetected but propagate any other error
@@ -327,7 +325,7 @@ impl<'a> BuildAction<'a> {
     fn build_and_package(
         &self,
         working_dir: &Path,
-        wdk_metadata: Option<&Wdk>,
+        wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
         package: &Package,
     ) -> Result<(), BuildActionError> {
         let package_name = package.name.as_str();
@@ -344,8 +342,8 @@ impl<'a> BuildAction<'a> {
         .run()?;
 
         // Skip packaging if package does not have WDK metadata
-        let Some(wdk_metadata) = wdk_metadata else {
-            warn!("WDK metadata is not found for `{package_name}`; skipping packaging");
+        let Ok(wdk_metadata) = wdk_metadata else {
+            debug!("WDK metadata is not found for `{package_name}`; skipping packaging");
             return Ok(());
         };
 
@@ -360,7 +358,7 @@ impl<'a> BuildAction<'a> {
 
         // Resolve the target architecture for the packaging task
         let target_arch = if let Some(arch) = self.target_arch {
-            *arch
+            arch
         } else {
             self.probe_target_arch_from_cargo_rustc(working_dir)?
         };
@@ -374,14 +372,14 @@ impl<'a> BuildAction<'a> {
         debug!("PATH env variable is set with WDK bin and tools paths");
 
         PackageTask::new(
-            &PackageTaskParams {
+            PackageTaskParams {
                 package_name,
                 working_dir,
                 target_dir: &Self::get_target_dir_for_packaging(package, output_message_iter)?,
                 target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
-                driver_model: &wdk_metadata.driver_model,
+                driver_model: wdk_metadata.driver_model.clone(),
             },
             self.wdk_build,
             self.command_exec,

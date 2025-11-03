@@ -165,7 +165,7 @@ impl Cli {
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
-                        target_arch: cli_args.target_arch.as_ref(),
+                        target_arch: cli_args.target_arch,
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample,
                         verbosity_level: self.verbose,

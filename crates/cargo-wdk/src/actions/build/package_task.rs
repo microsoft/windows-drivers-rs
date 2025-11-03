@@ -36,7 +36,7 @@ pub struct PackageTaskParams<'a> {
     pub target_arch: &'a CpuArchitecture,
     pub verify_signature: bool,
     pub sample_class: bool,
-    pub driver_model: &'a DriverConfig,
+    pub driver_model: DriverConfig,
 }
 
 /// Supports low level driver packaging operations
@@ -64,7 +64,7 @@ pub struct PackageTask<'a> {
 
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
-    driver_model: &'a DriverConfig,
+    driver_model: DriverConfig,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -93,7 +93,7 @@ impl<'a> PackageTask<'a> {
     /// * If `params.working_dir` is not absolute
     /// * If `params.target_dir` is not absolute
     pub fn new(
-        params: &PackageTaskParams<'a>,
+        params: PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
@@ -106,7 +106,7 @@ impl<'a> PackageTask<'a> {
         );
         assert!(
             params.target_dir.is_absolute(),
-            "Target directory path containing the build artifacts must be absolute. Input path: {}",
+            "Target directory path must be absolute. Input path: {}",
             params.target_dir.display()
         );
         let package_name = params.package_name.replace('-', "_");
@@ -352,6 +352,7 @@ impl<'a> PackageTask<'a> {
             &format!("/os:{}", self.os_mapping),
             "/uselocaltime",
         ];
+
         if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
@@ -518,6 +519,7 @@ impl<'a> PackageTask<'a> {
             args.push(additional_args);
         }
         args.push(&inf_path);
+
         if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
@@ -548,7 +550,7 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -557,7 +559,7 @@ mod tests {
         let command_exec = CommandExec::default();
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
-        let task = PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
+        let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
         assert_eq!(task.package_name, package_name.replace('-', "_"));
         assert!(!task.verify_signature);
         assert!(!task.sample_class);
@@ -598,11 +600,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Target directory path containing the build artifacts must be absolute. Input \
-                    path: ../relative/path/to/target/dir"
-    )]
-    fn new_panics_when_build_artifacts_dir_is_not_absolute() {
+    #[should_panic(expected = "Target directory path must be absolute. Input path: \
+                               ../relative/path/to/target/dir")]
+    fn new_panics_when_target_dir_is_not_absolute() {
         let package_name = "test_package";
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let target_dir = PathBuf::from("../relative/path/to/target/dir");
@@ -613,7 +613,7 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -622,7 +622,7 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
 
     #[test]
@@ -639,7 +639,7 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             verify_signature: false,
         };
@@ -648,7 +648,7 @@ mod tests {
         let wdk_build = WdkBuild::default();
         let fs = Fs::default();
 
-        PackageTask::new(&package_task_params, &wdk_build, &command_exec, &fs);
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
     }
 
     #[test]
@@ -666,15 +666,15 @@ mod tests {
                 crate::test_utils::with_env(&[(STAMPINF_VERSION_ENV_VAR, env_val)], || {
                     let package_name = "driver";
                     let working_dir = PathBuf::from("C:/abs/driver");
-                    let artifacts_dir = PathBuf::from("C:/abs/driver/target/debug");
+                    let target_dir = PathBuf::from("C:/abs/driver/target/debug");
                     let arch = CpuArchitecture::Amd64;
 
                     let params = PackageTaskParams {
                         package_name,
                         working_dir: &working_dir,
-                        target_dir: &artifacts_dir,
+                        target_dir: &target_dir,
                         target_arch: &arch,
-                        driver_model: &DriverConfig::Kmdf(KmdfConfig::default()),
+                        driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
                         sample_class: false,
                         verify_signature: false,
                     };
@@ -705,7 +705,7 @@ mod tests {
                             })
                         });
 
-                    let task = PackageTask::new(&params, &wdk_build, &command_exec, &fs);
+                    let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
                     task.run_stampinf()
                 });
 
