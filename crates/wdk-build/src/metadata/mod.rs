@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn multiple_wdk_configurations() {
+    fn multiple_members_with_distinct_wdk_configurations() {
         let (member_id1, package1, _cwd) = init_kmdf_package_metadata(1, 33);
         let (member_id2, package2, cwd) = init_kmdf_package_metadata(1, 35);
 
@@ -220,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn multiple_wdk_configurations_with_wdk_metadata_at_workspace_level() {
+    fn distinct_wdk_configurations_at_both_member_and_workspace_level() {
         let (member_id, package, cwd) = init_kmdf_package_metadata(1, 33);
         let wdk_metadata = create_cargo_metadata_wdk_metadata("UMDF", 2, 33);
 
