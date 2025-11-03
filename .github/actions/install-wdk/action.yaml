@@ -7,16 +7,16 @@ inputs:
     required: true
   source:
     description: "Source to install WDK from (nuget or winget)."
-    required: true
+    required: false
     default: "nuget"
   # required to set WDKBinRoot and WDKToolRoot based on the host architecture when using nuget
   host:
     description: "Host architecture (amd64 or arm64). Required when using NuGet source."
-    required: true
+    required: false
   # required to set WDKContentRoot based on the target architecture when using nuget
   target:
     description: "Target architecture (amd64 or arm64). Required when using NuGet source."
-    required: true
+    required: false
 
 runs:
   using: "composite"
@@ -109,14 +109,13 @@ runs:
                 $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
                 $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
                 Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
-                
                 # Filter versions that match the base version and find the latest QFE
                 $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
                 if (@($matchingVersions).Count -eq 0) {
-                    Write-Warning "No QFE versions found for $inputVersion"
+                    Write-Warning "No QFE versions found for base version $inputVersion, using base version..."
                 } else {
                     $finalVersion = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
-                    Write-Host "Latest QFE version: $finalVersion"
+                    Write-Host "Found latest QFE version: $finalVersion"
                 }
             } catch {
                 Write-Warning "Failed to query NuGet for latest QFE version: $_"
