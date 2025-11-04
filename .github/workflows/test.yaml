@@ -102,7 +102,7 @@ jobs:
         run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Upload Coverage to Codecov
-        if: matrix.runner.arch != 'arm64'
+        if: matrix.runner.arch != 'arm64' && github.repository == 'microsoft/windows-drivers-rs' # Skip for forks because they may not have CODECOV_TOKEN
         uses: codecov/codecov-action@v5
         with:
           files: target/codecov.info
