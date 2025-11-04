@@ -437,23 +437,19 @@ mod tests {
         kmdf_version_major: u8,
         target_kmdf_version_minor: u8,
     ) -> TestWdkMetadata {
+        let driver_type_lower = driver_type.to_lowercase();
         TestWdkMetadata(format!(
             r#"
                 {{
                     "wdk": {{
                         "driver-model": {{
-                            "driver-type": "{}",
-                            "{}-version-major": {},
-                            "target-{}-version-minor": {}
+                            "driver-type": "{driver_type}",
+                            "{driver_type_lower}-version-major": {kmdf_version_major},
+                            "target-{driver_type_lower}-version-minor": {target_kmdf_version_minor}
                         }}
                     }}
                 }}
-            "#,
-            driver_type,
-            driver_type.to_ascii_lowercase(),
-            kmdf_version_major,
-            driver_type.to_ascii_lowercase(),
-            target_kmdf_version_minor
+            "#
         ))
     }
 }
