@@ -115,21 +115,22 @@ runs:
                     Write-Warning "No QFE versions found for base version $inputVersion, using base version..."
                     $version = $inputVersion
                 } else {
-                    Write-Warning "Failed to query NuGet for latest QFE version: $_"
-                    Write-Host "Using input version $inputVersion without QFE lookup"
-                    $version = $inputVersion
+                    $version = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
+                    Write-Host "Found latest QFE version: $version"
                 }
             } catch {
                 Write-Warning "Failed to query NuGet for latest QFE version: $_"
+                Write-Host "Using input version $inputVersion without QFE lookup"
+                $version = $inputVersion
             }
         } else {
             $version = $inputVersion
             Write-Host "Using specified version: $version"
         }
 
-        $nugetPackagesRoot = "C:\Packages"
+        $packages = "C:\Packages"
 
-        Write-Host "Installing WDK and SDK nuget packages to $nugetPackagesRoot, version: $version"
+        Write-Host "Installing WDK and SDK nuget packages to $packages, version: $version"
 
         # Download all architectures supported by `windows-drivers-rs` and CPP SDK package
         $architectures = @("x64", "ARM64")
@@ -143,7 +144,7 @@ runs:
 
         foreach ($package in $packagesToInstall) {
             Write-Host "Installing $package..."
-            nuget install $package -Version $version -OutputDirectory $nugetPackagesRoot -DependencyVersion Ignore
+            nuget install $package -Version $version -OutputDirectory $packages -DependencyVersion Ignore
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to install $package"
             }
@@ -153,17 +154,17 @@ runs:
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
-        $packageDirs = Get-ChildItem -Path $nugetPackagesRoot -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
+        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
         $sdkPackageName = "Microsoft.Windows.SDK.CPP.$version"
         $sdkPackageDir = @($packageDirs | Where-Object { $_.Name -eq $sdkPackageName })
         if (-not $sdkPackageDir) {
-            throw "No CPP SDK packages found in $nugetPackagesRoot folder"
+            throw "No CPP SDK packages found in $packages folder"
         }
 
         $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$version" })
         Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
         if ($wdkPackageDirs.Count -eq 0) {
-            throw "No WDK packages found in $nugetPackagesRoot folder"
+            throw "No WDK packages found in $packages folder"
         }
         foreach ($dir in $wdkPackageDirs) {
             Write-Host "  - $($dir.Name)"
@@ -173,10 +174,10 @@ runs:
         $hostWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $hostWdkPackageName })
         $targetWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $targetWdkPackageName })
         if (-not $hostWdkPackageDir) {
-            throw "No WDK package found for architecture $hostArch in $nugetPackagesRoot folder"
+            throw "No WDK package found for architecture $hostArch in $packages folder"
         }
         if (-not $targetWdkPackageDir) {
-            throw "No WDK package found for architecture $targetArch in $nugetPackagesRoot folder"
+            throw "No WDK package found for architecture $targetArch in $packages folder"
         }
 
         $envVars = @{
@@ -186,7 +187,7 @@ runs:
             "WDKBinRoot" = "$($hostWdkPackageDir.FullName)\c\bin"
             "WDKToolRoot" = "$($hostWdkPackageDir.FullName)\c\tools"
             "FullVersionNumber" = "$version"
-            "NugetPackagesRoot" = "$nugetPackagesRoot"
+            "NugetPackagesRoot" = "$packages"
         }
 
         # Validate paths exist before setting environment variables
