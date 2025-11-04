@@ -342,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn when_cargo_new_fails_then_returns_cargo_new_command_error() {
+    fn when_cargo_new_fails_then_run_returns_cargo_new_command_error() {
         set_up_and_assert(
             Path::new("test_driver_fail_cargo_new"),
             DriverType::Kmdf,
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn when_copy_lib_rs_template_fails_then_returns_filesystem_error() {
+    fn when_copy_lib_rs_template_fails_then_run_returns_filesystem_error() {
         set_up_and_assert(
             Path::new("test_driver_fail_lib_copy"),
             DriverType::Kmdf,
@@ -390,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn when_update_cargo_toml_fails_then_returns_filesystem_error() {
+    fn when_update_cargo_toml_fails_then_run_returns_filesystem_error() {
         type AssertionFn = fn(Result<(), NewActionError>);
 
         let cases: [(bool, bool, bool, AssertionFn); 3] = [
@@ -450,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn when_create_inx_file_fails_then_returns_filesystem_error() {
+    fn when_create_inx_file_fails_then_run_returns_filesystem_error() {
         set_up_and_assert(
             Path::new("test_driver_fail_create_inx_file"),
             DriverType::Kmdf,
@@ -472,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn when_create_inx_file_called_with_invalid_path_then_returns_invalid_driver_crate_name() {
+    fn when_create_inx_file_called_with_invalid_path_then_run_returns_invalid_driver_crate_name() {
         set_up_and_assert(
             // Use an empty path component so file_name returns None
             Path::new(""),
@@ -495,7 +495,7 @@ mod tests {
     }
 
     #[test]
-    fn when_copy_build_rs_template_fails_then_returns_filesystem_error() {
+    fn when_copy_build_rs_template_fails_then_run_returns_filesystem_error() {
         set_up_and_assert(
             Path::new("test_driver_fail_build_rs"),
             DriverType::Kmdf,
@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn when_copy_cargo_config_fails_then_returns_filesystem_error() {
+    fn when_copy_cargo_config_fails_then_run_returns_filesystem_error() {
         set_up_and_assert(
             Path::new("test_driver_fail_cargo_config"),
             DriverType::Kmdf,
