@@ -3,7 +3,6 @@ edition.workspace = true
 name = "cargo-wdk"
 version = "0.1.0"
 authors = ["Microsoft"]
-publish = true
 description = "A Cargo extension for building Windows drivers using the Windows Driver Kit (WDK)"
 repository.workspace = true
 license.workspace = true
