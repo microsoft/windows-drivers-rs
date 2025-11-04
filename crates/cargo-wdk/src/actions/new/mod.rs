@@ -300,7 +300,7 @@ mod tests {
     use std::os::windows::process::ExitStatusExt;
     use std::{
         io::Error,
-        path::{Path, PathBuf},
+        path::Path,
         process::{ExitStatus, Output},
     };
 
@@ -708,13 +708,14 @@ mod tests {
 
         fn expect_copy_lib_rs_template(mut self, is_copy_success: bool) -> Self {
             let lib_rs_path = self.path.join("src").join("lib.rs");
+            let expected_lib_rs_path = lib_rs_path.clone();
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, _| path == lib_rs_path)
+                .withf(move |path, _| path == expected_lib_rs_path)
                 .returning(move |_, _| {
                     if !is_copy_success {
                         return Err(FileError::WriteError(
-                            PathBuf::from("/some_random_path/src/lib.rs"),
+                            lib_rs_path.clone(),
                             Error::other("Write error"),
                         ));
                     }
@@ -730,11 +731,12 @@ mod tests {
             is_template_append_to_cargo_toml_success: bool,
         ) -> Self {
             let cargo_toml_path = self.path.join("Cargo.toml");
-            let expected_file_to_write = cargo_toml_path.clone();
-            let expected_file_to_append = cargo_toml_path.clone();
+            let file_to_read = cargo_toml_path.clone();
+            let expected_file_to_read = cargo_toml_path.clone();
+
             self.mock_fs
                 .expect_read_file_to_string()
-                .withf(move |path| path == cargo_toml_path)
+                .withf(move |path| path == expected_file_to_read)
                 .returning(move |_| {
                     if is_cargo_toml_read_success {
                         Ok(r#"[package]
@@ -745,9 +747,12 @@ mod tests {
                               "#
                         .to_string())
                     } else {
-                        Err(FileError::NotFound(PathBuf::from("Cargo.toml")))
+                        Err(FileError::NotFound(file_to_read.clone()))
                     }
                 });
+
+            let file_to_write = cargo_toml_path.clone();
+            let expected_file_to_write = cargo_toml_path.clone();
             self.mock_fs
                 .expect_write_to_file()
                 .withf(move |path, content| path == expected_file_to_write && !content.is_empty())
@@ -756,11 +761,14 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("/some_random_path/Cargo.toml"),
+                            file_to_write.clone(),
                             Error::other("Write error"),
                         ))
                     }
                 });
+
+            let file_to_append = cargo_toml_path.clone();
+            let expected_file_to_append = cargo_toml_path.clone();
             self.mock_fs
                 .expect_append_to_file()
                 .withf(move |path, content| path == expected_file_to_append && !content.is_empty())
@@ -769,7 +777,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::AppendError(
-                            PathBuf::from("/some_random_path/Cargo.toml"),
+                            file_to_append.clone(),
                             Error::other("Append error"),
                         ))
                     }
@@ -788,15 +796,16 @@ mod tests {
             let inx_output_path = self
                 .path
                 .join(format!("{underscored_driver_crate_name}.inx"));
+            let expected_inx_output_path = inx_output_path.clone();
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, content| path == inx_output_path && !content.is_empty())
+                .withf(move |path, content| path == expected_inx_output_path && !content.is_empty())
                 .returning(move |_, _| {
                     if is_create_success {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("/some_random_path/some_driver.inx"),
+                            inx_output_path.clone(),
                             Error::other("Write error"),
                         ))
                     }
@@ -806,15 +815,16 @@ mod tests {
 
         fn expect_copy_build_rs_template(mut self, is_copy_success: bool) -> Self {
             let build_rs_path = self.path.join("build.rs");
+            let expected_build_rs_path = self.path.join("build.rs");
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, _| path == build_rs_path)
+                .withf(move |path, _| path == expected_build_rs_path)
                 .returning(move |_, _| {
                     if is_copy_success {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("/some_random_path/build.rs"),
+                            build_rs_path.clone(),
                             Error::other("Write error"),
                         ))
                     }
@@ -824,15 +834,16 @@ mod tests {
 
         fn expect_copy_cargo_config(mut self, is_copy_success: bool) -> Self {
             let cargo_config_path = self.path.join(".cargo").join("config.toml");
+            let expected_cargo_config_path = self.path.join(".cargo").join("config.toml");
             self.mock_fs
                 .expect_write_to_file()
-                .withf(move |path, _| path == cargo_config_path)
+                .withf(move |path, _| path == expected_cargo_config_path)
                 .returning(move |_, _| {
                     if is_copy_success {
                         Ok(())
                     } else {
                         Err(FileError::WriteError(
-                            PathBuf::from("/some_random_path/.cargo/config.toml"),
+                            cargo_config_path.clone(),
                             Error::other("Write error"),
                         ))
                     }
