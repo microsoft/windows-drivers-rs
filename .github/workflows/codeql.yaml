@@ -66,12 +66,11 @@ jobs:
         version: ${{ matrix.llvm }}
 
     - name: Install WDK (${{ matrix.wdk.version }})
-      id: install_wdk
       uses: ./.github/actions/install-wdk
       with:
         version: ${{ matrix.wdk.version }}
         source: ${{ matrix.wdk.source }}
-        host: 'amd64' # codeql runs only on amd64 at the moment
+        host: 'amd64'
         target: ${{ matrix.target_triple.arch }}
 
     - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
