@@ -1,117 +1,115 @@
 # cargo-wdk
 
-`cargo-wdk` is a Cargo extension (plugin) that provides a Cargo-like command line interface for developers to create and build Windows Rust Driver crates that depend on the Windows Driver Kit (WDK) and windows-drivers-rs. It extends `new` and `build` functionalities of Cargo and allows developers to start new projects and build existing or new projects with simple “Cargo-like" commands. 
-
-## Features
-
-`cargo-wdk` currently supports creating and building Windows Rust driver crates.
-
-- **`new`** command takes a path and the driver type (KMDF, UMDF or WDM) as inputs and creates a new Rust driver project of the specified type at the specified path. It relies on pre-defined templates (in `./crates/cargo-wdk/templates`) to scaffold the project with the required files and boilerplate code.  
-
-- **`build`** command compiles, builds and packages Rust driver projects. The build profile and the target architecture are optional arguments, and can be passed to the command invocation. Consists of a **`build_task`** that invokes `cargo build` and **`package_task`** that invokes WDK binaries - `StampInf`, `Inf2Cat`, `InfVerif`, `Signtool`, `CertMgr` in the correct order, and generates the final driver package. If no valid WDK configuration is found in the package/workspace `package_task` is skipped.
-
-    The command can be run from:  
-        
-    - Root of an individual/stand-alone crate: Final package available under the crate's **target** directory - `./target/<target_triple>/<profile>/<driver_crate_name>_package`.
-
-    - Root of a workspace: Final package will be available under the workspace's `target` directory - `./target/<target_triple>/<profile>/<driver_crate_name>_package`.
-            
-    - Root of a member crate of a workspace: Recognizes the workspace the member is part of, executes the build and package tasks for this member alone. Final package will be available under the workspace's `target` directory. 
-        
-    - Root of an emulated workspace: An emulated workspace is a directory containing one or more Rust workspaces. In this case, `cargo-wdk` builds each workspace individually and the final driver packages can be found under the `target` directory of the specific workspaces/crates.
-
-    **NOTE**: The `build` command can build workspaces containing both driver and non-driver crates: driver crates are built and packaged, while non-driver crates are only built and the packaging step is skipped.
+A development tool for Windows Rust drivers based on [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs).
 
 ## Installation
 
-To install `cargo-wdk`, you need to have [Rust installed on your system](https://www.rust-lang.org/tools/install).
-
-Once you have Rust installed, you can install `cargo-wdk` as follows:
+To install, run:
 
 ```pwsh
-cargo install --git https://github.com/microsoft/windows-drivers-rs.git cargo-wdk --locked
+cargo install cargo-wdk
 ```
 
-The install command compiles the `cargo-wdk` binary and copies it to Cargo's bin directory - `%USERPROFILE%.cargo\bin`.
+## Commands
 
-You can test the installation by running:
+`cargo-wdk` exposes two commands `new` and `build`.
+
+`new` creates new driver projects from pre-defined templates and helps you get started faster. It invokes `cargo new` to create the project structure and then adds all the necessary files from a template.
+
+`build` compiles the source code of a driver project and creates a [driver package](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/driver-packages). It invokes `cargo build` to compile the code and then runs other required tools like `stampinf`, `inf2cat` and `signtool` in the correct order to produce the final driver package.
+
+## Usage
+
+### `new` Command
+
 ```pwsh
-cargo wdk --version
+Usage: cargo wdk new [OPTIONS] <--kmdf|--umdf|--wdm> <PATH>
+
+Arguments:
+  <PATH>  Path at which the new driver crate should be created
+
+Options:
+      --kmdf  Create a KMDF driver crate
+      --umdf  Create a UMDF driver crate
+      --wdm   Create a WDM driver crate
+  -h, --help  Print help
+
+Verbosity:
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
 ```
 
-For help, run:
-```pwsh
-cargo wdk --help
-```
+`new` takes the type of driver project you want to create (`kmdf`, `umdf` or `wdm`) and its destination path (`PATH`) as inputs along with flags specifying log verbosity.
 
-## Installing WDK
+The last component of `PATH` is used as the name of the crate.
 
-`cargo-wdk` builds the drivers using the WDK. Please ensure that the WDK is installed on the development system.
-The recommended way to do this is to [enter an eWDK developer prompt](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/using-the-enterprise-wdk#getting-started).
+#### Examples
 
-## Usage Examples
+- To create a new KMDF project called `my_driver` under the current folder run:
 
-1. `new` command to create a new Rust driver project: 
-    ```pwsh
-    cargo wdk new [OPTIONS] <DRIVER_PROJECT_PATH>
-    ```
-    
-    Example Usage:
-
-    * Create a UMDF project called `sample_driver` under the folder `my_projects`  
     ```pwsh  
-    cargo wdk new my_projects\sample_driver --umdf  
+    cargo wdk new my_driver --kmdf  
+    ```
+
+- To create a new UMDF project called `my_driver` under the folder `my_projects` run:  
+
+    ```pwsh  
+    cargo wdk new my_projects\my_driver --umdf  
     ```  
 
-    * Create a KMDF project called `sample_driver` under the current folder  
-    ```pwsh  
-    cargo wdk new sample_driver --kmdf  
-    ``` 
+### `build` Command
 
-    Use `--help` for more information on arguments and options
+```pwsh
+Usage: cargo wdk build [OPTIONS]
 
-2. `build` command to build and package driver projects:
-    ```pwsh
-    cargo wdk build [OPTIONS]
-    ```
-    
-    Example Usage: 
-    * Navigate to the project/workspace root and run
+Options:
+      --profile <PROFILE>          Build artifacts with the specified profile
+      --target-arch <TARGET_ARCH>  Build for the target architecture
+      --verify-signature           Verify the signature
+      --sample                     Build sample class driver project
+  -h, --help                       Print help
 
-        ```pwsh 
-        cargo wdk build 
-        ```
+Verbosity:
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+```
 
-    * With `--target-arch`
+`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
-        ```pwsh 
-        cargo wdk build --target-arch arm64
-        ```
+When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
 
-    * With `--profile`
+#### Workspace support
 
-        ```pwsh 
-        cargo wdk build --profile Release
-        ```
+`build` supports workspaces. If run at the root of a workspace, it will build and package all driver projects in it. If the workspace contains any non-driver projects they will also be built but not packaged.
 
-    Please use `--help` for more information on arguments and options.
+#### Sample Drivers
 
-## Driver Package Signature Verification
+Building a sample driver requires the `--sample` flag. If it is not specified, the build will fail.
 
-The `build` command can be run with `--verify-signature` option to enable the verification of the `.sys/.dll` and `.cat` files generated in the final package. Currently, the `build` command uses a **test certificate** named "WDRLocalTestCert" in a store named "WDRTestCertStore" to sign the files. Verification using the `signtool verify` command requires these certificates to be present in the host system's `Trusted Root Certification Authorities`. Typically, these test certificates are only installed into `Trusted Root Certification Authorities` on computers dedicated to testing drivers, and not personal development machines, given the security implications of installing your own root certificates.
+If you have a workspace with a mix of sample and non-sample driver projects, the build will fail as that scenario is not supported yet. In the future `build` will be able to automatically detect sample projects. That will remove the need for the `--sample` flag and enable support for this scenario.
 
-If you understand these implications, and have installed the test certificate, then you may validate the signatures as follows:
+#### Signing and Verification
 
-    ```pwsh
-    cargo wdk build --verify-signature
-    ```
+To sign driver artifacts `build` looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. Make sure you place your signing certificate there with that name. If no certificate is found, `build` will automatically generate a new self-signed one and add it for you.
 
-## Building Sample Class Drivers
+If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually. 
 
-The `build` command can be used to build drivers whose class is defined as `Sample` in its `.inx` file, for ex, [echo (kmdf) DriverSync](https://github.com/microsoft/Windows-rust-driver-samples/tree/main/general/echo/kmdf/driver/DriverSync). The command handles passing additional flags to `InfVerif` task based on the WDK Version being used. So, if you are building a `Sample` class driver, you may use the `build` command with the `--sample` flag as follows,
+#### Examples
+
+- To build a driver project with default options, navigate to the root of the project and run:
 
     ```pwsh
-    cargo wdk build --sample
+    cargo wdk build 
     ```
 
-**NOTE**: Running `cargo wdk build --sample` from a workspace root will try to package **all** the driver crates in that workspace as `Sample` class drivers. If the workspace contains a non-sample class driver, it will result in an error. A workaround is to build each crate individually (pass `--sample` only for "Sample" class driver) or ensure all driver crates in a workspace are "Sample" class drivers.
+- To build for target `arm64` and the `release` profile, navigate to the root of the project and run:
+
+    ```pwsh
+    cargo wdk build --target-arch arm64  --profile release
+    ```
+
+- To build projects in a workspace for target `amd64`, navigate to the root of the workspace and run:
+
+    ```pwsh
+    cargo wdk build --target-arch amd64
+    ```
