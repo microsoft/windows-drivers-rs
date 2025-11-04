@@ -740,6 +740,7 @@ mod tests {
                         Ok(r#"[package]
                                name = "test_driver"
                                version = "0.1.0"
+                               edition = "2024"
                               [dependencies]
                               "#
                         .to_string())
