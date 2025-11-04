@@ -89,7 +89,7 @@ pub struct BuildArgs {
     #[arg(long)]
     pub verify_signature: bool,
 
-    /// Build Sample Class Driver Project
+    /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
 }
