@@ -767,7 +767,6 @@ mod tests {
                     }
                 });
 
-            let file_to_append = cargo_toml_path.clone();
             let expected_file_to_append = cargo_toml_path.clone();
             self.mock_fs
                 .expect_append_to_file()
@@ -777,7 +776,7 @@ mod tests {
                         Ok(())
                     } else {
                         Err(FileError::AppendError(
-                            file_to_append.clone(),
+                            cargo_toml_path.clone(),
                             Error::other("Append error"),
                         ))
                     }
