@@ -98,7 +98,6 @@ runs:
         $inputVersion = '${{ inputs.version }}'
         $versionParts = $inputVersion.Split('.')
         $sdkVersion = $versionParts[0..2] -join '.'
-        $finalVersion = $inputVersion
 
         if ($versionParts.Length -eq 3) {
             # No QFE specified, find the latest QFE for this base version
@@ -113,18 +112,23 @@ runs:
                 $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
                 if (@($matchingVersions).Count -eq 0) {
                     Write-Warning "No QFE versions found for base version $inputVersion, using base version..."
+                    $version = $inputVersion
                 } else {
-                    $finalVersion = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
-                    Write-Host "Found latest QFE version: $finalVersion"
+                    Write-Warning "Failed to query NuGet for latest QFE version: $_"
+                    Write-Host "Using input version $inputVersion without QFE lookup"
+                    $version = $inputVersion
                 }
             } catch {
                 Write-Warning "Failed to query NuGet for latest QFE version: $_"
             }
+        } else {
+            $version = $inputVersion
+            Write-Host "Using specified version: $version"
         }
 
         $nugetPackagesRoot = "C:\Packages"
 
-        Write-Host "Installing WDK and SDK nuget packages to $nugetPackagesRoot, version: $finalVersion"
+        Write-Host "Installing WDK and SDK nuget packages to $nugetPackagesRoot, version: $version"
 
         # Download all architectures supported by `windows-drivers-rs` and CPP SDK package
         $architectures = @("x64", "ARM64")
@@ -138,24 +142,24 @@ runs:
 
         foreach ($package in $packagesToInstall) {
             Write-Host "Installing $package..."
-            nuget install $package -Version $finalVersion -OutputDirectory $nugetPackagesRoot -DependencyVersion Ignore
+            nuget install $package -Version $version -OutputDirectory $nugetPackagesRoot -DependencyVersion Ignore
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to install $package"
             }
         }
 
-        Write-Host "Successfully installed all WDK packages and dependencies for version $finalVersion"
+        Write-Host "Successfully installed all WDK packages and dependencies for version $version"
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
-        $packageDirs = Get-ChildItem -Path $nugetPackagesRoot -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$finalVersion" }
-        $sdkPackageName = "Microsoft.Windows.SDK.CPP.$finalVersion"
+        $packageDirs = Get-ChildItem -Path $nugetPackagesRoot -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
+        $sdkPackageName = "Microsoft.Windows.SDK.CPP.$version"
         $sdkPackageDir = @($packageDirs | Where-Object { $_.Name -eq $sdkPackageName })
         if (-not $sdkPackageDir) {
             throw "No CPP SDK packages found in $nugetPackagesRoot folder"
         }
 
-        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$finalVersion" })
+        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$version" })
         Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
         if ($wdkPackageDirs.Count -eq 0) {
             throw "No WDK packages found in $nugetPackagesRoot folder"
@@ -163,8 +167,8 @@ runs:
         foreach ($dir in $wdkPackageDirs) {
             Write-Host "  - $($dir.Name)"
         }
-        $hostWdkPackageName = "Microsoft.Windows.WDK.$hostArch.$finalVersion"
-        $targetWdkPackageName = "Microsoft.Windows.WDK.$targetArch.$finalVersion"
+        $hostWdkPackageName = "Microsoft.Windows.WDK.$hostArch.$version"
+        $targetWdkPackageName = "Microsoft.Windows.WDK.$targetArch.$version"
         $hostWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $hostWdkPackageName })
         $targetWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $targetWdkPackageName })
         if (-not $hostWdkPackageDir) {
@@ -180,7 +184,7 @@ runs:
             "WDKContentRoot" = "$($targetWdkPackageDir.FullName)\c\"
             "WDKBinRoot" = "$($hostWdkPackageDir.FullName)\c\bin"
             "WDKToolRoot" = "$($hostWdkPackageDir.FullName)\c\tools"
-            "FullVersionNumber" = "$finalVersion"
+            "FullVersionNumber" = "$version"
             "NugetPackagesRoot" = "$nugetPackagesRoot"
         }
 
