@@ -814,7 +814,7 @@ mod tests {
 
         fn expect_copy_build_rs_template(mut self, is_copy_success: bool) -> Self {
             let build_rs_path = self.path.join("build.rs");
-            let expected_build_rs_path = self.path.join("build.rs");
+            let expected_build_rs_path = build_rs_path.clone();
             self.mock_fs
                 .expect_write_to_file()
                 .withf(move |path, _| path == expected_build_rs_path)
@@ -833,7 +833,7 @@ mod tests {
 
         fn expect_copy_cargo_config(mut self, is_copy_success: bool) -> Self {
             let cargo_config_path = self.path.join(".cargo").join("config.toml");
-            let expected_cargo_config_path = self.path.join(".cargo").join("config.toml");
+            let expected_cargo_config_path = cargo_config_path.clone();
             self.mock_fs
                 .expect_write_to_file()
                 .withf(move |path, _| path == expected_cargo_config_path)
