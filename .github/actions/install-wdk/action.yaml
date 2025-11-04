@@ -58,6 +58,16 @@ runs:
             }
         }
 
+        # Validate that host and target are not provided when using WinGet
+        if ($source -eq 'winget') {
+            if (-not [string]::IsNullOrWhiteSpace($hostArch)) {
+                throw "Host architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
+            }
+            if (-not [string]::IsNullOrWhiteSpace($targetArch)) {
+                throw "Target architecture should not be specified when using WinGet source. WinGet handles architecture automatically."
+            }
+        }
+
         Write-Host "✅ Input validation passed"
 
     - name: Install WDK via NuGet
