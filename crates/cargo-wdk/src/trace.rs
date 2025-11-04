@@ -78,6 +78,8 @@ mod tests {
             (Verbosity::new(3, 0), Some("-vv")),
             // Input: Quadruple verbose (-vvvv)
             (Verbosity::new(4, 0), Some("-vv")),
+            // Input: Multiple -v and -q flags
+            (Verbosity::new(10, 5), Some("-vv")),
         ];
 
         for (verbosity, expected_flag) in cases {
