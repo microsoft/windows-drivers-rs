@@ -108,6 +108,7 @@ runs:
                 $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
                 $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
                 Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
+                
                 # Filter versions that match the base version and find the latest QFE
                 $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
                 if (@($matchingVersions).Count -eq 0) {
