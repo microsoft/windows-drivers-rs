@@ -830,7 +830,7 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 /// This is necessary so that paths in the [`wdk_build`] makefile can be
 /// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`. The
 /// version of `wdk-build` from which the file being symlinked to comes from is
-/// determined by the workding directory of the process that invokes this
+/// determined by the working directory of the process that invokes this
 /// function. For example, if this function is ultimately executing in a
 /// `cargo_make` `load_script`, the files will be symlinked from the `wdk-build`
 /// version that is in the `.Cargo.lock` file, and not the `wdk-build` version
