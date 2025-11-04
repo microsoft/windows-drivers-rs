@@ -4,7 +4,7 @@ A development tool for Windows Rust drivers based on [windows-drivers-rs](https:
 
 ## Installation
 
-To install run:
+To install, run:
 
 ```pwsh
 cargo install cargo-wdk
