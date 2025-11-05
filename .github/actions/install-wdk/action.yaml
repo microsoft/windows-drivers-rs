@@ -87,7 +87,7 @@ runs:
                 [Parameter(Mandatory)]
                 [string]$PackageType
             )
-
+            
             if ($Packages.Count -eq 1) {
                 return $Packages[0]
             } elseif ($Packages.Count -gt 1) {
@@ -141,23 +141,20 @@ runs:
 
         $packages = "C:\packages"
 
-        Write-Host "Installing WDK and SDK nuget packages to $packages, version: $version"
+        # Install WDK packages for both x64 and ARM64 architectures
+        # Host architecture needed for build tools and binaries
+        # Target architecture needed for content (libraries, headers)
 
-        # Download all architectures supported by `windows-drivers-rs` and CPP SDK package
-        $architectures = @("x64", "ARM64")
-        $packagesToInstall = @("Microsoft.Windows.SDK.CPP")
-        foreach ($architecture in $architectures) {
-            $packageName = "Microsoft.Windows.WDK.$architecture"
-            if (-not ($packagesToInstall | Where-Object { $_ -eq $packageName })) {
-                $packagesToInstall += $packageName
-            }
-        }
+        $packagesToInstall = @("Microsoft.Windows.WDK.x64", "Microsoft.Windows.WDK.ARM64")
 
-        foreach ($package in $packagesToInstall) {
-            Write-Host "Installing $package..."
-            nuget install $package -Version $version -OutputDirectory $packages -DependencyVersion Ignore
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to install $package"
+        Write-Host "Installing WDK NuGet packages for version $version..."
+        Write-Host "Required packages: $($packagesToInstall -join ', ')"
+
+        foreach ($packageName in $packagesToInstall) {
+            Write-Host "Installing $packageName version $version..."
+            nuget install $packageName -Version $version -OutputDirectory $packages
+            if ($LASTEXITCODE -ne 0) { 
+                throw "Failed to install $packageName version $version"
             }
         }
 
@@ -165,40 +162,60 @@ runs:
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
-        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$version" }
-        $sdkPackageName = "Microsoft.Windows.SDK.CPP.$version"
-        $sdkPackageDir = @($packageDirs | Where-Object { $_.Name -eq $sdkPackageName })
-        if (-not $sdkPackageDir) {
-            throw "No CPP SDK packages found in $packages folder"
-        }
-
-        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK.*.$version" })
-        Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
-        if ($wdkPackageDirs.Count -eq 0) {
-            throw "No WDK packages found in $packages folder"
-        }
-        foreach ($dir in $wdkPackageDirs) {
+        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
+        Write-Host "Found $($packageDirs.Count) package directories:"
+        foreach ($dir in $packageDirs) {
             Write-Host "  - $($dir.Name)"
         }
-        $hostWdkPackageName = "Microsoft.Windows.WDK.$hostArch.$version"
-        $targetWdkPackageName = "Microsoft.Windows.WDK.$targetArch.$version"
-        $hostWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $hostWdkPackageName })
-        $targetWdkPackageDir = @($wdkPackageDirs | Where-Object { $_.Name -eq $targetWdkPackageName })
-        if (-not $hostWdkPackageDir) {
-            throw "No WDK package found for architecture $hostArch in $packages folder"
+
+        # Find all Windows SDK nuget packages
+        $sdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP*" })
+        Write-Host "Found $($sdkPackageDirs.Count) SDK package(s):"
+        foreach ($sdkDir in $sdkPackageDirs) {
+            Write-Host "  - $($sdkDir.Name)"
         }
-        if (-not $targetWdkPackageDir) {
-            throw "No WDK package found for architecture $targetArch in $packages folder"
+        if ($sdkPackageDirs.Count -eq 0) {
+            throw "No SDK packages found in packages folder"
         }
+
+        # Look for the architecture-neutral base package (i.e. without arch suffix)
+        $baseSDKPackages = @($sdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\.Windows\.SDK\.CPP\.$sdkVersion(\.\d+)?$" })
+
+        $sdkPackageDir = Select-SinglePackage -Packages $baseSDKPackages -PackageType "architecture-neutral SDK"
+        Write-Host "Using architecture-neutral SDK package: $($sdkPackageDir.Name)"
+        Write-Host "Using Windows SDK (architecture-neutral) directory: $($sdkPackageDir.FullName)"
+
+        # Find all Windows WDK nuget packages
+        $wdkPackageDirs = @($packageDirs | Where-Object { $_.Name -like "Microsoft.Windows.WDK*" })
+        Write-Host "Found $($wdkPackageDirs.Count) WDK package(s):"
+        foreach ($wdkDir in $wdkPackageDirs) {
+            Write-Host "  - $($wdkDir.Name)"
+        }
+        if ($wdkPackageDirs.Count -eq 0) {
+            throw "No WDK packages found in packages folder"
+        }
+
+        # Find host architecture WDK package
+        $hostWdkPackages = @($wdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\.Windows\.WDK\.$hostArch\.$sdkVersion(\.\d+)?$" })
+        $hostWdkPackageDir = (Select-SinglePackage -Packages $hostWdkPackages -PackageType "WDK host ($hostArch architecture)").FullName
+        Write-Host "Using WDK host architecture ($hostArch) package: $($hostWdkPackages[0].Name)"
+
+        # Find target architecture WDK package
+        $targetWdkPackages = @($wdkPackageDirs | Where-Object { $_.Name -match "^Microsoft\.Windows\.WDK\.$targetArch\.$sdkVersion(\.\d+)?$" })
+        $targetWdkPackageDir = (Select-SinglePackage -Packages $targetWdkPackages -PackageType "WDK target ($targetArch architecture)").FullName
+        Write-Host "Using WDK target architecture ($targetArch) package: $($targetWdkPackages[0].Name)"
+
+        Write-Host "Using WDK(host-architecture) directory: $hostWdkPackageDir"
+        Write-Host "Using WDK(target-architecture) directory: $targetWdkPackageDir"
 
         $envVars = @{
             "Version_Number" = "$sdkVersion.0"
             "WindowsSdkBinPath" = "$($sdkPackageDir.FullName)\c\bin"
-            "WDKContentRoot" = "$($targetWdkPackageDir.FullName)\c\"
-            "WDKBinRoot" = "$($hostWdkPackageDir.FullName)\c\bin"
-            "WDKToolRoot" = "$($hostWdkPackageDir.FullName)\c\tools"
-            "FullVersionNumber" = "$version"
+            "WDKContentRoot" = "$targetWdkPackageDir\c\"
+            "WDKBinRoot" = "$hostWdkPackageDir\c\bin"
+            "WDKToolRoot" = "$hostWdkPackageDir\c\tools"
             "NugetPackagesRoot" = "$packages"
+            "FullVersionNumber" = "$version"
         }
 
         # Validate paths exist before setting environment variables
