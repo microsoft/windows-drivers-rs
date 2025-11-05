@@ -102,8 +102,7 @@ impl<'a> BuildAction<'a> {
     /// Entry point method to execute the packaging action flow.
     ///
     /// # Returns
-    /// * `Result<(), BuildActionError>` - A result containing an empty tuple or
-    ///   an error of type `BuildActionError`.
+    /// `Result<(), BuildActionError>`
     ///
     /// # Errors
     /// * `BuildActionError::NotAWorkspaceMember` - If the working directory is
@@ -138,6 +137,13 @@ impl<'a> BuildAction<'a> {
             "WDK build number: {}",
             self.wdk_build.detect_wdk_build_number()?
         );
+        // Set up the `PATH` system environment variable with WDK/SDK bin and tools
+        // paths.
+        wdk_build::cargo_make::setup_path().map_err(|e| {
+            debug!("Failed to set up PATH for WDK/SDK tools");
+            BuildActionError::WdkBuildConfig(e)
+        })?;
+        debug!("PATH env variable is set with WDK bin and tools paths");
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
@@ -331,15 +337,15 @@ impl<'a> BuildAction<'a> {
         let package_name = package.name.as_str();
         info!("Building package {package_name}");
 
-        let output_message_iter = BuildTask::new(
+        let build_task = BuildTask::new(
             package_name,
             working_dir,
             self.profile,
             self.target_arch,
             self.verbosity_level,
             self.command_exec,
-        )
-        .run()?;
+        );
+        let output_message_iter = build_task.run()?;
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
             debug!("Found wdk metadata in package: {}", package_name);
@@ -371,14 +377,6 @@ impl<'a> BuildAction<'a> {
             self.probe_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
-
-        // Set up the `PATH` system environment variable with WDK/SDK bin and tools
-        // paths.
-        wdk_build::cargo_make::setup_path().map_err(|e| {
-            debug!("Failed to set up PATH for WDK/SDK tools");
-            BuildActionError::WdkBuildConfig(e)
-        })?;
-        debug!("PATH env variable is set with WDK bin and tools paths");
 
         PackageTask::new(
             PackageTaskParams {
