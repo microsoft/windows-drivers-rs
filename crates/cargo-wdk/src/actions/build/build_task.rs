@@ -78,9 +78,10 @@ impl<'a> BuildTask<'a> {
     /// BuildTaskError>`
     ///
     /// # Errors
-    /// * `BuildTaskError::EmptyManifestPath` - If the manifest path cannot be
-    ///   represented as UTF-8.
-    /// * `BuildTaskError::CargoBuild` - If invoking `cargo` fails.
+    /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty or
+    ///   not a valid unicode
+    /// * `BuildTaskError::CargoBuild` - If there is an error running the `cargo
+    ///   build` command
     pub fn run(
         &self,
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
