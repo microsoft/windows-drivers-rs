@@ -137,12 +137,7 @@ impl<'a> BuildAction<'a> {
             "WDK build number: {}",
             self.wdk_build.detect_wdk_build_number()?
         );
-        // Set up the `PATH` system environment variable with WDK/SDK bin and tools
-        // paths.
-        wdk_build::cargo_make::setup_path().map_err(|e| {
-            debug!("Failed to set up PATH for WDK/SDK tools");
-            BuildActionError::WdkBuildConfig(e)
-        })?;
+        wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
 
         // Standalone driver/driver workspace support
@@ -398,7 +393,8 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Extracts the driver DLL path from the Cargo build output
+    // Extracts the target directory containing the built driver DLL from the Cargo
+    // build output.
     fn get_target_dir_for_packaging(
         package: &Package,
         mut message_iter: impl Iterator<Item = Result<Message, std::io::Error>>,
