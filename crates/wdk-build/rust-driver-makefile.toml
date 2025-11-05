@@ -122,7 +122,7 @@ script_runner = "@rust"
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -148,7 +148,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -188,7 +188,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -234,7 +234,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -257,7 +257,7 @@ script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -321,7 +321,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -345,7 +345,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -368,7 +368,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -391,7 +391,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -425,7 +425,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]
@@ -460,7 +460,7 @@ script_runner_args = [
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -546,7 +546,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.4.0" }
+//! wdk-build = { path = ".", version = "0.5.0" }
 //! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]
