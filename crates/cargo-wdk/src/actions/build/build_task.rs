@@ -71,17 +71,20 @@ impl<'a> BuildTask<'a> {
         }
     }
 
-    /// Run `cargo build` with the configured options and return an
-    /// iterator of parsed `Message` objects
+    /// Run `cargo build` with the configured options
+    ///
+    /// # Returns
+    /// `Result<impl Iterator<Item = Result<Message, std::io::Error>>,
+    /// BuildTaskError>`
     ///
     /// # Errors
     /// * `BuildTaskError::EmptyManifestPath` - If the manifest path cannot be
     ///   represented as UTF-8.
     /// * `BuildTaskError::CargoBuild` - If invoking `cargo` fails.
     pub fn run(
-        self,
+        &self,
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
-        debug!("Running cargo build for package: {}", self.package_name);
+        debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json".to_string());
         args.push("-p".to_string());
@@ -112,8 +115,7 @@ impl<'a> BuildTask<'a> {
         // is respected
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(self.working_dir))
-            .map_err(BuildTaskError::CargoBuild)?;
+            .run("cargo", &args, None, Some(self.working_dir))?;
 
         debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
