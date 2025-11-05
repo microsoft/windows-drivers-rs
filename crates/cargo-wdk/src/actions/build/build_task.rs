@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use cargo_metadata::Message;
 use mockall_double::double;
-use tracing::info;
+use tracing::debug;
 use wdk_build::CpuArchitecture;
 
 #[double]
@@ -81,7 +81,7 @@ impl<'a> BuildTask<'a> {
     pub fn run(
         self,
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
-        info!("Running cargo build for package: {}", self.package_name);
+        debug!("Running cargo build for package: {}", self.package_name);
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json".to_string());
         args.push("-p".to_string());
@@ -115,6 +115,7 @@ impl<'a> BuildTask<'a> {
             .run("cargo", &args, None, Some(self.working_dir))
             .map_err(BuildTaskError::CargoBuild)?;
 
+        debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
     }
 }
@@ -247,7 +248,7 @@ mod tests {
 
         let messages = task
             .run()
-            .expect("expected cargo output")
+            .expect("expected an iterator over parsed cargo message objects")
             .collect::<std::result::Result<Vec<_>, _>>()
             .expect("expected valid cargo messages");
 

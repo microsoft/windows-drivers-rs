@@ -23,7 +23,7 @@ use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, Tar
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
-use tracing::{debug, error as err, info};
+use tracing::{debug, error as err, info, warn};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -341,18 +341,26 @@ impl<'a> BuildAction<'a> {
         )
         .run()?;
 
-        // Skip packaging if package does not have WDK metadata
-        let Ok(wdk_metadata) = wdk_metadata else {
-            debug!("WDK metadata is not found for `{package_name}`; skipping packaging");
+        let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
+            debug!("Found wdk metadata in package: {}", package_name);
+            wdk_metadata
+        } else {
+            debug!("Invalid WDK metadata. Skipping package task");
             return Ok(());
         };
 
-        // Skip packaging if the package does not produce a cdylib (.dll)
-        let emits_cdylib = package.targets.iter().any(|t| {
-            t.crate_types.contains(&CrateType::CDyLib) && t.kind.contains(&TargetKind::CDyLib)
-        });
-        if !emits_cdylib {
-            debug!("Package {package_name} does not produce a cdylib; skipping packaging");
+        // Identifying non driver packages
+        if package.metadata.get("wdk").is_none() {
+            debug!("Packaging task skipped for non-driver package");
+            return Ok(());
+        }
+
+        if !package
+            .targets
+            .iter()
+            .any(|t| t.kind.contains(&TargetKind::CDyLib))
+        {
+            warn!("No cdylib target found. Skipping package task");
             return Ok(());
         }
 
@@ -362,6 +370,7 @@ impl<'a> BuildAction<'a> {
         } else {
             self.probe_target_arch_from_cargo_rustc(working_dir)?
         };
+        debug!("Target architecture for package: {package_name} is: {target_arch}");
 
         // Set up the `PATH` system environment variable with WDK/SDK bin and tools
         // paths.
