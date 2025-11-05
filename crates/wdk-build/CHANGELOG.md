@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.4.0...wdk-build-v0.5.0) - 2025-11-05
+
+### Added
+
+- enhance error handling with IoError and IoErrorMetadata for improved std::io::Error diagnostics for fs errors ([#480](https://github.com/microsoft/windows-drivers-rs/pull/480))
+- add color to cargo wdk and cargo make argument forwarding ([#519](https://github.com/microsoft/windows-drivers-rs/pull/519))
+- enhance debug tracing in bindgen and config modules ([#455](https://github.com/microsoft/windows-drivers-rs/pull/455))
+- enhance cargo metadata parsing to respect config.toml ([#451](https://github.com/microsoft/windows-drivers-rs/pull/451))
+- *(ci)* install and use `nuget` packages in CI workflows ([#406](https://github.com/microsoft/windows-drivers-rs/pull/406))
+- add `cargo-wdk` cargo extension ([#306](https://github.com/microsoft/windows-drivers-rs/pull/306))
+- make `emit_check_cfg_settings` function public ([#352](https://github.com/microsoft/windows-drivers-rs/pull/352))
+
+### Fixed
+
+- use latest version of ucx in the WDKContent as default ([#411](https://github.com/microsoft/windows-drivers-rs/pull/411))
+- improve error reporting when no wdk-build package is found ([#339](https://github.com/microsoft/windows-drivers-rs/pull/339))
+
+### Other
+
+- Prepare cargo-wdk for release ([#560](https://github.com/microsoft/windows-drivers-rs/pull/560))
+- [**breaking**] bump to Rust 2024 Edition ([#430](https://github.com/microsoft/windows-drivers-rs/pull/430))
+- use `std::path::absolute` instead of canonicalize + strip_extended_path_prefix ([#462](https://github.com/microsoft/windows-drivers-rs/pull/462))
+- Bump tracing-subscriber from 0.3.19 to 0.3.20 ([#492](https://github.com/microsoft/windows-drivers-rs/pull/492))
+- enforce typo checking ([#452](https://github.com/microsoft/windows-drivers-rs/pull/452))
+- update crate references for consistency in documentation ([#440](https://github.com/microsoft/windows-drivers-rs/pull/440))
+- improve cargo-wdk tests ([#429](https://github.com/microsoft/windows-drivers-rs/pull/429))
+
 ## [0.4.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.3.0...wdk-build-v0.4.0) - 2025-04-18
 
 ### Added
