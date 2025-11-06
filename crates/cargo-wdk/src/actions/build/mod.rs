@@ -473,13 +473,14 @@ impl<'a> BuildAction<'a> {
     /// Invokes `cargo rustc -- --print cfg` and finds the `target_arch` value
     ///
     /// # Arguments
-    /// * `command_exec` - A reference to the `CommandExec` struct that provides
-    ///   methods for executing commands.
+    /// * `working_dir` -- Working directory from which the command must be
+    ///   executed
     ///
     /// # Returns
-    /// * `CpuArchitecture`
-    /// * `anyhow::Error` if the command fails to execute or the output is not
-    ///   in the expected format.
+    /// * `CpuArchitecture` - if the command succeeds and a valid architecture
+    ///   is parsed from the output
+    /// * `BuildActionError` - if the command fails to execute or an unsupported
+    ///   architecture is detected or if no target architecuture was detected
     fn probe_target_arch_from_cargo_rustc(
         &self,
         working_dir: &Path,
