@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-macros-v0.4.0...wdk-macros-v0.5.0) - 2025-11-06
 
-### Added
-
-
 ### Other
 
 - [**breaking**] bump to Rust 2024 Edition ([#430](https://github.com/microsoft/windows-drivers-rs/pull/430))
