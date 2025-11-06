@@ -365,6 +365,8 @@ impl<'a> BuildAction<'a> {
             return Ok(());
         }
 
+        debug!("Creating the driver package in the target directory");
+        let driver_model = wdk_metadata.driver_model.clone();
         // Resolve the target architecture for the packaging task
         let target_arch = if let Some(arch) = self.target_arch {
             arch
@@ -372,16 +374,22 @@ impl<'a> BuildAction<'a> {
             self.probe_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
+        let target_dir = &Self::get_target_dir_for_packaging(package, output_message_iter)?;
+        debug!(
+            "Target directory for package: {} is: {}",
+            package_name,
+            target_dir.display()
+        );
 
         PackageTask::new(
             PackageTaskParams {
                 package_name,
                 working_dir,
-                target_dir: &Self::get_target_dir_for_packaging(package, output_message_iter)?,
+                target_dir,
                 target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
-                driver_model: wdk_metadata.driver_model.clone(),
+                driver_model,
             },
             self.wdk_build,
             self.command_exec,
