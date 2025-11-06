@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-alloc-v0.3.1...wdk-alloc-v0.4.0) - 2025-11-06
+
+### Added
+
+- add `cargo-wdk` cargo extension ([#306](https://github.com/microsoft/windows-drivers-rs/pull/306))
+
+### Other
+
+- [**breaking**] bump to Rust 2024 Edition ([#430](https://github.com/microsoft/windows-drivers-rs/pull/430))
+- enforce typo checking ([#452](https://github.com/microsoft/windows-drivers-rs/pull/452))
+
 ## [0.3.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-alloc-v0.3.0...wdk-alloc-v0.3.1) - 2025-04-18
 
 ### Other
