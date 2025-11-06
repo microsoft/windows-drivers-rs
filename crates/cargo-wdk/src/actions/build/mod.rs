@@ -480,7 +480,7 @@ impl<'a> BuildAction<'a> {
     /// * `CpuArchitecture` - if the command succeeds and a valid architecture
     ///   is parsed from the output
     /// * `BuildActionError` - if the command fails to execute or an unsupported
-    ///   architecture is detected or if no target architecuture was detected
+    ///   architecture is detected or if no target architecture was detected
     fn probe_target_arch_from_cargo_rustc(
         &self,
         working_dir: &Path,
