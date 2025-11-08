@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
-- revert cargo-wdk to 0.0.0
 - Prepare cargo-wdk for release ([#560](https://github.com/microsoft/windows-drivers-rs/pull/560))
 - [**breaking**] bump to Rust 2024 Edition ([#430](https://github.com/microsoft/windows-drivers-rs/pull/430))
 - Bump proc-macro2 from 1.0.94 to 1.0.101 in /crates/cargo-wdk/tests/kmdf-driver ([#530](https://github.com/microsoft/windows-drivers-rs/pull/530))

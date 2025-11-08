@@ -14,7 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - enhance debug tracing in bindgen and config modules ([#455](https://github.com/microsoft/windows-drivers-rs/pull/455))
 - enhance cargo metadata parsing to respect config.toml ([#451](https://github.com/microsoft/windows-drivers-rs/pull/451))
 - *(ci)* install and use `nuget` packages in CI workflows ([#406](https://github.com/microsoft/windows-drivers-rs/pull/406))
-- add `cargo-wdk` cargo extension ([#306](https://github.com/microsoft/windows-drivers-rs/pull/306))
 - make `emit_check_cfg_settings` function public ([#352](https://github.com/microsoft/windows-drivers-rs/pull/352))
 
 ### Fixed
