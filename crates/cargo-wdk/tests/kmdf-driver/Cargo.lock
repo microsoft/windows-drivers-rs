@@ -668,7 +668,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "wdk-alloc"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-build"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -700,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "cfg-if",
  "fs4",
@@ -715,11 +715,11 @@ dependencies = [
 
 [[package]]
 name = "wdk-panic"
-version = "0.3.1"
+version = "0.4.0"
 
 [[package]]
 name = "wdk-sys"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bindgen",
