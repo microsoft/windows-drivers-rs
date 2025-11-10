@@ -197,7 +197,6 @@ mod tests {
         let manifest_path_string = manifest_path.to_string_lossy().to_string();
         let profile = Profile::Release;
         let target_arch = CpuArchitecture::Amd64;
-        let expected_target = super::to_target_triple(target_arch);
         let verbosity = clap_verbosity_flag::Verbosity::default();
         let mut expected_args = vec![
             "build".to_string(),
@@ -207,9 +206,9 @@ mod tests {
             "--manifest-path".to_string(),
             manifest_path_string,
             "--profile".to_string(),
-            profile.to_string(),
+            "release".to_string(),
             "--target".to_string(),
-            expected_target,
+            "x86_64-pc-windows-msvc".to_string(),
         ];
         if let Some(flag) = trace::get_cargo_verbose_flags(verbosity) {
             expected_args.push(flag.to_string());
