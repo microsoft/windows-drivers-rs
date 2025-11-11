@@ -1,0 +1,54 @@
+name: Compare Regex Versions
+description: Extract and compare version strings from two files using regex patterns
+
+inputs:
+  file1:
+    description: "Path to the first file"
+    required: true
+  file1-regex:
+    description: 'Perl-compatible regex pattern to extract version from file1 (use \K and lookahead for capture)'
+    required: true
+  file1-label:
+    description: "Human-readable label for file1 (for error messages)"
+    required: true
+
+  file2:
+    description: "Path to the second file"
+    required: true
+  file2-regex:
+    description: 'Perl-compatible regex pattern to extract version from file2 (use \K and lookahead for capture)'
+    required: true
+  file2-label:
+    description: "Human-readable label for file2 (for error messages)"
+    required: true
+
+  error-message:
+    description: "Custom error message to display if versions do not match (optional, uses default if not provided)"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Compare versions
+      shell: bash
+      run: |
+        # Extract version from first file
+        version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1)
+        echo "${{ inputs.file1-label }}: $version1"
+
+        # Extract version from second file
+        version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1)
+        echo "${{ inputs.file2-label }}: $version2"
+
+        # Compare versions
+        if [ "$version1" != "$version2" ]; then
+          if [ -n "${{ inputs.error-message }}" ]; then
+            echo "::error::${{ inputs.error-message }}"
+          else
+            echo "::error::Version mismatch: ${{ inputs.file1-label }} has \"$version1\" but ${{ inputs.file2-label }} has \"$version2\""
+          fi
+          exit 1
+        fi
+
+        echo "✓ Versions are consistent: $version1"
