@@ -1,0 +1,27 @@
+name: Template Version Check
+
+on:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
+  merge_group:
+  schedule: # Trigger a job on default branch at 4AM PST everyday
+    - cron: 0 11 * * *
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check-template-versions:
+    name: Check Template Versions
+    runs-on: windows-2025
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Run Template Version Check
+        shell: pwsh
+        run: .github/scripts/check-template-versions.ps1
