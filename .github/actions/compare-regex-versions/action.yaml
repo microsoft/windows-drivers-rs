@@ -3,23 +3,29 @@ description: Extract and compare version strings from two files using regex patt
 
 inputs:
   file1:
-    description: "Path to the first file"
-    required: true
-  file1-regex:
-    description: 'Perl-compatible regex pattern to extract version from file1 (use \K and lookahead for capture)'
+    description: "Path to first file"
     required: true
   file1-label:
-    description: "Human-readable label for file1 (for error messages)"
+    description: "Human-readable label for first file"
+    required: false
+  file1-version-regex:
+    description: "Regex to extract version from first file (PCRE, use \K / lookahead for clean capture)"
+    required: true
+  file1-version-label:
+    description: "Human-readable label for version from first file"
     required: true
 
   file2:
-    description: "Path to the second file"
-    required: true
-  file2-regex:
-    description: 'Perl-compatible regex pattern to extract version from file2 (use \K and lookahead for capture)'
+    description: "Path to second file"
     required: true
   file2-label:
-    description: "Human-readable label for file2 (for error messages)"
+    description: "Human-readable label for second file"
+    required: false
+  file2-version-regex:
+    description: "Regex to extract version from second file (PCRE, use \K / lookahead for clean capture)"
+    required: true
+  file2-version-label:
+    description: "Human-readable label for version from second file"
     required: true
 
   error-message:
@@ -33,57 +39,59 @@ runs:
     - name: Compare versions
       shell: bash
       run: |
-        # Extract version from first file (enforce exactly one match)
-        echo "Extracting version from ${{ inputs.file1 }} using pattern: ${{ inputs.file1-regex }}"
-        matches1=$(grep -m2 -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' || true)
-        count1=$(printf "%s" "$matches1" | grep -c '^' || true)
-        if [ "$count1" -eq 0 ]; then
-          echo "::error file=${{ inputs.file1 }}::Failed to extract version from ${{ inputs.file1-label }} using pattern: ${{ inputs.file1-regex }}"
-          echo "ERROR: Failed to extract version from ${{ inputs.file1-label }}" >&2
-          echo "  File: ${{ inputs.file1 }}" >&2
-          echo "  Pattern: ${{ inputs.file1-regex }}" >&2
-          exit 1
-        elif [ "$count1" -gt 1 ]; then
-          echo "::error file=${{ inputs.file1 }}::Pattern matched multiple versions ($count1) in ${{ inputs.file1-label }}; refine regex to produce exactly one. Pattern: ${{ inputs.file1-regex }}"
-          echo "ERROR: Multiple matches ($count1) for ${{ inputs.file1-label }}" >&2
-          echo "  File: ${{ inputs.file1 }}" >&2
-          echo "  Pattern: ${{ inputs.file1-regex }}" >&2
-          echo "  Matches (first 2):" >&2
-          printf "%s" "$matches1" | head -2 >&2
-          exit 1
-        fi
-        version1=$(printf "%s" "$matches1" | head -1)
-        echo "${{ inputs.file1-label }}: $version1"
+        # Function: Extract and validate version from file
+        # Args: $1=file_path, $2=file_label, $3=version_regex, $4=version_label
+        # Returns: Prints extracted version to stdout; exits 1 on failure
+        extract_and_validate_version() {
+          local file_path="$1"
+          local file_label="$2"
+          local version_regex="$3"
+          local version_label="$4"
+          
+          echo "Extracting: $version_label | file: $file_path ($file_label) | regex: $version_regex" >&2
+          
+          local raw_matches
+          raw_matches=$(grep -m2 -oP "$version_regex" "$file_path" || true)
+          
+          local match_count
+          match_count=$(printf "%s\n" "$raw_matches" | wc -l)
+          
+          if [ "$match_count" -eq 0 ]; then
+            echo "::error file=$file_path::Failed to extract ${version_label}. File: $file_path (${file_label}). Regex: $version_regex" >&2
+            exit 1
+          elif [ "$match_count" -gt 1 ]; then
+            echo "::error file=$file_path::Regex produced multiple matches ($match_count) for ${version_label}. File: $file_path (${file_label}). Regex: $version_regex. First 2 matches: $(printf '%s' "$raw_matches" | head -2 | paste -sd ', ')" >&2
+            exit 1
+          fi
+          
+          local extracted_version
+          extracted_version=$(printf "%s" "$raw_matches" | head -1)
+          echo "${version_label} = $extracted_version (source: $file_label)" >&2
+          
+          # Return extracted version via stdout (caller captures it)
+          printf "%s" "$extracted_version"
+        }
 
-        # Extract version from second file (enforce exactly one match)
-        echo "Extracting version from ${{ inputs.file2 }} using pattern: ${{ inputs.file2-regex }}"
-        matches2=$(grep -m2 -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' || true)
-        count2=$(printf "%s" "$matches2" | grep -c '^' || true)
-        if [ "$count2" -eq 0 ]; then
-          echo "::error file=${{ inputs.file2 }}::Failed to extract version from ${{ inputs.file2-label }} using pattern: ${{ inputs.file2-regex }}"
-          echo "ERROR: Failed to extract version from ${{ inputs.file2-label }}" >&2
-          echo "  File: ${{ inputs.file2 }}" >&2
-          echo "  Pattern: ${{ inputs.file2-regex }}" >&2
-          exit 1
-        elif [ "$count2" -gt 1 ]; then
-          echo "::error file=${{ inputs.file2 }}::Pattern matched multiple versions ($count2) in ${{ inputs.file2-label }}; refine regex to produce exactly one. Pattern: ${{ inputs.file2-regex }}"
-          echo "ERROR: Multiple matches ($count2) for ${{ inputs.file2-label }}" >&2
-          echo "  File: ${{ inputs.file2 }}" >&2
-          echo "  Pattern: ${{ inputs.file2-regex }}" >&2
-          echo "  Matches (first 2):" >&2
-          printf "%s" "$matches2" | head -2 >&2
-          exit 1
-        fi
-        version2=$(printf "%s" "$matches2" | head -1)
-        echo "${{ inputs.file2-label }}: $version2"
+        # Prepare labels (default file_label to file path if not set)
+        file_label_1="${{ inputs.file1-label }}"
+        [ -z "$file_label_1" ] && file_label_1="${{ inputs.file1 }}"
+        version_label_1="${{ inputs.file1-version-label }}"
+
+        file_label_2="${{ inputs.file2-label }}"
+        [ -z "$file_label_2" ] && file_label_2="${{ inputs.file2 }}"
+        version_label_2="${{ inputs.file2-version-label }}"
+
+        # Extract versions
+        extracted_version_file1=$(extract_and_validate_version "${{ inputs.file1 }}" "$file_label_1" "${{ inputs.file1-version-regex }}" "$version_label_1")
+        extracted_version_file2=$(extract_and_validate_version "${{ inputs.file2 }}" "$file_label_2" "${{ inputs.file2-version-regex }}" "$version_label_2")
 
         # Compare versions
-        if [ "$version1" != "$version2" ]; then
-          echo "::error::Version mismatch: ${{ inputs.file1-label }} has \"$version1\" but ${{ inputs.file2-label }} has \"$version2\""
+        if [ "$extracted_version_file1" != "$extracted_version_file2" ]; then
+          echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. Source files: ${{ inputs.file1 }} ($file_label_1), ${{ inputs.file2 }} ($file_label_2)." >&2
           if [ -n "${{ inputs.error-message }}" ]; then
-            echo "::notice::${{ inputs.error-message }}"
+            echo "::notice::${{ inputs.error-message }}" >&2
           fi
           exit 1
         fi
 
-        echo "✓ Versions are consistent: $version1"
+        echo "✓ Versions are consistent: $extracted_version_file1" >&2
