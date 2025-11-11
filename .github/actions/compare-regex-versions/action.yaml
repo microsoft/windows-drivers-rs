@@ -9,7 +9,7 @@ inputs:
     description: "Human-readable label for first file"
     required: false
   file1-version-regex:
-    description: "Regex to extract version from first file (PCRE, use \K / lookahead for clean capture)"
+    description: 'Regex to extract version from first file (PCRE, use \K / lookahead for clean capture)'
     required: true
   file1-version-label:
     description: "Human-readable label for version from first file"
@@ -22,7 +22,7 @@ inputs:
     description: "Human-readable label for second file"
     required: false
   file2-version-regex:
-    description: "Regex to extract version from second file (PCRE, use \K / lookahead for clean capture)"
+    description: 'Regex to extract version from second file (PCRE, use \K / lookahead for clean capture)'
     required: true
   file2-version-label:
     description: "Human-readable label for version from second file"
