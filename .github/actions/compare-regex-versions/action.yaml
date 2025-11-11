@@ -66,6 +66,13 @@ runs:
           
           local extracted_version
           extracted_version=$(printf "%s" "$raw_matches" | head -1)
+          
+          # Validate extracted version is not empty
+          if [ -z "$extracted_version" ]; then
+            echo "::error file=$file_path::Extracted version is empty for ${version_label}. File: $file_path (${file_label}). Regex: $version_regex. This likely means the regex matched but captured nothing (check \\K anchor placement)." >&2
+            exit 1
+          fi
+          
           echo "${version_label} = $extracted_version (source: $file_label)" >&2
           
           # Return extracted version via stdout (caller captures it)
@@ -73,21 +80,25 @@ runs:
         }
 
         # Prepare labels (default file_label to file path if not set)
+        file1='${{ inputs.file1 }}'
+        file1_regex='${{ inputs.file1-version-regex }}'
         file_label_1="${{ inputs.file1-label }}"
-        [ -z "$file_label_1" ] && file_label_1="${{ inputs.file1 }}"
+        [ -z "$file_label_1" ] && file_label_1="$file1"
         version_label_1="${{ inputs.file1-version-label }}"
 
+        file2='${{ inputs.file2 }}'
+        file2_regex='${{ inputs.file2-version-regex }}'
         file_label_2="${{ inputs.file2-label }}"
-        [ -z "$file_label_2" ] && file_label_2="${{ inputs.file2 }}"
+        [ -z "$file_label_2" ] && file_label_2="$file2"
         version_label_2="${{ inputs.file2-version-label }}"
 
         # Extract versions
-        extracted_version_file1=$(extract_and_validate_version "${{ inputs.file1 }}" "$file_label_1" "${{ inputs.file1-version-regex }}" "$version_label_1")
-        extracted_version_file2=$(extract_and_validate_version "${{ inputs.file2 }}" "$file_label_2" "${{ inputs.file2-version-regex }}" "$version_label_2")
+        extracted_version_file1=$(extract_and_validate_version "$file1" "$file_label_1" "$file1_regex" "$version_label_1")
+        extracted_version_file2=$(extract_and_validate_version "$file2" "$file_label_2" "$file2_regex" "$version_label_2")
 
         # Compare versions
         if [ "$extracted_version_file1" != "$extracted_version_file2" ]; then
-          echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. Source files: ${{ inputs.file1 }} ($file_label_1), ${{ inputs.file2 }} ($file_label_2)." >&2
+          echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. Source files: $file1 ($file_label_1), $file2 ($file_label_2)." >&2
           if [ -n "${{ inputs.error-message }}" ]; then
             echo "::notice::${{ inputs.error-message }}" >&2
           fi
