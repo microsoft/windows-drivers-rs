@@ -32,6 +32,7 @@ assert_fs.workspace = true
 predicates.workspace = true
 regex.workspace = true
 sha2.workspace = true
+toml = "0.8"
 
 [lints.rust]
 missing_docs = "warn"
