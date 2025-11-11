@@ -34,7 +34,8 @@ runs:
       shell: bash
       run: |
         # Extract version from first file
-        version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1)
+        echo "Extracting version from ${{ inputs.file1 }} using pattern: ${{ inputs.file1-regex }}"
+        version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1) || version1=""
         if [ -z "$version1" ]; then
           echo "::error file=${{ inputs.file1 }}::Failed to extract version from ${{ inputs.file1-label }} using pattern: ${{ inputs.file1-regex }}"
           echo "ERROR: Failed to extract version from ${{ inputs.file1-label }}" >&2
@@ -45,7 +46,8 @@ runs:
         echo "${{ inputs.file1-label }}: $version1"
 
         # Extract version from second file
-        version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1)
+        echo "Extracting version from ${{ inputs.file2 }} using pattern: ${{ inputs.file2-regex }}"
+        version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1) || version2=""
         if [ -z "$version2" ]; then
           echo "::error file=${{ inputs.file2 }}::Failed to extract version from ${{ inputs.file2-label }} using pattern: ${{ inputs.file2-regex }}"
           echo "ERROR: Failed to extract version from ${{ inputs.file2-label }}" >&2
