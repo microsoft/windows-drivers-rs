@@ -96,7 +96,7 @@ runs:
         [ -z "$file_label_2" ] && file_label_2="$file2"
         version_label_2="${{ inputs.file2-version-label }}"
 
-        error_msg='${{ inputs.error-message }}'
+        error_msg="${{ inputs.error-message }}"
 
         # Extract versions
         extracted_version_file1=$(extract_and_validate_version "$file1" "$file_label_1" "$file1_regex" "$version_label_1")
