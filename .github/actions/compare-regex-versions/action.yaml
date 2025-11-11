@@ -96,15 +96,18 @@ runs:
         [ -z "$file_label_2" ] && file_label_2="$file2"
         version_label_2="${{ inputs.file2-version-label }}"
 
+        error_msg='${{ inputs.error-message }}'
+
         # Extract versions
         extracted_version_file1=$(extract_and_validate_version "$file1" "$file_label_1" "$file1_regex" "$version_label_1")
         extracted_version_file2=$(extract_and_validate_version "$file2" "$file_label_2" "$file2_regex" "$version_label_2")
 
         # Compare versions
         if [ "$extracted_version_file1" != "$extracted_version_file2" ]; then
-          echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. Source files: $file1 ($file_label_1), $file2 ($file_label_2)." >&2
-          if [ -n "${{ inputs.error-message }}" ]; then
-            echo "::notice::${{ inputs.error-message }}" >&2
+          if [ -n "$error_msg" ]; then
+            echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. $error_msg" >&2
+          else
+            echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. Source files: $file1 ($file_label_1), $file2 ($file_label_2)." >&2
           fi
           exit 1
         fi
