@@ -3,30 +3,42 @@
 # License: MIT OR Apache-2.0
 
 # This script verifies that the cargo-wdk template Cargo.toml files use the correct
-# versions of WDK crates by reading from each crate's [package] section.
+# versions of WDK crates by reading from the workspace Cargo.toml [workspace.dependencies] section.
 
 $ErrorActionPreference = "Stop"
 
-# Function to extract version from a Cargo.toml [package] section
-function Get-PackageVersion {
+# Function to extract versions from workspace Cargo.toml [workspace.dependencies] section
+function Get-WorkspaceDependencyVersions {
     param (
-        [string]$CargoTomlPath
+        [string]$WorkspaceCargoToml = "Cargo.toml"
     )
     
-    if (-not (Test-Path $CargoTomlPath)) {
-        Write-Error "Cargo.toml not found at: $CargoTomlPath"
+    if (-not (Test-Path $WorkspaceCargoToml)) {
+        Write-Error "Workspace Cargo.toml not found at: $WorkspaceCargoToml"
         exit 1
     }
     
-    $content = Get-Content $CargoTomlPath -Raw
+    $content = Get-Content $WorkspaceCargoToml -Raw
+    $versions = @{}
     
-    # Match version in [package] section
-    if ($content -match '(?ms)\[package\].*?version\s*=\s*"([^"]+)"') {
-        return $Matches[1]
+    # Match versions in [workspace.dependencies] section
+    # Pattern matches: wdk = { path = "...", version = "0.4.0" }
+    # or: wdk-alloc = { path = "...", version = "0.4.0" }
+    $pattern = '(wdk[a-z-]*)\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"'
+    $matches = [regex]::Matches($content, $pattern)
+    
+    foreach ($match in $matches) {
+        $depName = $match.Groups[1].Value
+        $depVersion = $match.Groups[2].Value
+        $versions[$depName] = $depVersion
     }
     
-    Write-Error "Could not find version in [package] section of $CargoTomlPath"
-    exit 1
+    if ($versions.Count -eq 0) {
+        Write-Error "Could not find any wdk dependency versions in [workspace.dependencies] section"
+        exit 1
+    }
+    
+    return $versions
 }
 
 # Function to extract dependency versions from a template file
@@ -56,31 +68,17 @@ function Get-TemplateDependencies {
     return $dependencies
 }
 
-Write-Host "Checking template versions against crate package versions..." -ForegroundColor Cyan
+Write-Host "Checking template versions against workspace dependency versions..." -ForegroundColor Cyan
 
-# Get actual crate versions from [package] sections
-$wdkVersion = Get-PackageVersion "crates/wdk/Cargo.toml"
-$wdkAllocVersion = Get-PackageVersion "crates/wdk-alloc/Cargo.toml"
-$wdkBuildVersion = Get-PackageVersion "crates/wdk-build/Cargo.toml"
-$wdkPanicVersion = Get-PackageVersion "crates/wdk-panic/Cargo.toml"
-$wdkSysVersion = Get-PackageVersion "crates/wdk-sys/Cargo.toml"
+# Get versions from workspace [workspace.dependencies] section
+$expectedVersions = Get-WorkspaceDependencyVersions
 
 Write-Host ""
-Write-Host "Current crate versions:" -ForegroundColor Green
-Write-Host "  wdk: $wdkVersion"
-Write-Host "  wdk-alloc: $wdkAllocVersion"
-Write-Host "  wdk-build: $wdkBuildVersion"
-Write-Host "  wdk-panic: $wdkPanicVersion"
-Write-Host "  wdk-sys: $wdkSysVersion"
-Write-Host ""
-
-$expectedVersions = @{
-    "wdk" = $wdkVersion
-    "wdk-alloc" = $wdkAllocVersion
-    "wdk-build" = $wdkBuildVersion
-    "wdk-panic" = $wdkPanicVersion
-    "wdk-sys" = $wdkSysVersion
+Write-Host "Workspace dependency versions:" -ForegroundColor Green
+foreach ($dep in $expectedVersions.Keys | Sort-Object) {
+    Write-Host "  $dep : $($expectedVersions[$dep])"
 }
+Write-Host ""
 
 $templates = @(
     @{
