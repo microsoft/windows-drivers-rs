@@ -31,7 +31,7 @@ jobs:
           file2: crates/wdk-build/Cargo.toml
           file2-version-regex: '^version\s*=\s*"\K[^"]+'
           file2-version-label: "wdk-build crate version"
-          error-message: "wdk-build version mismatch between README.md and crates/wdk-build/Cargo.toml. Please update README.md to match the crate's version."
+          error-message: "Please update README.md to match the wdk-build crate's version."
 
       - name: Check wdk-sys and wdk-macros lockstep versioning
         uses: ./.github/actions/compare-regex-versions
@@ -42,7 +42,7 @@ jobs:
           file2: crates/wdk-macros/Cargo.toml
           file2-version-regex: '^version\s*=\s*"\K[^"]+'
           file2-version-label: "wdk-macros crate version"
-          error-message: "wdk-sys and wdk-macros version mismatch detected. These crates must be versioned in lockstep because: (1) wdk-macros is a proc-macro crate that should only be consumed through wdk-sys re-exports, and (2) the two crates form a tightly coupled API surface. When updating either crate, both versions must be bumped together to maintain consistency."
+          error-message: "These crates must be versioned in lockstep because: (1) wdk-macros is a proc-macro crate that should only be consumed through wdk-sys re-exports, and (2) the two crates form a tightly coupled API surface. When updating either crate, both versions must be bumped together."
 
       - name: Check workspace wdk-macros dependency version matches wdk-sys crate version
         uses: ./.github/actions/compare-regex-versions
@@ -54,4 +54,4 @@ jobs:
           file2: crates/wdk-sys/Cargo.toml
           file2-version-regex: '^version\s*=\s*"\K[^"]+'
           file2-version-label: "wdk-sys crate version"
-          error-message: "Workspace wdk-macros dependency version must match wdk-sys crate version. The workspace uses an exact version (=) to enforce lockstep versioning."
+          error-message: "The workspace dependency must use an exact version constraint of wdk-macros which matches wdk-sys to enforce lockstep versioning"
