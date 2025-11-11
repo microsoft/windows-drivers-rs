@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
 //! Test to verify that template Cargo.toml files use the correct versions
 //! from the workspace configuration.
 
