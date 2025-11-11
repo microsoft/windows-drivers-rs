@@ -41,4 +41,4 @@ jobs:
           file2: crates/wdk-macros/Cargo.toml
           file2-regex: '^version\s*=\s*"\K[^"]+'
           file2-label: "wdk-macros version"
-          error-message: "wdk-sys and wdk-macros version mismatch detected. These crates must be versioned in lockstep because: (1) wdk-macros is a proc-macro crate that should only consumed through wdk-sys re-exports, and (2) the two crates form a tightly coupled API surface. When updating either crate, both versions must be bumped together to maintain consistency."
+          error-message: "wdk-sys and wdk-macros version mismatch detected. These crates must be versioned in lockstep because: (1) wdk-macros is a proc-macro crate that should only be consumed through wdk-sys re-exports, and (2) the two crates form a tightly coupled API surface. When updating either crate, both versions must be bumped together to maintain consistency."

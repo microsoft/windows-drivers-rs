@@ -34,11 +34,17 @@ runs:
       shell: bash
       run: |
         # Extract version from first file
-        version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1)
+        version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1) || {
+          echo "::error::Failed to extract version from ${{ inputs.file1-label }} using pattern: ${{ inputs.file1-regex }}"
+          exit 1
+        }
         echo "${{ inputs.file1-label }}: $version1"
 
         # Extract version from second file
-        version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1)
+        version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1) || {
+          echo "::error::Failed to extract version from ${{ inputs.file2-label }} using pattern: ${{ inputs.file2-regex }}"
+          exit 1
+        }
         echo "${{ inputs.file2-label }}: $version2"
 
         # Compare versions
