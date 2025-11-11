@@ -36,7 +36,10 @@ runs:
         # Extract version from first file
         version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1)
         if [ -z "$version1" ]; then
-          echo "::error::Failed to extract version from ${{ inputs.file1-label }} using pattern: ${{ inputs.file1-regex }}"
+          echo "::error file=${{ inputs.file1 }}::Failed to extract version from ${{ inputs.file1-label }} using pattern: ${{ inputs.file1-regex }}"
+          echo "ERROR: Failed to extract version from ${{ inputs.file1-label }}" >&2
+          echo "  File: ${{ inputs.file1 }}" >&2
+          echo "  Pattern: ${{ inputs.file1-regex }}" >&2
           exit 1
         fi
         echo "${{ inputs.file1-label }}: $version1"
@@ -44,17 +47,19 @@ runs:
         # Extract version from second file
         version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1)
         if [ -z "$version2" ]; then
-          echo "::error::Failed to extract version from ${{ inputs.file2-label }} using pattern: ${{ inputs.file2-regex }}"
+          echo "::error file=${{ inputs.file2 }}::Failed to extract version from ${{ inputs.file2-label }} using pattern: ${{ inputs.file2-regex }}"
+          echo "ERROR: Failed to extract version from ${{ inputs.file2-label }}" >&2
+          echo "  File: ${{ inputs.file2 }}" >&2
+          echo "  Pattern: ${{ inputs.file2-regex }}" >&2
           exit 1
         fi
         echo "${{ inputs.file2-label }}: $version2"
 
         # Compare versions
         if [ "$version1" != "$version2" ]; then
+          echo "::error::Version mismatch: ${{ inputs.file1-label }} has \"$version1\" but ${{ inputs.file2-label }} has \"$version2\""
           if [ -n "${{ inputs.error-message }}" ]; then
-            echo "::error::${{ inputs.error-message }}"
-          else
-            echo "::error::Version mismatch: ${{ inputs.file1-label }} has \"$version1\" but ${{ inputs.file2-label }} has \"$version2\""
+            echo "::notice::${{ inputs.error-message }}"
           fi
           exit 1
         fi
