@@ -53,13 +53,17 @@ runs:
           local raw_matches
           raw_matches=$(grep -m2 -oP "$version_regex" "$file_path" || true)
           
+          # Check for no matches first (empty string)
+          if [ -z "$raw_matches" ]; then
+            echo "::error file=$file_path::Failed to extract ${version_label}. File: $file_path (${file_label}). Regex: $version_regex" >&2
+            exit 1
+          fi
+          
+          # Count matches
           local match_count
           match_count=$(printf "%s\n" "$raw_matches" | wc -l)
           
-          if [ "$match_count" -eq 0 ]; then
-            echo "::error file=$file_path::Failed to extract ${version_label}. File: $file_path (${file_label}). Regex: $version_regex" >&2
-            exit 1
-          elif [ "$match_count" -gt 1 ]; then
+          if [ "$match_count" -gt 1 ]; then
             echo "::error file=$file_path::Regex produced multiple matches ($match_count) for ${version_label}. File: $file_path (${file_label}). Regex: $version_regex. First 2 matches: $(printf '%s' "$raw_matches" | head -2 | paste -sd ', ')" >&2
             exit 1
           fi
