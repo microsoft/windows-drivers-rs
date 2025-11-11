@@ -42,3 +42,14 @@ jobs:
           file2-regex: '^version\s*=\s*"\K[^"]+'
           file2-label: "wdk-macros version"
           error-message: "wdk-sys and wdk-macros version mismatch detected. These crates must be versioned in lockstep because: (1) wdk-macros is a proc-macro crate that should only be consumed through wdk-sys re-exports, and (2) the two crates form a tightly coupled API surface. When updating either crate, both versions must be bumped together to maintain consistency."
+
+      - name: Check workspace wdk-macros version matches wdk-sys version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: Cargo.toml
+          file1-regex: 'wdk-macros\s*=\s*\{[^}]*version\s*=\s*"=?\K[^"]+'
+          file1-label: "workspace wdk-macros version"
+          file2: crates/wdk-sys/Cargo.toml
+          file2-regex: '^version\s*=\s*"\K[^"]+'
+          file2-label: "wdk-sys version"
+          error-message: "Workspace wdk-macros version must match wdk-sys version. The workspace dependency uses exact version (=) to enforce lockstep versioning."
