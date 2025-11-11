@@ -33,28 +33,48 @@ runs:
     - name: Compare versions
       shell: bash
       run: |
-        # Extract version from first file
+        # Extract version from first file (enforce exactly one match)
         echo "Extracting version from ${{ inputs.file1 }} using pattern: ${{ inputs.file1-regex }}"
-        version1=$(grep -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' | head -1) || version1=""
-        if [ -z "$version1" ]; then
+        matches1=$(grep -m2 -oP '${{ inputs.file1-regex }}' '${{ inputs.file1 }}' || true)
+        count1=$(printf "%s" "$matches1" | grep -c '^' || true)
+        if [ "$count1" -eq 0 ]; then
           echo "::error file=${{ inputs.file1 }}::Failed to extract version from ${{ inputs.file1-label }} using pattern: ${{ inputs.file1-regex }}"
           echo "ERROR: Failed to extract version from ${{ inputs.file1-label }}" >&2
           echo "  File: ${{ inputs.file1 }}" >&2
           echo "  Pattern: ${{ inputs.file1-regex }}" >&2
           exit 1
+        elif [ "$count1" -gt 1 ]; then
+          echo "::error file=${{ inputs.file1 }}::Pattern matched multiple versions ($count1) in ${{ inputs.file1-label }}; refine regex to produce exactly one. Pattern: ${{ inputs.file1-regex }}"
+          echo "ERROR: Multiple matches ($count1) for ${{ inputs.file1-label }}" >&2
+          echo "  File: ${{ inputs.file1 }}" >&2
+          echo "  Pattern: ${{ inputs.file1-regex }}" >&2
+          echo "  Matches (first 2):" >&2
+          printf "%s" "$matches1" | head -2 >&2
+          exit 1
         fi
+        version1=$(printf "%s" "$matches1" | head -1)
         echo "${{ inputs.file1-label }}: $version1"
 
-        # Extract version from second file
+        # Extract version from second file (enforce exactly one match)
         echo "Extracting version from ${{ inputs.file2 }} using pattern: ${{ inputs.file2-regex }}"
-        version2=$(grep -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' | head -1) || version2=""
-        if [ -z "$version2" ]; then
+        matches2=$(grep -m2 -oP '${{ inputs.file2-regex }}' '${{ inputs.file2 }}' || true)
+        count2=$(printf "%s" "$matches2" | grep -c '^' || true)
+        if [ "$count2" -eq 0 ]; then
           echo "::error file=${{ inputs.file2 }}::Failed to extract version from ${{ inputs.file2-label }} using pattern: ${{ inputs.file2-regex }}"
           echo "ERROR: Failed to extract version from ${{ inputs.file2-label }}" >&2
           echo "  File: ${{ inputs.file2 }}" >&2
           echo "  Pattern: ${{ inputs.file2-regex }}" >&2
           exit 1
+        elif [ "$count2" -gt 1 ]; then
+          echo "::error file=${{ inputs.file2 }}::Pattern matched multiple versions ($count2) in ${{ inputs.file2-label }}; refine regex to produce exactly one. Pattern: ${{ inputs.file2-regex }}"
+          echo "ERROR: Multiple matches ($count2) for ${{ inputs.file2-label }}" >&2
+          echo "  File: ${{ inputs.file2 }}" >&2
+          echo "  Pattern: ${{ inputs.file2-regex }}" >&2
+          echo "  Matches (first 2):" >&2
+          printf "%s" "$matches2" | head -2 >&2
+          exit 1
         fi
+        version2=$(printf "%s" "$matches2" | head -1)
         echo "${{ inputs.file2-label }}: $version2"
 
         # Compare versions
