@@ -583,7 +583,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
     );
 
-    let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, sdk_version);
+    let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, &sdk_version);
     let host_windows_sdk_version_tool_path = {
         let path = wdk_tool_root.join(host_arch.as_windows_str());
         absolute(&path).map_err(|source| IoError::with_path(path, source))?
@@ -596,16 +596,18 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     Ok([PATH_ENV_VAR].map(ToString::to_string))
 }
 
-fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: String) -> PathBuf {
-    env::var("WDKToolRoot")
-        .map_or_else(|_| wdk_content_root.join("tools"), PathBuf::from)
-        .join(sdk_version)
+fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: &str) -> PathBuf {
+    env::var("WDKToolRoot").map_or_else(
+        |_| wdk_content_root.join("tools").join(sdk_version),
+        PathBuf::from,
+    )
 }
 
-fn get_wdk_bin_root(wdk_content_root: &Path, sdk_version: &String) -> PathBuf {
-    env::var("WDKBinRoot")
-        .map_or_else(|_| wdk_content_root.join("bin"), PathBuf::from)
-        .join(sdk_version)
+fn get_wdk_bin_root(wdk_content_root: &Path, sdk_version: &str) -> PathBuf {
+    env::var("WDKBinRoot").map_or_else(
+        |_| wdk_content_root.join("bin").join(sdk_version),
+        PathBuf::from,
+    )
 }
 
 /// Forwards the specified environment variables in this process to the parent
