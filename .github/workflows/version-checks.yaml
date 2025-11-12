@@ -54,7 +54,8 @@ jobs:
           file2-version-label: "wdk-sys crate version"
           error-message: "The workspace dependency must use an exact version constraint of wdk-macros which matches wdk-sys to enforce lockstep versioning"
 
-      # Template version checks - ensure templates use latest workspace versions
+      # Template version checks - ensure cargo-wdk templates use latest dep
+      # versions by comparing them against those in the workspace's Cargo.toml file
       - name: Check KMDF template wdk version
         uses: ./.github/actions/compare-regex-versions
         with:
