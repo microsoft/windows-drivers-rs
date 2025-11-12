@@ -53,3 +53,135 @@ jobs:
           file2-version-regex: '^version\s*=\s*"\K[^"]+'
           file2-version-label: "wdk-sys crate version"
           error-message: "The workspace dependency must use an exact version constraint of wdk-macros which matches wdk-sys to enforce lockstep versioning"
+
+      # Template version checks - ensure cargo-wdk templates use latest dep
+      # versions by comparing them against those in the workspace's Cargo.toml file
+      - name: Check KMDF template wdk version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk version in KMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk workspace dependency version"
+
+      - name: Check KMDF template wdk-build version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk-build\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-build version in KMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-build\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-build workspace dependency version"
+
+      - name: Check KMDF template wdk-alloc version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk-alloc\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-alloc version in KMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-alloc\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-alloc workspace dependency version"
+
+      - name: Check KMDF template wdk-panic version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk-panic\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-panic version in KMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-panic\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-panic workspace dependency version"
+
+      - name: Check KMDF template wdk-sys version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk-sys\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-sys version in KMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-sys\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-sys workspace dependency version"
+
+      - name: Check UMDF template wdk version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/umdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk version in UMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk workspace dependency version"
+
+      - name: Check UMDF template wdk-build version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/umdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk-build\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-build version in UMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-build\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-build workspace dependency version"
+
+      - name: Check UMDF template wdk-sys version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/umdf/Cargo.toml.tmp
+          file1-version-regex: '^wdk-sys\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-sys version in UMDF template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-sys\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-sys workspace dependency version"
+
+      - name: Check WDM template wdk version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
+          file1-version-regex: '^wdk\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk version in WDM template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk workspace dependency version"
+
+      - name: Check WDM template wdk-build version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
+          file1-version-regex: '^wdk-build\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-build version in WDM template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-build\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-build workspace dependency version"
+
+      - name: Check WDM template wdk-alloc version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
+          file1-version-regex: '^wdk-alloc\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-alloc version in WDM template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-alloc\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-alloc workspace dependency version"
+
+      - name: Check WDM template wdk-panic version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
+          file1-version-regex: '^wdk-panic\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-panic version in WDM template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-panic\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-panic workspace dependency version"
+
+      - name: Check WDM template wdk-sys version
+        uses: ./.github/actions/compare-regex-versions
+        with:
+          file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
+          file1-version-regex: '^wdk-sys\s*=\s*"\K[^"]+'
+          file1-version-label: "wdk-sys version in WDM template"
+          file2: Cargo.toml
+          file2-version-regex: '^wdk-sys\s*=\s*\{[^}]*version\s*=\s*"\K[^"]+'
+          file2-version-label: "wdk-sys workspace dependency version"
