@@ -314,6 +314,10 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
+
+    /// Error returned when reading an environment variable fails
+    #[error("Error reading environment variable: {0}")]
+    EnvVarReadError(String, #[source] std::env::VarError),
 }
 
 /// Subset of APIs in the Windows Driver Kit
