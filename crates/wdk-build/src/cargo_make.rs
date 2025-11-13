@@ -1246,28 +1246,148 @@ pub fn driver_sample_infverif_condition_script() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ConfigError;
+    mod setup_infverif_for_samples {
+        use crate::ConfigError;
 
-    const WDK_TEST_OLD_INF_VERSION: &str = "10.0.22061.0";
-    const WDK_TEST_NEW_INF_VERSION: &str = "10.0.26100.0";
+        const WDK_TEST_OLD_INF_VERSION: &str = "10.0.22061.0";
+        const WDK_TEST_NEW_INF_VERSION: &str = "10.0.26100.0";
 
-    #[test]
-    fn check_env_passing() -> Result<(), ConfigError> {
-        crate::cargo_make::setup_infverif_for_samples(WDK_TEST_OLD_INF_VERSION)?;
-        let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
-            .map_or_else(
-                || panic!("Couldn't get OS string"),
-                |os_env_string| os_env_string.to_string_lossy().into_owned(),
-            );
-        assert_eq!(env_string.split(' ').next_back(), Some("/msft"));
+        #[test]
+        fn sample_drivers_flag_selection() -> Result<(), ConfigError> {
+            // Old version should map to /msft
+            crate::cargo_make::setup_infverif_for_samples(WDK_TEST_OLD_INF_VERSION)?;
+            let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
+                .map_or_else(
+                    || panic!("Couldn't get OS string"),
+                    |os_env_string| os_env_string.to_string_lossy().into_owned(),
+                );
+            assert_eq!(env_string.split(' ').next_back(), Some("/msft"));
 
-        crate::cargo_make::setup_infverif_for_samples(WDK_TEST_NEW_INF_VERSION)?;
-        let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
-            .map_or_else(
-                || panic!("Couldn't get OS string"),
-                |os_env_string| os_env_string.to_string_lossy().into_owned(),
-            );
-        assert_eq!(env_string.split(' ').next_back(), Some("/samples"));
-        Ok(())
+            // Newer version should map to /samples
+            crate::cargo_make::setup_infverif_for_samples(WDK_TEST_NEW_INF_VERSION)?;
+            let env_string = std::env::var_os(crate::cargo_make::WDK_INF_ADDITIONAL_FLAGS_ENV_VAR)
+                .map_or_else(
+                    || panic!("Couldn't get OS string"),
+                    |os_env_string| os_env_string.to_string_lossy().into_owned(),
+                );
+            assert_eq!(env_string.split(' ').next_back(), Some("/samples"));
+            Ok(())
+        }
+    }
+
+    mod setup_path {
+        use assert_fs::TempDir;
+        use std::env;
+        use crate::{CpuArchitecture, ConfigError};
+        use super::super::{PathBuf, absolute};
+
+        /// Create a minimal fake WDK directory layout needed for path canonicalization.
+        fn setup_test_wdk_layout(
+            temp: &TempDir,
+            sdk_version: &str,
+            host_arch: &str,
+        ) -> PathBuf {
+            let wdk_content_root = temp.path().to_path_buf();
+            let lib_version_path = wdk_content_root.join("Lib").join(sdk_version);
+            std::fs::create_dir_all(&lib_version_path).unwrap();
+
+            let bin_root_versioned = wdk_content_root.join("bin").join(sdk_version);
+            std::fs::create_dir_all(bin_root_versioned.join(host_arch)).unwrap();
+            std::fs::create_dir_all(bin_root_versioned.join("x86")).unwrap();
+
+            let tools_root_versioned = wdk_content_root.join("tools").join(sdk_version);
+            std::fs::create_dir_all(tools_root_versioned.join(host_arch)).unwrap();
+
+            wdk_content_root
+        }
+
+        #[test]
+        fn with_no_wdk_root_env_vars() -> Result<(), ConfigError> {
+            // Create test WDK directory layout
+            let temp = TempDir::new().unwrap();
+            let sdk_version = "10.0.1.0";
+            let host_cpu_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH).unwrap();
+            let host_arch = host_cpu_arch.as_windows_str();
+            let wdk_content_root = setup_test_wdk_layout(&temp, sdk_version, host_arch);
+
+            // Calculate expected PATH components based on default WDK structure.
+            // When WDKBinRoot/WDKToolRoot are not set, setup_path constructs paths from WDKContentRoot.
+            let expected_tool_path = absolute(&wdk_content_root.join("tools").join(sdk_version).join(host_arch))
+                .unwrap().to_string_lossy().into_owned();
+            let expected_host_bin = absolute(&wdk_content_root.join("bin").join(sdk_version).join(host_arch))
+                .unwrap().to_string_lossy().into_owned();
+            let expected_x86_bin = absolute(&wdk_content_root.join("bin").join(sdk_version).join("x86"))
+                .unwrap().to_string_lossy().into_owned();
+
+            // Set minimal environment (only WDKContentRoot) and clear other WDK vars.
+            crate::tests::with_env(&[
+                ("WDKContentRoot", wdk_content_root.as_path()),
+            ], || {
+                crate::utils::remove_var("WDKBinRoot");
+                crate::utils::remove_var("WDKToolRoot");
+                crate::utils::remove_var("Version_Number");
+                crate::utils::remove_var("WindowsSdkBinPath");
+
+                // Call setup_path and verify it returns Path as modified env var.
+                let result = super::super::setup_path().expect("setup_path should succeed for test layout");
+                let returned: Vec<String> = result.into_iter().collect();
+                assert_eq!(returned, vec!["Path"], "setup_path should only report the PATH env var as updated");
+
+                // Verify PATH ordering: tool path, host bin path, x86 bin path.
+                let path_value = std::env::var("Path").expect("Path should be set");
+                let mut parts = path_value.split(';');
+                assert_eq!(parts.next(), Some(expected_tool_path.as_str()), "Tool path should be first");
+                assert_eq!(parts.next(), Some(expected_host_bin.as_str()), "Host bin path should be second");
+                assert_eq!(parts.next(), Some(expected_x86_bin.as_str()), "x86 bin path should be third");
+            });
+            Ok(())
+        }
+
+        #[test]
+        fn with_wdk_root_env_vars() -> Result<(), ConfigError> {
+            // Create test WDK directory layout
+            let temp = TempDir::new().unwrap();
+            let sdk_version = "10.0.1.0";
+            let host_cpu_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH).unwrap();
+            let host_arch = host_cpu_arch.as_windows_str();
+            let wdk_content_root = setup_test_wdk_layout(&temp, sdk_version, host_arch);
+
+            // Prepare override paths (eWDK/NuGet scenario).
+            // When WDKBinRoot/WDKToolRoot are set, they point directly to versioned directories.
+            let bin_root_versioned = wdk_content_root.join("bin").join(sdk_version);
+            let tools_root_versioned = wdk_content_root.join("tools").join(sdk_version);
+
+            // Calculate expected PATH components using override paths.
+            let expected_tool_path = absolute(&tools_root_versioned.join(host_arch))
+                .unwrap().to_string_lossy().into_owned();
+            let expected_host_bin = absolute(&bin_root_versioned.join(host_arch))
+                .unwrap().to_string_lossy().into_owned();
+            let expected_x86_bin = absolute(&bin_root_versioned.join("x86"))
+                .unwrap().to_string_lossy().into_owned();
+
+            // Set override environment vars (WDKBinRoot/WDKToolRoot) and clear others.
+            crate::tests::with_env(&[
+                ("WDKBinRoot", bin_root_versioned.as_path()),
+                ("WDKToolRoot", tools_root_versioned.as_path()),
+            ], || {
+                crate::utils::remove_var("WDKContentRoot");
+                crate::utils::remove_var("Version_Number");
+                crate::utils::remove_var("WindowsSdkBinPath");
+
+                // Call setup_path and verify it returns Path as modified env var.
+                let result = super::super::setup_path().expect("setup_path should succeed when WDKBinRoot/WDKToolRoot are set");
+                let returned: Vec<String> = result.into_iter().collect();
+                assert_eq!(returned, vec!["Path"], "setup_path should only report the PATH env var as updated");
+
+                // Verify PATH ordering uses override paths: tool path, host bin path, x86 bin path.
+                let path_value = std::env::var("Path").expect("Path should be set");
+                let mut parts = path_value.split(';');
+                assert_eq!(parts.next(), Some(expected_tool_path.as_str()), "Tool path should be first when env vars are preset");
+                assert_eq!(parts.next(), Some(expected_host_bin.as_str()), "Host bin path should be second when env vars are preset");
+                assert_eq!(parts.next(), Some(expected_x86_bin.as_str()), "x86 bin path should be third when env vars are preset");
+            });
+            Ok(())
+        }
     }
 }
+
