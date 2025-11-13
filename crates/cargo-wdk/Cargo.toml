@@ -1,7 +1,7 @@
 [package]
 edition.workspace = true
 name = "cargo-wdk"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Microsoft"]
 description = "A Cargo extension for developing Windows drivers in Rust"
 repository.workspace = true

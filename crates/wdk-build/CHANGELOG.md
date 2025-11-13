@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.5.0...wdk-build-v0.5.1) - 2025-11-13
+
+### Fixed
+
+- fallback to detection logic when WDK env vars have invalid unicode ([#579](https://github.com/microsoft/windows-drivers-rs/pull/579))
+- path construction in `wdk-build` `get_wdk_tools_root` and `get_wdk_bin_root` ([#574](https://github.com/microsoft/windows-drivers-rs/pull/574))
+
+### Other
+
+- fix wdk-build version in readme ([#568](https://github.com/microsoft/windows-drivers-rs/pull/568))
+
 ## [0.5.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.4.0...wdk-build-v0.5.0) - 2025-11-06
 
 ### Added
