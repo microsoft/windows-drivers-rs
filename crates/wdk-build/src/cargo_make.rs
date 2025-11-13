@@ -13,7 +13,7 @@
 
 use core::{fmt, ops::RangeFrom};
 use std::{
-    env::{self, VarError},
+    env,
     panic::UnwindSafe,
     path::{Path, PathBuf, absolute},
     process::Command,
@@ -547,7 +547,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     let host_arch = CpuArchitecture::try_from_cargo_str(env::consts::ARCH)
         .expect("The rust standard library should always set env::consts::ARCH");
 
-    let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version)?;
+    let wdk_bin_root = get_wdk_bin_root(&wdk_content_root, &sdk_version);
 
     let host_windows_sdk_ver_bin_path = {
         let path = wdk_bin_root.join(host_arch.as_windows_str());
@@ -583,7 +583,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
         format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
     );
 
-    let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, &sdk_version)?;
+    let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, &sdk_version);
     let host_windows_sdk_version_tool_path = {
         let path = wdk_tool_root.join(host_arch.as_windows_str());
         absolute(&path).map_err(|source| IoError::with_path(path, source))?
@@ -596,24 +596,36 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
     Ok([PATH_ENV_VAR].map(ToString::to_string))
 }
 
-// eWDK and NuGet(CI) environments set `WDKToolRoot` to the versioned directory
-// already, so `sdk_version` is added only when the env var is missing.
-fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: &str) -> Result<PathBuf, ConfigError> {
-    match env::var("WDKToolRoot") {
-        Ok(value) => Ok(PathBuf::from(value)),
-        Err(VarError::NotPresent) => Ok(wdk_content_root.join("tools").join(sdk_version)),
-        Err(e) => Err(ConfigError::EnvVarReadError("WDKToolRoot".to_string(), e)),
-    }
+fn get_wdk_tools_root(wdk_content_root: &Path, sdk_version: &str) -> PathBuf {
+    get_path_from_env("WDKToolRoot", wdk_content_root, "tools", sdk_version)
 }
 
-// eWDK and NuGet(CI) environments set `WDKBinRoot` to the versioned directory
-// already, so `sdk_version` is added only when the env var is missing.
-fn get_wdk_bin_root(wdk_content_root: &Path, sdk_version: &str) -> Result<PathBuf, ConfigError> {
-    match env::var("WDKBinRoot") {
-        Ok(value) => Ok(PathBuf::from(value)),
-        Err(VarError::NotPresent) => Ok(wdk_content_root.join("bin").join(sdk_version)),
-        Err(e) => Err(ConfigError::EnvVarReadError("WDKBinRoot".to_string(), e)),
-    }
+fn get_wdk_bin_root(wdk_content_root: &Path, sdk_version: &str) -> PathBuf {
+    get_path_from_env("WDKBinRoot", wdk_content_root, "bin", sdk_version)
+}
+
+/// Reads path from the given env variable or falls back to
+/// constructing it from WDK content root.
+///
+/// The path in `env_var` is already the full path because eWDK
+/// and Nuget CLI set it that way. In the fallback however we
+/// have to append `sub_folder` and `sdk_version` manually.
+fn get_path_from_env(
+    env_var: &str,
+    wdk_content_root: &Path,
+    sub_folder: &str,
+    sdk_version: &str,
+) -> PathBuf {
+    env::var(env_var).map_or_else(
+        |e| {
+            trace!(
+                "Could not read env var '{env_var}': {e:?}. Constructing path from WDK content \
+                 root"
+            );
+            wdk_content_root.join(sub_folder).join(sdk_version)
+        },
+        PathBuf::from,
+    )
 }
 
 /// Forwards the specified environment variables in this process to the parent
