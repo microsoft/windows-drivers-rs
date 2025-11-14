@@ -1301,7 +1301,7 @@ mod tests {
         }
 
         #[test]
-        fn with_no_wdk_root_env_vars() {
+        fn without_wdk_root_env_vars() {
             // Create test WDK directory layout
             let temp = TempDir::new().unwrap();
             let sdk_version = "10.0.1.0";
@@ -1406,11 +1406,11 @@ mod tests {
             // Set override environment vars (WDKBinRoot/WDKToolRoot) and clear others.
             crate::tests::with_env(
                 &[
+                    ("WDKContentRoot", wdk_content_root.as_path()),
                     ("WDKBinRoot", bin_root_versioned.as_path()),
                     ("WDKToolRoot", tools_root_versioned.as_path()),
                 ],
                 || {
-                    crate::utils::remove_var("WDKContentRoot");
                     crate::utils::remove_var("Version_Number");
                     crate::utils::remove_var("WindowsSdkBinPath");
 
