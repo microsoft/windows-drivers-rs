@@ -1337,41 +1337,46 @@ mod tests {
                     .into_owned();
 
             // Set minimal environment (only WDKContentRoot) and clear other WDK vars.
-            crate::tests::with_env(&[("WDKContentRoot", wdk_content_root.as_path())], || {
-                crate::utils::remove_var("WDKBinRoot");
-                crate::utils::remove_var("WDKToolRoot");
-                crate::utils::remove_var("Version_Number");
-                crate::utils::remove_var("WindowsSdkBinPath");
+            crate::tests::with_env(
+                &[
+                    ("WDKContentRoot", Some(wdk_content_root.as_path())),
+                    ("WDKBinRoot", None),
+                    ("WDKToolRoot", None),
+                    ("Version_Number", None),
+                    ("WindowsSdkBinPath", None),
+                ],
+                || {
 
-                // Call setup_path and verify it returns Path as modified env var.
-                let result =
-                    super::super::setup_path().expect("setup_path should succeed for test layout");
-                let returned: Vec<String> = result.into_iter().collect();
-                assert_eq!(
-                    returned,
-                    vec!["Path"],
-                    "setup_path should only report the PATH env var as updated"
-                );
+                    // Call setup_path and verify it returns Path as modified env var.
+                    let result = super::super::setup_path()
+                        .expect("setup_path should succeed for test layout");
+                    let returned: Vec<String> = result.into_iter().collect();
+                    assert_eq!(
+                        returned,
+                        vec!["Path"],
+                        "setup_path should only report the PATH env var as updated"
+                    );
 
-                // Verify PATH ordering: tool path, host bin path, x86 bin path.
-                let path_value = std::env::var("Path").expect("Path should be set");
-                let mut parts = path_value.split(';');
-                assert_eq!(
-                    parts.next(),
-                    Some(expected_tool_path.as_str()),
-                    "Tool path should be first"
-                );
-                assert_eq!(
-                    parts.next(),
-                    Some(expected_host_bin.as_str()),
-                    "Host bin path should be second"
-                );
-                assert_eq!(
-                    parts.next(),
-                    Some(expected_x86_bin.as_str()),
-                    "x86 bin path should be third"
-                );
-            });
+                    // Verify PATH ordering: tool path, host bin path, x86 bin path.
+                    let path_value = std::env::var("Path").expect("Path should be set");
+                    let mut parts = path_value.split(';');
+                    assert_eq!(
+                        parts.next(),
+                        Some(expected_tool_path.as_str()),
+                        "Tool path should be first"
+                    );
+                    assert_eq!(
+                        parts.next(),
+                        Some(expected_host_bin.as_str()),
+                        "Host bin path should be second"
+                    );
+                    assert_eq!(
+                        parts.next(),
+                        Some(expected_x86_bin.as_str()),
+                        "x86 bin path should be third"
+                    );
+                },
+            );
         }
 
         #[test]
@@ -1406,13 +1411,13 @@ mod tests {
             // Set override environment vars (WDKBinRoot/WDKToolRoot) and clear others.
             crate::tests::with_env(
                 &[
-                    ("WDKContentRoot", wdk_content_root.as_path()),
-                    ("WDKBinRoot", bin_root_versioned.as_path()),
-                    ("WDKToolRoot", tools_root_versioned.as_path()),
+                    ("WDKContentRoot", Some(wdk_content_root.as_path())),
+                    ("WDKBinRoot", Some(bin_root_versioned.as_path())),
+                    ("WDKToolRoot", Some(tools_root_versioned.as_path())),
+                    ("Version_Number", None),
+                    ("WindowsSdkBinPath", None),
                 ],
                 || {
-                    crate::utils::remove_var("Version_Number");
-                    crate::utils::remove_var("WindowsSdkBinPath");
 
                     // Call setup_path and verify it returns Path as modified env var.
                     let result = super::super::setup_path()

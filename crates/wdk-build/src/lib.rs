@@ -1773,7 +1773,7 @@ mod tests {
     /// # Panics
     ///
     /// Panics if called with duplicate environment variable keys.
-    pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, V)], f: F) -> R
+    pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, Option<V>)], f: F) -> R
     where
         K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
         V: AsRef<OsStr>,
@@ -1795,7 +1795,12 @@ mod tests {
                     "Duplicate environment variable keys were provided"
                 );
             }
-            set_var(key, value);
+
+            if let Some(value) = value {
+                set_var(key, value);
+            } else {
+                remove_var(key);
+            }
         }
 
         let f_return_value = f();
@@ -1817,7 +1822,7 @@ mod tests {
 
     #[test]
     fn default_config() {
-        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], Config::new);
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], Config::new);
 
         #[cfg(nightly_toolchain)]
         assert_matches!(config.driver_config, DriverConfig::Wdm);
@@ -1826,7 +1831,7 @@ mod tests {
 
     #[test]
     fn wdm_config() {
-        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Wdm,
             ..Config::default()
         });
@@ -1838,7 +1843,7 @@ mod tests {
 
     #[test]
     fn default_kmdf_config() {
-        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Kmdf(KmdfConfig::new()),
             ..Config::default()
         });
@@ -1857,7 +1862,7 @@ mod tests {
 
     #[test]
     fn kmdf_config() {
-        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 15,
@@ -1880,7 +1885,7 @@ mod tests {
 
     #[test]
     fn default_umdf_config() {
-        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Umdf(UmdfConfig::new()),
             ..Config::default()
         });
@@ -1899,7 +1904,7 @@ mod tests {
 
     #[test]
     fn umdf_config() {
-        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+        let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("aarch64"))], || Config {
             driver_config: DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
                 target_umdf_version_minor: 15,
@@ -1939,7 +1944,7 @@ mod tests {
 
         #[test]
         fn wdm() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
                 driver_config: DriverConfig::Wdm,
                 ..Default::default()
             });
@@ -1955,7 +1960,7 @@ mod tests {
 
         #[test]
         fn kmdf() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
                 driver_config: DriverConfig::Kmdf(KmdfConfig {
                     kmdf_version_major: 1,
                     target_kmdf_version_minor: 33,
@@ -1978,7 +1983,7 @@ mod tests {
 
         #[test]
         fn umdf() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("aarch64"))], || Config {
                 driver_config: DriverConfig::Umdf(UmdfConfig {
                     umdf_version_major: 2,
                     target_umdf_version_minor: 15,
@@ -2003,7 +2008,7 @@ mod tests {
 
         #[test]
         fn kmdf() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
                 driver_config: DriverConfig::Kmdf(KmdfConfig {
                     kmdf_version_major: 1,
                     target_kmdf_version_minor: 15,
@@ -2019,7 +2024,7 @@ mod tests {
 
         #[test]
         fn umdf() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "aarch64")], || Config {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("aarch64"))], || Config {
                 driver_config: DriverConfig::Umdf(UmdfConfig {
                     umdf_version_major: 2,
                     target_umdf_version_minor: 33,
@@ -2035,7 +2040,7 @@ mod tests {
 
         #[test]
         fn wdm() {
-            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", "x86_64")], || Config {
+            let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
                 driver_config: DriverConfig::Wdm,
                 ..Default::default()
             });
