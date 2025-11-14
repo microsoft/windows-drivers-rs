@@ -8,19 +8,16 @@ use mockall::PredicateBooleanExt;
 use test_utils::{set_crt_static_flag, with_file_lock};
 
 #[test]
-#[ignore = "disabled by default since this can rely on unreleased crate versions in the template"]
 fn kmdf_driver_is_created_successfully() {
     project_is_created("kmdf");
 }
 
 #[test]
-#[ignore = "disabled by default since this can rely on unreleased crate versions in the template"]
 fn umdf_driver_is_created_successfully() {
     project_is_created("umdf");
 }
 
 #[test]
-#[ignore = "disabled by default since this can rely on unreleased crate versions in the template"]
 fn wdm_driver_is_created_successfully() {
     project_is_created("wdm");
 }
