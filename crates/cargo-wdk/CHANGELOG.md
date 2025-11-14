@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.1.1](https://github.com/microsoft/windows-drivers-rs/compare/cargo-wdk-v0.1.0...cargo-wdk-v0.1.1) - 2025-11-13
+
+### Other
+
+- update cargo-wdk templates to use latest crate versions ([#573](https://github.com/microsoft/windows-drivers-rs/pull/573))
+- update cargo-wdk `Cargo.toml` description to align better with `README.md` ([#569](https://github.com/microsoft/windows-drivers-rs/pull/569))
+
 ## [0.1.0](https://github.com/microsoft/windows-drivers-rs/compare/cargo-wdk-v0.0.0...cargo-wdk-v0.1.0) - 2025-11-06
 
 ### Added

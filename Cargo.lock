@@ -170,7 +170,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-wdk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1108,7 +1108,7 @@ dependencies = [
 
 [[package]]
 name = "wdk"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cfg-if",
  "tracing",
@@ -1119,7 +1119,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-alloc"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1129,7 +1129,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-build"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "assert_fs",
@@ -1152,7 +1152,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-macros"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "cfg-if",
  "fs4",
@@ -1168,11 +1168,11 @@ dependencies = [
 
 [[package]]
 name = "wdk-panic"
-version = "0.4.0"
+version = "0.4.1"
 
 [[package]]
 name = "wdk-sys"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "bindgen",
