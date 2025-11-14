@@ -11,7 +11,7 @@ wdk-build = "0.5.1"
 
 [dependencies]
 wdk = "0.4.1"
-wdk-sys = "0.5.0"
+wdk-sys = "0.5.1"
 
 [features]
 default = []
