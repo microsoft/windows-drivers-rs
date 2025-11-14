@@ -1281,7 +1281,7 @@ mod tests {
         use assert_fs::TempDir;
 
         use super::super::{PathBuf, absolute};
-        use crate::{ConfigError, CpuArchitecture};
+        use crate::CpuArchitecture;
 
         /// Create a minimal fake WDK directory layout needed for path
         /// canonicalization.
@@ -1301,7 +1301,7 @@ mod tests {
         }
 
         #[test]
-        fn with_no_wdk_root_env_vars() -> Result<(), ConfigError> {
+        fn with_no_wdk_root_env_vars() {
             // Create test WDK directory layout
             let temp = TempDir::new().unwrap();
             let sdk_version = "10.0.1.0";
@@ -1313,7 +1313,7 @@ mod tests {
             // When WDKBinRoot/WDKToolRoot are not set, setup_path constructs paths from
             // WDKContentRoot.
             let expected_tool_path = absolute(
-                &wdk_content_root
+                wdk_content_root
                     .join("tools")
                     .join(sdk_version)
                     .join(host_arch),
@@ -1322,7 +1322,7 @@ mod tests {
             .to_string_lossy()
             .into_owned();
             let expected_host_bin = absolute(
-                &wdk_content_root
+                wdk_content_root
                     .join("bin")
                     .join(sdk_version)
                     .join(host_arch),
@@ -1331,7 +1331,7 @@ mod tests {
             .to_string_lossy()
             .into_owned();
             let expected_x86_bin =
-                absolute(&wdk_content_root.join("bin").join(sdk_version).join("x86"))
+                absolute(wdk_content_root.join("bin").join(sdk_version).join("x86"))
                     .unwrap()
                     .to_string_lossy()
                     .into_owned();
@@ -1372,11 +1372,10 @@ mod tests {
                     "x86 bin path should be third"
                 );
             });
-            Ok(())
         }
 
         #[test]
-        fn with_wdk_root_env_vars() -> Result<(), ConfigError> {
+        fn with_wdk_root_env_vars() {
             // Create test WDK directory layout
             let temp = TempDir::new().unwrap();
             let sdk_version = "10.0.1.0";
@@ -1391,15 +1390,15 @@ mod tests {
             let tools_root_versioned = wdk_content_root.join("tools").join(sdk_version);
 
             // Calculate expected PATH components using override paths.
-            let expected_tool_path = absolute(&tools_root_versioned.join(host_arch))
+            let expected_tool_path = absolute(tools_root_versioned.join(host_arch))
                 .unwrap()
                 .to_string_lossy()
                 .into_owned();
-            let expected_host_bin = absolute(&bin_root_versioned.join(host_arch))
+            let expected_host_bin = absolute(bin_root_versioned.join(host_arch))
                 .unwrap()
                 .to_string_lossy()
                 .into_owned();
-            let expected_x86_bin = absolute(&bin_root_versioned.join("x86"))
+            let expected_x86_bin = absolute(bin_root_versioned.join("x86"))
                 .unwrap()
                 .to_string_lossy()
                 .into_owned();
@@ -1446,7 +1445,6 @@ mod tests {
                     );
                 },
             );
-            Ok(())
         }
     }
 }
