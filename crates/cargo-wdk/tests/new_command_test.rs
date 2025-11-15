@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use assert_cmd::Command;
 use assert_fs::{TempDir, assert::PathAssert, prelude::PathChild};
 use mockall::PredicateBooleanExt;
-use test_utils::set_crt_static_flag;
+use test_utils::{set_crt_static_flag, with_mutex};
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
@@ -59,6 +59,13 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
+    with_mutex("project_is_created", || {
+        let driver_path = verify_new_project_creation(driver_type);
+        verify_driver_build(&driver_path);
+    });
+}
+
+fn verify_new_project_creation(driver_type: &str) -> PathBuf {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
     let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
@@ -119,24 +126,19 @@ fn project_is_created(driver_type: &str) {
         ));
     tmp_dir.child(driver_name_path.join("Cargo.toml")).assert(
         predicates::str::contains("[package.metadata.wdk.driver-model]").and(
-            predicates::str::contains(format!(
-                "driver-type = \"{}\"",
-                driver_type.to_uppercase()
-            ))
-            .and(predicates::str::contains("crate-type = [\"cdylib\"]")),
+            predicates::str::contains(format!("driver-type = \"{}\"", driver_type.to_uppercase()))
+                .and(predicates::str::contains("crate-type = [\"cdylib\"]")),
         ),
     );
     tmp_dir
         .child(driver_name_path.join(format!("{driver_name_underscored}.inx")))
         .assert(
             predicates::str::contains("[Version]").and(
-                predicates::str::contains(format!(
-                    "CatalogFile = {driver_name_underscored}.cat"
-                ))
-                .and(
-                    predicates::str::contains("[Manufacturer]")
-                        .and(predicates::str::contains("[Strings]")),
-                ),
+                predicates::str::contains(format!("CatalogFile = {driver_name_underscored}.cat"))
+                    .and(
+                        predicates::str::contains("[Manufacturer]")
+                            .and(predicates::str::contains("[Strings]")),
+                    ),
             ),
         );
     tmp_dir
@@ -146,6 +148,14 @@ fn project_is_created(driver_type: &str) {
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
 
+    // Explicitly leak the TempDir to prevent it from being cleaned up when this
+    // function returns The directory will be cleaned up when the process exits
+    std::mem::forget(tmp_dir);
+
+    driver_path
+}
+
+fn verify_driver_build(driver_path: &PathBuf) {
     // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is
     // set This is useful in release-plz PRs where dependencies of the newly
     // created project aren't released to crates.io yet
@@ -161,8 +171,7 @@ fn project_is_created(driver_type: &str) {
     set_crt_static_flag();
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    let driver_path = tmp_dir.join(&driver_name); // Root dir for tests
-    cmd.args(["build"]).current_dir(&driver_path);
+    cmd.args(["build"]).current_dir(driver_path);
 
     let cmd_assertion = cmd.assert().failure();
     let output = cmd_assertion.get_output();

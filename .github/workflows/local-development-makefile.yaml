@@ -88,9 +88,5 @@ jobs:
 
       - name: Test wdk-pre-commit-flow cargo-make task
         env:
-          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ github.head_ref == 'release-plz-*' && '1' || '' }}
-        run: |
-          if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
-            echo "This is a release-plz PR. Will skip the build part in cargo-wdk new integration tests because the needed deps may not yet have been published"
-          fi
-          cargo make wdk-pre-commit-flow
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
+        run: cargo make wdk-pre-commit-flow
