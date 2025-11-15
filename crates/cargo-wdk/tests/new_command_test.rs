@@ -66,13 +66,13 @@ fn project_is_created(driver_type: &str) {
         // Build the driver only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
         // This env var is used in release-plz PRs, wherein it is set to skip the driver
         //  build because it would fail due to not yet released dependencies
-        if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() != "1" {
-            verify_driver_build(&driver_path);
-        } else {
+        if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() == "1" {
             println!(
                 "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment \
                  variable"
             );
+        } else {
+            verify_driver_build(&driver_path);
         }
     });
 }
