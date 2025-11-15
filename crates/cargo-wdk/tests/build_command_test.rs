@@ -8,7 +8,7 @@ use std::{
 
 use assert_cmd::prelude::*;
 use sha2::{Digest, Sha256};
-use test_utils::{set_crt_static_flag, with_env, with_file_lock};
+use test_utils::{create_cargo_wdk_cmd, with_env, with_file_lock};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
@@ -123,12 +123,8 @@ fn run_cargo_clean(driver_path: &str) {
 }
 
 fn run_build_cmd(driver_path: &str) -> String {
-    set_crt_static_flag();
-
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build"]).current_dir(driver_path);
-
     // assert command output
+    let mut cmd = create_cargo_wdk_cmd("build", None, Some(driver_path));
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
 

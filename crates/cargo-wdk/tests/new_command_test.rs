@@ -2,10 +2,10 @@
 mod test_utils;
 use std::path::PathBuf;
 
-use assert_cmd::Command;
+use assert_cmd::{Command, assert::OutputAssertExt};
 use assert_fs::{TempDir, assert::PathAssert, prelude::PathChild};
 use mockall::PredicateBooleanExt;
-use test_utils::{set_crt_static_flag, with_file_lock};
+use test_utils::{create_cargo_wdk_cmd, with_file_lock};
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
@@ -122,13 +122,11 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let driver_name_underscored = driver_name.replace('-', "_");
     let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
     println!("Temp dir: {}", tmp_dir.path().display());
+
     let driver_path = tmp_dir.join(driver_name.clone());
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args([
-        "new",
-        &format!("--{driver_type}"),
-        driver_path.to_string_lossy().as_ref(),
-    ]);
+    let driver_path_str = driver_path.to_string_lossy();
+    let args = [&format!("--{driver_type}"), driver_path_str.as_ref()];
+    let mut cmd = create_cargo_wdk_cmd::<&str>("new", Some(&args), None);
 
     // assert command output
     let cmd_assertion = cmd.assert().success();
@@ -200,12 +198,8 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         .assert(predicates::str::contains("target-feature=+crt-static"));
 
     // assert if cargo wdk build works on the created driver project
-    set_crt_static_flag();
-
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
     let driver_path = tmp_dir.join(&driver_name); // Root dir for tests
-    cmd.args(["build"]).current_dir(&driver_path);
-
+    let mut cmd = create_cargo_wdk_cmd("build", None, Some(&driver_path));
     let cmd_assertion = cmd.assert().failure();
     tmp_dir
         .close()
