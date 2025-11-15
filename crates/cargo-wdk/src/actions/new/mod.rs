@@ -116,7 +116,7 @@ impl<'a> NewAction<'a> {
     fn run_cargo_new(&self) -> Result<(), NewActionError> {
         debug!("Running cargo new command");
         let path_str = self.path.to_string_lossy().to_string();
-        let mut args = vec!["new", "--lib", &path_str, "--vcs", "none"];
+        let mut args = vec!["new", "--lib", &path_str];
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
