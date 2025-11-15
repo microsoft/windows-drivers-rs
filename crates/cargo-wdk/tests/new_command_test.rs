@@ -208,9 +208,6 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     // This is useful in release-plz PRs where dependencies aren't released yet
     if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
         println!("Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
-        tmp_dir
-            .close()
-            .expect("Unable to close temp dir after test");
         return (String::new(), String::new());
     }
 
@@ -222,9 +219,6 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     cmd.args(["build"]).current_dir(&driver_path);
 
     let cmd_assertion = cmd.assert().failure();
-    tmp_dir
-        .close()
-        .expect("Unable to close temp dir after test");
     let output = cmd_assertion.get_output();
     let stdout: String = String::from_utf8_lossy(&output.stdout).into();
     let stderr: String = String::from_utf8_lossy(&output.stderr).into();
