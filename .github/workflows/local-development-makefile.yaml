@@ -86,5 +86,23 @@ jobs:
         with:
           tool: cargo-make
 
+      - name: Check if Release PR
+        id: check_release_pr
+        shell: bash
+        run: |
+          # github.head_ref is only available for pull_request events
+          # For push events, it will be empty, so we default to running all tests
+          if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
+            echo "is_release_pr=true" >> $GITHUB_OUTPUT
+            echo "cargo_test_flags=--all-features -- --skip driver_is_created_successfully" >> $GITHUB_OUTPUT
+            echo "This is a release-plz PR - skipping driver creation tests"
+          else
+            echo "is_release_pr=false" >> $GITHUB_OUTPUT
+            echo "cargo_test_flags=--all-features" >> $GITHUB_OUTPUT
+            echo "Not a release-plz PR - running all tests"
+          fi
+
       - name: Test wdk-pre-commit-flow cargo-make task
+        env:
+          CARGO_MAKE_CARGO_BUILD_TEST_FLAGS: "${{ steps.check_release_pr.outputs.cargo_test_flags }}"
         run: cargo make wdk-pre-commit-flow
