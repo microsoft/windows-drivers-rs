@@ -93,11 +93,9 @@ jobs:
           # github.head_ref is only available for pull_request events
           # For push events, it will be empty, so we default to running all tests
           if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
-            echo "is_release_pr=true" >> $GITHUB_OUTPUT
             echo "cargo_test_flags=--all-features -- --skip driver_is_created_successfully" >> $GITHUB_OUTPUT
             echo "This is a release-plz PR - skipping driver creation tests"
           else
-            echo "is_release_pr=false" >> $GITHUB_OUTPUT
             echo "cargo_test_flags=--all-features" >> $GITHUB_OUTPUT
             echo "Not a release-plz PR - running all tests"
           fi
