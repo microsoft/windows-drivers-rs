@@ -8,19 +8,16 @@ use mockall::PredicateBooleanExt;
 use test_utils::set_crt_static_flag;
 
 #[test]
-#[ignore = "This test is skipped in release PRs as it may reference unreleased versions"]
 fn kmdf_driver_is_created_successfully() {
     project_is_created("kmdf");
 }
 
 #[test]
-#[ignore = "This test is skipped in release PRs as it may reference unreleased versions"]
 fn umdf_driver_is_created_successfully() {
     project_is_created("umdf");
 }
 
 #[test]
-#[ignore = "This test is skipped in release PRs as it may reference unreleased versions"]
 fn wdm_driver_is_created_successfully() {
     project_is_created("wdm");
 }

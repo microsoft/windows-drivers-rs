@@ -95,12 +95,12 @@ jobs:
           # For push events, it will be empty, so we default to running all tests
           if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
             echo "is_release_pr=true" >> $GITHUB_OUTPUT
-            echo "test_flags=" >> $GITHUB_OUTPUT
-            echo "This is a release-plz PR - ignored tests will be skipped"
+            echo "test_flags=-- --skip driver_is_created_successfully" >> $GITHUB_OUTPUT
+            echo "This is a release-plz PR - skipping driver creation tests"
           else
             echo "is_release_pr=false" >> $GITHUB_OUTPUT
-            echo "test_flags=-- --include-ignored" >> $GITHUB_OUTPUT
-            echo "Not a release-plz PR - all tests including ignored ones will run"
+            echo "test_flags=" >> $GITHUB_OUTPUT
+            echo "Not a release-plz PR - running all tests"
           fi
 
       - name: Run Cargo Test (workspace)
