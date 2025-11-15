@@ -59,28 +59,7 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    let (stdout, _stderr) = create_and_build_new_driver_project(driver_type);
-    
-    // If SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is set, the build part is skipped and we get empty strings
-    if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
-        println!("Build was skipped due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
-        return;
-    }
-    
-    assert!(
-        stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
-        )
-    );
-    assert!(
-        stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
-    );
-    assert!(
-        stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
-    );
-    assert!(stdout.contains("INF is NOT VALID"));
+    create_and_build_new_driver_project(driver_type);
 }
 
 fn test_command_invocation<F: FnOnce(&str, &str)>(
@@ -121,7 +100,7 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
     assert(&stdout, &stderr);
 }
 
-fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
+fn create_and_build_new_driver_project(driver_type: &str) {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
     let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
@@ -208,7 +187,7 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     // This is useful in release-plz PRs where dependencies of the newly created project aren't released to crates.io yet
     if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
         println!("Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
-        return (String::new(), String::new());
+        return;
     }
 
     // assert if cargo wdk build works on the created driver project
@@ -221,6 +200,20 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     let cmd_assertion = cmd.assert().failure();
     let output = cmd_assertion.get_output();
     let stdout: String = String::from_utf8_lossy(&output.stdout).into();
-    let stderr: String = String::from_utf8_lossy(&output.stderr).into();
-    (stdout, stderr)
+    
+    // Assert build output contains expected errors (the INF file is intentionally incomplete)
+    assert!(
+        stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        )
+    );
+    assert!(
+        stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
+    );
+    assert!(
+        stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
+    );
+    assert!(stdout.contains("INF is NOT VALID"));
 }
