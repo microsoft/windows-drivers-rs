@@ -95,7 +95,7 @@ jobs:
           # For push events, it will be empty, so we default to running all tests
           if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
             echo "skip_driver_build=1" >> $GITHUB_OUTPUT
-            echo "This is a release-plz PR - will skip driver build in tests"
+            echo "This is a release-plz PR. Will skip the build part in cargo-wdk new integration tests because the needed deps may not yet have been published"
           else
             echo "skip_driver_build=" >> $GITHUB_OUTPUT
             echo "Not a release-plz PR - running all tests including driver build"
