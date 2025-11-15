@@ -60,11 +60,8 @@ fn help_works() {
 
 fn project_is_created(driver_type: &str) {
     with_mutex("project_is_created", || {
-        let driver_name = format!("test-{driver_type}-driver");
         let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-        let driver_path = tmp_dir.join(&driver_name);
-
-        verify_new_project_creation(driver_type, &tmp_dir, &driver_path);
+        let driver_path = verify_project_creation(driver_type, &tmp_dir);
 
         // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is
         // set This is useful in release-plz PRs where dependencies of the newly
@@ -81,9 +78,10 @@ fn project_is_created(driver_type: &str) {
     });
 }
 
-fn verify_new_project_creation(driver_type: &str, tmp_dir: &TempDir, driver_path: &PathBuf) {
+fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
+    let driver_path = tmp_dir.join(&driver_name);
     println!("Temp dir: {}", tmp_dir.path().display());
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
     cmd.args([
@@ -161,6 +159,8 @@ fn verify_new_project_creation(driver_type: &str, tmp_dir: &TempDir, driver_path
     tmp_dir
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
+
+    driver_path
 }
 
 fn verify_driver_build(driver_path: &PathBuf) {
