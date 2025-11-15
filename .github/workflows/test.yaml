@@ -87,8 +87,22 @@ jobs:
         with:
           tool: cargo-make
 
+      - name: Check if Release PR
+        id: check_release_pr
+        shell: bash
+        run: |
+          if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
+            echo "is_release_pr=true" >> $GITHUB_OUTPUT
+            echo "test_flags=" >> $GITHUB_OUTPUT
+            echo "This is a release-plz PR - ignored tests will be skipped"
+          else
+            echo "is_release_pr=false" >> $GITHUB_OUTPUT
+            echo "test_flags=-- --include-ignored" >> $GITHUB_OUTPUT
+            echo "Not a release-plz PR - all tests including ignored ones will run"
+          fi
+
       - name: Run Cargo Test (workspace)
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features ${{ steps.check_release_pr.outputs.test_flags }}
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
