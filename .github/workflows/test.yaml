@@ -91,6 +91,8 @@ jobs:
         id: check_release_pr
         shell: bash
         run: |
+          # github.head_ref is only available for pull_request events
+          # For push events, it will be empty, so we default to running all tests
           if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
             echo "is_release_pr=true" >> $GITHUB_OUTPUT
             echo "test_flags=" >> $GITHUB_OUTPUT
