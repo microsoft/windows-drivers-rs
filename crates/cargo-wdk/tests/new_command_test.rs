@@ -63,9 +63,9 @@ fn project_is_created(driver_type: &str) {
         let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
         let driver_path = verify_project_creation(driver_type, &tmp_dir);
 
-        // Build the driver only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set to "1"
-        // In release-plz PRs, this env var is set to skip builds that would fail due to
-        // unreleased dependencies
+        // Build the driver only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
+        // This env var is used in release-plz PRs, wherein it is set to skip the driver 
+        //  build because it would fail due to not yet released dependencies
         if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() != "1" {
             verify_driver_build(&driver_path);
         } else {
