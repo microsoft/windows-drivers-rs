@@ -183,10 +183,13 @@ fn create_and_build_new_driver_project(driver_type: &str) {
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
 
-    // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is set
-    // This is useful in release-plz PRs where dependencies of the newly created project aren't released to crates.io yet
+    // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is
+    // set This is useful in release-plz PRs where dependencies of the newly
+    // created project aren't released to crates.io yet
     if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
-        println!("Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
+        println!(
+            "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable"
+        );
         return;
     }
 
@@ -200,8 +203,9 @@ fn create_and_build_new_driver_project(driver_type: &str) {
     let cmd_assertion = cmd.assert().failure();
     let output = cmd_assertion.get_output();
     let stdout: String = String::from_utf8_lossy(&output.stdout).into();
-    
-    // Assert build output contains expected errors (the INF file is intentionally incomplete)
+
+    // Assert build output contains expected errors (the INF file is intentionally
+    // incomplete)
     assert!(
         stdout.contains(
             "Required directive Provider missing, empty, or invalid in [Version] section."
