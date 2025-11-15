@@ -94,15 +94,17 @@ jobs:
           # github.head_ref is only available for pull_request events
           # For push events, it will be empty, so we default to running all tests
           if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
-            echo "test_flags=-- --skip driver_is_created_successfully" >> $GITHUB_OUTPUT
-            echo "This is a release-plz PR - skipping driver creation tests"
+            echo "skip_driver_build=1" >> $GITHUB_OUTPUT
+            echo "This is a release-plz PR - will skip driver build in tests"
           else
-            echo "test_flags=" >> $GITHUB_OUTPUT
-            echo "Not a release-plz PR - running all tests"
+            echo "skip_driver_build=" >> $GITHUB_OUTPUT
+            echo "Not a release-plz PR - running all tests including driver build"
           fi
 
       - name: Run Cargo Test (workspace)
-        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features ${{ steps.check_release_pr.outputs.test_flags }}
+        env:
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ steps.check_release_pr.outputs.skip_driver_build }}
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}

@@ -60,6 +60,13 @@ fn help_works() {
 
 fn project_is_created(driver_type: &str) {
     let (stdout, _stderr) = create_and_build_new_driver_project(driver_type);
+    
+    // If SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is set, the build part is skipped and we get empty strings
+    if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
+        println!("Build was skipped due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
+        return;
+    }
+    
     assert!(
         stdout.contains(
             "Required directive Provider missing, empty, or invalid in [Version] section."
@@ -196,6 +203,16 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
     tmp_dir
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
+
+    // Skip the build part if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is set
+    // This is useful in release-plz PRs where dependencies aren't released yet
+    if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
+        println!("Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
+        tmp_dir
+            .close()
+            .expect("Unable to close temp dir after test");
+        return (String::new(), String::new());
+    }
 
     // assert if cargo wdk build works on the created driver project
     set_crt_static_flag();

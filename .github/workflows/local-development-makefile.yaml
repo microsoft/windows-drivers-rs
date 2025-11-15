@@ -93,14 +93,14 @@ jobs:
           # github.head_ref is only available for pull_request events
           # For push events, it will be empty, so we default to running all tests
           if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
-            echo "cargo_test_flags=--all-features -- --skip driver_is_created_successfully" >> $GITHUB_OUTPUT
-            echo "This is a release-plz PR - skipping driver creation tests"
+            echo "skip_driver_build=1" >> $GITHUB_OUTPUT
+            echo "This is a release-plz PR - will skip driver build in tests"
           else
-            echo "cargo_test_flags=--all-features" >> $GITHUB_OUTPUT
-            echo "Not a release-plz PR - running all tests"
+            echo "skip_driver_build=" >> $GITHUB_OUTPUT
+            echo "Not a release-plz PR - running all tests including driver build"
           fi
 
       - name: Test wdk-pre-commit-flow cargo-make task
         env:
-          CARGO_MAKE_CARGO_BUILD_TEST_FLAGS: "${{ steps.check_release_pr.outputs.cargo_test_flags }}"
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ steps.check_release_pr.outputs.skip_driver_build }}
         run: cargo make wdk-pre-commit-flow
