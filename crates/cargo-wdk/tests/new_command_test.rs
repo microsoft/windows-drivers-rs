@@ -60,17 +60,31 @@ fn help_works() {
 
 fn project_is_created(driver_type: &str) {
     with_mutex("project_is_created", || {
-        let driver_path = verify_new_project_creation(driver_type);
+        let driver_name = format!("test-{driver_type}-driver");
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        let driver_path = tmp_dir.join(&driver_name);
+
+        verify_new_project_creation(driver_type, &tmp_dir, &driver_path);
+
+        // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is
+        // set This is useful in release-plz PRs where dependencies of the newly
+        // created project aren't released to crates.io yet
+        if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
+            println!(
+                "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment \
+                 variable"
+            );
+            return;
+        }
+
         verify_driver_build(&driver_path);
     });
 }
 
-fn verify_new_project_creation(driver_type: &str) -> PathBuf {
+fn verify_new_project_creation(driver_type: &str, tmp_dir: &TempDir, driver_path: &PathBuf) {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
-    let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
     println!("Temp dir: {}", tmp_dir.path().display());
-    let driver_path = tmp_dir.join(driver_name.clone());
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
     cmd.args([
         "new",
@@ -147,26 +161,9 @@ fn verify_new_project_creation(driver_type: &str) -> PathBuf {
     tmp_dir
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
-
-    // Explicitly leak the TempDir to prevent it from being cleaned up when this
-    // function returns The directory will be cleaned up when the process exits
-    std::mem::forget(tmp_dir);
-
-    driver_path
 }
 
 fn verify_driver_build(driver_path: &PathBuf) {
-    // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is
-    // set This is useful in release-plz PRs where dependencies of the newly
-    // created project aren't released to crates.io yet
-    if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
-        println!(
-            "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment \
-                variable"
-        );
-        return;
-    }
-
     // assert if cargo wdk build works on the created driver project
     set_crt_static_flag();
 
