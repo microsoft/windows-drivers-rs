@@ -204,8 +204,8 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
 
-    // Skip the build part if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is set
-    // This is useful in release-plz PRs where dependencies aren't released yet
+    // Skip the build if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable is set
+    // This is useful in release-plz PRs where dependencies of the newly created project aren't released to crates.io yet
     if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
         println!("Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable");
         return (String::new(), String::new());
