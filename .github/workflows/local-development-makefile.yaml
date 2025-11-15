@@ -97,7 +97,6 @@ jobs:
             echo "This is a release-plz PR. Will skip the build part in cargo-wdk new integration tests because the needed deps may not yet have been published"
           else
             echo "skip_driver_build=" >> $GITHUB_OUTPUT
-            echo "Not a release-plz PR - running all tests including driver build"
           fi
 
       - name: Test wdk-pre-commit-flow cargo-make task
