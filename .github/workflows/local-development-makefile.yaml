@@ -86,20 +86,11 @@ jobs:
         with:
           tool: cargo-make
 
-      - name: Check if Release PR
-        id: check_release_pr
-        shell: bash
-        run: |
-          # github.head_ref is only available for pull_request events
-          # For push events, it will be empty, so we default to running all tests
-          if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
-            echo "skip_driver_build=1" >> $GITHUB_OUTPUT
-            echo "This is a release-plz PR. Will skip the build part in cargo-wdk new integration tests because the needed deps may not yet have been published"
-          else
-            echo "skip_driver_build=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Test wdk-pre-commit-flow cargo-make task
         env:
-          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ steps.check_release_pr.outputs.skip_driver_build }}
-        run: cargo make wdk-pre-commit-flow
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ github.head_ref == 'release-plz-*' && '1' || '' }}
+        run: |
+          if [[ "${{ github.head_ref }}" == release-plz-* ]]; then
+            echo "This is a release-plz PR. Will skip the build part in cargo-wdk new integration tests because the needed deps may not yet have been published"
+          fi
+          cargo make wdk-pre-commit-flow

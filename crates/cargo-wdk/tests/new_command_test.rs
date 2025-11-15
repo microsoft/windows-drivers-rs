@@ -59,48 +59,6 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    create_and_build_new_driver_project(driver_type);
-}
-
-fn test_command_invocation<F: FnOnce(&str, &str)>(
-    args: &[&str],
-    add_path_arg: bool,
-    command_succeeds: bool,
-    assert: F,
-) {
-    let mut args = args
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<String>>();
-    args.insert(0, String::from("new"));
-
-    if add_path_arg {
-        let driver_name = "test-driver";
-        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-        println!("Temp dir: {}", tmp_dir.path().display());
-        let driver_path = tmp_dir.join(driver_name);
-        args.push(driver_path.to_string_lossy().to_string());
-    }
-
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(args);
-
-    let cmd_assertion = cmd.assert();
-    let cmd_assertion = if command_succeeds {
-        cmd_assertion.success()
-    } else {
-        cmd_assertion.failure()
-    };
-    let output = cmd_assertion.get_output();
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    println!("stdout: {stdout}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    println!("stderr: {stderr}");
-
-    assert(&stdout, &stderr);
-}
-
-fn create_and_build_new_driver_project(driver_type: &str) {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
     let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
@@ -161,19 +119,24 @@ fn create_and_build_new_driver_project(driver_type: &str) {
         ));
     tmp_dir.child(driver_name_path.join("Cargo.toml")).assert(
         predicates::str::contains("[package.metadata.wdk.driver-model]").and(
-            predicates::str::contains(format!("driver-type = \"{}\"", driver_type.to_uppercase()))
-                .and(predicates::str::contains("crate-type = [\"cdylib\"]")),
+            predicates::str::contains(format!(
+                "driver-type = \"{}\"",
+                driver_type.to_uppercase()
+            ))
+            .and(predicates::str::contains("crate-type = [\"cdylib\"]")),
         ),
     );
     tmp_dir
         .child(driver_name_path.join(format!("{driver_name_underscored}.inx")))
         .assert(
             predicates::str::contains("[Version]").and(
-                predicates::str::contains(format!("CatalogFile = {driver_name_underscored}.cat"))
-                    .and(
-                        predicates::str::contains("[Manufacturer]")
-                            .and(predicates::str::contains("[Strings]")),
-                    ),
+                predicates::str::contains(format!(
+                    "CatalogFile = {driver_name_underscored}.cat"
+                ))
+                .and(
+                    predicates::str::contains("[Manufacturer]")
+                        .and(predicates::str::contains("[Strings]")),
+                ),
             ),
         );
     tmp_dir
@@ -188,7 +151,8 @@ fn create_and_build_new_driver_project(driver_type: &str) {
     // created project aren't released to crates.io yet
     if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").is_ok() {
         println!(
-            "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable"
+            "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment \
+                variable"
         );
         return;
     }
@@ -206,18 +170,56 @@ fn create_and_build_new_driver_project(driver_type: &str) {
 
     // Assert build output contains expected errors (the INF file is intentionally
     // incomplete)
+    assert!(stdout.contains(
+        "Required directive Provider missing, empty, or invalid in [Version] section."
+    ));
     assert!(
         stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
+            "Required directive Class missing, empty, or invalid in [Version] section."
         )
     );
     assert!(
-        stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
-    );
-    assert!(
-        stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
+        stdout.contains(
+            "Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."
+        )
     );
     assert!(stdout.contains("INF is NOT VALID"));
+}
+
+fn test_command_invocation<F: FnOnce(&str, &str)>(
+    args: &[&str],
+    add_path_arg: bool,
+    command_succeeds: bool,
+    assert: F,
+) {
+    let mut args = args
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
+    args.insert(0, String::from("new"));
+
+    if add_path_arg {
+        let driver_name = "test-driver";
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        println!("Temp dir: {}", tmp_dir.path().display());
+        let driver_path = tmp_dir.join(driver_name);
+        args.push(driver_path.to_string_lossy().to_string());
+    }
+
+    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+    cmd.args(args);
+
+    let cmd_assertion = cmd.assert();
+    let cmd_assertion = if command_succeeds {
+        cmd_assertion.success()
+    } else {
+        cmd_assertion.failure()
+    };
+    let output = cmd_assertion.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("stdout: {stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!("stderr: {stderr}");
+
+    assert(&stdout, &stderr);
 }
