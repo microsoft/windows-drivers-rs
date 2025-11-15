@@ -162,7 +162,7 @@ fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
     driver_path
 }
 
-fn verify_driver_build(driver_path: &PathBuf) {
+fn verify_driver_build(driver_path: &std::path::Path) {
     // assert if cargo wdk build works on the created driver project
     set_crt_static_flag();
 
