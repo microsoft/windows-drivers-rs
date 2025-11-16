@@ -64,7 +64,7 @@ fn project_is_created(driver_type: &str) {
         let project_path = verify_project_creation(driver_type, &tmp_dir);
 
         // Build the project only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
-        // This env var is used in release-plz PRs, wherein it is set to skip the driver
+        // This env var is used in release-plz PRs, wherein it is set to skip the project
         // build because it would fail due to not yet released dependencies
         if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() == "1" {
             println!(
