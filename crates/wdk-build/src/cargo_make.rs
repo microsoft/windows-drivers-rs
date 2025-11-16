@@ -1346,7 +1346,6 @@ mod tests {
                     ("WindowsSdkBinPath", None),
                 ],
                 || {
-
                     // Call setup_path and verify it returns Path as modified env var.
                     let result = super::super::setup_path()
                         .expect("setup_path should succeed for test layout");
@@ -1418,7 +1417,6 @@ mod tests {
                     ("WindowsSdkBinPath", None),
                 ],
                 || {
-
                     // Call setup_path and verify it returns Path as modified env var.
                     let result = super::super::setup_path()
                         .expect("setup_path should succeed when WDKBinRoot/WDKToolRoot are set");
