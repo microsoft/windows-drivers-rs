@@ -61,9 +61,9 @@ fn help_works() {
 fn project_is_created(driver_type: &str) {
     with_mutex("project_is_created", || {
         let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-        let driver_path = verify_project_creation(driver_type, &tmp_dir);
+        let project_path = verify_project_creation(driver_type, &tmp_dir);
 
-        // Build the driver only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
+        // Build the project only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
         // This env var is used in release-plz PRs, wherein it is set to skip the driver
         // build because it would fail due to not yet released dependencies
         if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() == "1" {
@@ -72,7 +72,7 @@ fn project_is_created(driver_type: &str) {
                  variable"
             );
         } else {
-            verify_driver_build(&driver_path);
+            verify_project_build(&project_path);
         }
     });
 }
@@ -162,12 +162,12 @@ fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
     driver_path
 }
 
-fn verify_driver_build(driver_path: &std::path::Path) {
+fn verify_project_build(path: &std::path::Path) {
     // assert if cargo wdk build works on the created driver project
     set_crt_static_flag();
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build"]).current_dir(driver_path);
+    cmd.args(["build"]).current_dir(path);
 
     let cmd_assertion = cmd.assert().failure();
     let output = cmd_assertion.get_output();
