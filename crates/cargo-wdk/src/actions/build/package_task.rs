@@ -798,4 +798,93 @@ mod tests {
             );
         }
     }
+
+    mod named_mutex {
+        use std::{
+            ffi::CString,
+            sync::{
+                Barrier,
+                atomic::{AtomicUsize, Ordering},
+            },
+            thread,
+            time::Duration,
+        };
+
+        use super::super::NamedMutex;
+
+        /// Tests that two threads successfully acquire `NamedMutex`
+        /// and it prevents them from running concurrently.
+        #[test]
+        fn acquire_works_correctly() {
+            // The way this test work is:
+            // 1. We create two threads that start at the same time thanks
+            // to a barrier
+            // 2. Both increment a counter `active` while they run holding
+            // the mutex
+            // 3. Both also increment another counter `completed` when they finish
+            // 4. We verify that `active` never exceeds 1 i.e. there's no concurrent
+            // execution and `completed` is 2 at the end i.e. both threads run to completion
+
+            let barrier = Barrier::new(2);
+            let active = AtomicUsize::new(0);
+            let completed = AtomicUsize::new(0);
+
+            thread::scope(|s| {
+                for _ in 0..2 {
+                    s.spawn(|| {
+                        let name =
+                            CString::new("happy_path_d44f8b8a817").expect("it is a valid C string");
+
+                        barrier.wait();
+                        let guard = NamedMutex::acquire(name.as_c_str())
+                            .expect("thread should acquire mutex");
+
+                        let active_prev = active.fetch_add(1, Ordering::SeqCst);
+                        assert_eq!(active_prev, 0, "named mutex allowed concurrent access");
+
+                        thread::sleep(Duration::from_millis(100));
+
+                        let active_prev = active.fetch_sub(1, Ordering::SeqCst);
+                        assert_eq!(active_prev, 1, "active counter should drop back to zero");
+
+                        drop(guard);
+
+                        completed.fetch_add(1, Ordering::SeqCst);
+                    });
+                }
+            });
+
+            assert_eq!(completed.load(Ordering::SeqCst), 2);
+            assert_eq!(active.load(Ordering::SeqCst), 0);
+        }
+
+        /// Tests that `NamedMutex` can be acquired even after the previous
+        /// owner abandoned it (e.g. crashed) without releasing
+        ///
+        /// What we are really testing here is `WaitForSingleObject`
+        /// inside `NamedMutex::acquire` returning `WAIT_ABANDONED`
+        #[test]
+        fn acquire_works_when_abandoned() {
+            fn acquire_mutex() -> NamedMutex {
+                let name =
+                    CString::new("abandoned_owner_d44f8b8a817").expect("it is a valid C string");
+                NamedMutex::acquire(name.as_c_str()).expect("thread should acquire mutex")
+            }
+
+            // Acquire the mutex on a thread and abandon it
+            thread::scope(|s| {
+                s.spawn(|| {
+                    let guard = acquire_mutex();
+                    // Simulate an abnormal exit while still holding the mutex to trigger the
+                    // WAIT_ABANDONED path for the next owner.
+                    std::mem::forget(guard);
+                });
+            });
+
+            // Try to acquire the same mutex from the main thread
+            // which should succeed despite the abandonment above
+            let guard = acquire_mutex();
+            drop(guard);
+        }
+    }
 }
