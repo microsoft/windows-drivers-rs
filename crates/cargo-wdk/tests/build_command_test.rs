@@ -506,7 +506,11 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
     format!("{result:x}")
 }
 
-fn get_nuget_wdk_content_root(arch: &'static str, nuget_packages_root: &str) -> String {
+// Constructs the path to the WDK content root for a given architecture from
+// NuGet packages. Use this function when cross-compiling with a NuGet-based
+// WDK, to locate the correct content root for the specified architecture and
+// WDK version.
+fn get_nuget_wdk_content_root(arch: &str, nuget_packages_root: &str) -> String {
     let full_version_number = std::env::var("FullVersionNumber")
         .expect("FullVersionNumber must be set when using NuGet source");
     let target_wdk_package = format!("Microsoft.Windows.WDK.{arch}.{full_version_number}");

@@ -39,10 +39,8 @@ pub enum BuildActionError {
     UnsupportedArchitecture(String),
     #[error("Failed to detect target arch")]
     CannotDetectTargetArch,
-    #[error("Driver (cdylib) binary's parent directory is missing. Driver binary (.dll) path: {0}")]
-    DriverBinaryMissingParent(PathBuf),
-    #[error("Driver (cdylib) build artifact (.dll) missing in cargo build output")]
-    DriverDllNotFound,
+    #[error("Could not determine target directory for packaging. Cause: {0}")]
+    CannotDetermineTargetDir(String),
 }
 
 /// Errors for the low level build task layer

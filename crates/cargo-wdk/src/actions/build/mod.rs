@@ -401,16 +401,16 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Extracts the target directory containing the built driver DLL from the Cargo
-    // build output.
+    // Gets the target directory from the cargo build JSON output
+    // based on where the DLL was emitted
     fn get_target_dir_for_packaging(
         package: &Package,
-        mut message_iter: impl Iterator<Item = Result<Message, std::io::Error>>,
+        mut cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
     ) -> Result<PathBuf, BuildActionError> {
         let normalized_pkg_name = package.name.replace('-', "_");
         let driver_file_name = format!("{normalized_pkg_name}.dll");
 
-        message_iter
+        cargo_build_output
             .find_map(|message| {
                 let artifact = match message {
                     Ok(Message::CompilerArtifact(artifact)) => artifact,
@@ -448,9 +448,11 @@ impl<'a> BuildAction<'a> {
                     );
                     let dll_path = path.as_std_path();
                     let Some(parent) = dll_path.parent() else {
-                        return Some(Err(BuildActionError::DriverBinaryMissingParent(
-                            dll_path.to_path_buf(),
-                        )));
+                        return Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
+                            "Driver binary's parent directory is missing. Driver binary (.dll) \
+                             path: {}",
+                            dll_path.display()
+                        ))));
                     };
                     match absolute(parent) {
                         Ok(artifacts_dir) => {
@@ -467,7 +469,11 @@ impl<'a> BuildAction<'a> {
                     }
                 })
             })
-            .unwrap_or_else(|| Err(BuildActionError::DriverDllNotFound))
+            .unwrap_or_else(|| {
+                Err(BuildActionError::CannotDetermineTargetDir(String::from(
+                    "Driver binary (.dll) missing in cargo build output",
+                )))
+            })
     }
 
     /// Invokes `cargo rustc -- --print cfg` and finds the `target_arch` value
@@ -489,17 +495,18 @@ impl<'a> BuildAction<'a> {
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;
-        let arch = output.stdout.split(|b| *b == b'\n').find_map(|line| {
-            line.strip_prefix(b"target_arch=\"")
-                .and_then(|rest| rest.split(|b| *b == b'"').next())
+        let stdout = std::str::from_utf8(&output.stdout)
+            .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
+        let arch = stdout.lines().find_map(|line| {
+            line.strip_prefix("target_arch=\"")
+                .and_then(|rest| rest.split('"').next())
+                .filter(|arch| !arch.is_empty())
         });
 
         match arch {
-            Some(arch) if arch == b"x86_64" => Ok(CpuArchitecture::Amd64),
-            Some(arch) if arch == b"aarch64" => Ok(CpuArchitecture::Arm64),
-            Some(arch) => Err(BuildActionError::UnsupportedArchitecture(
-                String::from_utf8_lossy(arch).into(),
-            )),
+            Some("x86_64") => Ok(CpuArchitecture::Amd64),
+            Some("aarch64") => Ok(CpuArchitecture::Arm64),
+            Some(arch) => Err(BuildActionError::UnsupportedArchitecture(arch.to_string())),
             None => Err(BuildActionError::CannotDetectTargetArch),
         }
     }

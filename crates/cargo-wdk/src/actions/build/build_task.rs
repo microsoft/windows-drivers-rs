@@ -77,6 +77,10 @@ impl<'a> BuildTask<'a> {
     /// `Result<impl Iterator<Item = Result<Message, std::io::Error>>,
     /// BuildTaskError>`
     ///
+    /// The returned iterator yields `Result<Message, std::io::Error>` values.
+    /// Consumers must handle these results while iterating, because parsing
+    /// errors surface lazily when the message stream is consumed.
+    ///
     /// # Errors
     /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty or
     ///   not a valid unicode
