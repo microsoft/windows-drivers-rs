@@ -212,8 +212,8 @@ runs:
             "Version_Number" = "$sdkVersion.0"
             "WindowsSdkBinPath" = "$($sdkPackageDir.FullName)\c\bin"
             "WDKContentRoot" = "$targetWdkPackageDir\c\"
-            "WDKBinRoot" = "$hostWdkPackageDir\c\bin"
-            "WDKToolRoot" = "$hostWdkPackageDir\c\tools"
+            "WDKBinRoot" = "$hostWdkPackageDir\c\bin\$sdkVersion.0"
+            "WDKToolRoot" = "$hostWdkPackageDir\c\tools\$sdkVersion.0"
             "NugetPackagesRoot" = "$packages"
             "FullVersionNumber" = "$version"
         }
