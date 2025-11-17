@@ -10,6 +10,12 @@
   },
   "rust-analyzer.linkedProjects": [
     "./Cargo.toml",
+    "./crates/cargo-wdk/tests/emulated-workspace/rust-project/Cargo.toml",
+    "./crates/cargo-wdk/tests/emulated-workspace/umdf-driver-workspace/Cargo.toml",
+    "./crates/cargo-wdk/tests/kmdf-driver/Cargo.toml",
+    "./crates/cargo-wdk/tests/mixed-package-kmdf-workspace/Cargo.toml",
+    "./crates/cargo-wdk/tests/umdf-driver/Cargo.toml",
+    "./crates/cargo-wdk/tests/wdm-driver/Cargo.toml",
     "./examples/sample-kmdf-driver/Cargo.toml",
     "./examples/sample-umdf-driver/Cargo.toml",
     "./examples/sample-wdm-driver/Cargo.toml",

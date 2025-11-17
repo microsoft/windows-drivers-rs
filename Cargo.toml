@@ -23,12 +23,16 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 # Workspace Crates
-wdk = { path = "crates/wdk", version = "0.3.1" }
-wdk-alloc = { path = "crates/wdk-alloc", version = "0.3.1" }
-wdk-build = { path = "crates/wdk-build", version = "0.4.0" }
-wdk-macros = { path = "crates/wdk-macros", version = "0.4.0" }
-wdk-panic = { path = "crates/wdk-panic", version = "0.3.1" }
-wdk-sys = { path = "crates/wdk-sys", version = "0.4.0" }
+wdk = { path = "crates/wdk", version = "0.4.1" }
+wdk-alloc = { path = "crates/wdk-alloc", version = "0.4.1" }
+wdk-build = { path = "crates/wdk-build", version = "0.5.1" }
+# Exact version (=) kept in lockstep with wdk-sys. These crates must be versioned together because:
+# (1) wdk-macros is a proc-macro crate consumed only through wdk-sys re-exports, and
+# (2) the two crates form a tightly coupled API surface.
+# Enforced by .github/workflows/version-checks.yaml (check-version-consistency job, lockstep step).
+wdk-macros = { path = "crates/wdk-macros", version = "=0.5.1" }
+wdk-panic = { path = "crates/wdk-panic", version = "0.4.1" }
+wdk-sys = { path = "crates/wdk-sys", version = "0.5.1" }
 
 # External Crates
 anyhow = "1.0.97"
