@@ -677,15 +677,13 @@ mod tests {
                 .expect_run()
                 .withf(move |cmd, args, _, _| {
                     let matched = cmd == "cargo"
-                        && args.len() >= 5
+                        && args.len() >= 3
                         && args[0] == "new"
                         && args[1] == "--lib"
-                        && args[2] == expected_path
-                        && args[3] == "--vcs"
-                        && args[4] == "none";
+                        && args[2] == expected_path;
 
                     expected_flag.as_ref().map_or(matched, |flag| {
-                        matched && args.len() > 5 && args[5] == flag.as_str()
+                        matched && args.len() > 3 && args[3] == flag.as_str()
                     })
                 })
                 .returning(move |_, _, _, _| match override_output.clone() {
