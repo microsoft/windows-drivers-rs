@@ -84,7 +84,7 @@ mod tests {
 
         for (verbosity, expected_flag) in cases {
             let actual = super::get_cargo_verbose_flags(verbosity);
-            assert_eq!(actual, expected_flag, "Unexpected cargo flag mapping",);
+            assert_eq!(actual, expected_flag, "Unexpected cargo flag mapping");
         }
     }
 }
