@@ -472,9 +472,9 @@ mod tests {
     }
 
     #[test]
-    fn when_create_inx_file_called_with_invalid_path_then_run_returns_invalid_driver_crate_name() {
+    fn when_invalid_path_provided_then_run_returns_invalid_driver_crate_name() {
         set_up_and_assert(
-            // Use an empty path component so file_name returns None
+            // Use an empty path component so that calling file_name() on it returns None
             Path::new(""),
             DriverType::Kmdf,
             Verbosity::default(),
