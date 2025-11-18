@@ -1300,7 +1300,8 @@ mod tests {
             wdk_content_root
         }
 
-        /// Convert a list of PathBufs to their absolute string representations
+        /// Convert a list of `PathBufs` to their absolute string
+        /// representations
         fn expected_path_strings<I>(paths: I) -> Vec<String>
         where
             I: IntoIterator<Item = PathBuf>,
@@ -1315,10 +1316,10 @@ mod tests {
         /// and verifying that the expected PATH components are present in
         /// order.
         fn run_setup_path_testcase(
-            env_vars: Vec<(&str, Option<PathBuf>)>,
-            expected_paths: Vec<String>,
+            env_vars: &[(&str, Option<PathBuf>)],
+            expected_paths: &[String],
         ) {
-            crate::tests::with_env(&env_vars, || {
+            crate::tests::with_env(env_vars, || {
                 let result = super::super::setup_path()
                     .expect("setup_path should succeed for the test layout");
                 let returned: Vec<String> = result.into_iter().collect();
@@ -1330,7 +1331,7 @@ mod tests {
 
                 let path_value = std::env::var("Path").expect("Path should be set");
                 let mut parts = path_value.split(';');
-                for expected in &expected_paths {
+                for expected in expected_paths {
                     assert_eq!(parts.next(), Some(expected.as_str()));
                 }
             });
@@ -1361,14 +1362,14 @@ mod tests {
             ]);
 
             run_setup_path_testcase(
-                vec![
-                    ("WDKContentRoot", Some(wdk_content_root.clone())),
+                &[
+                    ("WDKContentRoot", Some(wdk_content_root)),
                     ("WDKBinRoot", None),
                     ("WDKToolRoot", None),
                     ("Version_Number", None),
                     ("WindowsSdkBinPath", None),
                 ],
-                expected_paths,
+                &expected_paths,
             );
         }
 
@@ -1381,7 +1382,8 @@ mod tests {
             let host_arch = host_cpu_arch.as_windows_str();
             let wdk_content_root = setup_test_wdk_layout(&temp, sdk_version, host_arch);
 
-            // When WDKBinRoot/WDKToolRoot are set (eWDK/NuGet scenario), they should point to their respective versioned folders
+            // When WDKBinRoot/WDKToolRoot are set (eWDK/NuGet scenario), they should point
+            // to their respective versioned folders
             let bin_root_versioned = wdk_content_root.join("bin").join(sdk_version);
             let tools_root_versioned = wdk_content_root.join("tools").join(sdk_version);
             let expected_paths = expected_path_strings(vec![
@@ -1391,14 +1393,14 @@ mod tests {
             ]);
 
             run_setup_path_testcase(
-                vec![
-                    ("WDKContentRoot", Some(wdk_content_root.clone())),
-                    ("WDKBinRoot", Some(bin_root_versioned.clone())),
-                    ("WDKToolRoot", Some(tools_root_versioned.clone())),
+                &[
+                    ("WDKContentRoot", Some(wdk_content_root)),
+                    ("WDKBinRoot", Some(bin_root_versioned)),
+                    ("WDKToolRoot", Some(tools_root_versioned)),
                     ("Version_Number", None),
                     ("WindowsSdkBinPath", None),
                 ],
-                expected_paths,
+                &expected_paths,
             );
         }
     }
