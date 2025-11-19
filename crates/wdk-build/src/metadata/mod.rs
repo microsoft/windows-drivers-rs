@@ -173,3 +173,283 @@ pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item 
 
     cargo_manifest_paths
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::Wdk;
+    use crate::{DriverConfig, KmdfConfig, metadata::TryFromCargoMetadataError};
+
+    const TEST_ROOT_DIR: &str = "C:\\tmp";
+
+    #[test]
+    fn exactly_one_wdk_configuration() {
+        let (member_id, package, cwd) = init_kmdf_package_metadata(1, 33);
+        set_up_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
+            assert!(matches!(
+                wdk.unwrap().driver_model,
+                DriverConfig::Kmdf(KmdfConfig {
+                    kmdf_version_major: 1,
+                    target_kmdf_version_minor: 33,
+                    minimum_kmdf_version_minor: None
+                })
+            ));
+        });
+    }
+
+    #[test]
+    fn multiple_members_with_distinct_wdk_configurations() {
+        let (member_id1, package1, _cwd) = init_kmdf_package_metadata(1, 33);
+        let (member_id2, package2, cwd) = init_kmdf_package_metadata(1, 35);
+
+        set_up_and_assert(
+            &cwd,
+            &[package1, package2],
+            &[member_id1, member_id2],
+            None,
+            |wdk| {
+                assert!(matches!(
+                    wdk.expect_err("expected an error"),
+                    TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
+                        wdk_metadata_configurations: _
+                    }
+                ));
+            },
+        );
+    }
+
+    #[test]
+    fn distinct_wdk_configurations_at_both_member_and_workspace_level() {
+        let (member_id, package, cwd) = init_kmdf_package_metadata(1, 33);
+        let wdk_metadata = create_cargo_metadata_wdk_metadata("UMDF", 2, 33);
+
+        set_up_and_assert(&cwd, &[package], &[member_id], Some(wdk_metadata), |wdk| {
+            assert!(matches!(
+                wdk.expect_err("expected an error"),
+                TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
+                    wdk_metadata_configurations: _
+                }
+            ));
+        });
+    }
+
+    #[test]
+    fn no_wdk_configuration() {
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
+        let (member_id, package) =
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", None);
+
+        set_up_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
+            assert!(matches!(
+                wdk.expect_err("expected an error"),
+                TryFromCargoMetadataError::NoWdkConfigurationsDetected
+            ));
+        });
+    }
+
+    #[test]
+    fn invalid_wdk_metadata() {
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
+        let wdk_metadata = TestWdkMetadata(
+            r#"
+                {
+                    "wdk": {
+                        "driver-model": {
+                            "random-key": "random-value"
+                        }
+                    }
+                }
+            "#
+            .to_string(),
+        );
+
+        let (workspace_member, package) =
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(wdk_metadata));
+
+        set_up_and_assert(&cwd, &[package], &[workspace_member], None, |wdk| {
+            assert!(matches!(
+                wdk.expect_err("expected an error"),
+                TryFromCargoMetadataError::WdkMetadataDeserialization {
+                    metadata_source: _,
+                    error_source: _
+                }
+            ));
+        });
+    }
+
+    fn set_up_and_assert(
+        root_dir: &Path,
+        package_list: &[TestMetadataPackage],
+        workspace_member_list: &[TestMetadataWorkspaceMemberId],
+        wdk_metadata: Option<TestWdkMetadata>,
+        assert_fn: fn(Result<Wdk, TryFromCargoMetadataError>),
+    ) {
+        let cargo_toml_metadata =
+            create_cargo_metadata(root_dir, package_list, workspace_member_list, wdk_metadata);
+        assert_fn(Wdk::try_from(&cargo_toml_metadata));
+    }
+
+    fn init_kmdf_package_metadata(
+        kmdf_version_major: u8,
+        target_kmdf_version_minor: u8,
+    ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage, PathBuf) {
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
+        let wdk_metadata = create_cargo_metadata_wdk_metadata(
+            "KMDF",
+            kmdf_version_major,
+            target_kmdf_version_minor,
+        );
+        let (workspace_member, package) =
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(wdk_metadata));
+
+        (workspace_member, package, cwd)
+    }
+
+    #[derive(Clone)]
+    struct TestMetadataPackage(String);
+    #[derive(Clone)]
+    struct TestMetadataWorkspaceMemberId(String);
+    #[derive(Clone)]
+    struct TestWdkMetadata(String);
+
+    /// Construct a `cargo_metadata::Metadata` from the given packages,
+    /// workspace member IDs, and optional WDK metadata.
+    fn create_cargo_metadata(
+        root_dir: &Path,
+        package_list: &[TestMetadataPackage],
+        workspace_member_list: &[TestMetadataWorkspaceMemberId],
+        metadata: Option<TestWdkMetadata>,
+    ) -> cargo_metadata::Metadata {
+        let metadata_section = match metadata {
+            Some(metadata) => metadata.0,
+            None => String::from("null"),
+        };
+        let cargo_toml_metadata = format!(
+            r#"
+                {{
+                    "target_directory": "{}",
+                    "workspace_root": "{}",
+                    "packages": [
+                        {}
+                        ],
+                    "workspace_members": [{}],
+                    "metadata": {},
+                    "version": 1
+                }}"#,
+            root_dir.join("target").to_string_lossy().escape_default(),
+            root_dir.to_string_lossy().escape_default(),
+            package_list
+                .iter()
+                .map(|p| p.0.clone())
+                .collect::<Vec<String>>()
+                .join(", "),
+            // Require quotes around each member
+            workspace_member_list
+                .iter()
+                .map(|s| format!("\"{}\"", s.0))
+                .collect::<Vec<String>>()
+                .join(", "),
+            metadata_section
+        );
+
+        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
+            .expect("Failed to parse cargo metadata")
+    }
+
+    /// Construct a package id and package JSON wrapped in
+    /// `TestMetadataWorkspaceMemberId` and `TestMetadataPackage` for the
+    /// given path respectively. The JSON matches the structure expected by
+    /// `cargo_metadata::Metadata.packages`.
+    fn create_cargo_metadata_package(
+        root_dir: &Path,
+        default_package_name: &str,
+        default_package_version: &str,
+        metadata: Option<TestWdkMetadata>,
+    ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage) {
+        let package_id = format!(
+            "path+file:///{}#{}@{}",
+            root_dir.to_string_lossy().escape_default(),
+            default_package_name,
+            default_package_version
+        );
+        let metadata_section = match metadata {
+            Some(metadata) => metadata.0,
+            None => String::from("null"),
+        };
+        (
+            TestMetadataWorkspaceMemberId(package_id.clone()),
+            TestMetadataPackage(format!(
+                r#"
+                {{
+                    "name": "{}",
+                    "version": "{}",
+                    "id": "{}",
+                    "dependencies": [],
+                    "targets": [
+                        {{
+                            "kind": [
+                                "cdylib"
+                            ],
+                            "crate_types": [
+                                "cdylib"
+                            ],
+                            "name": "{}",
+                            "src_path": "{}",
+                            "edition": "2021",
+                            "doc": true,
+                            "doctest": false,
+                            "test": true
+                        }}
+                    ],
+                    "features": {{}},
+                    "manifest_path": "{}",
+                    "authors": [],
+                    "categories": [],
+                    "keywords": [],
+                    "edition": "2021",
+                    "metadata": {}
+                }}
+                "#,
+                default_package_name,
+                default_package_version,
+                package_id,
+                default_package_name,
+                root_dir
+                    .join("src")
+                    .join("main.rs")
+                    .to_string_lossy()
+                    .escape_default(),
+                root_dir
+                    .join("Cargo.toml")
+                    .to_string_lossy()
+                    .escape_default(),
+                metadata_section
+            )),
+        )
+    }
+
+    /// Construct WDK metadata wrapped in `TestWdkMetadata` for the given driver
+    /// type and versions. The JSON matches the format expected by
+    /// `cargo_metadata::Metadata.workspace_metadata`.
+    fn create_cargo_metadata_wdk_metadata(
+        driver_type: &str,
+        kmdf_version_major: u8,
+        target_kmdf_version_minor: u8,
+    ) -> TestWdkMetadata {
+        let driver_type_lower = driver_type.to_lowercase();
+        TestWdkMetadata(format!(
+            r#"
+                {{
+                    "wdk": {{
+                        "driver-model": {{
+                            "driver-type": "{driver_type}",
+                            "{driver_type_lower}-version-major": {kmdf_version_major},
+                            "target-{driver_type_lower}-version-minor": {target_kmdf_version_minor}
+                        }}
+                    }}
+                }}
+            "#
+        ))
+    }
+}
