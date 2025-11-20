@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use assert_cmd::Command;
 use assert_fs::{TempDir, assert::PathAssert, prelude::PathChild};
 use mockall::PredicateBooleanExt;
-use test_utils::{set_crt_static_flag, with_file_lock};
+use test_utils::set_crt_static_flag;
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
@@ -59,7 +59,7 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    let (stdout, _stderr) = with_file_lock(|| create_and_build_new_driver_project(driver_type));
+    let (stdout, _stderr) = create_and_build_new_driver_project(driver_type);
     assert!(
         stdout.contains(
             "Required directive Provider missing, empty, or invalid in [Version] section."
@@ -82,25 +82,22 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
     command_succeeds: bool,
     assert: F,
 ) {
-    let mut cmd = with_file_lock(|| {
-        let mut args = args
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<String>>();
-        args.insert(0, String::from("new"));
+    let mut args = args
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
+    args.insert(0, String::from("new"));
 
-        if add_path_arg {
-            let driver_name = "test-driver";
-            let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-            println!("Temp dir: {}", tmp_dir.path().display());
-            let driver_path = tmp_dir.join(driver_name);
-            args.push(driver_path.to_string_lossy().to_string());
-        }
+    if add_path_arg {
+        let driver_name = "test-driver";
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        println!("Temp dir: {}", tmp_dir.path().display());
+        let driver_path = tmp_dir.join(driver_name);
+        args.push(driver_path.to_string_lossy().to_string());
+    }
 
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args(args);
-        cmd
-    });
+    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+    cmd.args(args);
 
     let cmd_assertion = cmd.assert();
     let cmd_assertion = if command_succeeds {

@@ -3,9 +3,19 @@
 //! subdirectory prevents Cargo from treating this as an independent integration
 //! test crate and instead lets other tests import it as a regular module.
 
-use std::{collections::HashMap, ffi::OsStr};
+use std::{
+    collections::HashMap,
+    ffi::{CStr, CString, OsStr},
+    marker::PhantomData,
+};
 
-use fs4::fs_std::FileExt;
+use windows::{
+    Win32::{
+        Foundation::{CloseHandle, GetLastError, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0},
+        System::Threading::{CreateMutexA, INFINITE, ReleaseMutex, WaitForSingleObject},
+    },
+    core::{Error as WinError, PCSTR},
+};
 
 /// Sets the `RUSTFLAGS` environment variable to include `+crt-static`.
 ///
@@ -28,24 +38,22 @@ pub fn set_crt_static_flag() {
     }
 }
 
-/// Acquires an exclusive lock on a file and executes the provided closure.
-/// This is useful for ensuring that only one instance of a test can run at a
-/// time.
+/// Acquires a system-wide mutex with the given name and executes
+/// the provided closure
 ///
 /// # Panics
-/// * Panics if the lock file cannot be created.
-/// * Panics if the lock cannot be acquired.
-/// * Panics if the lock cannot be released.
-pub fn with_file_lock<F, R>(f: F) -> R
+/// * Panics if the provided name is not a valid C string.
+pub fn with_mutex<F, R>(mutex_name: &str, f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let lock_file = std::fs::File::create("cargo-wdk-test.lock")
-        .expect("Unable to create lock file for cargo-wdk tests");
-    FileExt::lock_exclusive(&lock_file).expect("Unable to cargo-wdk-test.lock file");
-    let result = f();
-    FileExt::unlock(&lock_file).expect("Unable to unlock cargo-wdk-test.lock file");
-    result
+    // Append an arbitrary suffix to minimize the chance of
+    // collisions with something else on the machine
+    let mutex_name = format!("{mutex_name}_104da4527a7");
+    let mutex_name = CString::new(mutex_name).expect("mutex_name is not a valid C string");
+    let _mutex = NamedMutex::acquire(&mutex_name).expect("failed to acquire mutex");
+
+    f()
 }
 
 #[allow(
@@ -72,7 +80,7 @@ where
     V: AsRef<OsStr>,
     F: FnOnce() -> R,
 {
-    with_file_lock(|| {
+    with_mutex("env", || {
         let mut original_env_vars = HashMap::new();
 
         // set requested environment variables
@@ -179,4 +187,59 @@ where
         "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
          Please build using a Windows target."
     );
+}
+
+/// An RAII wrapper over a Win API named mutex
+pub struct NamedMutex {
+    handle: HANDLE,
+    // `ReleaseMutex` requires that it is called
+    // only by threads that own the mutex handle.
+    // Being `!Send` ensures that's always the case.
+    _not_send: PhantomData<*const ()>,
+}
+
+impl NamedMutex {
+    /// Acquires named mutex
+    pub fn acquire(name: &CStr) -> Result<Self, WinError> {
+        fn get_last_error() -> WinError {
+            // SAFETY: We have to just assume this function is safe to call
+            // because the windows crate has no documentation for it and
+            // the MSDN documentation does not specify any preconditions
+            // for calling it
+            unsafe { GetLastError().into() }
+        }
+
+        // SAFETY: The name ptr is valid because it comes from a CStr
+        let handle = unsafe { CreateMutexA(None, false, PCSTR(name.as_ptr().cast()))? };
+        if handle.is_invalid() {
+            return Err(get_last_error());
+        }
+
+        // SAFETY: The handle is valid since it was created right above
+        match unsafe { WaitForSingleObject(handle, INFINITE) } {
+            res if res == WAIT_OBJECT_0 || res == WAIT_ABANDONED => Ok(Self {
+                handle,
+                _not_send: PhantomData,
+            }),
+            _ => {
+                // SAFETY: The handle is valid since it was created right above
+                unsafe { CloseHandle(handle)? };
+                Err(get_last_error())
+            }
+        }
+    }
+}
+
+impl Drop for NamedMutex {
+    fn drop(&mut self) {
+        // SAFETY: the handle is guaranteed to be valid
+        // because this type itself created it and it
+        // was never exposed outside. Also the requirement
+        // that the calling thread must own the handle
+        // is upheld because this type is `!Send`
+        let _ = unsafe { ReleaseMutex(self.handle) };
+
+        // SAFETY: the handle is valid as explained above.
+        let _ = unsafe { CloseHandle(self.handle) };
+    }
 }
