@@ -8,6 +8,7 @@
   "files.associations": {
     "input.h": "c"
   },
+  "files.insertFinalNewline": true, // automatically adds a newline at the end of files
   "rust-analyzer.linkedProjects": [
     "./Cargo.toml",
     "./examples/sample-kmdf-driver/Cargo.toml",
