@@ -10,7 +10,6 @@ use std::{
     marker::PhantomData,
     path::Path,
     process::Command,
-    vec,
 };
 
 use assert_cmd::cargo::CommandCargoExt;
