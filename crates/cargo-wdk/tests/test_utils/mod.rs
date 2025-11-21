@@ -5,10 +5,14 @@
 
 use std::{
     collections::HashMap,
+    env,
     ffi::{CStr, CString, OsStr},
     marker::PhantomData,
+    path::Path,
+    process::Command,
 };
 
+use assert_cmd::cargo::CommandCargoExt;
 use windows::{
     Win32::{
         Foundation::{CloseHandle, GetLastError, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0},
@@ -16,28 +20,6 @@ use windows::{
     },
     core::{Error as WinError, PCSTR},
 };
-
-/// Sets the `RUSTFLAGS` environment variable to include `+crt-static`.
-///
-/// # Panics
-/// * Panics if `RUSTFLAGS` is not set and setting it fails.
-///
-/// FIXME: This is needed for tests as "cargo make wdk-pre-commit-hook-flow"
-/// somehow seems to mess with `RUSTFLAGS`.
-pub fn set_crt_static_flag() {
-    if let Ok(rustflags) = std::env::var("RUSTFLAGS") {
-        let updated_rust_flags = format!("{rustflags} -C target-feature=+crt-static");
-        set_var("RUSTFLAGS", updated_rust_flags);
-        println!("RUSTFLAGS set, adding the +crt-static: {rustflags:?}");
-    } else {
-        set_var("RUSTFLAGS", "-C target-feature=+crt-static");
-        println!(
-            "No RUSTFLAGS set, setting it to: {:?}",
-            std::env::var("RUSTFLAGS").expect("RUSTFLAGS not set")
-        );
-    }
-}
-
 /// Acquires a system-wide mutex with the given name and executes
 /// the provided closure
 ///
@@ -85,7 +67,7 @@ where
 
         // set requested environment variables
         for (key, value) in env_vars_key_value_pairs {
-            if let Ok(original_value) = std::env::var(key) {
+            if let Ok(original_value) = env::var(key) {
                 let insert_result = original_env_vars.insert(key, original_value);
                 assert!(
                     insert_result.is_none(),
@@ -138,7 +120,7 @@ where
     // SAFETY: this function is only conditionally compiled for windows targets, and
     // env::set_var is always safe for windows targets
     unsafe {
-        std::env::set_var(key, value);
+        env::set_var(key, value);
     }
 }
 
@@ -173,7 +155,7 @@ where
     // SAFETY: this function is only conditionally compiled for windows targets, and
     // env::remove_var is always safe for windows targets
     unsafe {
-        std::env::remove_var(key);
+        env::remove_var(key);
     }
 }
 
@@ -242,4 +224,103 @@ impl Drop for NamedMutex {
         // SAFETY: the handle is valid as explained above.
         let _ = unsafe { CloseHandle(self.handle) };
     }
+}
+
+/// Creates an [`std::process::Command`] object representing
+/// a cargo-wdk command invocation for tests.
+///
+/// It automatically locates the cargo-wdk binary and makes
+/// sure its environment variables are set correctly e.g.
+/// by removing those that might interfere with its operation.
+///
+/// # Arguments
+///
+/// * `cmd_name` - Name of the cargo-wdk command. Can be only "new" or "build"
+/// * `cmd_args` - Optional args for the command
+/// * `curr_working_dir` - Optional current working directory for the command
+pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
+    cmd_name: &str,
+    cmd_args: Option<&[&str]>,
+    curr_working_dir: Option<P>,
+) -> Command {
+    assert!(
+        cmd_name == "build" || cmd_name == "new",
+        "Only 'build' and 'new' commands are supported"
+    );
+
+    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+
+    let mut args = vec![cmd_name];
+    if let Some(cmd_args) = cmd_args {
+        args.extend(cmd_args);
+    }
+    cmd.args(args);
+
+    if let Some(curr_working_dir) = curr_working_dir {
+        cmd.current_dir(curr_working_dir);
+    }
+
+    sanitize_env_vars(&mut cmd);
+
+    if cmd_name == "build" {
+        // RUSTFLAGS is relevant only for cargo wdk build
+        cmd.env("RUSTFLAGS", "-C target-feature=+crt-static");
+    }
+
+    cmd
+}
+
+/// Makes sure the given command is free of environment
+/// variables typically set by cargo.
+///
+/// This is useful when both the command and its parent
+/// process is a cargo invocation. In such situations
+/// the parent might set cargo-related environment
+/// variables that might affect the child.
+///
+/// This function wipes the slate clean and ensures
+/// the child runs in a clean environment.
+///
+/// In particular, this function removes:
+/// - All env vars starting with "CARGO" or "RUST"
+/// - Entries added to the "PATH" variable by cargo
+fn sanitize_env_vars(cmd: &mut Command) {
+    const PATH_VAR: &str = "PATH";
+
+    // Remove all vars added by cargo
+    let vars_to_remove = env::vars().filter_map(|(var, _)| {
+        let var_upper = var.to_uppercase();
+        if var_upper.starts_with("CARGO") || var_upper.starts_with("RUST") {
+            Some(var)
+        } else {
+            None
+        }
+    });
+
+    for var in vars_to_remove {
+        cmd.env_remove(var);
+    }
+
+    // Remove paths in the PATH variable that were
+    // added by cargo
+    let path_value = env::var(PATH_VAR).expect("PATH env var not found");
+    let paths = env::split_paths(&path_value);
+
+    let paths_to_keep = paths.filter(|path| {
+        // Paths we are looking to remove are those added by
+        // cargo-llvm-cov, which may be used to run tests, and
+        // Rust toolchain paths
+        !(path.ends_with("target/llvm-cov-target/debug")
+            || path.ends_with("target/llvm-cov-target/debug/deps")
+            || path.ends_with("target/llvm-cov-target/release")
+            || path.ends_with("target/llvm-cov-target/release/deps")
+            || path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .contains(".rustup/toolchain"))
+    });
+
+    let new_value = env::join_paths(paths_to_keep).expect("unable to join PATH entries");
+
+    cmd.env(PATH_VAR, new_value);
 }
