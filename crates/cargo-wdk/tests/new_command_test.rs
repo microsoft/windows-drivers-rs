@@ -176,18 +176,18 @@ fn verify_project_build(path: &std::path::Path) {
 
     // Assert build output contains expected errors (the INF file is intentionally
     // incomplete)
-    assert!(stdout.contains(
-        "Required directive Provider missing, empty, or invalid in [Version] section."
-    ));
     assert!(
         stdout.contains(
-            "Required directive Class missing, empty, or invalid in [Version] section."
+            "Required directive Provider missing, empty, or invalid in [Version] section."
         )
     );
     assert!(
-        stdout.contains(
-            "Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}."
-        )
+        stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
+    );
+    assert!(
+        stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
     );
     assert!(stdout.contains("INF is NOT VALID"));
 }
