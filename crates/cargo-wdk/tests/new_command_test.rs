@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use assert_cmd::Command;
 use assert_fs::{TempDir, assert::PathAssert, prelude::PathChild};
 use mockall::PredicateBooleanExt;
-use test_utils::{set_crt_static_flag, with_mutex};
+use test_utils::set_crt_static_flag;
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
@@ -59,23 +59,20 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    with_mutex("project_is_created", || {
-        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-        let project_path = verify_project_creation(driver_type, &tmp_dir);
+    let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+    let project_path = verify_project_creation(driver_type, &tmp_dir);
 
-        // Build the project only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
-        // This env var is used in release-plz PRs, wherein it is set to skip the
-        // project build because it would fail due to not yet released
-        // dependencies
-        if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() == "1" {
-            println!(
-                "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment \
-                 variable"
-            );
-        } else {
-            verify_project_build(&project_path);
-        }
-    });
+    // Build the project only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
+    // This env var is used in release-plz PRs, wherein it is set to skip the
+    // project build because it would fail due to not yet released
+    // dependencies
+    if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() == "1" {
+        println!(
+            "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable"
+        );
+    } else {
+        verify_project_build(&project_path);
+    }
 }
 
 fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
