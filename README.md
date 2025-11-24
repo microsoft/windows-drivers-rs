@@ -127,7 +127,9 @@ The crates in this repository are available from [`crates.io`](https://crates.io
       PCUNICODE_STRING,
    };
 
-   #[export_name = "DriverEntry"] // WDF expects a symbol with the name DriverEntry
+   // SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
+   // No other function in this compilation unit exports this name, preventing symbol conflicts.
+   #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
    pub unsafe extern "system" fn driver_entry(
       driver: PDRIVER_OBJECT,
       registry_path: PCUNICODE_STRING,
@@ -147,7 +149,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    #!@rust
    //! ```cargo
    //! [dependencies]
-   //! wdk-build = "0.4.0"
+   //! wdk-build = "0.5.1"
    //! ```
    #![allow(unused_doc_comments)]
 

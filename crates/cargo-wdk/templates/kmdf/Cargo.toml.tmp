@@ -7,13 +7,13 @@ target-kmdf-version-minor = 33
 crate-type = ["cdylib"]
 
 [build-dependencies]
-wdk-build = "0.3.0"
+wdk-build = "0.5.1"
 
 [dependencies]
-wdk = "0.3.0"
-wdk-alloc = "0.3.0"
-wdk-panic = "0.3.0"
-wdk-sys = "0.3.0"
+wdk = "0.4.1"
+wdk-alloc = "0.4.1"
+wdk-panic = "0.4.1"
+wdk-sys = "0.5.1"
 
 [features]
 default = []

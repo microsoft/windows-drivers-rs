@@ -90,7 +90,7 @@ pub fn _print(args: fmt::Arguments) {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
             let mut buffered_writer = dbg_print_buf_writer::DbgPrintBufWriter::new();
 
-            if let Ok(_) = fmt::write(&mut buffered_writer, args) {
+            if fmt::write(&mut buffered_writer, args).is_ok() {
                 buffered_writer.flush();
             } else {
                 unreachable!("DbgPrintBufWriter should never fail to write");
@@ -235,11 +235,10 @@ mod dbg_print_buf_writer {
     // Helper function to advance the start of a `u8` slice to the next non-null
     // byte. Returns an empty slice if all bytes are null.
     fn advance_slice_to_next_non_null_byte(slice: &[u8]) -> &[u8] {
-        if let Some(pos) = slice.iter().position(|&b| b != b'\0') {
-            &slice[pos..]
-        } else {
-            &slice[slice.len()..]
-        }
+        slice
+            .iter()
+            .position(|&b| b != b'\0')
+            .map_or_else(|| &slice[slice.len()..], |pos| &slice[pos..])
     }
 
     #[cfg(test)]
@@ -273,7 +272,7 @@ mod dbg_print_buf_writer {
             // Check that the string is null-terminated at the end of the buffer.
             assert_eq!(writer.buffer[old_used], b'\0');
             // Check that the string isn't null-terminated at the beginning of the buffer.
-            assert_ne!(writer.buffer[0], b'\0')
+            assert_ne!(writer.buffer[0], b'\0');
         }
 
         #[test]
@@ -352,8 +351,6 @@ mod dbg_print_buf_writer {
                  characters long to ensure that the DbgPrintBufWriter's buffer overflow handling \
                  is thoroughly tested.";
             const TEST_STRING_LEN: usize = TEST_STRING.len();
-            const UNFLUSHED_STRING_CONTENTS_STARTING_INDEX: usize =
-                TEST_STRING_LEN - (TEST_STRING_LEN % DbgPrintBufWriter::USABLE_BUFFER_SIZE);
 
             const {
                 assert!(
@@ -361,9 +358,6 @@ mod dbg_print_buf_writer {
                     "TEST_STRING_LEN should be greater than buffer size for this test"
                 );
             }
-
-            let expected_unflushed_string_contents =
-                &TEST_STRING[UNFLUSHED_STRING_CONTENTS_STARTING_INDEX..];
 
             let mut writer = DbgPrintBufWriter::new();
 

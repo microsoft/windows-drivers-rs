@@ -1,20 +1,20 @@
 [package]
 edition.workspace = true
 name = "cargo-wdk"
-version = "0.0.1"
+version = "0.1.1"
 authors = ["Microsoft"]
-# set to false until the tool is stable and ready to be published
-publish = false
-description = "A Cargo extension for building Windows drivers using the Windows Driver Kit (WDK)"
+description = "A Cargo extension for developing Windows drivers in Rust"
 repository.workspace = true
 license.workspace = true
 keywords = ["wdk", "windows", "cargo"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins"]
+exclude = ["tests"]
 
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
+clap-cargo.workspace = true
 clap-verbosity-flag.workspace = true
 fs4.workspace = true
 include_dir.workspace = true
@@ -30,6 +30,7 @@ wdk-build.workspace = true
 assert_cmd.workspace = true
 assert_fs.workspace = true
 predicates.workspace = true
+regex.workspace = true
 sha2.workspace = true
 
 [lints.rust]

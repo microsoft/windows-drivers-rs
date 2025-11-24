@@ -2,13 +2,15 @@ name: Lint
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
@@ -57,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Winget
         if: matrix.runner.name == 'windows-11-arm'
@@ -90,7 +92,10 @@ jobs:
           targets: ${{ matrix.target_triple.name }}
 
       - name: Run Cargo Clippy
-        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features
+        # Due to passing `--target`, `RUSTFLAGS` is not passed to proc-macros or build scripts: https://github.com/rust-lang/cargo/issues/14046
+        # To work around this, `-D warnings` is explicitly passed to clippy-driver.
+        # Possible future solution: https://github.com/rust-lang/cargo/issues/14802
+        run: cargo +${{ matrix.rust_toolchain }} clippy --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --all-targets --all-features -- -D warnings
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
@@ -106,7 +111,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable

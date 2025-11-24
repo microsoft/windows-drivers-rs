@@ -2,13 +2,15 @@ name: "CodeQL Advanced"
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -52,7 +54,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Winget PowerShell Module
       shell: pwsh
@@ -84,7 +86,7 @@ jobs:
         tool: cargo-make
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.codeql.language }}
         build-mode: ${{ matrix.codeql.build-mode }}
@@ -95,6 +97,6 @@ jobs:
       run: cargo +${{ matrix.rust_toolchain }} make default --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.codeql.language}}"

@@ -2,13 +2,15 @@ name: Build
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
@@ -56,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Winget
         if: matrix.runner.name == 'windows-11-arm'
@@ -104,6 +106,12 @@ jobs:
 
       - name: Package Examples (via Cargo Make)
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Build Tests (via Cargo Make)
+        run: cargo make --cwd ./tests build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
+
+      - name: Package Tests (via Cargo Make)
+        run: cargo make --cwd ./tests package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk

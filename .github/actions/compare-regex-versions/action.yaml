@@ -1,0 +1,115 @@
+name: Compare Regex Versions
+description: Extract and compare version strings from two files using regex patterns
+
+inputs:
+  file1:
+    description: "Path to first file"
+    required: true
+  file1-label:
+    description: "Human-readable label for first file"
+    required: false
+  file1-version-regex:
+    description: 'Regex to extract version from first file (PCRE, use \K / lookahead for clean capture)'
+    required: true
+  file1-version-label:
+    description: "Human-readable label for version from first file"
+    required: true
+
+  file2:
+    description: "Path to second file"
+    required: true
+  file2-label:
+    description: "Human-readable label for second file"
+    required: false
+  file2-version-regex:
+    description: 'Regex to extract version from second file (PCRE, use \K / lookahead for clean capture)'
+    required: true
+  file2-version-label:
+    description: "Human-readable label for version from second file"
+    required: true
+
+  error-message:
+    description: "Custom error message to display if versions do not match (optional, uses default if not provided)"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Compare versions
+      shell: bash
+      run: |
+        # Function: Extract and validate version from file
+        # Args: $1=file_path, $2=file_label, $3=version_regex, $4=version_label
+        # Returns: Prints extracted version to stdout; exits 1 on failure
+        extract_and_validate_version() {
+          local file_path="$1"
+          local file_label="$2"
+          local version_regex="$3"
+          local version_label="$4"
+          
+          echo "Extracting: $version_label | file: $file_path ($file_label) | regex: $version_regex" >&2
+          
+          local raw_matches
+          raw_matches=$(grep -m2 -oP "$version_regex" "$file_path" || true)
+          
+          # Check for no matches first (empty string)
+          if [ -z "$raw_matches" ]; then
+            echo "::error file=$file_path::Failed to extract ${version_label}. File: $file_path (${file_label}). Regex: $version_regex" >&2
+            exit 1
+          fi
+          
+          # Count matches
+          local match_count
+          match_count=$(printf "%s\n" "$raw_matches" | wc -l)
+          
+          if [ "$match_count" -gt 1 ]; then
+            echo "::error file=$file_path::Regex produced multiple matches ($match_count) for ${version_label}. File: $file_path (${file_label}). Regex: $version_regex. First 2 matches: $(printf '%s' "$raw_matches" | head -2 | paste -sd ', ')" >&2
+            exit 1
+          fi
+          
+          local extracted_version
+          extracted_version=$(printf "%s" "$raw_matches" | head -1)
+          
+          # Validate extracted version is not empty
+          if [ -z "$extracted_version" ]; then
+            echo "::error file=$file_path::Extracted version is empty for ${version_label}. File: $file_path (${file_label}). Regex: $version_regex. This likely means the regex matched but captured nothing (check \\K anchor placement)." >&2
+            exit 1
+          fi
+          
+          echo "${version_label} = $extracted_version (source: $file_label)" >&2
+          
+          # Return extracted version via stdout (caller captures it)
+          printf "%s" "$extracted_version"
+        }
+
+        # Prepare labels (default file_label to file path if not set)
+        file1='${{ inputs.file1 }}'
+        file1_regex='${{ inputs.file1-version-regex }}'
+        file_label_1="${{ inputs.file1-label }}"
+        [ -z "$file_label_1" ] && file_label_1="$file1"
+        version_label_1="${{ inputs.file1-version-label }}"
+
+        file2='${{ inputs.file2 }}'
+        file2_regex='${{ inputs.file2-version-regex }}'
+        file_label_2="${{ inputs.file2-label }}"
+        [ -z "$file_label_2" ] && file_label_2="$file2"
+        version_label_2="${{ inputs.file2-version-label }}"
+
+        error_msg="${{ inputs.error-message }}"
+
+        # Extract versions
+        extracted_version_file1=$(extract_and_validate_version "$file1" "$file_label_1" "$file1_regex" "$version_label_1")
+        extracted_version_file2=$(extract_and_validate_version "$file2" "$file_label_2" "$file2_regex" "$version_label_2")
+
+        # Compare versions
+        if [ "$extracted_version_file1" != "$extracted_version_file2" ]; then
+          if [ -n "$error_msg" ]; then
+            echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. $error_msg" >&2
+          else
+            echo "::error::Version mismatch: ${version_label_1}='$extracted_version_file1' vs ${version_label_2}='$extracted_version_file2'. Source files: $file1 ($file_label_1), $file2 ($file_label_2)." >&2
+          fi
+          exit 1
+        fi
+
+        echo "✓ Versions are consistent: $extracted_version_file1" >&2

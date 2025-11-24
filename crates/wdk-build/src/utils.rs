@@ -6,118 +6,24 @@
 
 use std::{
     env,
-    ffi::CStr,
+    ffi::{CStr, OsStr},
     io,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
-use thiserror::Error;
 use windows::{
-    core::{s, PCSTR},
     Win32::System::Registry::{
-        RegCloseKey,
-        RegGetValueA,
-        RegOpenKeyExA,
         HKEY,
         HKEY_LOCAL_MACHINE,
         KEY_READ,
         RRF_RT_REG_SZ,
+        RegCloseKey,
+        RegGetValueA,
+        RegOpenKeyExA,
     },
+    core::{PCSTR, s},
 };
-
-use crate::{ConfigError, CpuArchitecture, IoError, IoErrorMetadata};
-
-/// Errors that may occur when stripping the extended path prefix from a path
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum StripExtendedPathPrefixError {
-    /// Error raised when the provided path is empty.
-    #[error("provided path is empty")]
-    EmptyPath,
-    /// Error raised when the provided path has no extended path prefix to
-    /// strip.
-    #[error("provided path has no extended path prefix to strip")]
-    NoExtendedPathPrefix,
-}
-
-/// A trait for dealing with paths with extended-length prefixes.
-pub trait PathExt {
-    /// The kinds of errors that can be returned when trying to deal with an
-    /// extended path prefix.
-    type Error;
-
-    /// Strips the extended length path prefix from a given path.
-    ///  # Errors
-    ///
-    /// Returns an error defined by the implementer if unable to strip the
-    /// extended path length prefix.
-    fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error>;
-}
-
-impl<P> PathExt for P
-where
-    P: AsRef<Path>,
-{
-    type Error = StripExtendedPathPrefixError;
-
-    fn strip_extended_length_path_prefix(&self) -> Result<PathBuf, Self::Error> {
-        const EXTENDED_LENGTH_PATH_PREFIX: &str = r"\\?\";
-        let mut path_components = self.as_ref().components();
-
-        let path_prefix = match path_components.next() {
-            Some(it) => it.as_os_str().to_string_lossy(),
-            None => return Err(Self::Error::EmptyPath),
-        };
-
-        if path_prefix.len() < EXTENDED_LENGTH_PATH_PREFIX.len()
-            || &path_prefix[..EXTENDED_LENGTH_PATH_PREFIX.len()] != EXTENDED_LENGTH_PATH_PREFIX
-        {
-            return Err(Self::Error::NoExtendedPathPrefix);
-        }
-
-        let mut path_without_prefix =
-            PathBuf::from(&path_prefix[EXTENDED_LENGTH_PATH_PREFIX.len()..]);
-        path_without_prefix.push(path_components.as_path());
-
-        Ok(path_without_prefix)
-    }
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub(crate) enum TwoPartVersionError {
-    #[error("Invalid version: {0}. Expected format is 'major.minor'")]
-    InvalidFormat(String),
-    #[error("Error parsing {0} version to 'u32'. Version string: {1}")]
-    ParseError(String, String),
-}
-
-/// Type for versions of the format "major.minor"
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct TwoPartVersion(pub(crate) u32, pub(crate) u32);
-
-impl FromStr for TwoPartVersion {
-    type Err = TwoPartVersionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let dot_count = s.matches('.').count();
-        if dot_count != 1 {
-            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
-        }
-        let (major_str, minor_str) = s
-            .split_once('.')
-            .ok_or_else(|| TwoPartVersionError::InvalidFormat(s.to_string()))?;
-        if major_str.is_empty() || minor_str.is_empty() {
-            return Err(TwoPartVersionError::InvalidFormat(s.to_string()));
-        }
-        let major = major_str
-            .parse::<u32>()
-            .map_err(|_| TwoPartVersionError::ParseError("major".to_string(), s.to_string()))?;
-        let minor = minor_str
-            .parse::<u32>()
-            .map_err(|_| TwoPartVersionError::ParseError("minor".to_string(), s.to_string()))?;
-        Ok(Self(major, minor))
-    }
-}
+use crate::{ConfigError, CpuArchitecture, IoError, TwoPartVersion};
 
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
 /// NI(22H2) WDK
@@ -202,12 +108,7 @@ pub fn detect_wdk_content_root() -> Option<PathBuf> {
 pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, ConfigError> {
     Ok(path_to_search
         .read_dir()
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: path_to_search.to_path_buf(),
-            },
-            source,
-        })?
+        .map_err(|source| IoError::with_path(path_to_search, source))?
         .filter_map(std::result::Result::ok)
         .map(|valid_directory_entry| valid_directory_entry.path())
         .filter(|path| {
@@ -240,7 +141,7 @@ pub fn get_latest_windows_sdk_version(path_to_search: &Path) -> Result<String, C
 /// or if the cargo architecture is unsupported.
 #[must_use]
 pub fn detect_cpu_architecture_in_build_script() -> CpuArchitecture {
-    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect(
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").expect(
         "Cargo should have set the CARGO_CFG_TARGET_ARCH environment variable when executing \
          build.rs",
     );
@@ -427,41 +328,95 @@ pub fn detect_windows_sdk_version(wdk_content_root: &Path) -> Result<String, Con
 
 /// Finds the maximum version in a directory where subdirectories are named with
 /// version format "x.y"
-///
-/// # Arguments
-/// * `directory_path` - The path to the directory to search for version
-///   subdirectories
-///
-/// # Returns
-/// * `Some(BasicVersion)` - The maximum version found
-/// * `None` - If no valid version directories are found or if the directory
-///   cannot be read
-pub(crate) fn find_max_version_in_directory<P: AsRef<Path>>(
+pub fn find_max_version_in_directory<P: AsRef<Path>>(
     directory_path: P,
 ) -> Result<TwoPartVersion, IoError> {
-    std::fs::read_dir(directory_path.as_ref())
-        .map_err(|source| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: directory_path.as_ref().to_path_buf(),
-            },
-            source,
-        })?
+    let directory_path = directory_path.as_ref();
+    std::fs::read_dir(directory_path)
+        .map_err(|source| IoError::with_path(directory_path, source))?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_dir()))
         .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
         .max()
-        .ok_or_else(|| IoError {
-            metadata: IoErrorMetadata::SinglePath {
-                path: directory_path.as_ref().to_path_buf(),
-            },
-            source: io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "Maximum version in {} not found",
-                    directory_path.as_ref().display()
+        .ok_or_else(|| {
+            IoError::with_path(
+                directory_path,
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Maximum version in {} not found", directory_path.display()),
                 ),
-            ),
+            )
         })
+}
+
+/// Safely sets an environment variable. Will not compile if crate is not
+/// targeted for Windows.
+///
+/// This function provides a safe wrapper around [`std::env::set_var`] that
+/// became unsafe in Rust 2024 edition.
+///
+/// # Panics
+///
+/// This function may panic if key is empty, contains an ASCII equals sign '='
+/// or the NUL character '\0', or when value contains the NUL character.
+#[cfg(target_os = "windows")]
+pub fn set_var<K, V>(key: K, value: V)
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::set_var is always safe for windows targets
+    unsafe {
+        env::set_var(key, value);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_var<K, V>(_key: K, _value: V)
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
+         Please build using a Windows target."
+    );
+}
+
+/// Safely removes an environment variable. Will not compile if crate is not
+/// targeted for Windows.
+///
+/// This function provides a safe wrapper around [`std::env::remove_var`] that
+/// became unsafe in Rust 2024 edition.
+///
+/// # Panics
+///
+/// This function may panic if key is empty, contains an ASCII equals sign '='
+/// or the NUL character '\0', or when value contains the NUL character.
+#[allow(dead_code)]
+#[cfg(target_os = "windows")]
+pub fn remove_var<K>(key: K)
+where
+    K: AsRef<OsStr>,
+{
+    // SAFETY: this function is only conditionally compiled for windows targets, and
+    // env::remove_var is always safe for windows targets
+    unsafe {
+        env::remove_var(key);
+    }
+}
+
+#[allow(dead_code)]
+#[cfg(not(target_os = "windows"))]
+pub fn remove_var<K>(_key: K)
+where
+    K: AsRef<OsStr>,
+{
+    compile_error!(
+        "windows-drivers-rs is designed to be run on a Windows host machine in a WDK environment. \
+         Please build using a Windows target."
+    );
 }
 
 #[cfg(test)]
@@ -470,272 +425,44 @@ mod tests {
 
     use super::*;
 
-    mod two_part_version {
-        use super::*;
+    // Function with_clean_env clears the inputted environment variable and runs the
+    // closure
+    fn with_clean_env<F>(key: &str, f: F)
+    where
+        F: FnOnce(),
+    {
+        let original = env::var(key).ok();
 
-        #[test]
-        fn valid_versions() {
-            assert_eq!("1.2".parse(), Ok(TwoPartVersion(1, 2)));
-            assert_eq!("0.0".parse(), Ok(TwoPartVersion(0, 0)));
-            assert_eq!("10.15".parse(), Ok(TwoPartVersion(10, 15)));
-            assert_eq!("999.1".parse(), Ok(TwoPartVersion(999, 1)));
-            assert_eq!("1.999".parse(), Ok(TwoPartVersion(1, 999)));
-            assert_eq!("01.02".parse(), Ok(TwoPartVersion(1, 2)));
-            assert_eq!("1.02".parse(), Ok(TwoPartVersion(1, 2)));
-            assert_eq!("01.2".parse(), Ok(TwoPartVersion(1, 2)));
+        // SAFETY: We have verified that this is built for a Windows host due to no
+        // compile errors from building `set_var`.
+        unsafe {
+            env::remove_var(key);
         }
 
-        #[test]
-        fn invalid_format_versions() {
-            // Invalid format
-            assert_eq!(
-                String::new().parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat(String::new()))
-            );
-            assert_eq!(
-                "1".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("1".to_string()))
-            );
-            assert_eq!(
-                "123".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("123".to_string()))
-            );
-            assert_eq!(
-                "1.2.3.4".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("1.2.3.4".to_string()))
-            );
-            assert_eq!(
-                ".".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat(".".to_string()))
-            );
+        f();
 
-            // Missing major version
-            assert_eq!(
-                ".2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat(".2".to_string()))
-            );
-            // Missing minor version
-            assert_eq!(
-                "1.".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("1.".to_string()))
-            );
-            assert_eq!(
-                "myfolder".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::InvalidFormat("myfolder".to_string()))
-            );
+        if let Some(val) = &original {
+            // SAFETY: We have verified that this is built for a Windows host due to no
+            // compile errors from building `set_var`.
+            unsafe {
+                env::set_var(key, val);
+            }
+        } else {
+            // SAFETY: We have verified that this is built for a Windows host due to no
+            // compile errors from building `set_var`.
+            unsafe {
+                env::remove_var(key);
+            }
         }
 
-        #[test]
-        fn parse_error_versions() {
-            // Non-numeric values
-            assert_eq!(
-                "a.b".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "a.b".to_string()
-                ))
-            );
-            assert_eq!(
-                "1.b".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "1.b".to_string()
-                ))
-            );
-            assert_eq!(
-                "a.2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "a.2".to_string()
-                ))
-            );
-            assert_eq!(
-                "1.2a".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "1.2a".to_string()
-                ))
-            );
-            assert_eq!(
-                "1a.2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "1a.2".to_string()
-                ))
-            );
-
-            // Whitespace
-            assert_eq!(
-                " 1.2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    " 1.2".to_string()
-                ))
-            );
-            assert_eq!(
-                "1.2 ".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "1.2 ".to_string()
-                ))
-            );
-            assert_eq!(
-                "1 .2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "1 .2".to_string()
-                ))
-            );
-            assert_eq!(
-                "1. 2".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "1. 2".to_string()
-                ))
-            );
-        }
-
-        #[test]
-        fn version_ordering() {
-            let v1_0 = TwoPartVersion(1, 0);
-            let v1_1 = TwoPartVersion(1, 1);
-            let v1_999 = TwoPartVersion(1, 999);
-            let v2_0 = TwoPartVersion(2, 0);
-            let v2_1 = TwoPartVersion(2, 1);
-
-            // Test ordering
-            assert!(v1_0 < v1_1);
-            assert!(v1_1 < v1_999);
-            assert!(v1_999 < v2_0);
-            assert!(v2_0 < v2_1);
-        }
-
-        #[test]
-        fn equality() {
-            let v1 = TwoPartVersion(1, 2);
-            let v2 = TwoPartVersion(1, 2);
-            let v3 = TwoPartVersion(1, 3);
-
-            assert_eq!(v1, v2);
-            assert_ne!(v1, v3);
-        }
-
-        #[test]
-        fn debug_formatting() {
-            let version = TwoPartVersion(1, 2);
-            let debug_str = format!("{version:?}");
-            assert_eq!(debug_str, "TwoPartVersion(1, 2)");
-        }
-
-        #[test]
-        fn max_selection() {
-            let versions = [
-                TwoPartVersion(1, 2),
-                TwoPartVersion(1, 10),
-                TwoPartVersion(2, 0),
-                TwoPartVersion(1, 5),
-                TwoPartVersion(2, 1),
-                TwoPartVersion(1, 999),
-            ];
-
-            let max_version = versions.iter().max().unwrap();
-            assert_eq!(*max_version, TwoPartVersion(2, 1));
-        }
-
-        #[test]
-        fn u32_max_and_overflow() {
-            // Test u32::MAX
-            assert_eq!(
-                "4294967295.4294967295".parse::<TwoPartVersion>(),
-                Ok(TwoPartVersion(4_294_967_295, 4_294_967_295))
-            );
-            // Test that parsing numbers greater than u32::MAX fails gracefully
-            // u32::MAX is 4294967295, so test values that exceed this
-            // Major overflow
-            assert_eq!(
-                "4294967296.0".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "4294967296.0".to_string()
-                ))
-            );
-            assert_eq!(
-                "99999999999999999999.0".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "99999999999999999999.0".to_string()
-                ))
-            );
-            // Minor overflow
-            assert_eq!(
-                "0.4294967296".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "0.4294967296".to_string()
-                ))
-            );
-            assert_eq!(
-                "1.99999999999999999999".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "minor".to_string(),
-                    "1.99999999999999999999".to_string()
-                ))
-            );
-            // Both overflow
-            assert_eq!(
-                "4294967296.4294967296".parse::<TwoPartVersion>(),
-                Err(TwoPartVersionError::ParseError(
-                    "major".to_string(),
-                    "4294967296.4294967296".to_string()
-                ))
-            );
-        }
-    }
-
-    mod strip_extended_length_path_prefix {
-        use super::*;
-
-        #[test]
-        fn strip_prefix_successfully() -> Result<(), StripExtendedPathPrefixError> {
-            assert_eq!(
-                PathBuf::from(r"\\?\C:\Program Files")
-                    .strip_extended_length_path_prefix()?
-                    .to_str(),
-                Some(r"C:\Program Files")
-            );
-            Ok(())
-        }
-
-        #[test]
-        fn empty_path() {
-            assert_eq!(
-                PathBuf::from("").strip_extended_length_path_prefix(),
-                Err(StripExtendedPathPrefixError::EmptyPath)
-            );
-        }
-
-        #[test]
-        fn path_too_short() {
-            assert_eq!(
-                PathBuf::from(r"C:\").strip_extended_length_path_prefix(),
-                Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
-            );
-        }
-
-        #[test]
-        fn no_prefix_to_strip() {
-            assert_eq!(
-                PathBuf::from(r"C:\Program Files").strip_extended_length_path_prefix(),
-                Err(StripExtendedPathPrefixError::NoExtendedPathPrefix)
-            );
-        }
+        assert!(env::var(key).ok() == original);
     }
 
     mod read_registry_key_string_value {
         use windows::Win32::UI::Shell::{
             FOLDERID_ProgramFiles,
-            SHGetKnownFolderPath,
             KF_FLAG_DEFAULT,
+            SHGetKnownFolderPath,
         };
 
         use super::*;
@@ -959,11 +686,27 @@ mod tests {
             temp_dir.child("a.b").create_dir_all().unwrap(); // Invalid: non-numeric
             temp_dir.child("not_version").touch().unwrap(); // File: ignored
             temp_dir.child("3.0").touch().unwrap(); // File: ignored
-                                                    // Should find the maximum among valid version directories only
+            // Should find the maximum among valid version directories only
             assert_eq!(
                 find_max_version_in_directory(temp_dir.path()).unwrap(),
                 TwoPartVersion(2, 0)
             );
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    mod safe_env_vars {
+        use super::*;
+
+        #[test]
+        fn set_var_and_remove_var() {
+            let key = "WDK_BUILD_TEST_VAR";
+            with_clean_env(key, || {
+                set_var(key, "test_value");
+                assert_eq!(env::var(key).unwrap(), "test_value");
+                remove_var(key);
+                assert!(env::var(key).is_err());
+            });
         }
     }
 }

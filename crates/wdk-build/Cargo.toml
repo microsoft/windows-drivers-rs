@@ -2,13 +2,18 @@
 edition.workspace = true
 rust-version.workspace = true
 name = "wdk-build"
-version = "0.4.0"
+version = "0.5.1"
 description = "A library to configure a Cargo build script for binding generation and downstream linking of the WDK (Windows Driver Kit)"
 repository.workspace = true
 readme.workspace = true
 license.workspace = true
 keywords = ["wdk", "windows", "build-dependencies"]
 categories = ["development-tools::build-utils", "development-tools::ffi"]
+
+[package.metadata.cargo-machete]
+ignored = [
+  "regex", # Used for enabling "unicode-case" feature which lets us use case-insensitive regex patterns in bindgen
+]
 
 [features]
 nightly = []
@@ -22,6 +27,7 @@ cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true
 paste.workspace = true
+regex = { workspace = true, features = ["unicode-case"] }
 rustversion.workspace = true
 semver.workspace = true
 serde = { workspace = true, features = ["derive"] }

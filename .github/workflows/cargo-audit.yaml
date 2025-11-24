@@ -2,6 +2,8 @@ name: Cargo Audit
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
     paths:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
@@ -11,7 +13,7 @@ on:
     - cron: 0 11 * * *
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -24,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run Cargo Audit
         uses: rustsec/audit-check@v2

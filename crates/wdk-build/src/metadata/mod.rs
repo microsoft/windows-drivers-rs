@@ -11,7 +11,7 @@
 
 pub use error::{Error, Result};
 pub use map::Map;
-pub use ser::{to_map, to_map_with_prefix, Serializer};
+pub use ser::{Serializer, to_map, to_map_with_prefix};
 
 pub(crate) mod ser;
 
