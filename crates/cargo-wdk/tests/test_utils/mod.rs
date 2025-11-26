@@ -66,14 +66,11 @@ where
 ///
 /// The environment is guaranteed to be not modified during the execution
 /// of the function, and the environment is reset to its original state
-/// after execution of the function. No testing asserts should be called in
-/// the function, since a failing test will poison the mutex, and cause all
-/// remaining tests to fail.
+/// after execution of the function, even if the closure panics.
 ///
 /// # Panics
 ///
 /// * Panics if called with duplicate environment variable keys.
-/// * If the lock file cannot be created/locked/released.
 pub fn with_env<K, V, F, R>(env_vars_key_value_pairs: &[(K, Option<V>)], f: F) -> R
 where
     K: AsRef<OsStr> + std::cmp::Eq + std::hash::Hash,
