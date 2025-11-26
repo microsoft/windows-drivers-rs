@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # All check steps use 'if: !cancelled()' to ensure all checks run even if earlier ones fail,
       # while still respecting manual workflow cancellations. The job will fail if any check fails.
