@@ -116,7 +116,7 @@ impl<'a> NewAction<'a> {
     fn run_cargo_new(&self) -> Result<(), NewActionError> {
         debug!("Running cargo new command");
         let path_str = self.path.to_string_lossy().to_string();
-        let mut args = vec!["new", "--lib", &path_str, "--vcs", "none"];
+        let mut args = vec!["new", "--lib", &path_str];
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
@@ -289,5 +289,563 @@ impl<'a> NewAction<'a> {
         self.fs
             .write_to_file(&cargo_config_path, cargo_config_template_file.contents())?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(windows))]
+    use std::os::unix::process::ExitStatusExt;
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
+    use std::{
+        io::Error,
+        path::Path,
+        process::{ExitStatus, Output},
+    };
+
+    use clap_verbosity_flag::Verbosity;
+
+    use crate::{
+        actions::{
+            DriverType,
+            new::{NewAction, NewActionError},
+        },
+        providers::{
+            error::{CommandError, FileError},
+            exec::MockCommandExec,
+            fs::MockFs,
+        },
+    };
+
+    #[test]
+    fn new_project_created_successfully() {
+        let cases = vec![
+            (Verbosity::default(), None),                   // Default
+            (Verbosity::new(0, 1), Some("-q".to_string())), // Quiet
+            (Verbosity::new(1, 0), Some("-v".to_string())), // Verbose
+        ];
+
+        // Set up mocks to assert a successful driver project creation.
+        // The for loop below tests various verbosity levels as well
+        for (verbosity_level, expected_flag) in cases {
+            set_up_and_assert(
+                Path::new("test_driver"),
+                DriverType::Kmdf,
+                verbosity_level,
+                |test_setup| test_setup.set_expectations_with(None, expected_flag),
+                |result| {
+                    assert!(result.is_ok());
+                },
+            );
+        }
+    }
+
+    #[test]
+    fn when_cargo_new_fails_then_run_returns_cargo_new_command_error() {
+        set_up_and_assert(
+            Path::new("test_driver_fail_cargo_new"),
+            DriverType::Kmdf,
+            Verbosity::default(),
+            |test_setup| {
+                // Set up mocks with failure at cargo new step
+                test_setup.set_expectations_with(
+                    Some(FailureStep::CargoNew(Output {
+                        status: ExitStatus::from_raw(1),
+                        stdout: vec![],
+                        stderr: "some error".into(),
+                    })),
+                    None,
+                )
+            },
+            |result| {
+                assert!(
+                    matches!(result, Err(NewActionError::CargoNewCommand(_))),
+                    "Expected CargoNewCommand error"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn when_copy_lib_rs_template_fails_then_run_returns_filesystem_error() {
+        set_up_and_assert(
+            Path::new("test_driver_fail_lib_copy"),
+            DriverType::Kmdf,
+            Verbosity::default(),
+            |test_setup| {
+                // Set up mocks with failure at copy lib rs template to driver project step
+                test_setup.set_expectations_with(Some(FailureStep::CopyLibRsTemplate), None)
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from copy_lib_rs_template"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn when_update_cargo_toml_fails_then_run_returns_filesystem_error() {
+        type AssertionFn = fn(Result<(), NewActionError>);
+
+        let cases: [(bool, bool, bool, AssertionFn); 3] = [
+            (false, true, true, |result: Result<(), NewActionError>| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::NotFound(_)))
+                    ),
+                    "Expected FileSystem NotFound error from update_cargo_toml read step"
+                );
+            }), // Fail on reading the generated Cargo.toml
+            (true, false, true, |result: Result<(), NewActionError>| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from update_cargo_toml dependency section \
+                     removal step"
+                );
+            }), // Fail on updating the cargo toml with default dependencies section removed
+            (true, true, false, |result: Result<(), NewActionError>| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::AppendError(_, _)))
+                    ),
+                    "Expected FileSystem AppendError from update_cargo_toml template append step"
+                );
+            }), // Fail on appending cargo toml template to the Cargo.toml
+        ];
+
+        // Set up mocks with different failure cases for update_cargo_toml
+        for (is_read_success, is_dep_removal_success, is_template_append_success, assert_fn) in
+            cases
+        {
+            set_up_and_assert(
+                Path::new("test_driver_fail_cargo_toml_update"),
+                DriverType::Kmdf,
+                Verbosity::default(),
+                |test_setup| {
+                    test_setup.set_expectations_with(
+                        Some(FailureStep::UpdateCargoToml(
+                            is_read_success,
+                            is_dep_removal_success,
+                            is_template_append_success,
+                        )),
+                        None,
+                    )
+                },
+                |result| {
+                    assert_fn(result);
+                },
+            );
+        }
+    }
+
+    #[test]
+    fn when_create_inx_file_fails_then_run_returns_filesystem_error() {
+        set_up_and_assert(
+            Path::new("test_driver_fail_create_inx_file"),
+            DriverType::Kmdf,
+            Verbosity::default(),
+            |test_setup| {
+                // Set up mocks with failure at creating inx file step
+                test_setup.set_expectations_with(Some(FailureStep::CreateInxFile), None)
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from create_inx_file step"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn when_invalid_path_provided_then_run_returns_invalid_driver_crate_name() {
+        set_up_and_assert(
+            // Use an empty path component so that calling file_name() on it returns None
+            Path::new(""),
+            DriverType::Kmdf,
+            Verbosity::default(),
+            |test_setup| {
+                // Set up mocks with failure at parsing driver crate name step
+                test_setup.set_expectations_with(
+                    Some(FailureStep::UpdateCargoToml(true, true, true)),
+                    None,
+                )
+            },
+            |result| {
+                assert!(
+                    matches!(result, Err(NewActionError::InvalidDriverCrateName(_))),
+                    "Expected InvalidDriverCrateName error from create_inx_file step"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn when_copy_build_rs_template_fails_then_run_returns_filesystem_error() {
+        set_up_and_assert(
+            Path::new("test_driver_fail_build_rs"),
+            DriverType::Kmdf,
+            Verbosity::default(),
+            |test_setup| {
+                // Set up mocks with failure at copy build rs template to driver project step
+                test_setup.set_expectations_with(Some(FailureStep::CopyBuildRsTemplate), None)
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from copy_build_rs_template step"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn when_copy_cargo_config_fails_then_run_returns_filesystem_error() {
+        set_up_and_assert(
+            Path::new("test_driver_fail_cargo_config"),
+            DriverType::Kmdf,
+            Verbosity::default(),
+            |test_setup| {
+                // Set up mocks with failure at copy cargo config to driver project step
+                test_setup.set_expectations_with(Some(FailureStep::CopyCargoConfig), None)
+            },
+            |result| {
+                assert!(
+                    matches!(
+                        result,
+                        Err(NewActionError::FileSystem(FileError::WriteError(_, _)))
+                    ),
+                    "Expected FileSystem WriteError from copy_cargo_config step"
+                );
+            },
+        );
+    }
+
+    /// Helper function to set up mock expectations and assert on the result.
+    ///
+    /// This function takes a closure to configure the test setup (e.g., mock
+    /// expectations) and another closure to perform assertions on the
+    /// result of running the action. Usage: pass a closure to
+    /// `set_expectations_fn` to configure mocks, and a closure to `assert_fn`
+    /// to check the outcome.
+    fn set_up_and_assert(
+        path: &Path,
+        driver_type: DriverType,
+        verbosity_level: Verbosity,
+        set_expectations_fn: impl FnOnce(TestSetup) -> TestSetup,
+        assert_fn: impl FnOnce(Result<(), NewActionError>),
+    ) {
+        let test_setup = TestSetup::new(path);
+        let test_setup = set_expectations_fn(test_setup);
+
+        let result = NewAction::new(
+            path,
+            driver_type,
+            verbosity_level,
+            &test_setup.mock_exec,
+            &test_setup.mock_fs,
+        )
+        .run();
+
+        assert_fn(result);
+    }
+
+    /// Enum representing different steps where failures can be injected during
+    /// tests. Used to configure mock expectations for specific failure
+    /// scenarios.
+    enum FailureStep {
+        CargoNew(Output),
+        CopyLibRsTemplate,
+        UpdateCargoToml(bool, bool, bool),
+        CreateInxFile,
+        CopyBuildRsTemplate,
+        CopyCargoConfig,
+    }
+
+    /// Test helper struct that provides a fluent API for configuring mock
+    /// providers.
+    ///
+    /// This struct holds mock implementations of `CommandExec` and `Fs`
+    /// providers along with the driver project path. It provides methods to
+    /// set up mock expectations for various stages of the driver project
+    /// creation workflow.
+    ///
+    /// # Usage
+    ///
+    /// Create a new instance with [`TestSetup::new`], then chain calls to
+    /// configure mocks for each step of the workflow. Use
+    /// [`TestSetup::set_expectations_with`] to configure all mocks at once
+    /// based on an optional failure point, or call individual `expect_*`
+    /// methods for fine-grained control.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let test_setup = TestSetup::new(Path::new("test_driver"))
+    ///     .set_expectations_with(Some(FailureStep::CopyLibRsTemplate), None);
+    ///
+    /// // Now use test_setup.mock_exec and test_setup.mock_fs in your test
+    /// ```
+    struct TestSetup<'a> {
+        /// The path to the driver project being created in the test.
+        path: &'a Path,
+        /// Mock implementation of the command execution provider.
+        mock_exec: MockCommandExec,
+        /// Mock implementation of the file system provider.
+        mock_fs: MockFs,
+    }
+
+    impl<'a> TestSetup<'a> {
+        fn new(path: &'a Path) -> Self {
+            Self {
+                path,
+                mock_exec: MockCommandExec::new(),
+                mock_fs: MockFs::new(),
+            }
+        }
+
+        fn set_expectations_with(
+            mut self,
+            failure_step: Option<FailureStep>,
+            expected_flag: Option<String>,
+        ) -> Self {
+            if let Some(FailureStep::CargoNew(override_output)) = failure_step {
+                return self.expect_cargo_new(Some(override_output), expected_flag);
+            }
+            self = self.expect_cargo_new(None, expected_flag);
+
+            if matches!(failure_step, Some(FailureStep::CopyLibRsTemplate)) {
+                return self.expect_copy_lib_rs_template(false);
+            }
+            self = self.expect_copy_lib_rs_template(true);
+
+            if let Some(FailureStep::UpdateCargoToml(
+                is_cargo_toml_read_success,
+                is_dep_section_removal_success,
+                is_template_append_to_cargo_toml_success,
+            )) = failure_step
+            {
+                return self.expect_update_cargo_toml(
+                    is_cargo_toml_read_success,
+                    is_dep_section_removal_success,
+                    is_template_append_to_cargo_toml_success,
+                );
+            }
+            self = self.expect_update_cargo_toml(true, true, true);
+
+            if matches!(failure_step, Some(FailureStep::CreateInxFile)) {
+                return self.expect_create_inx_file(false);
+            }
+            self = self.expect_create_inx_file(true);
+
+            if matches!(failure_step, Some(FailureStep::CopyBuildRsTemplate)) {
+                return self.expect_copy_build_rs_template(false);
+            }
+            self = self.expect_copy_build_rs_template(true);
+
+            if matches!(failure_step, Some(FailureStep::CopyCargoConfig)) {
+                return self.expect_copy_cargo_config(false);
+            }
+
+            self.expect_copy_cargo_config(true)
+        }
+
+        fn expect_cargo_new(
+            mut self,
+            override_output: Option<Output>,
+            expected_flag: Option<String>,
+        ) -> Self {
+            let expected_path = self.path.to_string_lossy().to_string();
+            self.mock_exec
+                .expect_run()
+                .withf(move |cmd, args, _, _| {
+                    let matched = cmd == "cargo"
+                        && args.len() >= 3
+                        && args[0] == "new"
+                        && args[1] == "--lib"
+                        && args[2] == expected_path;
+
+                    expected_flag.as_ref().map_or(matched, |flag| {
+                        matched && args.len() > 3 && args[3] == flag.as_str()
+                    })
+                })
+                .returning(move |_, _, _, _| match override_output.clone() {
+                    Some(output) => match output.status.code() {
+                        Some(0) => Ok(Output {
+                            status: ExitStatus::from_raw(0),
+                            stdout: vec![],
+                            stderr: vec![],
+                        }),
+                        _ => Err(CommandError::from_output("cargo", &[], &output)),
+                    },
+                    None => Ok(Output {
+                        status: ExitStatus::from_raw(0),
+                        stdout: vec![],
+                        stderr: vec![],
+                    }),
+                });
+            self
+        }
+
+        fn expect_copy_lib_rs_template(mut self, is_copy_success: bool) -> Self {
+            let lib_rs_path = self.path.join("src").join("lib.rs");
+            let expected_lib_rs_path = lib_rs_path.clone();
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, _| path == expected_lib_rs_path)
+                .returning(move |_, _| {
+                    if !is_copy_success {
+                        return Err(FileError::WriteError(
+                            lib_rs_path.clone(),
+                            Error::other("Write error"),
+                        ));
+                    }
+                    Ok(())
+                });
+            self
+        }
+
+        fn expect_update_cargo_toml(
+            mut self,
+            is_cargo_toml_read_success: bool,
+            is_dep_section_removal_success: bool,
+            is_template_append_to_cargo_toml_success: bool,
+        ) -> Self {
+            let cargo_toml_path = self.path.join("Cargo.toml");
+            let file_to_read = cargo_toml_path.clone();
+            let expected_file_to_read = cargo_toml_path.clone();
+
+            self.mock_fs
+                .expect_read_file_to_string()
+                .withf(move |path| path == expected_file_to_read)
+                .returning(move |_| {
+                    if is_cargo_toml_read_success {
+                        Ok(r#"[package]
+                               name = "test_driver"
+                               version = "0.1.0"
+                               edition = "2024"
+                              [dependencies]
+                              "#
+                        .to_string())
+                    } else {
+                        Err(FileError::NotFound(file_to_read.clone()))
+                    }
+                });
+
+            let file_to_write = cargo_toml_path.clone();
+            let expected_file_to_write = cargo_toml_path.clone();
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, content| path == expected_file_to_write && !content.is_empty())
+                .returning(move |_, _| {
+                    if is_dep_section_removal_success {
+                        Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            file_to_write.clone(),
+                            Error::other("Write error"),
+                        ))
+                    }
+                });
+
+            let expected_file_to_append = cargo_toml_path.clone();
+            self.mock_fs
+                .expect_append_to_file()
+                .withf(move |path, content| path == expected_file_to_append && !content.is_empty())
+                .returning(move |_, _| {
+                    if is_template_append_to_cargo_toml_success {
+                        Ok(())
+                    } else {
+                        Err(FileError::AppendError(
+                            cargo_toml_path.clone(),
+                            Error::other("Append error"),
+                        ))
+                    }
+                });
+            self
+        }
+
+        fn expect_create_inx_file(mut self, is_create_success: bool) -> Self {
+            let driver_crate_name = self
+                .path
+                .file_name()
+                .expect("Path must not be empty or terminate in '..' when creating INX file")
+                .to_string_lossy()
+                .to_string();
+            let underscored_driver_crate_name = driver_crate_name.replace('-', "_");
+            let inx_output_path = self
+                .path
+                .join(format!("{underscored_driver_crate_name}.inx"));
+            let expected_inx_output_path = inx_output_path.clone();
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, content| path == expected_inx_output_path && !content.is_empty())
+                .returning(move |_, _| {
+                    if is_create_success {
+                        Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            inx_output_path.clone(),
+                            Error::other("Write error"),
+                        ))
+                    }
+                });
+            self
+        }
+
+        fn expect_copy_build_rs_template(mut self, is_copy_success: bool) -> Self {
+            let build_rs_path = self.path.join("build.rs");
+            let expected_build_rs_path = build_rs_path.clone();
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, _| path == expected_build_rs_path)
+                .returning(move |_, _| {
+                    if is_copy_success {
+                        Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            build_rs_path.clone(),
+                            Error::other("Write error"),
+                        ))
+                    }
+                });
+            self
+        }
+
+        fn expect_copy_cargo_config(mut self, is_copy_success: bool) -> Self {
+            let cargo_config_path = self.path.join(".cargo").join("config.toml");
+            let expected_cargo_config_path = cargo_config_path.clone();
+            self.mock_fs
+                .expect_write_to_file()
+                .withf(move |path, _| path == expected_cargo_config_path)
+                .returning(move |_, _| {
+                    if is_copy_success {
+                        Ok(())
+                    } else {
+                        Err(FileError::WriteError(
+                            cargo_config_path.clone(),
+                            Error::other("Write error"),
+                        ))
+                    }
+                });
+            self
+        }
     }
 }

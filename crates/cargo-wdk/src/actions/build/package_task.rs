@@ -8,6 +8,8 @@
 //! validating, verifying and generating artefacts for the driver package.
 
 use std::{
+    ffi::{CStr, CString},
+    marker::PhantomData,
     ops::RangeFrom,
     path::{Path, PathBuf},
     result::Result,
@@ -16,6 +18,13 @@ use std::{
 use mockall_double::double;
 use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
+use windows::{
+    Win32::{
+        Foundation::{CloseHandle, GetLastError, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0},
+        System::Threading::{CreateMutexA, INFINITE, ReleaseMutex, WaitForSingleObject},
+    },
+    core::{Error as WinError, PCSTR},
+};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
@@ -368,8 +377,26 @@ impl<'a> PackageTask<'a> {
         if self.is_self_signed_certificate_in_store()? {
             self.create_cert_file_from_store()?;
         } else {
-            self.create_self_signed_cert_in_store()?;
+            // This mutex prevents multiple instances of this app from racing to
+            // create a cert in the store. It is not a correctness problem. We
+            // just don't want to litter the store with certs especially during
+            // tests when there are lots of parallel runs
+            let mutex_name = CString::new("WDRCertStoreMutex_bd345cf9330") // Unique enough
+                .expect("string is a valid C string");
+            let mutex = NamedMutex::acquire(&mutex_name)
+                .map_err(|e| PackageTaskError::CertMutexError(e.code().0))?;
+            debug!("Acquired cert store mutex");
+
+            // Check again for an existing cert. Another instance might have
+            // created it while we waited for the mutex
+            if self.is_self_signed_certificate_in_store()? {
+                drop(mutex);
+                self.create_cert_file_from_store()?;
+            } else {
+                self.create_self_signed_cert_in_store()?;
+            }
         }
+
         Ok(())
     }
 
@@ -527,6 +554,62 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 }
+
+/// An RAII wrapper over a Win API named mutex
+struct NamedMutex {
+    handle: HANDLE,
+    // `ReleaseMutex` requires that it is called
+    // only by threads that own the mutex handle.
+    // Being `!Send` ensures that's always the case.
+    _not_send: PhantomData<*const ()>,
+}
+
+impl NamedMutex {
+    /// Acquires named mutex
+    pub fn acquire(name: &CStr) -> Result<Self, WinError> {
+        fn get_last_error() -> WinError {
+            // SAFETY: We have to just assume this function is safe to call
+            // because the windows crate has no documentation for it and
+            // the MSDN documentation does not specify any preconditions
+            // for calling it
+            unsafe { GetLastError().into() }
+        }
+
+        // SAFETY: The name ptr is valid because it comes from a CStr
+        let handle = unsafe { CreateMutexA(None, false, PCSTR(name.as_ptr().cast()))? };
+        if handle.is_invalid() {
+            return Err(get_last_error());
+        }
+
+        // SAFETY: The handle is valid since it was created right above
+        match unsafe { WaitForSingleObject(handle, INFINITE) } {
+            res if res == WAIT_OBJECT_0 || res == WAIT_ABANDONED => Ok(Self {
+                handle,
+                _not_send: PhantomData,
+            }),
+            _ => {
+                // SAFETY: The handle is valid since it was created right above
+                unsafe { CloseHandle(handle)? };
+                Err(get_last_error())
+            }
+        }
+    }
+}
+
+impl Drop for NamedMutex {
+    fn drop(&mut self) {
+        // SAFETY: the handle is guaranteed to be valid
+        // because this type itself created it and it
+        // was never exposed outside. Also the requirement
+        // that the calling thread must own the handle
+        // is upheld because this type is `!Send`
+        let _ = unsafe { ReleaseMutex(self.handle) };
+
+        // SAFETY: the handle is valid as explained above.
+        let _ = unsafe { CloseHandle(self.handle) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -713,6 +796,95 @@ mod tests {
                 result.is_ok(),
                 "scenario {name} failed (env_set={env_val:?})"
             );
+        }
+    }
+
+    mod named_mutex {
+        use std::{
+            ffi::CString,
+            sync::{
+                Barrier,
+                atomic::{AtomicUsize, Ordering},
+            },
+            thread,
+            time::Duration,
+        };
+
+        use super::super::NamedMutex;
+
+        /// Tests that two threads successfully acquire `NamedMutex`
+        /// and it prevents them from running concurrently.
+        #[test]
+        fn acquire_works_correctly() {
+            // The way this test work is:
+            // 1. We create two threads that start at the same time thanks
+            // to a barrier
+            // 2. Both increment a counter `active` while they run holding
+            // the mutex
+            // 3. Both also increment another counter `completed` when they finish
+            // 4. We verify that `active` never exceeds 1 i.e. there's no concurrent
+            // execution and `completed` is 2 at the end i.e. both threads run to completion
+
+            let barrier = Barrier::new(2);
+            let active = AtomicUsize::new(0);
+            let completed = AtomicUsize::new(0);
+
+            thread::scope(|s| {
+                for _ in 0..2 {
+                    s.spawn(|| {
+                        let name =
+                            CString::new("happy_path_d44f8b8a817").expect("it is a valid C string");
+
+                        barrier.wait();
+                        let guard = NamedMutex::acquire(name.as_c_str())
+                            .expect("thread should acquire mutex");
+
+                        let active_prev = active.fetch_add(1, Ordering::SeqCst);
+                        assert_eq!(active_prev, 0, "named mutex allowed concurrent access");
+
+                        thread::sleep(Duration::from_millis(100));
+
+                        let active_prev = active.fetch_sub(1, Ordering::SeqCst);
+                        assert_eq!(active_prev, 1, "active counter should drop back to zero");
+
+                        drop(guard);
+
+                        completed.fetch_add(1, Ordering::SeqCst);
+                    });
+                }
+            });
+
+            assert_eq!(completed.load(Ordering::SeqCst), 2);
+            assert_eq!(active.load(Ordering::SeqCst), 0);
+        }
+
+        /// Tests that `NamedMutex` can be acquired even after the previous
+        /// owner abandoned it (e.g. crashed) without releasing
+        ///
+        /// What we are really testing here is `WaitForSingleObject`
+        /// inside `NamedMutex::acquire` returning `WAIT_ABANDONED`
+        #[test]
+        fn acquire_works_when_abandoned() {
+            fn acquire_mutex() -> NamedMutex {
+                let name =
+                    CString::new("abandoned_owner_d44f8b8a817").expect("it is a valid C string");
+                NamedMutex::acquire(name.as_c_str()).expect("thread should acquire mutex")
+            }
+
+            // Acquire the mutex on a thread and abandon it
+            thread::scope(|s| {
+                s.spawn(|| {
+                    let guard = acquire_mutex();
+                    // Simulate an abnormal exit while still holding the mutex to trigger the
+                    // WAIT_ABANDONED path for the next owner.
+                    std::mem::forget(guard);
+                });
+            });
+
+            // Try to acquire the same mutex from the main thread
+            // which should succeed despite the abandonment above
+            let guard = acquire_mutex();
+            drop(guard);
         }
     }
 }
