@@ -37,8 +37,7 @@ jobs:
         rust_toolchain:
           - stable
           - beta
-          # Pin nightly version temporarily due to bug in macrotest: https://github.com/eupn/macrotest/issues/131
-          - nightly-2025-11-20
+          - nightly
 
         cargo_profile:
           - dev
