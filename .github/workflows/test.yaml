@@ -37,7 +37,8 @@ jobs:
         rust_toolchain:
           - stable
           - beta
-          - nightly
+          # Pin nightly version temporarily due to bug in macrotest: https://github.com/eupn/macrotest/issues/131
+          - nightly-2025-11-20
 
         cargo_profile:
           - dev
@@ -99,6 +100,12 @@ jobs:
       # See issue: https://github.com/taiki-e/cargo-llvm-cov/issues/436
       - name: Run Cargo Test with Coverage (workspace)
         if: matrix.runner.arch != 'arm64'
+        env:
+          # cargo-wdk new tests try to build newly generated
+          # driver projects which can fail in release-plz PRs
+          # because the dependencies are not yet published.
+          # This env var skips such builds for release-plz PRs
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
         run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Upload Coverage to Codecov
@@ -111,6 +118,9 @@ jobs:
 
       - name: Run Cargo Test (workspace)
         if: matrix.runner.arch == 'arm64'
+        env:
+          # Skips build in cargo-wdk new tests for release-plz PRs
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
