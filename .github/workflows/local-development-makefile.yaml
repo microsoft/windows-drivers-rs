@@ -87,4 +87,10 @@ jobs:
           tool: cargo-make
 
       - name: Test wdk-pre-commit-flow cargo-make task
+        env:
+          # cargo-wdk new tests try to build newly generated
+          # driver projects which can fail in release-plz PRs
+          # because the dependencies are not yet published.
+          # This env var skips such builds for release-plz PRs
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
         run: cargo make wdk-pre-commit-flow
