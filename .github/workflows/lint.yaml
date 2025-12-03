@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Winget
         if: matrix.runner.name == 'windows-11-arm'
@@ -103,7 +103,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
