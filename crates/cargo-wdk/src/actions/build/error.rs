@@ -68,6 +68,8 @@ pub enum PackageTaskError {
     Inf2CatCommand(#[source] CommandError),
     #[error("Creating cert file from store using certmgr")]
     CreateCertFileFromStoreCommand(#[source] CommandError),
+    #[error("Error while acquiring mutex for generating certificate. HRESULT: {0:#x}")]
+    CertMutexError(i32),
     #[error("Checking for existence of cert in store using certmgr")]
     VerifyCertExistsInStoreCommand(#[source] CommandError),
     #[error("Error reading stdout while checking for existence of cert in store using certmgr")]
