@@ -179,6 +179,7 @@ dependencies = [
  "clap",
  "clap-cargo",
  "clap-verbosity-flag",
+ "fs4",
  "include_dir",
  "mockall",
  "mockall_double",
@@ -190,7 +191,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wdk-build",
- "windows",
 ]
 
 [[package]]

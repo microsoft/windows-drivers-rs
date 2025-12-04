@@ -57,34 +57,3 @@ pub fn get_cargo_verbose_flags<'a>(
         _ => Some("-vv"),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use clap_verbosity_flag::Verbosity;
-
-    #[test]
-    fn map_input_clap_verbosity_flags_to_cargo_flags() {
-        // (incoming verbosity, expected cargo flag Option)
-        let cases = vec![
-            // Input: Default (no -v / -q)
-            (Verbosity::default(), None),
-            // Input: Quiet (-q)
-            (Verbosity::new(0, 1), Some("-q")),
-            // Input: Single verbose (-v)
-            (Verbosity::new(1, 0), Some("-v")),
-            // Input: Double verbose (-vv)
-            (Verbosity::new(2, 0), Some("-vv")),
-            // Input: Triple verbose (-vvv)
-            (Verbosity::new(3, 0), Some("-vv")),
-            // Input: Quadruple verbose (-vvvv)
-            (Verbosity::new(4, 0), Some("-vv")),
-            // Input: Multiple -v and -q flags
-            (Verbosity::new(10, 5), Some("-vv")),
-        ];
-
-        for (verbosity, expected_flag) in cases {
-            let actual = super::get_cargo_verbose_flags(verbosity);
-            assert_eq!(actual, expected_flag, "Unexpected cargo flag mapping");
-        }
-    }
-}

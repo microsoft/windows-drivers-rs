@@ -74,8 +74,6 @@ pub enum PackageTaskError {
     VerifyCertExistsInStoreInvalidCommandOutput(#[source] FromUtf8Error),
     #[error("Error generating certificate to cert store using makecert")]
     CertGenerationInStoreCommand(#[source] CommandError),
-    #[error("Error while acquiring mutex for generating certificate. HRESULT: {0:#x}")]
-    CertMutexError(i32),
     #[error("Error signing driver binary using signtool")]
     DriverBinarySignCommand(#[source] CommandError),
     #[error("Error verifying signed driver binary using signtool")]
