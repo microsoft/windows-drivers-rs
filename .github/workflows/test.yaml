@@ -37,7 +37,8 @@ jobs:
         rust_toolchain:
           - stable
           - beta
-          - nightly
+          # Pin nightly version temporarily due to bug in macrotest: https://github.com/eupn/macrotest/issues/131
+          - nightly-2025-11-20
 
         cargo_profile:
           - dev
@@ -50,7 +51,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Winget
-        if: matrix.runner.name == 'windows-11-arm'
+        if: matrix.runner.arch == 'arm64'
         uses: ./.github/actions/install-winget
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -72,13 +73,20 @@ jobs:
           host: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
           target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
 
-      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
+      - name: Install Rust Toolchain (${{ matrix.rust_toolchain }}) and LLVM tools
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
           targets: |
             x86_64-pc-windows-msvc
             aarch64-pc-windows-msvc
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        if: matrix.runner.arch != 'arm64'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
@@ -90,7 +98,32 @@ jobs:
         with:
           tool: cargo-make
 
+      # Code coverage is generated only for amd64 because cargo-llvm-cov
+      # does not currently support Windows on arm64.
+      # See issue: https://github.com/taiki-e/cargo-llvm-cov/issues/436
+      - name: Run Cargo Test with Coverage (workspace)
+        if: matrix.runner.arch != 'arm64'
+        env:
+          # cargo-wdk new tests try to build newly generated
+          # driver projects which can fail in release-plz PRs
+          # because the dependencies are not yet published.
+          # This env var skips such builds for release-plz PRs
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
+        run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
+
+      - name: Upload Coverage to Codecov
+        if: matrix.runner.arch != 'arm64' && github.repository == 'microsoft/windows-drivers-rs' # Skip for forks because they may not have CODECOV_TOKEN
+        uses: codecov/codecov-action@v5
+        with:
+          files: target/codecov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
       - name: Run Cargo Test (workspace)
+        if: matrix.runner.arch == 'arm64'
+        env:
+          # Skips build in cargo-wdk new tests for release-plz PRs
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)

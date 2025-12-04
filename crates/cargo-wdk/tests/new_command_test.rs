@@ -2,10 +2,10 @@
 mod test_utils;
 use std::path::PathBuf;
 
-use assert_cmd::Command;
+use assert_cmd::{Command, assert::OutputAssertExt};
 use assert_fs::{TempDir, assert::PathAssert, prelude::PathChild};
 use mockall::PredicateBooleanExt;
-use test_utils::{set_crt_static_flag, with_file_lock};
+use test_utils::create_cargo_wdk_cmd;
 
 #[test]
 fn kmdf_driver_is_created_successfully() {
@@ -59,76 +59,32 @@ fn help_works() {
 }
 
 fn project_is_created(driver_type: &str) {
-    let (stdout, _stderr) = with_file_lock(|| create_and_build_new_driver_project(driver_type));
-    assert!(
-        stdout.contains(
-            "Required directive Provider missing, empty, or invalid in [Version] section."
-        )
-    );
-    assert!(
-        stdout
-            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
-    );
-    assert!(
-        stdout
-            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
-    );
-    assert!(stdout.contains("INF is NOT VALID"));
-}
+    let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+    let project_path = verify_project_creation(driver_type, &tmp_dir);
 
-fn test_command_invocation<F: FnOnce(&str, &str)>(
-    args: &[&str],
-    add_path_arg: bool,
-    command_succeeds: bool,
-    assert: F,
-) {
-    let mut cmd = with_file_lock(|| {
-        let mut args = args
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<String>>();
-        args.insert(0, String::from("new"));
-
-        if add_path_arg {
-            let driver_name = "test-driver";
-            let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
-            println!("Temp dir: {}", tmp_dir.path().display());
-            let driver_path = tmp_dir.join(driver_name);
-            args.push(driver_path.to_string_lossy().to_string());
-        }
-
-        let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-        cmd.args(args);
-        cmd
-    });
-
-    let cmd_assertion = cmd.assert();
-    let cmd_assertion = if command_succeeds {
-        cmd_assertion.success()
+    // Build the project only if SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS is not set.
+    // This env var is used in release-plz PRs, wherein it is set to skip the
+    // project build because it would fail due to not yet released
+    // dependencies
+    if std::env::var("SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS").unwrap_or_default() == "1" {
+        println!(
+            "Skipping driver build due to SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS environment variable"
+        );
     } else {
-        cmd_assertion.failure()
-    };
-    let output = cmd_assertion.get_output();
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    println!("stdout: {stdout}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    println!("stderr: {stderr}");
-
-    assert(&stdout, &stderr);
+        verify_project_build(&project_path);
+    }
 }
 
-fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
+fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
     let driver_name = format!("test-{driver_type}-driver");
     let driver_name_underscored = driver_name.replace('-', "_");
-    let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+
     println!("Temp dir: {}", tmp_dir.path().display());
+
     let driver_path = tmp_dir.join(driver_name.clone());
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args([
-        "new",
-        &format!("--{driver_type}"),
-        driver_path.to_string_lossy().as_ref(),
-    ]);
+    let driver_path_str = driver_path.to_string_lossy();
+    let args = [&format!("--{driver_type}"), driver_path_str.as_ref()];
+    let mut cmd = create_cargo_wdk_cmd::<&str>("new", Some(&args), None, None);
 
     // assert command output
     let cmd_assertion = cmd.assert().success();
@@ -199,19 +155,69 @@ fn create_and_build_new_driver_project(driver_type: &str) -> (String, String) {
         .child(driver_name_path.join(".cargo").join("config.toml"))
         .assert(predicates::str::contains("target-feature=+crt-static"));
 
-    // assert if cargo wdk build works on the created driver project
-    set_crt_static_flag();
+    driver_path
+}
 
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    let driver_path = tmp_dir.join(&driver_name); // Root dir for tests
-    cmd.args(["build"]).current_dir(&driver_path);
+fn verify_project_build(path: &std::path::Path) {
+    // assert if cargo wdk build works on the created driver project
+    let mut cmd = create_cargo_wdk_cmd("build", None, Some(path), None);
 
     let cmd_assertion = cmd.assert().failure();
-    tmp_dir
-        .close()
-        .expect("Unable to close temp dir after test");
     let output = cmd_assertion.get_output();
     let stdout: String = String::from_utf8_lossy(&output.stdout).into();
-    let stderr: String = String::from_utf8_lossy(&output.stderr).into();
-    (stdout, stderr)
+
+    // Assert build output contains expected errors (the INF file is intentionally
+    // incomplete)
+    assert!(
+        stdout.contains(
+            "Required directive Provider missing, empty, or invalid in [Version] section."
+        )
+    );
+    assert!(
+        stdout
+            .contains("Required directive Class missing, empty, or invalid in [Version] section.")
+    );
+    assert!(
+        stdout
+            .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
+    );
+    assert!(stdout.contains("INF is NOT VALID"));
+}
+
+fn test_command_invocation<F: FnOnce(&str, &str)>(
+    args: &[&str],
+    add_path_arg: bool,
+    command_succeeds: bool,
+    assert: F,
+) {
+    let mut args = args
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
+    args.insert(0, String::from("new"));
+
+    if add_path_arg {
+        let driver_name = "test-driver";
+        let tmp_dir = TempDir::new().expect("Unable to create new temp dir for test");
+        println!("Temp dir: {}", tmp_dir.path().display());
+        let driver_path = tmp_dir.join(driver_name);
+        args.push(driver_path.to_string_lossy().to_string());
+    }
+
+    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
+    cmd.args(args);
+
+    let cmd_assertion = cmd.assert();
+    let cmd_assertion = if command_succeeds {
+        cmd_assertion.success()
+    } else {
+        cmd_assertion.failure()
+    };
+    let output = cmd_assertion.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("stdout: {stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!("stderr: {stderr}");
+
+    assert(&stdout, &stderr);
 }
