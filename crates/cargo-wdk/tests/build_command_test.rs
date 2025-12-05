@@ -4,8 +4,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    thread,
-    time::Duration,
 };
 
 use assert_cmd::prelude::*;
@@ -18,9 +16,8 @@ const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    let workspace_path = "tests/mixed-package-kmdf-workspace";
     clean_build_and_verify_project(
-        workspace_path,
+        "tests/mixed-package-kmdf-workspace",
         "kmdf",
         "driver",
         None,
@@ -359,33 +356,9 @@ fn to_target_triple(target_arch: &str) -> Option<&'static str> {
 }
 
 fn run_cargo_clean(driver_path: &str) {
-    const MAX_ATTEMPTS: u32 = 5;
-    const BASE_DELAY_MS: u64 = 200;
-
-    for attempt in 1..=MAX_ATTEMPTS {
-        let output = Command::new("cargo")
-            .args(["clean"])
-            .current_dir(driver_path)
-            .output()
-            .unwrap_or_else(|err| panic!("Failed to spawn cargo clean in {driver_path}: {err}"));
-
-        if output.status.success() {
-            return;
-        }
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let access_denied = stderr.contains("Access is denied") || stderr.contains("os error 5");
-
-        assert!(
-            access_denied && attempt < MAX_ATTEMPTS,
-            "Failed to run `cargo clean` for {driver_path} (attempt \
-             {attempt}/{MAX_ATTEMPTS}).\nstdout:\n{stdout}\nstderr:\n{stderr}"
-        );
-
-        let delay = Duration::from_millis(BASE_DELAY_MS * u64::from(attempt));
-        thread::sleep(delay);
-    }
+    let mut cmd = Command::new("cargo");
+    cmd.args(["clean"]).current_dir(driver_path);
+    cmd.assert().success();
 }
 
 fn run_build_cmd(

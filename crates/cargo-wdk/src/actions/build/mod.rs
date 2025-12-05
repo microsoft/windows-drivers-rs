@@ -401,8 +401,13 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Gets the target directory from the cargo build JSON output
-    // based on where the DLL was emitted
+    // Determines the target directory to hand to the packaging task by
+    // scanning `cargo build --message-format json` output and locating
+    // the cdylib artifact produced for this package (normalized name and
+    // manifest path must match). The parent folder of that `.dll` path is
+    // returned once resolved to an absolute path.
+    // Errors if the cdylib artifact cannot be found or its parent cannot
+    // be made absolute.
     fn get_target_dir_for_packaging(
         package: &Package,
         mut cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
