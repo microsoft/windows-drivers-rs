@@ -58,7 +58,8 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -93,7 +94,8 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -129,6 +131,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
 
     let cargo_build_output = create_cargo_artifact_json(
         driver_name,
+        driver_version,
         &cwd,
         Some(&to_target_triple(target_arch)),
         profile,
@@ -169,6 +172,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
 
     let cargo_build_output = create_cargo_artifact_json(
         driver_name,
+        driver_version,
         &cwd,
         Some(&to_target_triple(target_arch)),
         profile,
@@ -207,7 +211,8 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -242,7 +247,8 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -306,7 +312,8 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         stderr: vec![],
     };
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -359,7 +366,8 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
     let expected_certmgr_output = get_certmgr_success_output();
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -410,7 +418,8 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -454,6 +463,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
 
     let cargo_build_output = create_cargo_artifact_json(
         driver_name,
+        driver_version,
         &cwd,
         Some(&to_target_triple(target_arch)),
         profile,
@@ -508,7 +518,8 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -568,7 +579,8 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -629,7 +641,8 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         stderr: vec![],
     };
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -687,7 +700,8 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         stderr: vec![],
     };
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -740,7 +754,8 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
@@ -801,7 +816,8 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
@@ -928,7 +944,8 @@ pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(driver_name, &cwd, None, profile);
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
 
     let cargo_rustc_output = Output {
         status: ExitStatus::from_raw(1),
@@ -986,6 +1003,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     // Create artifact outputs for workspace packages
     let artifact_1 = create_cargo_artifact_json_with_manifest(
         driver_name_1,
+        driver_version_1,
         &cwd,
         &cwd.join(driver_name_1).join("Cargo.toml"),
         None,
@@ -994,6 +1012,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     );
     let artifact_2 = create_cargo_artifact_json_with_manifest(
         driver_name_2,
+        driver_version_2,
         &cwd,
         &cwd.join(driver_name_2).join("Cargo.toml"),
         None,
@@ -1002,6 +1021,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     );
     let artifact_non_driver = create_cargo_artifact_json_with_manifest(
         non_driver,
+        non_driver_version,
         &cwd,
         &cwd.join(non_driver).join("Cargo.toml"),
         None,
@@ -1109,6 +1129,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 
     let cargo_build_output = create_cargo_artifact_json_with_manifest(
         driver_name_1,
+        driver_version_1,
         &workspace_root_dir,
         &workspace_root_dir.join(driver_name_1).join("Cargo.toml"),
         None,
@@ -1186,6 +1207,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     // Create artifact outputs for workspace packages
     let artifact_1 = create_cargo_artifact_json_with_manifest(
         driver_name_1,
+        driver_version_1,
         &cwd,
         &cwd.join(driver_name_1).join("Cargo.toml"),
         None,
@@ -1194,6 +1216,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     );
     let artifact_2 = create_cargo_artifact_json_with_manifest(
         driver_name_2,
+        driver_version_2,
         &cwd,
         &cwd.join(driver_name_2).join("Cargo.toml"),
         None,
@@ -1202,6 +1225,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     );
     let artifact_non_driver = create_cargo_artifact_json_with_manifest(
         non_driver,
+        non_driver_version,
         &cwd,
         &cwd.join(non_driver).join("Cargo.toml"),
         None,
@@ -1557,7 +1581,10 @@ fn assert_build_action_run_is_success(
     );
     assert!(build_action.is_ok());
     let run_result = build_action.expect("Failed to init build action").run();
-    assert!(run_result.is_ok());
+    assert!(
+        run_result.is_ok(),
+        "build action failed unexpectedly: {run_result:?}"
+    );
 }
 
 fn initialize_build_action<'a>(
@@ -1616,7 +1643,10 @@ fn assert_build_action_run_with_env_is_success(
     );
     assert!(build_action.is_ok());
     let run_result = run_build_action(build_action);
-    assert!(run_result.is_ok());
+    assert!(
+        run_result.is_ok(),
+        "build action with env failed unexpectedly: {run_result:?}"
+    );
 }
 
 fn run_build_action(
@@ -2939,12 +2969,9 @@ fn get_cargo_metadata_package(
     default_package_version: &str,
     metadata: Option<&TestWdkMetadata>,
 ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage) {
-    let package_id = format!(
-        "path+file:///{}#{}@{}",
-        root_dir.to_string_lossy().escape_default(),
-        default_package_name,
-        default_package_version
-    );
+    let normalized_root = root_dir.to_string_lossy().replace('\\', "/");
+    let normalized_root = normalized_root.trim_start_matches("//?/");
+    let package_id = format!("path+file:///{normalized_root}#{default_package_version}");
     let (metadata_section, has_metadata) = metadata.map_or_else(
         || (String::from("null"), false),
         |metadata| ((metadata.0).clone(), true),
@@ -2966,25 +2993,24 @@ fn get_cargo_metadata_package(
         .escape_default()
         .to_string();
     (
-        TestMetadataWorkspaceMemberId(package_id),
-        #[allow(clippy::format_in_format_args)]
+        TestMetadataWorkspaceMemberId(package_id.clone()),
         TestMetadataPackage(format!(
             r#"
             {{
-            "name": "{}",
-            "version": "{}",
-            "id": "{}",
+            "name": "{default_package_name}",
+            "version": "{default_package_version}",
+            "id": "{package_id}",
             "dependencies": [],
             "targets": [
                 {{
                     "kind": [
-                        "{}"
+                        "{target_kind}"
                     ],
                     "crate_types": [
-                        "{}"
+                        "{crate_type}"
                     ],
-                    "name": "{}",
-                    "src_path": "{}",
+                    "name": "{default_package_name}",
+                    "src_path": "{source_path}",
                     "edition": "2021",
                     "doc": true,
                     "doctest": false,
@@ -2992,28 +3018,14 @@ fn get_cargo_metadata_package(
                 }}
             ],
             "features": {{}},
-            "manifest_path": "{}",
+            "manifest_path": "{manifest_path}",
             "authors": [],
             "categories": [],
             "keywords": [],
             "edition": "2021",
-            "metadata": {}
+            "metadata": {metadata_section}
         }}
-        "#,
-            default_package_name,
-            default_package_version,
-            format!(
-                "path+file:///{}#{}@{}",
-                root_dir.to_string_lossy().escape_default(),
-                default_package_name,
-                default_package_version
-            ),
-            target_kind,
-            crate_type,
-            default_package_name,
-            source_path,
-            manifest_path,
-            metadata_section
+        "#
         )),
     )
 }
@@ -3048,12 +3060,14 @@ fn get_cargo_metadata_wdk_metadata(
 /// produces.
 fn create_cargo_artifact_json(
     package_name: &str,
+    package_version: &str,
     cwd: &Path,
     target_triple: Option<&str>,
     profile: Option<Profile>,
 ) -> Output {
     create_cargo_artifact_json_with_manifest(
         package_name,
+        package_version,
         cwd,
         &cwd.join("Cargo.toml"),
         target_triple,
@@ -3064,6 +3078,7 @@ fn create_cargo_artifact_json(
 
 fn create_cargo_artifact_json_with_manifest(
     package_name: &str,
+    package_version: &str,
     workspace_root: &Path,
     manifest_path: &Path,
     target_triple: Option<&str>,
@@ -3095,10 +3110,26 @@ fn create_cargo_artifact_json_with_manifest(
         .join(profile_dir)
         .join(format!("{normalized_name}.{file_ext}"));
 
+    let package_dir = manifest_path
+        .parent()
+        .unwrap_or(workspace_root)
+        .to_string_lossy()
+        .replace('\\', "/");
+    let package_dir = package_dir.trim_start_matches("//?/");
+    let package_id = format!("path+file:///{package_dir}#{package_version}");
+    let manifest = manifest_path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .trim_start_matches("//?/")
+        .to_string();
+    let artifact_path = artifact_path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .trim_start_matches("//?/")
+        .to_string();
+
     let mut artifact_json = format!(
-        r#"{{"reason":"compiler-artifact","package_id":"{package_name} 0.0.1 (path+file:///{manifest})","manifest_path":"{manifest}","target":{{"kind":["{kind}"],"crate_types":["{crate_types}"],"name":"{normalized_name}","src_path":"src/lib.rs","edition":"2021","doc":false,"doctest":false,"test":false}},"profile":{{"opt_level":"0","debuginfo":2,"debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":["{artifact_path}"],"executable":null,"fresh":false}}"#,
-        manifest = manifest_path.to_string_lossy().replace('\\', "/"),
-        artifact_path = artifact_path.to_string_lossy().replace('\\', "/"),
+        r#"{{"reason":"compiler-artifact","package_id":"{package_id}","manifest_path":"{manifest}","target":{{"kind":["{kind}"],"crate_types":["{crate_types}"],"name":"{normalized_name}","src_path":"src/lib.rs","edition":"2021","doc":false,"doctest":false,"test":false}},"profile":{{"opt_level":"0","debuginfo":2,"debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":["{artifact_path}"],"executable":null,"fresh":false}}"#
     );
     artifact_json.push('\n');
 

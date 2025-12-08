@@ -161,7 +161,7 @@ fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
 
 fn verify_project_build(path: &std::path::Path) {
     // assert if cargo wdk build works on the created driver project
-    let mut cmd = create_cargo_wdk_cmd("build", None, Some(path), None);
+    let mut cmd = create_cargo_wdk_cmd("build", None, None, Some(path));
 
     let cmd_assertion = cmd.assert().failure();
     let output = cmd_assertion.get_output();

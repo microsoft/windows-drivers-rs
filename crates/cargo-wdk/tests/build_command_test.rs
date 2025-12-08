@@ -367,7 +367,7 @@ fn run_build_cmd(
     env_vars: Option<&[(&str, Option<&str>)]>,
 ) -> String {
     // assert command output
-    let mut cmd = create_cargo_wdk_cmd("build", args, Some(path), env_vars);
+    let mut cmd = create_cargo_wdk_cmd("build", args, env_vars, Some(path));
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
     String::from_utf8_lossy(&output.stdout).to_string()

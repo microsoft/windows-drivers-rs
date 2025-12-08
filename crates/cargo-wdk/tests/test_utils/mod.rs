@@ -237,12 +237,13 @@ impl Drop for NamedMutex {
 ///
 /// * `cmd_name` - Name of the cargo-wdk command. Can be only "new" or "build"
 /// * `cmd_args` - Optional args for the command
+/// * `env_vars` - Optional environment variables to overlay for the command
 /// * `curr_working_dir` - Optional current working directory for the command
 pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     cmd_name: &str,
     cmd_args: Option<&[&str]>,
-    curr_working_dir: Option<P>,
     env_vars: Option<&[(&str, Option<&str>)]>,
+    curr_working_dir: Option<P>,
 ) -> Command {
     assert!(
         cmd_name == "build" || cmd_name == "new",
@@ -257,10 +258,6 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     }
     cmd.args(args);
 
-    if let Some(curr_working_dir) = curr_working_dir {
-        cmd.current_dir(curr_working_dir);
-    }
-
     sanitize_env_vars(&mut cmd);
 
     if let Some(env_vars) = env_vars {
@@ -271,6 +268,10 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
                 cmd.env_remove(key);
             }
         }
+    }
+
+    if let Some(curr_working_dir) = curr_working_dir {
+        cmd.current_dir(curr_working_dir);
     }
 
     if cmd_name == "build" {
