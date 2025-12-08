@@ -8,27 +8,32 @@ use std::{
 
 use assert_cmd::prelude::*;
 use sha2::{Digest, Sha256};
-use test_utils::{create_cargo_wdk_cmd, with_env, with_mutex};
+use test_utils::{create_cargo_wdk_cmd, with_mutex};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
+const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    let stdout = with_mutex("mixed_package_kmdf_workspace", || {
-        run_cargo_clean("tests/mixed-package-kmdf-workspace");
-        run_build_cmd("tests/mixed-package-kmdf-workspace")
-    });
-
-    assert!(stdout.contains("Building package driver"));
-    assert!(stdout.contains("Building package non_driver_crate"));
-    verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
+    clean_build_and_verify_project(
+        "tests/mixed-package-kmdf-workspace",
+        "kmdf",
+        "driver",
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
 }
 
 #[test]
 fn kmdf_driver_builds_successfully() {
     // Setup for executables
     wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
-
+    let driver = "kmdf-driver";
+    let driver_path = format!("tests/{driver}");
     // Create a self signed certificate in store if not already present
     let output = Command::new("certmgr.exe")
         .args(["-s", "WDRTestCertStore"])
@@ -56,52 +61,272 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    clean_and_build_driver_project("kmdf", None);
+    clean_build_and_verify_project(&driver_path, "kmdf", driver, None, None, None, None, None);
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    clean_and_build_driver_project("umdf", None);
+    let driver = "umdf-driver";
+    let driver_path = format!("tests/{driver}");
+    clean_build_and_verify_project(&driver_path, "umdf", driver, None, None, None, None, None);
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    clean_and_build_driver_project("wdm", None);
+    let driver = "wdm-driver";
+    let driver_path = format!("tests/{driver}");
+    clean_build_and_verify_project(&driver_path, "wdm", driver, None, None, None, None, None);
 }
 
 #[test]
 fn wdm_driver_builds_successfully_with_given_version() {
-    with_env(&[(STAMPINF_VERSION_ENV_VAR, Some("5.1.0"))], || {
-        clean_and_build_driver_project("wdm", Some("5.1.0.0"));
-    });
+    let driver = "wdm-driver";
+    let driver_path = format!("tests/{driver}");
+    let env = [(STAMPINF_VERSION_ENV_VAR, Some("5.1.0"))];
+    clean_build_and_verify_project(
+        &driver_path,
+        "wdm",
+        driver,
+        Some("5.1.0.0"),
+        None,
+        None,
+        Some(&env),
+        None,
+    );
 }
 
 #[test]
 fn emulated_workspace_builds_successfully() {
     let emulated_workspace_path = "tests/emulated-workspace";
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-    let stdout = with_mutex("emulated_workspace", || {
+    with_mutex(emulated_workspace_path, || {
         run_cargo_clean(&umdf_driver_workspace_path);
-        run_build_cmd(emulated_workspace_path)
+        run_cargo_clean(&format!("{emulated_workspace_path}/rust-project"));
+        let stdout = run_build_cmd(emulated_workspace_path, None, None);
+        assert!(stdout.contains("Building package driver_1"));
+        assert!(stdout.contains("Building package driver_2"));
+        assert!(stdout.contains("Build completed successfully"));
+        verify_driver_package_files(
+            &umdf_driver_workspace_path,
+            "driver_1",
+            "dll",
+            None,
+            None,
+            None,
+        );
+        verify_driver_package_files(
+            &umdf_driver_workspace_path,
+            "driver_2",
+            "dll",
+            None,
+            None,
+            None,
+        );
     });
-
-    assert!(stdout.contains("Building package driver_1"));
-    assert!(stdout.contains("Building package driver_2"));
-    assert!(stdout.contains("Build completed successfully"));
-
-    verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
-    verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
 }
 
-fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str>) {
-    let driver_name = format!("{driver_type}-driver");
-    let driver_path = format!("tests/{driver_name}");
+#[test]
+fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
+    let driver = "kmdf-driver";
+    let driver_path = format!("tests/{driver}");
+    let target_arch = "ARM64";
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
+        let env = [("WDKContentRoot", Some(wdk_content_root.as_str()))];
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            Some(target_arch),
+            None,
+            Some(&env),
+            Some(target_arch),
+        );
+    } else {
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            Some(target_arch),
+            None,
+            None,
+            Some(target_arch),
+        );
+    }
+}
 
-    with_mutex(&driver_path, || {
-        run_cargo_clean(&driver_path);
-        let stdout = run_build_cmd(&driver_path);
+// `config.toml` with `build.target` = "x86_64-pc-windows-msvc"
+#[test]
+fn kmdf_driver_with_target_override_via_config_toml() {
+    let driver = "kmdf-driver-with-target-override";
+    let driver_path = format!("tests/{driver}");
+    let target_arch = "x64";
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
+        let env = [("WDKContentRoot", Some(wdk_content_root.as_str()))];
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            None,
+            None,
+            Some(&env),
+            Some(target_arch),
+        );
+    } else {
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            None,
+            None,
+            None,
+            Some(target_arch),
+        );
+    }
+}
+
+#[test]
+fn kmdf_driver_with_target_override_env_wins() {
+    let driver = "kmdf-driver-with-target-override";
+    let driver_path = format!("tests/{driver}");
+    let target_arch = "ARM64";
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
+        let env = [
+            ("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME)),
+            ("WDKContentRoot", Some(wdk_content_root.as_str())),
+        ];
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            None,
+            None,
+            Some(&env),
+            Some(target_arch),
+        );
+    } else {
+        let env = [("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))];
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            None,
+            None,
+            Some(&env),
+            Some(target_arch),
+        );
+    }
+}
+
+#[test]
+fn kmdf_driver_with_target_override_cli_wins() {
+    let driver = "kmdf-driver-with-target-override";
+    let driver_path = format!("tests/{driver}");
+    let target_arch = "ARM64";
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
+        let env = [
+            ("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME)),
+            ("WDKContentRoot", Some(wdk_content_root.as_str())),
+        ];
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            Some(target_arch),
+            None,
+            Some(&env),
+            Some(target_arch),
+        );
+    } else {
+        let env = [("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))];
+        clean_build_and_verify_project(
+            &driver_path,
+            "kmdf",
+            driver,
+            None,
+            Some(target_arch),
+            None,
+            Some(&env),
+            Some(target_arch),
+        );
+    }
+}
+
+#[test]
+fn umdf_driver_with_target_arch_and_release_profile() {
+    let driver_path = "tests/umdf-driver";
+    let target_arch = "ARM64";
+    let profile = "release";
+    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
+        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
+        let env = [("WDKContentRoot", Some(wdk_content_root.as_str()))];
+        clean_build_and_verify_project(
+            driver_path,
+            "umdf",
+            "umdf-driver",
+            None,
+            Some(target_arch),
+            Some(profile),
+            Some(&env),
+            Some(target_arch),
+        );
+    } else {
+        clean_build_and_verify_project(
+            driver_path,
+            "umdf",
+            "umdf-driver",
+            None,
+            Some(target_arch),
+            Some(profile),
+            None,
+            Some(target_arch),
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn clean_build_and_verify_project(
+    project_path: &str,
+    driver_type: &str,
+    driver_name: &str,
+    driver_version: Option<&str>,
+    input_target_arch: Option<&str>,
+    profile: Option<&str>,
+    env_overrides: Option<&[(&str, Option<&str>)]>,
+    target_arch_for_verification: Option<&str>,
+) {
+    let mutex_name = format!("{project_path}-{driver_name}");
+    with_mutex(&mutex_name, || {
+        run_cargo_clean(project_path);
+
+        let mut args: Vec<&str> = Vec::new();
+        if let Some(target_arch) = input_target_arch {
+            args.push("--target-arch");
+            args.push(target_arch);
+        }
+        if let Some(profile) = profile {
+            args.push("--profile");
+            args.push(profile);
+        }
+        let cmd_args = if args.is_empty() {
+            None
+        } else {
+            Some(args.as_slice())
+        };
+        let stdout = run_build_cmd(project_path, cmd_args, env_overrides);
 
         assert!(stdout.contains(&format!("Building package {driver_name}")));
+        assert!(stdout.contains(&format!("Finished building {driver_name}")));
 
         let driver_binary_extension = match driver_type {
             "kmdf" | "wdm" => "sys",
@@ -109,13 +334,25 @@ fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str
             _ => panic!("Unsupported driver type: {driver_type}"),
         };
 
+        let target_triple = target_arch_for_verification.and_then(to_target_triple);
+
         verify_driver_package_files(
-            &driver_path,
-            &driver_name,
+            project_path,
+            driver_name,
             driver_binary_extension,
             driver_version,
+            target_triple,
+            profile,
         );
     });
+}
+
+fn to_target_triple(target_arch: &str) -> Option<&'static str> {
+    match target_arch.to_ascii_lowercase().as_str() {
+        "x64" | "amd64" => Some(X86_64_TARGET_TRIPLE_NAME),
+        "arm64" | "aarch64" => Some(AARCH64_TARGET_TRIPLE_NAME),
+        _ => None,
+    }
 }
 
 fn run_cargo_clean(driver_path: &str) {
@@ -124,12 +361,15 @@ fn run_cargo_clean(driver_path: &str) {
     cmd.assert().success();
 }
 
-fn run_build_cmd(driver_path: &str) -> String {
+fn run_build_cmd(
+    path: &str,
+    args: Option<&[&str]>,
+    env_vars: Option<&[(&str, Option<&str>)]>,
+) -> String {
     // assert command output
-    let mut cmd = create_cargo_wdk_cmd("build", None, Some(driver_path));
+    let mut cmd = create_cargo_wdk_cmd("build", args, env_vars, Some(path));
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
-
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
@@ -138,10 +378,19 @@ fn verify_driver_package_files(
     driver_name: &str,
     driver_binary_extension: &str,
     driver_version: Option<&str>,
+    target_triple: Option<&str>,
+    profile: Option<&str>,
 ) {
     let driver_name = driver_name.replace('-', "_");
-    let debug_folder_path = format!("{driver_or_workspace_path}/target/debug");
-    let package_path = format!("{debug_folder_path}/{driver_name}_package");
+    let profile = profile.unwrap_or("debug");
+    let target_folder_path = target_triple.map_or_else(
+        || format!("{driver_or_workspace_path}/target/{profile}"),
+        |target_triple| format!("{driver_or_workspace_path}/target/{target_triple}/{profile}"),
+    );
+    let package_path = PathBuf::from(&target_folder_path)
+        .join(format!("{driver_name}_package"))
+        .to_string_lossy()
+        .to_string();
 
     // Verify files exist in package folder
     assert_dir_exists(&package_path);
@@ -155,17 +404,17 @@ fn verify_driver_package_files(
     // Verify hashes of files copied from debug to package folder
     assert_file_hash(
         &format!("{package_path}/{driver_name}.map"),
-        &format!("{debug_folder_path}/deps/{driver_name}.map"),
+        &format!("{target_folder_path}/deps/{driver_name}.map"),
     );
 
     assert_file_hash(
         &format!("{package_path}/{driver_name}.pdb"),
-        &format!("{debug_folder_path}/{driver_name}.pdb"),
+        &format!("{target_folder_path}/{driver_name}.pdb"),
     );
 
     assert_file_hash(
         &format!("{package_path}/WDRLocalTestCert.cer"),
-        &format!("{debug_folder_path}/WDRLocalTestCert.cer"),
+        &format!("{target_folder_path}/WDRLocalTestCert.cer"),
     );
 
     assert_driver_ver(&package_path, &driver_name, driver_version);
@@ -232,7 +481,45 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
 
 // Helper to hash a file
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
-    let file_contents = fs::read(path).expect("Failed to read file");
+    let file_contents = fs::read(&path)
+        .unwrap_or_else(|_| panic!("Failed to read file. Path: {}", path.as_ref().display()));
     let result = Sha256::digest(&file_contents);
     format!("{result:x}")
+}
+
+// Constructs the path to the WDK content root for a given architecture from
+// NuGet packages. Use this function when cross-compiling with a NuGet-based
+// WDK, to locate the correct content root for the specified architecture and
+// WDK version.
+fn get_nuget_wdk_content_root(arch: &str, nuget_packages_root: &str) -> String {
+    let full_version_number = std::env::var("FullVersionNumber")
+        .expect("FullVersionNumber must be set when using NuGet source");
+    let target_wdk_package = format!("Microsoft.Windows.WDK.{arch}.{full_version_number}");
+
+    let wdk_package_dir = fs::read_dir(Path::new(nuget_packages_root))
+        .unwrap_or_else(|err| {
+            panic!("Failed to read NuGet package root '{nuget_packages_root}': {err}")
+        })
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().to_string().eq(&target_wdk_package))
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "Unable to locate WDK package for target architecture {arch} under \
+                 '{nuget_packages_root}'"
+            )
+        });
+
+    let wdk_content_root_path = wdk_package_dir.join("c");
+    assert!(
+        wdk_content_root_path.is_dir(),
+        "Expected WDK content root '{}' to exist",
+        wdk_content_root_path.display()
+    );
+    wdk_content_root_path.to_string_lossy().into_owned()
 }
