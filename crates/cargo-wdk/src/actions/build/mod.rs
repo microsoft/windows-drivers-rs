@@ -374,7 +374,7 @@ impl<'a> BuildAction<'a> {
             self.probe_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
-        let target_dir = &Self::get_target_dir_for_packaging(package, output_message_iter)?;
+        let target_dir = Self::get_target_dir_from_output(package, output_message_iter)?;
         debug!(
             "Target directory for package: {} is: {}",
             package_name,
@@ -385,7 +385,7 @@ impl<'a> BuildAction<'a> {
             PackageTaskParams {
                 package_name,
                 working_dir,
-                target_dir,
+                target_dir: &target_dir,
                 target_arch: &target_arch,
                 verify_signature: self.verify_signature,
                 sample_class: self.is_sample_class,
@@ -402,19 +402,16 @@ impl<'a> BuildAction<'a> {
     }
 
     // Determines the target directory to hand to the packaging task by
-    // scanning `cargo build --message-format json` output and locating
+    // scanning `cargo build --message-format=json` output and locating
     // the cdylib artifact produced for this package (normalized name and
     // manifest path must match). The parent folder of that `.dll` path is
     // returned once resolved to an absolute path.
     // Errors if the cdylib artifact cannot be found or its parent cannot
     // be made absolute.
-    fn get_target_dir_for_packaging(
+    fn get_target_dir_from_output(
         package: &Package,
         mut cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
     ) -> Result<PathBuf, BuildActionError> {
-        let normalized_pkg_name = package.name.replace('-', "_");
-        let driver_file_name = format!("{normalized_pkg_name}.dll");
-
         cargo_build_output
             .find_map(|message| {
                 let artifact = match message {
@@ -425,8 +422,7 @@ impl<'a> BuildAction<'a> {
                         return None;
                     }
                 };
-                let package_matches = artifact.target.name == normalized_pkg_name
-                    && artifact.manifest_path == package.manifest_path;
+                let package_matches = artifact.package_id == package.id;
                 let is_cdylib = artifact.target.crate_types.contains(&CrateType::CDyLib)
                     && artifact.target.kind.contains(&TargetKind::CDyLib);
                 if !(package_matches && is_cdylib) {
@@ -440,7 +436,10 @@ impl<'a> BuildAction<'a> {
                     return None;
                 }
                 artifact.filenames.iter().find_map(|path| {
-                    if path.file_name() != Some(driver_file_name.as_str()) {
+                    if !path
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
+                    {
                         return None;
                     }
                     debug!(
@@ -476,7 +475,7 @@ impl<'a> BuildAction<'a> {
             })
             .unwrap_or_else(|| {
                 Err(BuildActionError::CannotDetermineTargetDir(String::from(
-                    "Driver binary (.dll) missing in cargo build output",
+                    "Could not find matching cdylib artifact in cargo build output",
                 )))
             })
     }

@@ -134,6 +134,7 @@ mod tests {
         process::{ExitStatus, Output},
     };
 
+    use cargo_metadata::{BuildFinished, Message};
     use wdk_build::CpuArchitecture;
 
     use super::*;
@@ -231,9 +232,9 @@ mod tests {
                         .iter()
                         .zip(expected_args.iter())
                         .all(|(actual, expected)| actual == expected);
-                let matches_working_dir = working_dir_opt
-                    .map(|dir| dir == expected_working_dir.as_path())
-                    .unwrap_or(false);
+                let working_dir = working_dir_opt
+                    .expect("working directory must be provided when running cargo build");
+                let matches_working_dir = working_dir == expected_working_dir.as_path();
                 matches_command && matches_args && matches_working_dir
             })
             .return_once(move |_, _, _, _| {
@@ -258,13 +259,13 @@ mod tests {
             .collect::<std::result::Result<Vec<_>, _>>()
             .expect("expected valid cargo messages");
 
-        assert_eq!(messages.len(), 1);
-        match &messages[0] {
-            Message::BuildFinished(message) => {
-                assert!(message.success, "expected build to succeed");
-            }
-            other => panic!("unexpected message: {other:?}"),
-        }
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [Message::BuildFinished(BuildFinished { success: true, .. })]
+            ),
+            "expected one successful BuildFinished message, got: {messages:?}"
+        );
     }
 
     #[test]
@@ -294,6 +295,22 @@ mod tests {
         );
 
         let err = task.run().err().expect("expected cargo failure");
-        assert!(matches!(err, BuildTaskError::CargoBuild(_)));
+        let BuildTaskError::CargoBuild(command_error) = err else {
+            panic!("expected cargo build error");
+        };
+        match command_error {
+            CommandError::CommandFailed {
+                command,
+                args,
+                stdout,
+            } => {
+                assert_eq!(command, "cargo");
+                assert_eq!(args, vec!["build".to_string()]);
+                assert_eq!(stdout, "error");
+            }
+            CommandError::IoError(_, _, err) => {
+                panic!("expected CommandFailed, got IoError: {err}")
+            }
+        }
     }
 }
