@@ -144,6 +144,10 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 **_Dependency Analysis:_**
 
+* Check lockfile consistency before running build or cargo-make commands: `cargo +stable metadata --locked --all-features --format-version 1`
+  * Run this from each directory containing a tracked `Cargo.lock` so Cargo loads that project's `.cargo/config.toml`. The Lockfile Consistency Checks workflow does this on fresh checkouts for the root workspace, examples, and test fixtures.
+  * Run this before cargo-make because its metadata queries can refresh stale lockfiles. To repair a stale lockfile, run `cargo +stable update --workspace` from that directory and commit the updated lockfile.
+  * This checks that manifests and lockfiles agree; it does not require every workspace to use the same dependency versions.
 * Scan for security advisories in dependent crates: `cargo audit --deny warnings`
 * Scan for unused dependencies: `cargo machete --skip-target-dir`
 

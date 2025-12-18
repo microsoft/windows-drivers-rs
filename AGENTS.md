@@ -47,6 +47,16 @@ cargo +nightly test --locked --features nightly
 
 `cargo-expand` v1.0.85 is required for macrotest/trybuild-based tests. Switching between stable/nightly toolchains requires deleting cached test artifacts under `target/*/tests/` to avoid stale trybuild/macrotest caches.
 
+### Lockfile consistency
+
+Before build or cargo-make commands, run this from each directory containing a tracked `Cargo.lock`:
+
+```shell
+cargo +stable metadata --locked --all-features --format-version 1
+```
+
+The Lockfile Consistency Checks workflow checks all tracked lockfiles on fresh checkouts. Running from each lockfile's directory preserves local `.cargo/config.toml` settings. This checks manifest/lockfile agreement, not identical dependency versions across workspaces.
+
 ### Lint
 
 ```shell
