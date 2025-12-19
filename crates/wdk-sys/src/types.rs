@@ -69,5 +69,17 @@ pub use bindings::*;
 #[allow(clippy::useless_transmute)]
 #[allow(clippy::use_self)]
 mod bindings {
+    // TODO: These types are blocklisted in bindgen because it cannot handle structs
+    // with fields that are unnamed.
+    #[cfg(feature = "network")]
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    pub union _NET_BUFFER_HEADER {
+        pub NetBufferData: NET_BUFFER_DATA,
+        pub Link: SLIST_HEADER,
+    }
+    #[cfg(feature = "network")]
+    pub type NET_BUFFER_HEADER = _NET_BUFFER_HEADER;
+
     include!(concat!(env!("OUT_DIR"), "/types.rs"));
 }

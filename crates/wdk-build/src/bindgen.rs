@@ -131,6 +131,9 @@ impl BuilderExt for Builder {
             .blocklist_item(".*USBDEVICE_ABORTIO")
             .blocklist_item(".*USBDEVICE_STARTIO")
             .blocklist_item(".*USBDEVICE_TREE_PURGEIO")
+            // FIXME: bindgen unable to generate nameless fields
+            .blocklist_item(".*NET_BUFFER_HEADER")
+            .blocklist_item(".*NDIS_OPEN_BLOCK")
             // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
             .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
