@@ -142,7 +142,8 @@ impl BuilderExt for Builder {
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease)
             .rust_target(get_rust_target()?)
-            .rust_edition(get_rust_edition()?);
+            .rust_edition(get_rust_edition()?)
+            .wrap_unsafe_ops(true);
 
         // The `_USBPM_CLIENT_CONFIG_EXTRA_INFO` struct only has members when
         // _KERNEL_MODE flag is defined. We need to mark this type as opaque to avoid
