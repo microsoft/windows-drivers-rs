@@ -58,15 +58,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
-      - name: Install Winget
-        if: matrix.runner.name == 'windows-11-arm'
-        uses: ./.github/actions/install-winget
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install Winget PowerShell Module
         shell: pwsh
         run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+      - name: Install Winget
+        if: matrix.runner.name == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          Repair-WinGetPackageManager -Latest -Force
+          Write-Output "Winget Version: $(winget --version)"
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm
