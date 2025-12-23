@@ -130,31 +130,22 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
-    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
-        let env = [("WDKContentRoot", Some(wdk_content_root.as_str()))];
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            Some(target_arch),
-            None,
-            Some(&env),
-            Some(target_arch),
-        );
-    } else {
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            Some(target_arch),
-            None,
-            None,
-            Some(target_arch),
-        );
-    }
+    let wdk_content_root = std::env::var("NugetPackagesRoot")
+        .ok()
+        .map(|nuget_package_root| get_nuget_wdk_content_root(target_arch, &nuget_package_root));
+    let env = wdk_content_root
+        .as_deref()
+        .map(|wdk_content_root| [("WDKContentRoot", Some(wdk_content_root))]);
+    clean_build_and_verify_project(
+        &driver_path,
+        "kmdf",
+        driver,
+        None,
+        Some(target_arch),
+        None,
+        env.as_ref().map(|env| &env[..]),
+        Some(target_arch),
+    );
 }
 
 // `config.toml` with `build.target` = "x86_64-pc-windows-msvc"
@@ -163,31 +154,22 @@ fn kmdf_driver_with_target_override_via_config_toml() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "x64";
-    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
-        let env = [("WDKContentRoot", Some(wdk_content_root.as_str()))];
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            None,
-            None,
-            Some(&env),
-            Some(target_arch),
-        );
-    } else {
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            None,
-            None,
-            None,
-            Some(target_arch),
-        );
-    }
+    let wdk_content_root = std::env::var("NugetPackagesRoot")
+        .ok()
+        .map(|nuget_package_root| get_nuget_wdk_content_root(target_arch, &nuget_package_root));
+    let env = wdk_content_root
+        .as_deref()
+        .map(|wdk_content_root| [("WDKContentRoot", Some(wdk_content_root))]);
+    clean_build_and_verify_project(
+        &driver_path,
+        "kmdf",
+        driver,
+        None,
+        None,
+        None,
+        env.as_ref().map(|env| &env[..]),
+        Some(target_arch),
+    );
 }
 
 #[test]
@@ -195,35 +177,24 @@ fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
-    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
-        let env = [
-            ("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME)),
-            ("WDKContentRoot", Some(wdk_content_root.as_str())),
-        ];
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            None,
-            None,
-            Some(&env),
-            Some(target_arch),
-        );
-    } else {
-        let env = [("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))];
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            None,
-            None,
-            Some(&env),
-            Some(target_arch),
-        );
+    let wdk_content_root = std::env::var("NugetPackagesRoot")
+        .ok()
+        .map(|nuget_package_root| get_nuget_wdk_content_root(target_arch, &nuget_package_root));
+    let mut env: Vec<(&str, Option<&str>)> =
+        vec![("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))];
+    if let Some(wdk_content_root) = wdk_content_root.as_deref() {
+        env.push(("WDKContentRoot", Some(wdk_content_root)));
     }
+    clean_build_and_verify_project(
+        &driver_path,
+        "kmdf",
+        driver,
+        None,
+        None,
+        None,
+        Some(env.as_slice()),
+        Some(target_arch),
+    );
 }
 
 #[test]
@@ -231,35 +202,24 @@ fn kmdf_driver_with_target_override_cli_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
-    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
-        let env = [
-            ("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME)),
-            ("WDKContentRoot", Some(wdk_content_root.as_str())),
-        ];
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            Some(target_arch),
-            None,
-            Some(&env),
-            Some(target_arch),
-        );
-    } else {
-        let env = [("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))];
-        clean_build_and_verify_project(
-            &driver_path,
-            "kmdf",
-            driver,
-            None,
-            Some(target_arch),
-            None,
-            Some(&env),
-            Some(target_arch),
-        );
+    let wdk_content_root = std::env::var("NugetPackagesRoot")
+        .ok()
+        .map(|nuget_package_root| get_nuget_wdk_content_root(target_arch, &nuget_package_root));
+    let mut env: Vec<(&str, Option<&str>)> =
+        vec![("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME))];
+    if let Some(wdk_content_root) = wdk_content_root.as_deref() {
+        env.push(("WDKContentRoot", Some(wdk_content_root)));
     }
+    clean_build_and_verify_project(
+        &driver_path,
+        "kmdf",
+        driver,
+        None,
+        Some(target_arch),
+        None,
+        Some(env.as_slice()),
+        Some(target_arch),
+    );
 }
 
 #[test]
@@ -267,31 +227,22 @@ fn umdf_driver_with_target_arch_and_release_profile() {
     let driver_path = "tests/umdf-driver";
     let target_arch = "ARM64";
     let profile = "release";
-    if let Ok(nuget_package_root) = std::env::var("NugetPackagesRoot") {
-        let wdk_content_root = get_nuget_wdk_content_root(target_arch, &nuget_package_root);
-        let env = [("WDKContentRoot", Some(wdk_content_root.as_str()))];
-        clean_build_and_verify_project(
-            driver_path,
-            "umdf",
-            "umdf-driver",
-            None,
-            Some(target_arch),
-            Some(profile),
-            Some(&env),
-            Some(target_arch),
-        );
-    } else {
-        clean_build_and_verify_project(
-            driver_path,
-            "umdf",
-            "umdf-driver",
-            None,
-            Some(target_arch),
-            Some(profile),
-            None,
-            Some(target_arch),
-        );
-    }
+    let wdk_content_root = std::env::var("NugetPackagesRoot")
+        .ok()
+        .map(|nuget_package_root| get_nuget_wdk_content_root(target_arch, &nuget_package_root));
+    let env = wdk_content_root
+        .as_deref()
+        .map(|wdk_content_root| [("WDKContentRoot", Some(wdk_content_root))]);
+    clean_build_and_verify_project(
+        driver_path,
+        "umdf",
+        "umdf-driver",
+        None,
+        Some(target_arch),
+        Some(profile),
+        env.as_ref().map(|env| &env[..]),
+        Some(target_arch),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
