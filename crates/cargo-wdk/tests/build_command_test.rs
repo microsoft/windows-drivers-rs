@@ -445,7 +445,8 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
 fn get_nuget_wdk_content_root(arch: &str, nuget_packages_root: &str) -> String {
     let full_version_number = std::env::var("FullVersionNumber")
         .expect("FullVersionNumber must be set when using NuGet source");
-    let target_wdk_package = format!("Microsoft.Windows.WDK.{arch}.{full_version_number}");
+    let expected_wdk_package_dir_name =
+        format!("Microsoft.Windows.WDK.{arch}.{full_version_number}");
 
     let wdk_package_dir = fs::read_dir(Path::new(nuget_packages_root))
         .unwrap_or_else(|err| {
@@ -457,7 +458,8 @@ fn get_nuget_wdk_content_root(arch: &str, nuget_packages_root: &str) -> String {
             path.is_dir()
                 && path
                     .file_name()
-                    .is_some_and(|name| name.to_string_lossy().to_string().eq(&target_wdk_package))
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name == expected_wdk_package_dir_name)
         })
         .unwrap_or_else(|| {
             panic!(
