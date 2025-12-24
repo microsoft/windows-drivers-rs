@@ -54,7 +54,7 @@ assert ${success} "Failed to delete tests directory"
 install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
   "expand",
   "--version",
-], version = "1.0.85" }
+], version = "1.0.119" }
 
 [tasks.audit]
 args = ["audit", "--deny", "warnings"]

@@ -89,7 +89,7 @@ jobs:
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-expand@1.0.85
+          tool: cargo-expand@1.0.119
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2

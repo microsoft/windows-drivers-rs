@@ -88,7 +88,7 @@ That's it! Thank you for your contribution!
 The following tools should be installed as a part of the `windows-drivers-rs` developer workflow:
 
 * `cargo-audit`: `cargo install --locked cargo-audit`
-* `cargo-expand`: `cargo install --locked cargo-expand --version 1.0.85`
+* `cargo-expand`: `cargo install --locked cargo-expand --version 1.0.119`
 * `cargo-machete`: `cargo install --locked cargo-machete`
 * `cargo-sort`: `cargo install --locked cargo-sort`
 * `taplo-cli`: `cargo install --locked taplo-cli`
