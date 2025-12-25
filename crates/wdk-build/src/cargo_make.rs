@@ -618,12 +618,14 @@ fn get_path_from_env(
 ) -> PathBuf {
     env::var(env_var).map_or_else(
         |e| {
-            const COMMON_MSG: &str = "Constructing path from WDK content root instead";
+            const FALLBACK_MSG: &str = "Constructing path from WDK content root instead";
             match e {
-                env::VarError::NotPresent => trace!("Env var '{env_var}' not found. {COMMON_MSG}"),
+                env::VarError::NotPresent => {
+                    trace!("Env var '{env_var}' not found. {FALLBACK_MSG}")
+                }
                 env::VarError::NotUnicode(val) => {
                     warn!(
-                        "Env var '{env_var}' contains non-UTF8 charactersa: {val:?}. {COMMON_MSG}"
+                        "Env var '{env_var}' contains non-UTF8 characters: {val:?}. {FALLBACK_MSG}"
                     );
                 }
             }
