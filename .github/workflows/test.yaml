@@ -50,16 +50,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
-      - name: Install Winget PowerShell Module
-        shell: pwsh
-        run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
-
       - name: Install Winget
-        if: matrix.runner.arch == 'arm64'
-        shell: pwsh
-        run: |
-          Repair-WinGetPackageManager -Latest -Force
-          Write-Output "Winget Version: $(winget --version)"
+        uses: ./.github/actions/install-winget
+        with:
+          # windows-11-arm runner image does not include winget-cli (see https://github.com/actions/partner-runner-images/issues/95).
+          force-cli-install: ${{ matrix.runner.name == 'windows-11-arm' && 'true' || 'false' }}
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm

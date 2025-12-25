@@ -1,0 +1,52 @@
+name: Install Winget
+description: Install the Microsoft.WinGet.Client module and optionally force Winget repair for images missing `winget-cli`.
+inputs:
+  force-cli-install:
+    description: Set to `true` to force install of latest Winget cli (only accepts `true` or `false`). This is useful on images where Winget may be absent (for example, Windows ARM64 partner images).
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Normalize inputs
+      id: normalize
+      shell: pwsh
+      run: |
+        $raw = "${{ inputs.force-cli-install }}"
+
+        $normalizedValue = $raw.Trim().ToLowerInvariant()
+
+        switch ($normalizedValue) {
+          'true' {
+            $normalized = 'true'
+            break
+          }
+          'false' {
+            $normalized = 'false'
+            break
+          }
+          default {
+            Write-Error "Invalid force-cli-install value '$raw'. Acceptable values: true or false."
+            exit 1
+          }
+        }
+
+        $outputLine = "force-cli-install=$normalized"
+        [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "$outputLine`n", [System.Text.Encoding]::UTF8)
+
+    - name: Install Winget PowerShell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+    # Some hosted images (ex. https://github.com/actions/partner-runner-images/issues/95) do not ship winget-cli. Force install when requested.
+    - name: Ensure Winget is available
+      if: ${{ steps.normalize.outputs.force-cli-install == 'true' }}
+      shell: pwsh
+      run: |
+        Repair-WinGetPackageManager -Latest -Force
+        Write-Output "Winget Version (via CLI): $(winget --version)"
+
+    - name: Print Winget version (via Microsoft.WinGet.Client pwsh module)
+      shell: pwsh
+      run: |
+        Write-Output "Winget Version (via pwsh module): $(Get-WinGetVersion)"
