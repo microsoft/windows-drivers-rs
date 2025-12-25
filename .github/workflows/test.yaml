@@ -37,8 +37,7 @@ jobs:
         rust_toolchain:
           - stable
           - beta
-          # Pin nightly version temporarily due to bug in macrotest: https://github.com/eupn/macrotest/issues/131
-          - nightly-2025-11-20
+          - nightly
 
         cargo_profile:
           - dev
@@ -50,15 +49,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
-      - name: Install Winget
-        if: matrix.runner.arch == 'arm64'
-        uses: ./.github/actions/install-winget
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install Winget PowerShell Module
         shell: pwsh
         run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+      - name: Install Winget
+        if: matrix.runner.arch == 'arm64'
+        shell: pwsh
+        run: |
+          Repair-WinGetPackageManager -Latest -Force
+          Write-Output "Winget Version: $(winget --version)"
 
       - name: Install LLVM ${{ matrix.llvm }}
         uses: ./.github/actions/install-llvm
@@ -88,7 +88,7 @@ jobs:
       - name: Install Cargo Expand
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-expand@1.0.85
+          tool: cargo-expand@1.0.119
 
       - name: Install Cargo Make
         uses: taiki-e/install-action@v2
