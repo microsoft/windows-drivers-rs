@@ -29,17 +29,14 @@ pub fn init_tracing(verbosity_level: clap_verbosity_flag::Verbosity) {
 
     let tracing_filter = EnvFilter::default().add_directive(level.into());
 
-    let is_tty = std::io::stdout().is_terminal();
-
     tracing_subscriber::fmt()
         .compact()
         .without_time()
         .with_target(false)
         .with_file(false)
         .with_env_filter(tracing_filter)
-        .with_ansi(is_tty)
+        .with_ansi(std::io::stderr().is_terminal())
         .init();
-
 }
 
 /// Gets the verbose flags for cargo command based on clap's verbosity level.
