@@ -1,78 +1,52 @@
-name: "Install Winget"
-description: "Install winget on windows runners since its not installed by default: https://github.com/actions/runner-images/issues/6472"
+name: Install Winget
+description: Install the Microsoft.WinGet.Client module and optionally force Winget repair for images missing `winget-cli`.
 inputs:
-  GITHUB_TOKEN:
-    description: "GitHub token to execute authenticated Github API requests (for higher rate limit)"
-    required: true
+  force-cli-install:
+    description: Set to `true` to force install of latest Winget cli (only accepts `true` or `false`). This is useful on images where Winget may be absent (for example, Windows ARM64 partner images).
+    required: false
+    default: 'false'
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: Get URIs for Winget v1.11.400 assets
+    - name: Normalize inputs
+      id: normalize
       shell: pwsh
       run: |
-        $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
+        $raw = "${{ inputs.force-cli-install }}"
 
-        # Detect runner architecture
-        $Architecture = if ($env:RUNNER_ARCH -eq "ARM64") { "arm64" } else { "x64" }
-        Write-Host "Runner architecture: $Architecture"
+        $normalizedValue = $raw.Trim().ToLowerInvariant()
 
-        # winget-cli release v1.11.400
-        # Define the winget-cli release tag to use
-        $WingetReleaseTag = "v1.11.400"
-        # Fetch release info by tag instead of magic number release ID
-        $ReleaseInfo = Invoke-RestMethod -Headers $AuthenticatedHeaders "https://api.github.com/repos/microsoft/winget-cli/releases/tags/$WingetReleaseTag"
-        $WingetDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('.msixbundle') }
-        $WingetLicenseDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('License1.xml') }
-        $WingetDependenciesZipDownloadUri = $ReleaseInfo.assets.browser_download_url | Where-Object { $_.EndsWith('DesktopAppInstaller_Dependencies.zip') }
-
-        # Print to logs
-        Write-Host "WingetDownloadUri=$WingetDownloadUri"
-        Write-Host "WingetLicenseDownloadUri=$WingetLicenseDownloadUri"
-        Write-Host "WingetDependenciesZipDownloadUri=$WingetDependenciesZipDownloadUri"
-
-        # Save output for next step
-        Write-Output "WingetDownloadUri=$WingetDownloadUri" >> $env:GITHUB_ENV
-        Write-Output "WingetLicenseDownloadUri=$WingetLicenseDownloadUri" >> $env:GITHUB_ENV
-        Write-Output "Architecture=$Architecture" >> $env:GITHUB_ENV
-        Write-Output "WingetDependenciesZipDownloadUri=$WingetDependenciesZipDownloadUri" >> $env:GITHUB_ENV
-        Write-Output "InstallWingetTempDir=$env:RUNNER_TEMP/install-winget" >> $env:GITHUB_ENV
-
-    - name: Download Winget Assets and Dependencies
-      shell: pwsh
-      run: |
-        $AuthenticatedHeaders = @{ "Authorization" = "Bearer ${{ inputs.GITHUB_TOKEN }}" }
-        New-Item -Type Directory $env:InstallWingetTempDir
-        
-        # Download winget and license (architecture-agnostic)
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDownloadUri -OutFile $env:InstallWingetTempDir/winget.msixbundle
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetLicenseDownloadUri -OutFile $env:InstallWingetTempDir/license.xml
-        Invoke-WebRequest -Headers $AuthenticatedHeaders -Uri $env:WingetDependenciesZipDownloadUri -OutFile $env:InstallWingetTempDir/DesktopAppInstaller_Dependencies.zip
-
-        Expand-Archive -Path "$env:InstallWingetTempDir/DesktopAppInstaller_Dependencies.zip" -DestinationPath $env:InstallWingetTempDir/ -Force
-
-    - name: Start Winget Installation for all Users
-      shell: pwsh
-      run: |
-        # Use architecture-specific dependency paths
-        [string[]]$DependencyPaths = (Get-ChildItem -Path "$env:InstallWingetTempDir/$env:Architecture" -Filter '*.appx' -File -Force).FullName
-
-        $MicrosoftUIXamlDep = $($DependencyPaths[0])
-        $MicrosoftVCLibsDep = $($DependencyPaths[1])
-
-        Write-Host "Found Dependency $MicrosoftUIXamlDep"
-        Write-Host "Found Dependency $MicrosoftVCLibsDep"
-
-        Add-AppxProvisionedPackage -Online -PackagePath $env:InstallWingetTempDir/winget.msixbundle -LicensePath $env:InstallWingetTempDir/license.xml -DependencyPackagePath "$MicrosoftUIXamlDep", "$MicrosoftVCLibsDep"
-
-    - name: Install Winget for Current User (for better install diagnostics)
-      shell: pwsh
-      run: |
-        Add-AppxPackage $env:InstallWingetTempDir/winget.msixbundle
-
-    - name: Wait for Completion of Winget Installation
-      shell: pwsh
-      run: |
-        while ((Get-Command * | Select-String winget)?.ToString() -ne "winget.exe") {
-          Start-Sleep -Seconds 1
+        switch ($normalizedValue) {
+          'true' {
+            $normalized = 'true'
+            break
+          }
+          'false' {
+            $normalized = 'false'
+            break
+          }
+          default {
+            Write-Error "Invalid force-cli-install value '$raw'. Acceptable values: true or false."
+            exit 1
+          }
         }
-        Write-Output "Winget Version: $(winget --version)"
+
+        $outputLine = "force-cli-install=$normalized"
+        [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "$outputLine`n", [System.Text.Encoding]::UTF8)
+
+    - name: Install Winget PowerShell Module
+      shell: pwsh
+      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+
+    # Some hosted images (ex. https://github.com/actions/partner-runner-images/issues/95) do not ship winget-cli. Force install when requested.
+    - name: Ensure Winget is available
+      if: ${{ steps.normalize.outputs.force-cli-install == 'true' }}
+      shell: pwsh
+      run: |
+        Repair-WinGetPackageManager -Latest -Force
+        Write-Output "Winget Version (via CLI): $(winget --version)"
+
+    - name: Print Winget version (via Microsoft.WinGet.Client pwsh module)
+      shell: pwsh
+      run: |
+        Write-Output "Winget Version (via pwsh module): $(Get-WinGetVersion)"
