@@ -19,10 +19,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
-      # All check steps use 'if: !cancelled()' to ensure all checks run even if earlier ones fail,
+      # All check steps use `if: '!cancelled()'` to ensure all checks run even if earlier ones fail,
       # while still respecting manual workflow cancellations. The job will fail if any check fails.
       - name: Check wdk-build version (README vs crates/wdk-build)
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: README.md
@@ -35,7 +35,7 @@ jobs:
           error-message: "Please update README.md to match the wdk-build crate's version."
 
       - name: Check wdk-sys and wdk-macros lockstep versioning
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/wdk-sys/Cargo.toml
@@ -47,7 +47,7 @@ jobs:
           error-message: "These crates must be versioned in lockstep because: (1) wdk-macros is a proc-macro crate that should only be consumed through wdk-sys re-exports, and (2) the two crates form a tightly coupled API surface. When updating either crate, both versions must be bumped together."
 
       - name: Check workspace wdk-macros dependency version matches wdk-sys crate version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: Cargo.toml
@@ -62,7 +62,7 @@ jobs:
       # Template version checks - ensure cargo-wdk templates use latest dep
       # versions by comparing them against those in the workspace's Cargo.toml file
       - name: Check KMDF template wdk version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
@@ -73,7 +73,7 @@ jobs:
           file2-version-label: "wdk workspace dependency version"
 
       - name: Check KMDF template wdk-build version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
@@ -84,7 +84,7 @@ jobs:
           file2-version-label: "wdk-build workspace dependency version"
 
       - name: Check KMDF template wdk-alloc version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
@@ -95,7 +95,7 @@ jobs:
           file2-version-label: "wdk-alloc workspace dependency version"
 
       - name: Check KMDF template wdk-panic version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
@@ -106,7 +106,7 @@ jobs:
           file2-version-label: "wdk-panic workspace dependency version"
 
       - name: Check KMDF template wdk-sys version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/kmdf/Cargo.toml.tmp
@@ -117,7 +117,7 @@ jobs:
           file2-version-label: "wdk-sys workspace dependency version"
 
       - name: Check UMDF template wdk version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/umdf/Cargo.toml.tmp
@@ -128,7 +128,7 @@ jobs:
           file2-version-label: "wdk workspace dependency version"
 
       - name: Check UMDF template wdk-build version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/umdf/Cargo.toml.tmp
@@ -139,7 +139,7 @@ jobs:
           file2-version-label: "wdk-build workspace dependency version"
 
       - name: Check UMDF template wdk-sys version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/umdf/Cargo.toml.tmp
@@ -150,7 +150,7 @@ jobs:
           file2-version-label: "wdk-sys workspace dependency version"
 
       - name: Check WDM template wdk version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
@@ -161,7 +161,7 @@ jobs:
           file2-version-label: "wdk workspace dependency version"
 
       - name: Check WDM template wdk-build version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
@@ -172,7 +172,7 @@ jobs:
           file2-version-label: "wdk-build workspace dependency version"
 
       - name: Check WDM template wdk-alloc version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
@@ -183,7 +183,7 @@ jobs:
           file2-version-label: "wdk-alloc workspace dependency version"
 
       - name: Check WDM template wdk-panic version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
@@ -194,7 +194,7 @@ jobs:
           file2-version-label: "wdk-panic workspace dependency version"
 
       - name: Check WDM template wdk-sys version
-        if: !cancelled()
+        if: '!cancelled()'
         uses: ./.github/actions/compare-regex-versions
         with:
           file1: crates/cargo-wdk/templates/wdm/Cargo.toml.tmp
