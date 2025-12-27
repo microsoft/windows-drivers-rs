@@ -9,6 +9,7 @@
 //! - A function to map clap verbosity levels to corresponding cargo verbose
 //!   flags.
 
+use std::io::IsTerminal;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
@@ -34,6 +35,7 @@ pub fn init_tracing(verbosity_level: clap_verbosity_flag::Verbosity) {
         .with_target(false)
         .with_file(false)
         .with_env_filter(tracing_filter)
+        .with_ansi(std::io::stderr().is_terminal())
         .init();
 }
 
