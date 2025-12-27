@@ -621,7 +621,7 @@ fn get_path_from_env(
             const FALLBACK_MSG: &str = "Constructing path from WDK content root instead";
             match e {
                 env::VarError::NotPresent => {
-                    trace!("Env var '{env_var}' not found. {FALLBACK_MSG}")
+                    trace!("Env var '{env_var}' not found. {FALLBACK_MSG}");
                 }
                 env::VarError::NotUnicode(val) => {
                     warn!(
