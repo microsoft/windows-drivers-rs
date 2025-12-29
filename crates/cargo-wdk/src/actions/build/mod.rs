@@ -133,10 +133,8 @@ impl<'a> BuildAction<'a> {
             "Initialized build for project at: {}",
             self.working_dir.display()
         );
-        debug!(
-            "WDK build number: {}",
-            self.wdk_build.detect_wdk_build_number()?
-        );
+        let build_number = self.wdk_build.detect_wdk_build_number()?;
+        debug!("WDK build number: {}", build_number);
         wdk_build::cargo_make::setup_path()?;
         debug!("PATH env variable is set with WDK bin and tools paths");
 
@@ -371,7 +369,7 @@ impl<'a> BuildAction<'a> {
         let target_arch = if let Some(arch) = self.target_arch {
             arch
         } else {
-            self.probe_target_arch_from_cargo_rustc(working_dir)?
+            self.get_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
         let target_dir = Self::get_target_dir_from_output(package, output_message_iter)?;
@@ -401,13 +399,21 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Determines the target directory to hand to the packaging task by
-    // scanning `cargo build --message-format=json` output and locating
-    // the cdylib artifact produced for this package (normalized name and
-    // manifest path must match). The parent folder of that `.dll` path is
-    // returned once resolved to an absolute path.
-    // Errors if the cdylib artifact cannot be found or its parent cannot
-    // be made absolute.
+    /// Determines the target directory (i.e. path where binaries are emitted)
+    /// for a cdylib package by scanning the output of the
+    /// `cargo build --message-format json` command.
+    ///
+    /// Works by locating the cdylib artifact matching the package, finding
+    /// the DLL file in it, and returning the DLL's parent folder as an
+    /// absolute path.
+    ///
+    /// # Errors
+    /// - `BuildActionError::CannotDetermineTargetDir` - If no matching DLL file
+    ///   is found in the output or its parent folder cannot be determined.
+    /// - `BuildActionError::NotAbsolute` - If the DLL's parent path could not
+    ///   be made absolute.
+    /// - `BuildActionError::CannotDetermineTargetDir` - If a cargo message
+    ///   could not be parsed.
     fn get_target_dir_from_output(
         package: &Package,
         mut cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
@@ -418,8 +424,9 @@ impl<'a> BuildAction<'a> {
                     Ok(Message::CompilerArtifact(artifact)) => artifact,
                     Ok(_) => return None,
                     Err(err) => {
-                        debug!("Skipping unparsable cargo message: {err}");
-                        return None;
+                        return Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
+                            "Could not parse cargo build output message: {err}"
+                        ))));
                     }
                 };
                 let package_matches = artifact.package_id == package.id;
@@ -491,7 +498,7 @@ impl<'a> BuildAction<'a> {
     ///   is parsed from the output
     /// * `BuildActionError` - if the command fails to execute or an unsupported
     ///   architecture is detected or if no target architecture was detected
-    fn probe_target_arch_from_cargo_rustc(
+    fn get_target_arch_from_cargo_rustc(
         &self,
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {

@@ -78,6 +78,44 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
 }
 
 #[test]
+pub fn given_a_driver_project_when_cargo_build_output_is_unparsable_then_target_dir_resolution_fails()
+ {
+    let cwd = PathBuf::from("C:\\tmp");
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package_json) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_toml_metadata = get_cargo_metadata(
+        &cwd,
+        vec![package_json],
+        std::slice::from_ref(&workspace_member),
+        None,
+    );
+    let cargo_toml_metadata =
+        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
+            .expect("Failed to parse cargo metadata in unparsable cargo build output test");
+    let package = cargo_toml_metadata
+        .packages
+        .iter()
+        .find(|p| p.id.to_string() == workspace_member.0)
+        .expect("Test package not found in parsed cargo metadata");
+
+    let cargo_build_output =
+        std::iter::once::<Result<cargo_metadata::Message, std::io::Error>>(Err(
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "unparsable cargo message"),
+        ));
+
+    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
+    assert!(
+        matches!(result, Err(BuildActionError::CannotDetermineTargetDir(_))),
+        "Expected CargoBuildOutputParse error, got: {result:?}"
+    );
+}
+
+#[test]
 pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfully() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -2755,6 +2793,7 @@ impl TestBuildAction {
     fn expect_detect_wdk_build_number(mut self, expected_wdk_build_number: u32) -> Self {
         self.mock_wdk_build_provider
             .expect_detect_wdk_build_number()
+            .once()
             .returning(move || Ok(expected_wdk_build_number));
         self
     }

@@ -426,18 +426,17 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
 // Helper to hash a file
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
     let file_contents = fs::read(&path)
-        .unwrap_or_else(|_| panic!("Failed to read file. Path: {}", path.as_ref().display()));
+        .unwrap_or_else(|e| panic!("Failed to read file at {}: {}", path.as_ref().display(), e));
     let result = Sha256::digest(&file_contents);
     format!("{result:x}")
 }
 
-/// This helper function tries to get the WDK content root path from NuGet
+/// This helper function tries to get the WDK content root path from Nuget
 /// packages root.
 ///
 /// # Returns:
 /// - WDK content's (for the given architecture) root path as a string if
-///   `NugetPackagesRoot` and `FullVersionNumber` environment
-/// variables are set
+///   `NugetPackagesRoot` and `FullVersionNumber` environment variables are set
 /// - `None` if these environment variables are not set.
 ///
 /// # Panics:
