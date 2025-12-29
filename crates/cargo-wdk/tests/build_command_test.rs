@@ -197,8 +197,11 @@ fn kmdf_driver_with_target_override_env_wins() {
     );
 }
 
+/// Verifies that the CLI `--target-arch` argument takes precedence over:
+/// - `.cargo/config.toml` `build.target` setting
+/// - `CARGO_BUILD_TARGET` environment variable
 #[test]
-fn kmdf_driver_with_target_override_cli_wins() {
+fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
