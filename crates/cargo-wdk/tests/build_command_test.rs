@@ -14,13 +14,13 @@ const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    let stdout = with_mutex("mixed_package_kmdf_workspace", || {
+    let stderr = with_mutex("mixed_package_kmdf_workspace", || {
         run_cargo_clean("tests/mixed-package-kmdf-workspace");
         run_build_cmd("tests/mixed-package-kmdf-workspace")
     });
 
-    assert!(stdout.contains("Building package driver"));
-    assert!(stdout.contains("Building package non_driver_crate"));
+    assert!(stderr.contains("Building package driver"));
+    assert!(stderr.contains("Building package non_driver_crate"));
     verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
 }
 
@@ -80,14 +80,14 @@ fn wdm_driver_builds_successfully_with_given_version() {
 fn emulated_workspace_builds_successfully() {
     let emulated_workspace_path = "tests/emulated-workspace";
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-    let stdout = with_mutex("emulated_workspace", || {
+    let stderr = with_mutex("emulated_workspace", || {
         run_cargo_clean(&umdf_driver_workspace_path);
         run_build_cmd(emulated_workspace_path)
     });
 
-    assert!(stdout.contains("Building package driver_1"));
-    assert!(stdout.contains("Building package driver_2"));
-    assert!(stdout.contains("Build completed successfully"));
+    assert!(stderr.contains("Building package driver_1"));
+    assert!(stderr.contains("Building package driver_2"));
+    assert!(stderr.contains("Build completed successfully"));
 
     verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
     verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
@@ -99,9 +99,9 @@ fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str
 
     with_mutex(&driver_path, || {
         run_cargo_clean(&driver_path);
-        let stdout = run_build_cmd(&driver_path);
+        let stderr = run_build_cmd(&driver_path);
 
-        assert!(stdout.contains(&format!("Building package {driver_name}")));
+        assert!(stderr.contains(&format!("Building package {driver_name}")));
 
         let driver_binary_extension = match driver_type {
             "kmdf" | "wdm" => "sys",
@@ -130,7 +130,7 @@ fn run_build_cmd(driver_path: &str) -> String {
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
 
-    String::from_utf8_lossy(&output.stdout).to_string()
+    String::from_utf8_lossy(&output.stderr).to_string()
 }
 
 fn verify_driver_package_files(
