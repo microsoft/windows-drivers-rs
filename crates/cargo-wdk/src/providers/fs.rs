@@ -11,7 +11,17 @@
 #![allow(clippy::unused_self)]
 
 use std::{
-    fs::{DirEntry, File, FileType, OpenOptions, copy, create_dir, read_dir, rename},
+    fs::{
+        DirEntry,
+        File,
+        FileType,
+        OpenOptions,
+        copy,
+        create_dir,
+        create_dir_all,
+        read_dir,
+        rename,
+    },
     io::{Read, Write},
     path::Path,
 };
@@ -36,6 +46,10 @@ impl Fs {
 
     pub fn create_dir(&self, path: &Path) -> Result<(), FileError> {
         create_dir(path).map_err(|e| FileError::CreateDirError(path.to_owned(), e))
+    }
+
+    pub fn create_dir_all(&self, path: &Path) -> Result<(), FileError> {
+        create_dir_all(path).map_err(|e| FileError::CreateDirError(path.to_owned(), e))
     }
 
     pub fn dir_file_type(&self, dir: &DirEntry) -> Result<FileType, FileError> {
