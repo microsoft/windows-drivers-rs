@@ -10,6 +10,7 @@
 //!   flags.
 
 use std::io::IsTerminal;
+
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
