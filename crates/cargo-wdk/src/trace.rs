@@ -34,6 +34,7 @@ pub fn init_tracing(verbosity_level: clap_verbosity_flag::Verbosity) {
         .without_time()
         .with_target(false)
         .with_file(false)
+        .with_writer(std::io::stderr)
         .with_env_filter(tracing_filter)
         .with_ansi(std::io::stderr().is_terminal())
         .init();
