@@ -90,10 +90,11 @@ fn verify_project_creation(driver_type: &str, tmp_dir: &TempDir) -> PathBuf {
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     println!("stdout: {stdout}");
-    println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+    println!("stderr: {stderr}");
     println!("driver path: {}", driver_path.display());
-    assert!(stdout.contains(&format!(
+    assert!(stderr.contains(&format!(
         "New {} driver crate created successfully at: {}",
         driver_type,
         tmp_dir.path().join(&driver_name).display()
@@ -165,24 +166,24 @@ fn verify_project_build(path: &std::path::Path) {
 
     let cmd_assertion = cmd.assert().failure();
     let output = cmd_assertion.get_output();
-    let stdout: String = String::from_utf8_lossy(&output.stdout).into();
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into();
 
     // Assert build output contains expected errors (the INF file is intentionally
     // incomplete)
     assert!(
-        stdout.contains(
+        stderr.contains(
             "Required directive Provider missing, empty, or invalid in [Version] section."
         )
     );
     assert!(
-        stdout
+        stderr
             .contains("Required directive Class missing, empty, or invalid in [Version] section.")
     );
     assert!(
-        stdout
+        stderr
             .contains("Invalid ClassGuid \"\", expecting {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}.")
     );
-    assert!(stdout.contains("INF is NOT VALID"));
+    assert!(stderr.contains("INF is NOT VALID"));
 }
 
 fn test_command_invocation<F: FnOnce(&str, &str)>(
