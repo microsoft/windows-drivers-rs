@@ -22,7 +22,7 @@ use std::{
 use anyhow::Context;
 use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use clap::{Args, ColorChoice, CommandFactory, FromArgMatches, Parser};
-use tracing::{instrument, trace};
+use tracing::{instrument, trace, warn};
 
 use crate::{
     ConfigError,
@@ -618,10 +618,17 @@ fn get_path_from_env(
 ) -> PathBuf {
     env::var(env_var).map_or_else(
         |e| {
-            trace!(
-                "Could not read env var '{env_var}': {e:?}. Constructing path from WDK content \
-                 root"
-            );
+            const FALLBACK_MSG: &str = "Constructing path from WDK content root instead";
+            match e {
+                env::VarError::NotPresent => {
+                    trace!("Env var '{env_var}' not found. {FALLBACK_MSG}");
+                }
+                env::VarError::NotUnicode(val) => {
+                    warn!(
+                        "Env var '{env_var}' contains non-UTF8 characters: {val:?}. {FALLBACK_MSG}"
+                    );
+                }
+            }
             wdk_content_root.join(sub_folder).join(sdk_version)
         },
         PathBuf::from,
