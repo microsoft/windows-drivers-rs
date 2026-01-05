@@ -100,12 +100,13 @@ impl Fs {
 #[cfg(test)]
 mod tests {
     use assert_fs::{TempDir, prelude::*};
+    use predicates::prelude::*;
 
     use super::Fs;
     use crate::providers::error::FileError;
 
     #[test]
-    fn create_dir_all_returns_create_dir_error_when_target_is_not_a_dir() {
+    fn create_dir_all_returns_error_when_target_is_not_a_dir() {
         let temp = TempDir::new().expect("failed to create temp dir");
         let file_path = temp.child("not_a_dir");
         file_path
@@ -121,5 +122,20 @@ mod tests {
             matches!(err, FileError::CreateDirError(path, _) if path == file_path.path()),
             "expected CreateDirError with the original path"
         );
+    }
+
+    #[test]
+    fn create_dir_all_creates_target_dir_when_it_does_not_exist() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let nested_dir = temp.child("a").child("b");
+
+        nested_dir.assert(predicate::path::missing());
+
+        let fs = Fs::default();
+        fs.create_dir_all(nested_dir.path())
+            .expect("expected create_dir_all to succeed");
+
+        temp.child("a").assert(predicate::path::is_dir());
+        nested_dir.assert(predicate::path::is_dir());
     }
 }
