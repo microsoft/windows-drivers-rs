@@ -96,3 +96,30 @@ impl Fs {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use assert_fs::{TempDir, prelude::*};
+
+    use super::Fs;
+    use crate::providers::error::FileError;
+
+    #[test]
+    fn create_dir_all_returns_create_dir_error_when_target_is_not_a_dir() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let file_path = temp.child("not_a_dir");
+        file_path
+            .write_str("hello")
+            .expect("failed to create temp file");
+
+        let fs = Fs::default();
+        let err = fs
+            .create_dir_all(file_path.path())
+            .expect_err("expected create_dir_all to fail when path is a file");
+
+        assert!(
+            matches!(err, FileError::CreateDirError(path, _) if path == file_path.path()),
+            "expected CreateDirError with the original path"
+        );
+    }
+}

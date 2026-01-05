@@ -829,10 +829,9 @@ mod tests {
 
         fn expect_copy_cargo_config(mut self, is_copy_success: bool) -> Self {
             let cargo_dir = self.path.join(".cargo");
-            let expected_cargo_dir = cargo_dir;
             self.mock_fs
                 .expect_create_dir_all()
-                .withf(move |path| path == expected_cargo_dir)
+                .withf(move |path| path == cargo_dir)
                 .returning(move |_| Ok(()));
 
             let cargo_config_path = self.path.join(".cargo").join("config.toml");
