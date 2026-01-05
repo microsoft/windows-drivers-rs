@@ -82,7 +82,7 @@ fn wdm_driver_builds_successfully() {
 fn wdm_driver_builds_successfully_with_given_version() {
     let driver = "wdm-driver";
     let driver_path = format!("tests/{driver}");
-    let env = [(STAMPINF_VERSION_ENV_VAR, Some("5.1.0"))];
+    let env = [(STAMPINF_VERSION_ENV_VAR, Some("5.1.0".to_string()))];
     clean_build_and_verify_project(
         &driver_path,
         "wdm",
@@ -102,10 +102,10 @@ fn emulated_workspace_builds_successfully() {
     with_mutex(emulated_workspace_path, || {
         run_cargo_clean(&umdf_driver_workspace_path);
         run_cargo_clean(&format!("{emulated_workspace_path}/rust-project"));
-        let stdout = run_build_cmd(emulated_workspace_path, None, None);
-        assert!(stdout.contains("Building package driver_1"));
-        assert!(stdout.contains("Building package driver_2"));
-        assert!(stdout.contains("Build completed successfully"));
+        let stderr = run_build_cmd(emulated_workspace_path, None, None);
+        assert!(stderr.contains("Building package driver_1"));
+        assert!(stderr.contains("Building package driver_2"));
+        assert!(stderr.contains("Build completed successfully"));
         verify_driver_package_files(
             &umdf_driver_workspace_path,
             "driver_1",
@@ -130,10 +130,9 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
-    let wdk_content_root = get_wdk_content_root_from_nuget_packages_root(target_arch);
-    let env = wdk_content_root
-        .as_deref()
-        .map(|wdk_content_root| [("WDKContentRoot", Some(wdk_content_root))]);
+    let (wdk_content_root_key, wdk_content_root) =
+        get_wdk_content_root_from_nuget_packages_root(target_arch);
+    let env = [(wdk_content_root_key, wdk_content_root)];
     clean_build_and_verify_project(
         &driver_path,
         "kmdf",
@@ -141,7 +140,7 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
         None,
         Some(target_arch),
         None,
-        env.as_ref().map(|env| &env[..]),
+        Some(&env),
         Some(target_arch),
     );
 }
@@ -152,10 +151,9 @@ fn kmdf_driver_with_target_override_via_config_toml() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "x64";
-    let wdk_content_root = get_wdk_content_root_from_nuget_packages_root(target_arch);
-    let env = wdk_content_root
-        .as_deref()
-        .map(|wdk_content_root| [("WDKContentRoot", Some(wdk_content_root))]);
+    let (wdk_content_root_key, wdk_content_root) =
+        get_wdk_content_root_from_nuget_packages_root(target_arch);
+    let env = [(wdk_content_root_key, wdk_content_root)];
     clean_build_and_verify_project(
         &driver_path,
         "kmdf",
@@ -163,7 +161,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
         None,
         None,
         None,
-        env.as_ref().map(|env| &env[..]),
+        Some(&env),
         Some(target_arch),
     );
 }
@@ -173,12 +171,13 @@ fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
-    let mut env: Vec<(&str, Option<&str>)> =
-        vec![("CARGO_BUILD_TARGET", Some(AARCH64_TARGET_TRIPLE_NAME))];
-    let wdk_content_root = get_wdk_content_root_from_nuget_packages_root(target_arch);
-    if let Some(wdk_content_root) = wdk_content_root.as_deref() {
-        env.push(("WDKContentRoot", Some(wdk_content_root)));
-    }
+    let mut env: Vec<(&str, Option<String>)> = vec![(
+        "CARGO_BUILD_TARGET",
+        Some(AARCH64_TARGET_TRIPLE_NAME.to_string()),
+    )];
+    let (wdk_content_root_key, wdk_content_root) =
+        get_wdk_content_root_from_nuget_packages_root(target_arch);
+    env.push((wdk_content_root_key, wdk_content_root));
     clean_build_and_verify_project(
         &driver_path,
         "kmdf",
@@ -199,12 +198,13 @@ fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
     let driver = "kmdf-driver-with-target-override";
     let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
-    let mut env: Vec<(&str, Option<&str>)> =
-        vec![("CARGO_BUILD_TARGET", Some(X86_64_TARGET_TRIPLE_NAME))];
-    let wdk_content_root = get_wdk_content_root_from_nuget_packages_root(target_arch);
-    if let Some(wdk_content_root) = wdk_content_root.as_deref() {
-        env.push(("WDKContentRoot", Some(wdk_content_root)));
-    }
+    let mut env: Vec<(&str, Option<String>)> = vec![(
+        "CARGO_BUILD_TARGET",
+        Some(X86_64_TARGET_TRIPLE_NAME.to_string()),
+    )];
+    let (wdk_content_root_key, wdk_content_root) =
+        get_wdk_content_root_from_nuget_packages_root(target_arch);
+    env.push((wdk_content_root_key, wdk_content_root));
     clean_build_and_verify_project(
         &driver_path,
         "kmdf",
@@ -222,10 +222,9 @@ fn umdf_driver_with_target_arch_and_release_profile() {
     let driver_path = "tests/umdf-driver";
     let target_arch = "ARM64";
     let profile = "release";
-    let wdk_content_root = get_wdk_content_root_from_nuget_packages_root(target_arch);
-    let env = wdk_content_root
-        .as_deref()
-        .map(|wdk_content_root| [("WDKContentRoot", Some(wdk_content_root))]);
+    let (wdk_content_root_key, wdk_content_root) =
+        get_wdk_content_root_from_nuget_packages_root(target_arch);
+    let env = [(wdk_content_root_key, wdk_content_root)];
     clean_build_and_verify_project(
         driver_path,
         "umdf",
@@ -233,7 +232,7 @@ fn umdf_driver_with_target_arch_and_release_profile() {
         None,
         Some(target_arch),
         Some(profile),
-        env.as_ref().map(|env| &env[..]),
+        Some(&env),
         Some(target_arch),
     );
 }
@@ -246,7 +245,7 @@ fn clean_build_and_verify_project(
     driver_version: Option<&str>,
     input_target_arch: Option<&str>,
     profile: Option<&str>,
-    env_overrides: Option<&[(&str, Option<&str>)]>,
+    env_overrides: Option<&[(&str, Option<String>)]>,
     target_arch_for_verification: Option<&str>,
 ) {
     let mutex_name = format!("{project_path}-{driver_name}");
@@ -267,10 +266,10 @@ fn clean_build_and_verify_project(
         } else {
             Some(args.as_slice())
         };
-        let stdout = run_build_cmd(project_path, cmd_args, env_overrides);
+        let stderr = run_build_cmd(project_path, cmd_args, env_overrides);
 
-        assert!(stdout.contains(&format!("Building package {driver_name}")));
-        assert!(stdout.contains(&format!("Finished building {driver_name}")));
+        assert!(stderr.contains(&format!("Building package {driver_name}")));
+        assert!(stderr.contains(&format!("Finished building {driver_name}")));
 
         let driver_binary_extension = match driver_type {
             "kmdf" | "wdm" => "sys",
@@ -308,13 +307,14 @@ fn run_cargo_clean(driver_path: &str) {
 fn run_build_cmd(
     path: &str,
     args: Option<&[&str]>,
-    env_vars: Option<&[(&str, Option<&str>)]>,
+    env_vars: Option<&[(&str, Option<String>)]>,
 ) -> String {
     // assert command output
     let mut cmd = create_cargo_wdk_cmd("build", args, env_vars, Some(path));
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
-    String::from_utf8_lossy(&output.stdout).to_string()
+
+    String::from_utf8_lossy(&output.stderr).to_string()
 }
 
 fn verify_driver_package_files(
@@ -431,19 +431,25 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
     format!("{result:x}")
 }
 
-/// This helper function tries to get the WDK content root path from Nuget
-/// packages root.
+/// Returns an environment override for `WDKContentRoot`, derived from Nuget.
 ///
 /// # Returns:
-/// - WDK content's (for the given architecture) root path as a string if
-///   `NugetPackagesRoot` and `FullVersionNumber` environment variables are set
-/// - `None` if these environment variables are not set.
+/// - `(\"WDKContentRoot\", Some(path))` if `NugetPackagesRoot` and
+///   `FullVersionNumber` environment variables are set.
+/// - `(\"WDKContentRoot\", None)` if one of these environment variables is not
+///   set.
 ///
 /// # Panics:
 /// - If the expected WDK package folder cannot be found.
-fn get_wdk_content_root_from_nuget_packages_root(target_arch: &str) -> Option<String> {
-    let nuget_packages_root = std::env::var("NugetPackagesRoot").ok()?;
-    let full_version_number = std::env::var("FullVersionNumber").ok()?;
+fn get_wdk_content_root_from_nuget_packages_root(
+    target_arch: &str,
+) -> (&'static str, Option<String>) {
+    let Ok(nuget_packages_root) = std::env::var("NugetPackagesRoot") else {
+        return ("WDKContentRoot", None);
+    };
+    let Ok(full_version_number) = std::env::var("FullVersionNumber") else {
+        return ("WDKContentRoot", None);
+    };
 
     let expected_wdk_package_dir_name =
         format!("Microsoft.Windows.WDK.{target_arch}.{full_version_number}");
@@ -474,5 +480,8 @@ fn get_wdk_content_root_from_nuget_packages_root(target_arch: &str) -> Option<St
         "Expected WDK content root '{}' to exist",
         wdk_content_root_path.display()
     );
-    Some(wdk_content_root_path.to_string_lossy().into_owned())
+    (
+        "WDKContentRoot",
+        Some(wdk_content_root_path.to_string_lossy().into_owned()),
+    )
 }

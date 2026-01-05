@@ -242,7 +242,7 @@ impl Drop for NamedMutex {
 pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     cmd_name: &str,
     cmd_args: Option<&[&str]>,
-    env_vars: Option<&[(&str, Option<&str>)]>,
+    env_vars: Option<&[(&str, Option<String>)]>,
     curr_working_dir: Option<P>,
 ) -> Command {
     assert!(
@@ -262,10 +262,13 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 
     if let Some(env_vars) = env_vars {
         for (key, value) in env_vars {
-            if let Some(value) = value {
-                cmd.env(key, value);
-            } else {
-                cmd.env_remove(key);
+            match value {
+                Some(value) => {
+                    cmd.env(key, value);
+                }
+                None => {
+                    cmd.env_remove(key);
+                }
             }
         }
     }

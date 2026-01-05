@@ -408,12 +408,11 @@ impl<'a> BuildAction<'a> {
     /// absolute path.
     ///
     /// # Errors
-    /// - `BuildActionError::CannotDetermineTargetDir` - If no matching DLL file
-    ///   is found in the output or its parent folder cannot be determined.
-    /// - `BuildActionError::NotAbsolute` - If the DLL's parent path could not
-    ///   be made absolute.
-    /// - `BuildActionError::CannotDetermineTargetDir` - If a cargo message
-    ///   could not be parsed.
+    /// - `BuildActionError::CannotDetermineTargetDir` - If:
+    ///   - no matching DLL file is found in the output,
+    ///   - the DLL's parent folder cannot be determined,
+    ///   - the DLL's parent path could not be made absolute, or
+    ///   - a cargo message could not be parsed.
     fn get_target_dir_from_output(
         package: &Package,
         mut cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
@@ -460,8 +459,7 @@ impl<'a> BuildAction<'a> {
                     let dll_path = path.as_std_path();
                     let Some(parent) = dll_path.parent() else {
                         return Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
-                            "Driver binary's parent directory is missing. Driver binary (.dll) \
-                             path: {}",
+                            "Cannot determine parent directory for driver binary {}",
                             dll_path.display()
                         ))));
                     };
@@ -473,10 +471,11 @@ impl<'a> BuildAction<'a> {
                             );
                             Some(Ok(artifacts_dir))
                         }
-                        Err(error) => Some(Err(BuildActionError::NotAbsolute(
-                            parent.to_path_buf(),
-                            error,
-                        ))),
+                        Err(error) => {
+                            Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
+                                "Could not make driver binary's parent directory absolute: {error}"
+                            ))))
+                        }
                     }
                 })
             })
@@ -490,7 +489,7 @@ impl<'a> BuildAction<'a> {
     /// Invokes `cargo rustc -- --print cfg` and finds the `target_arch` value
     ///
     /// # Arguments
-    /// * `working_dir` -- Working directory from which the command must be
+    /// * `working_dir` - Working directory from which the command must be
     ///   executed
     ///
     /// # Returns
