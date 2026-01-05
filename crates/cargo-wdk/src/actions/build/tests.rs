@@ -110,9 +110,138 @@ pub fn given_a_driver_project_when_cargo_build_output_is_unparsable_then_target_
 
     let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
     assert!(
-        matches!(result, Err(BuildActionError::CannotDetermineTargetDir(_))),
-        "Expected CargoBuildOutputParse error, got: {result:?}"
+        matches!(
+            result,
+            Err(BuildActionError::CannotDetermineTargetDir(ref message))
+            if message.contains("Could not parse cargo build output message")
+        ),
+        "Expected CannotDetermineTargetDir parse error, got: {result:?}"
     );
+}
+
+#[test]
+pub fn given_a_driver_project_when_cargo_build_output_has_no_matching_artifact_then_target_dir_resolution_fails()
+ {
+    let cwd = PathBuf::from("C:\\tmp");
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package_json) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_toml_metadata = get_cargo_metadata(
+        &cwd,
+        vec![package_json],
+        std::slice::from_ref(&workspace_member),
+        None,
+    );
+    let cargo_toml_metadata =
+        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
+            .expect("Failed to parse cargo metadata in no-matching-artifact test");
+    let package = cargo_toml_metadata
+        .packages
+        .iter()
+        .find(|p| p.id.to_string() == workspace_member.0)
+        .expect("Test package not found in parsed cargo metadata");
+
+    let cargo_build_output = create_cargo_artifact_json(driver_name, "9.9.9", &cwd, None, None);
+    let cargo_build_output =
+        cargo_metadata::Message::parse_stream(std::io::Cursor::new(cargo_build_output.stdout));
+
+    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
+    assert!(
+        matches!(
+            result,
+            Err(BuildActionError::CannotDetermineTargetDir(ref message))
+            if message.contains("Could not find matching cdylib artifact")
+        ),
+        "Expected CannotDetermineTargetDir no-matching-artifact error, got: {result:?}"
+    );
+}
+
+#[test]
+pub fn given_a_driver_project_when_matching_artifact_has_no_dll_file_then_target_dir_resolution_fails()
+ {
+    let cwd = PathBuf::from("C:\\tmp");
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package_json) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_toml_metadata = get_cargo_metadata(
+        &cwd,
+        vec![package_json],
+        std::slice::from_ref(&workspace_member),
+        None,
+    );
+    let cargo_toml_metadata =
+        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
+            .expect("Failed to parse cargo metadata in no-dll-filename test");
+    let package = cargo_toml_metadata
+        .packages
+        .iter()
+        .find(|p| p.id.to_string() == workspace_member.0)
+        .expect("Test package not found in parsed cargo metadata");
+
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, None);
+    let cargo_build_stdout =
+        String::from_utf8(cargo_build_output.stdout).expect("expected utf-8 cargo json output");
+    // Remove .dll from the artifact filename to simulate missing dll file
+    let cargo_build_stdout = cargo_build_stdout.replace(".dll\"", ".pdb\"");
+    let cargo_build_output = cargo_metadata::Message::parse_stream(std::io::Cursor::new(
+        cargo_build_stdout.into_bytes(),
+    ));
+
+    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
+    assert!(
+        matches!(
+            result,
+            Err(BuildActionError::CannotDetermineTargetDir(ref message))
+            if message.contains("Could not find matching cdylib artifact")
+        ),
+        "Expected CannotDetermineTargetDir no-dll-filename error, got: {result:?}"
+    );
+}
+
+#[test]
+pub fn given_a_driver_project_when_matching_dll_artifact_is_present_then_target_dir_is_resolved() {
+    let cwd = PathBuf::from("C:\\tmp");
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package_json) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_toml_metadata = get_cargo_metadata(
+        &cwd,
+        vec![package_json],
+        std::slice::from_ref(&workspace_member),
+        None,
+    );
+    let cargo_toml_metadata =
+        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
+            .expect("Failed to parse cargo metadata in resolve-target-dir test");
+    let package = cargo_toml_metadata
+        .packages
+        .iter()
+        .find(|p| p.id.to_string() == workspace_member.0)
+        .expect("Test package not found in parsed cargo metadata");
+
+    let cargo_build_output =
+        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, None);
+    let cargo_build_output =
+        cargo_metadata::Message::parse_stream(std::io::Cursor::new(cargo_build_output.stdout));
+
+    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output)
+        .expect("expected target dir to be resolved");
+    let expected_target_dir =
+        std::path::absolute(cwd.join("target").join("debug")).expect("absolute path failed");
+    assert_eq!(result, expected_target_dir);
 }
 
 #[test]
