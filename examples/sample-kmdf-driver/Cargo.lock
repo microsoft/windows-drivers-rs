@@ -47,7 +47,7 @@ version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79947af37f4177cfead1110013d678905c37501914fba0efea834c3fe9a8d60c"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -58,7 +58,7 @@ checksum = "ca3534e77181a9cc07539ad51f2141fe32f6c3ffd4df76db8ad92346b003ae4e"
 dependencies = [
  "anstyle",
  "once_cell",
- "windows-sys 0.59.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -230,7 +230,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "976dd42dc7e85965fe702eb8164f21f450704bdde31faefd6471dba214cb594e"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -246,7 +246,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
 dependencies = [
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -349,11 +349,11 @@ dependencies = [
 
 [[package]]
 name = "nu-ansi-term"
-version = "0.50.1"
+version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4a28e057d01f97e61255210fcff094d74ed0466038633e95017f5beb68e4399"
+checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -447,7 +447,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -669,7 +669,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "wdk"
-version = "0.3.1"
+version = "0.4.1"
 dependencies = [
  "cfg-if",
  "tracing",
@@ -680,7 +680,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-alloc"
-version = "0.3.1"
+version = "0.4.1"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -690,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-build"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -712,7 +712,7 @@ dependencies = [
 
 [[package]]
 name = "wdk-macros"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "cfg-if",
  "fs4",
@@ -727,11 +727,11 @@ dependencies = [
 
 [[package]]
 name = "wdk-panic"
-version = "0.3.1"
+version = "0.4.1"
 
 [[package]]
 name = "wdk-sys"
-version = "0.4.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -808,15 +808,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cd9b125c486025df0eabcb585e62173c6c9eddcec5d117d3b6e8c30e2ee4d10"
 dependencies = [
  "windows-result",
- "windows-targets",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.52.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
-dependencies = [
  "windows-targets",
 ]
 

@@ -149,7 +149,7 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    #!@rust
    //! ```cargo
    //! [dependencies]
-   //! wdk-build = "0.4.0"
+   //! wdk-build = "0.5.1"
    //! ```
    #![allow(unused_doc_comments)]
 

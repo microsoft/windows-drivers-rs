@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.5.0...wdk-sys-v0.5.1) - 2025-11-13
+
+### Other
+
+- fix wdk-build version in readme ([#568](https://github.com/microsoft/windows-drivers-rs/pull/568))
+
+## [0.5.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.4.0...wdk-sys-v0.5.0) - 2025-11-06
+
+### Added
+
+- enhance error handling with IoError and IoErrorMetadata for improved std::io::Error diagnostics for fs errors ([#480](https://github.com/microsoft/windows-drivers-rs/pull/480))
+
+### Fixed
+
+- use latest version of ucx in the WDKContent as default ([#411](https://github.com/microsoft/windows-drivers-rs/pull/411))
+- allow unnecessary_transmutes lint for bindgen-generated types.rs ([#350](https://github.com/microsoft/windows-drivers-rs/pull/350))
+
+### Other
+
+- [**breaking**] bump to Rust 2024 Edition ([#430](https://github.com/microsoft/windows-drivers-rs/pull/430))
+- improve logging for build action ([#495](https://github.com/microsoft/windows-drivers-rs/pull/495))
+- enforce typo checking ([#452](https://github.com/microsoft/windows-drivers-rs/pull/452))
+- Add stubs for __CxxFrameHandler4 and __GSHandlerCheck_EH4 ([#438](https://github.com/microsoft/windows-drivers-rs/pull/438))
+
 ## [0.4.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.3.0...wdk-sys-v0.4.0) - 2025-04-18
 
 ### Added

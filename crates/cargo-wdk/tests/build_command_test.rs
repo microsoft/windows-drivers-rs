@@ -8,19 +8,19 @@ use std::{
 
 use assert_cmd::prelude::*;
 use sha2::{Digest, Sha256};
-use test_utils::{set_crt_static_flag, with_env, with_file_lock};
+use test_utils::{create_cargo_wdk_cmd, with_env, with_mutex};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
-    let stdout = with_file_lock(|| {
+    let stderr = with_mutex("mixed_package_kmdf_workspace", || {
         run_cargo_clean("tests/mixed-package-kmdf-workspace");
         run_build_cmd("tests/mixed-package-kmdf-workspace")
     });
 
-    assert!(stdout.contains("Building package driver"));
-    assert!(stdout.contains("Building package non_driver_crate"));
+    assert!(stderr.contains("Building package driver"));
+    assert!(stderr.contains("Building package non_driver_crate"));
     verify_driver_package_files("tests/mixed-package-kmdf-workspace", "driver", "sys", None);
 }
 
@@ -56,17 +56,17 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    with_file_lock(|| clean_and_build_driver_project("kmdf", None));
+    clean_and_build_driver_project("kmdf", None);
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
-    with_file_lock(|| clean_and_build_driver_project("umdf", None));
+    clean_and_build_driver_project("umdf", None);
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
-    with_file_lock(|| clean_and_build_driver_project("wdm", None));
+    clean_and_build_driver_project("wdm", None);
 }
 
 #[test]
@@ -80,14 +80,14 @@ fn wdm_driver_builds_successfully_with_given_version() {
 fn emulated_workspace_builds_successfully() {
     let emulated_workspace_path = "tests/emulated-workspace";
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
-    let stdout = with_file_lock(|| {
+    let stderr = with_mutex("emulated_workspace", || {
         run_cargo_clean(&umdf_driver_workspace_path);
         run_build_cmd(emulated_workspace_path)
     });
 
-    assert!(stdout.contains("Building package driver_1"));
-    assert!(stdout.contains("Building package driver_2"));
-    assert!(stdout.contains("Build completed successfully"));
+    assert!(stderr.contains("Building package driver_1"));
+    assert!(stderr.contains("Building package driver_2"));
+    assert!(stderr.contains("Build completed successfully"));
 
     verify_driver_package_files(&umdf_driver_workspace_path, "driver_1", "dll", None);
     verify_driver_package_files(&umdf_driver_workspace_path, "driver_2", "dll", None);
@@ -97,23 +97,25 @@ fn clean_and_build_driver_project(driver_type: &str, driver_version: Option<&str
     let driver_name = format!("{driver_type}-driver");
     let driver_path = format!("tests/{driver_name}");
 
-    run_cargo_clean(&driver_path);
-    let stdout = run_build_cmd(&driver_path);
+    with_mutex(&driver_path, || {
+        run_cargo_clean(&driver_path);
+        let stderr = run_build_cmd(&driver_path);
 
-    assert!(stdout.contains(&format!("Building package {driver_name}")));
+        assert!(stderr.contains(&format!("Building package {driver_name}")));
 
-    let driver_binary_extension = match driver_type {
-        "kmdf" | "wdm" => "sys",
-        "umdf" => "dll",
-        _ => panic!("Unsupported driver type: {driver_type}"),
-    };
+        let driver_binary_extension = match driver_type {
+            "kmdf" | "wdm" => "sys",
+            "umdf" => "dll",
+            _ => panic!("Unsupported driver type: {driver_type}"),
+        };
 
-    verify_driver_package_files(
-        &driver_path,
-        &driver_name,
-        driver_binary_extension,
-        driver_version,
-    );
+        verify_driver_package_files(
+            &driver_path,
+            &driver_name,
+            driver_binary_extension,
+            driver_version,
+        );
+    });
 }
 
 fn run_cargo_clean(driver_path: &str) {
@@ -123,16 +125,12 @@ fn run_cargo_clean(driver_path: &str) {
 }
 
 fn run_build_cmd(driver_path: &str) -> String {
-    set_crt_static_flag();
-
-    let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
-    cmd.args(["build"]).current_dir(driver_path);
-
     // assert command output
+    let mut cmd = create_cargo_wdk_cmd("build", None, Some(driver_path));
     let cmd_assertion = cmd.assert().success();
     let output = cmd_assertion.get_output();
 
-    String::from_utf8_lossy(&output.stdout).to_string()
+    String::from_utf8_lossy(&output.stderr).to_string()
 }
 
 fn verify_driver_package_files(

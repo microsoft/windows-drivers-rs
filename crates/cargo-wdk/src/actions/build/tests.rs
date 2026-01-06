@@ -2,9 +2,13 @@
 // License: MIT OR Apache-2.0
 #![allow(clippy::too_many_lines)] // Package tests are longer and splitting them into sub functions can make the code less readable
 #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
+
+#[cfg(not(windows))]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
 use std::{
     collections::HashMap,
-    os::windows::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{ExitStatus, Output},
     result::Result::Ok,
@@ -2155,7 +2159,6 @@ impl TestBuildAction {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
-            .once()
             .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {

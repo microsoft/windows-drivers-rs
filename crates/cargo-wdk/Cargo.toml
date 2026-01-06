@@ -1,15 +1,14 @@
 [package]
 edition.workspace = true
 name = "cargo-wdk"
-version = "0.0.1"
+version = "0.1.1"
 authors = ["Microsoft"]
-# set to false until the tool is stable and ready to be published
-publish = false
-description = "A Cargo extension for building Windows drivers using the Windows Driver Kit (WDK)"
+description = "A Cargo extension for developing Windows drivers in Rust"
 repository.workspace = true
 license.workspace = true
 keywords = ["wdk", "windows", "cargo"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins"]
+exclude = ["tests"]
 
 [dependencies]
 anyhow.workspace = true
@@ -17,7 +16,6 @@ cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 clap-cargo.workspace = true
 clap-verbosity-flag.workspace = true
-fs4.workspace = true
 include_dir.workspace = true
 mockall.workspace = true
 mockall_double.workspace = true
@@ -26,6 +24,11 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wdk-build.workspace = true
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+  "Win32_Security",
+] }
 
 [dev-dependencies]
 assert_cmd.workspace = true
