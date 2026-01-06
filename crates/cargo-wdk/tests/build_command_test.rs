@@ -17,7 +17,7 @@ const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
     clean_build_and_verify_project(
-        "tests/mixed-package-kmdf-workspace",
+        Some("tests/mixed-package-kmdf-workspace"),
         "kmdf",
         "driver",
         None,
@@ -33,7 +33,6 @@ fn kmdf_driver_builds_successfully() {
     // Setup for executables
     wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
     let driver = "kmdf-driver";
-    let driver_path = format!("tests/{driver}");
     // Create a self signed certificate in store if not already present
     let output = Command::new("certmgr.exe")
         .args(["-s", "WDRTestCertStore"])
@@ -61,30 +60,27 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    clean_build_and_verify_project(&driver_path, "kmdf", driver, None, None, None, None, None);
+    clean_build_and_verify_project(None, "kmdf", driver, None, None, None, None, None);
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
     let driver = "umdf-driver";
-    let driver_path = format!("tests/{driver}");
-    clean_build_and_verify_project(&driver_path, "umdf", driver, None, None, None, None, None);
+    clean_build_and_verify_project(None, "umdf", driver, None, None, None, None, None);
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
     let driver = "wdm-driver";
-    let driver_path = format!("tests/{driver}");
-    clean_build_and_verify_project(&driver_path, "wdm", driver, None, None, None, None, None);
+    clean_build_and_verify_project(None, "wdm", driver, None, None, None, None, None);
 }
 
 #[test]
 fn wdm_driver_builds_successfully_with_given_version() {
     let driver = "wdm-driver";
-    let driver_path = format!("tests/{driver}");
     let env = [(STAMPINF_VERSION_ENV_VAR, Some("5.1.0".to_string()))];
     clean_build_and_verify_project(
-        &driver_path,
+        None,
         "wdm",
         driver,
         Some("5.1.0.0"),
@@ -128,13 +124,12 @@ fn emulated_workspace_builds_successfully() {
 #[test]
 fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
-    let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
     let (wdk_content_root_key, wdk_content_root) =
         get_wdk_content_root_from_nuget_packages_root(target_arch);
     let env = [(wdk_content_root_key, wdk_content_root)];
     clean_build_and_verify_project(
-        &driver_path,
+        None,
         "kmdf",
         driver,
         None,
@@ -149,13 +144,12 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
 #[test]
 fn kmdf_driver_with_target_override_via_config_toml() {
     let driver = "kmdf-driver-with-target-override";
-    let driver_path = format!("tests/{driver}");
     let target_arch = "x64";
     let (wdk_content_root_key, wdk_content_root) =
         get_wdk_content_root_from_nuget_packages_root(target_arch);
     let env = [(wdk_content_root_key, wdk_content_root)];
     clean_build_and_verify_project(
-        &driver_path,
+        None,
         "kmdf",
         driver,
         None,
@@ -169,7 +163,6 @@ fn kmdf_driver_with_target_override_via_config_toml() {
 #[test]
 fn kmdf_driver_with_target_override_env_wins() {
     let driver = "kmdf-driver-with-target-override";
-    let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
     let mut env: Vec<(&str, Option<String>)> = vec![(
         "CARGO_BUILD_TARGET",
@@ -179,7 +172,7 @@ fn kmdf_driver_with_target_override_env_wins() {
         get_wdk_content_root_from_nuget_packages_root(target_arch);
     env.push((wdk_content_root_key, wdk_content_root));
     clean_build_and_verify_project(
-        &driver_path,
+        None,
         "kmdf",
         driver,
         None,
@@ -196,7 +189,6 @@ fn kmdf_driver_with_target_override_env_wins() {
 #[test]
 fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
     let driver = "kmdf-driver-with-target-override";
-    let driver_path = format!("tests/{driver}");
     let target_arch = "ARM64";
     let mut env: Vec<(&str, Option<String>)> = vec![(
         "CARGO_BUILD_TARGET",
@@ -206,7 +198,7 @@ fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
         get_wdk_content_root_from_nuget_packages_root(target_arch);
     env.push((wdk_content_root_key, wdk_content_root));
     clean_build_and_verify_project(
-        &driver_path,
+        None,
         "kmdf",
         driver,
         None,
@@ -219,16 +211,16 @@ fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
 
 #[test]
 fn umdf_driver_with_target_arch_and_release_profile() {
-    let driver_path = "tests/umdf-driver";
+    let driver = "umdf-driver";
     let target_arch = "ARM64";
     let profile = "release";
     let (wdk_content_root_key, wdk_content_root) =
         get_wdk_content_root_from_nuget_packages_root(target_arch);
     let env = [(wdk_content_root_key, wdk_content_root)];
     clean_build_and_verify_project(
-        driver_path,
+        None,
         "umdf",
-        "umdf-driver",
+        driver,
         None,
         Some(target_arch),
         Some(profile),
@@ -239,7 +231,7 @@ fn umdf_driver_with_target_arch_and_release_profile() {
 
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
-    project_path: &str,
+    project_path: Option<&str>,
     driver_type: &str,
     driver_name: &str,
     driver_version: Option<&str>,
@@ -248,9 +240,11 @@ fn clean_build_and_verify_project(
     env_overrides: Option<&[(&str, Option<String>)]>,
     target_arch_for_verification: Option<&str>,
 ) {
-    let mutex_name = format!("{project_path}-{driver_name}");
+    let project_path =
+        project_path.map_or_else(|| format!("tests/{driver_name}"), ToString::to_string);
+    let mutex_name = project_path.clone();
     with_mutex(&mutex_name, || {
-        run_cargo_clean(project_path);
+        run_cargo_clean(&project_path);
 
         let mut args: Vec<&str> = Vec::new();
         if let Some(target_arch) = input_target_arch {
@@ -266,7 +260,7 @@ fn clean_build_and_verify_project(
         } else {
             Some(args.as_slice())
         };
-        let stderr = run_build_cmd(project_path, cmd_args, env_overrides);
+        let stderr = run_build_cmd(&project_path, cmd_args, env_overrides);
 
         assert!(stderr.contains(&format!("Building package {driver_name}")));
         assert!(stderr.contains(&format!("Finished building {driver_name}")));
@@ -280,7 +274,7 @@ fn clean_build_and_verify_project(
         let target_triple = target_arch_for_verification.and_then(to_target_triple);
 
         verify_driver_package_files(
-            project_path,
+            &project_path,
             driver_name,
             driver_binary_extension,
             driver_version,

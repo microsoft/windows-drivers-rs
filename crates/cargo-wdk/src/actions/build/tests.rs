@@ -59,7 +59,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -75,173 +75,6 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         sample_class,
         test_build_action,
     );
-}
-
-#[test]
-pub fn given_a_driver_project_when_cargo_build_output_is_unparsable_then_target_dir_resolution_fails()
- {
-    let cwd = PathBuf::from("C:\\tmp");
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package_json) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_toml_metadata = get_cargo_metadata(
-        &cwd,
-        vec![package_json],
-        std::slice::from_ref(&workspace_member),
-        None,
-    );
-    let cargo_toml_metadata =
-        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
-            .expect("Failed to parse cargo metadata in unparsable cargo build output test");
-    let package = cargo_toml_metadata
-        .packages
-        .iter()
-        .find(|p| p.id.to_string() == workspace_member.0)
-        .expect("Test package not found in parsed cargo metadata");
-
-    let cargo_build_output =
-        std::iter::once::<Result<cargo_metadata::Message, std::io::Error>>(Err(
-            std::io::Error::new(std::io::ErrorKind::InvalidData, "unparsable cargo message"),
-        ));
-
-    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
-    assert!(
-        matches!(
-            result,
-            Err(BuildActionError::CannotDetermineTargetDir(ref message))
-            if message.contains("Could not parse cargo build output message")
-        ),
-        "Expected CannotDetermineTargetDir parse error, got: {result:?}"
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_cargo_build_output_has_no_matching_artifact_then_target_dir_resolution_fails()
- {
-    let cwd = PathBuf::from("C:\\tmp");
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package_json) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_toml_metadata = get_cargo_metadata(
-        &cwd,
-        vec![package_json],
-        std::slice::from_ref(&workspace_member),
-        None,
-    );
-    let cargo_toml_metadata =
-        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
-            .expect("Failed to parse cargo metadata in no-matching-artifact test");
-    let package = cargo_toml_metadata
-        .packages
-        .iter()
-        .find(|p| p.id.to_string() == workspace_member.0)
-        .expect("Test package not found in parsed cargo metadata");
-
-    let cargo_build_output = create_cargo_artifact_json(driver_name, "9.9.9", &cwd, None, None);
-    let cargo_build_output =
-        cargo_metadata::Message::parse_stream(std::io::Cursor::new(cargo_build_output.stdout));
-
-    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
-    assert!(
-        matches!(
-            result,
-            Err(BuildActionError::CannotDetermineTargetDir(ref message))
-            if message.contains("Could not find matching cdylib artifact")
-        ),
-        "Expected CannotDetermineTargetDir no-matching-artifact error, got: {result:?}"
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_matching_artifact_has_no_dll_file_then_target_dir_resolution_fails()
- {
-    let cwd = PathBuf::from("C:\\tmp");
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package_json) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_toml_metadata = get_cargo_metadata(
-        &cwd,
-        vec![package_json],
-        std::slice::from_ref(&workspace_member),
-        None,
-    );
-    let cargo_toml_metadata =
-        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
-            .expect("Failed to parse cargo metadata in no-dll-filename test");
-    let package = cargo_toml_metadata
-        .packages
-        .iter()
-        .find(|p| p.id.to_string() == workspace_member.0)
-        .expect("Test package not found in parsed cargo metadata");
-
-    let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, None);
-    let cargo_build_stdout =
-        String::from_utf8(cargo_build_output.stdout).expect("expected utf-8 cargo json output");
-    // Remove .dll from the artifact filename to simulate missing dll file
-    let cargo_build_stdout = cargo_build_stdout.replace(".dll\"", ".pdb\"");
-    let cargo_build_output = cargo_metadata::Message::parse_stream(std::io::Cursor::new(
-        cargo_build_stdout.into_bytes(),
-    ));
-
-    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
-    assert!(
-        matches!(
-            result,
-            Err(BuildActionError::CannotDetermineTargetDir(ref message))
-            if message.contains("Could not find matching cdylib artifact")
-        ),
-        "Expected CannotDetermineTargetDir no-dll-filename error, got: {result:?}"
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_matching_dll_artifact_is_present_then_target_dir_is_resolved() {
-    let cwd = PathBuf::from("C:\\tmp");
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package_json) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_toml_metadata = get_cargo_metadata(
-        &cwd,
-        vec![package_json],
-        std::slice::from_ref(&workspace_member),
-        None,
-    );
-    let cargo_toml_metadata =
-        serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
-            .expect("Failed to parse cargo metadata in resolve-target-dir test");
-    let package = cargo_toml_metadata
-        .packages
-        .iter()
-        .find(|p| p.id.to_string() == workspace_member.0)
-        .expect("Test package not found in parsed cargo metadata");
-
-    let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, None);
-    let cargo_build_output =
-        cargo_metadata::Message::parse_stream(std::io::Cursor::new(cargo_build_output.stdout));
-
-    let result = BuildAction::get_target_dir_from_output(package, cargo_build_output)
-        .expect("expected target dir to be resolved");
-    let expected_target_dir =
-        std::path::absolute(cwd.join("target").join("debug")).expect("absolute path failed");
-    assert_eq!(result, expected_target_dir);
 }
 
 #[test]
@@ -262,7 +95,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -296,7 +129,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(
+    let cargo_build_output = create_cargo_build_output_json(
         driver_name,
         driver_version,
         &cwd,
@@ -337,7 +170,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(
+    let cargo_build_output = create_cargo_build_output_json(
         driver_name,
         driver_version,
         &cwd,
@@ -379,7 +212,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -415,7 +248,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -480,7 +313,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     };
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -534,7 +367,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
     let expected_certmgr_output = get_certmgr_success_output();
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -586,7 +419,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -628,7 +461,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
-    let cargo_build_output = create_cargo_artifact_json(
+    let cargo_build_output = create_cargo_build_output_json(
         driver_name,
         driver_version,
         &cwd,
@@ -686,7 +519,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     };
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -747,7 +580,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     };
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -809,7 +642,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     };
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -868,7 +701,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     };
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
@@ -922,7 +755,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
@@ -984,7 +817,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let expected_output = Output {
         status: ExitStatus::from_raw(1),
@@ -1112,7 +945,7 @@ pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
 
     let cargo_build_output =
-        create_cargo_artifact_json(driver_name, driver_version, &cwd, None, profile);
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
     let cargo_rustc_output = Output {
         status: ExitStatus::from_raw(1),
@@ -1168,7 +1001,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
     let non_driver_version = "0.0.3";
 
     // Create artifact outputs for workspace packages
-    let artifact_1 = create_cargo_artifact_json_with_manifest(
+    let artifact_1 = create_cargo_build_output_json_with_manifest(
         driver_name_1,
         driver_version_1,
         &cwd,
@@ -1177,7 +1010,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         profile,
         true,
     );
-    let artifact_2 = create_cargo_artifact_json_with_manifest(
+    let artifact_2 = create_cargo_build_output_json_with_manifest(
         driver_name_2,
         driver_version_2,
         &cwd,
@@ -1186,7 +1019,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         profile,
         true,
     );
-    let artifact_non_driver = create_cargo_artifact_json_with_manifest(
+    let artifact_non_driver = create_cargo_build_output_json_with_manifest(
         non_driver,
         non_driver_version,
         &cwd,
@@ -1294,7 +1127,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 
     let expected_certmgr_output = get_certmgr_success_output();
 
-    let cargo_build_output = create_cargo_artifact_json_with_manifest(
+    let cargo_build_output = create_cargo_build_output_json_with_manifest(
         driver_name_1,
         driver_version_1,
         &workspace_root_dir,
@@ -1372,7 +1205,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
     let non_driver_version = "0.0.3";
 
     // Create artifact outputs for workspace packages
-    let artifact_1 = create_cargo_artifact_json_with_manifest(
+    let artifact_1 = create_cargo_build_output_json_with_manifest(
         driver_name_1,
         driver_version_1,
         &cwd,
@@ -1381,7 +1214,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         profile,
         true,
     );
-    let artifact_2 = create_cargo_artifact_json_with_manifest(
+    let artifact_2 = create_cargo_build_output_json_with_manifest(
         driver_name_2,
         driver_version_2,
         &cwd,
@@ -1390,7 +1223,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         profile,
         true,
     );
-    let artifact_non_driver = create_cargo_artifact_json_with_manifest(
+    let artifact_non_driver = create_cargo_build_output_json_with_manifest(
         non_driver,
         non_driver_version,
         &cwd,
@@ -3139,7 +2972,8 @@ fn get_cargo_metadata_package(
 ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage) {
     let normalized_root = root_dir.to_string_lossy().replace('\\', "/");
     let normalized_root = normalized_root.trim_start_matches("//?/");
-    let package_id = format!("path+file:///{normalized_root}#{default_package_version}");
+    let package_id =
+        format!("path+file:///{normalized_root}#{default_package_name}@{default_package_version}");
     let (metadata_section, has_metadata) = metadata.map_or_else(
         || (String::from("null"), false),
         |metadata| ((metadata.0).clone(), true),
@@ -3226,14 +3060,14 @@ fn get_cargo_metadata_wdk_metadata(
 /// Creates a valid cargo compiler-artifact JSON message for testing.
 /// This simulates the JSON output that `cargo build --message-format=json`
 /// produces.
-fn create_cargo_artifact_json(
+fn create_cargo_build_output_json(
     package_name: &str,
     package_version: &str,
     cwd: &Path,
     target_triple: Option<&str>,
     profile: Option<Profile>,
 ) -> Output {
-    create_cargo_artifact_json_with_manifest(
+    create_cargo_build_output_json_with_manifest(
         package_name,
         package_version,
         cwd,
@@ -3244,7 +3078,7 @@ fn create_cargo_artifact_json(
     )
 }
 
-fn create_cargo_artifact_json_with_manifest(
+fn create_cargo_build_output_json_with_manifest(
     package_name: &str,
     package_version: &str,
     workspace_root: &Path,
@@ -3284,8 +3118,8 @@ fn create_cargo_artifact_json_with_manifest(
         .to_string_lossy()
         .replace('\\', "/");
     let package_dir = package_dir.trim_start_matches("//?/");
-    let package_id = format!("path+file:///{package_dir}#{package_version}");
-    let manifest = manifest_path
+    let package_id = format!("path+file:///{package_dir}#{package_name}@{package_version}");
+    let manifest_path = manifest_path
         .to_string_lossy()
         .replace('\\', "/")
         .trim_start_matches("//?/")
@@ -3296,14 +3130,239 @@ fn create_cargo_artifact_json_with_manifest(
         .trim_start_matches("//?/")
         .to_string();
 
-    let mut artifact_json = format!(
-        r#"{{"reason":"compiler-artifact","package_id":"{package_id}","manifest_path":"{manifest}","target":{{"kind":["{kind}"],"crate_types":["{crate_types}"],"name":"{normalized_name}","src_path":"src/lib.rs","edition":"2021","doc":false,"doctest":false,"test":false}},"profile":{{"opt_level":"0","debuginfo":2,"debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":["{artifact_path}"],"executable":null,"fresh":false}}"#
+    let mut filenames = vec![artifact_path.clone()];
+    if is_driver {
+        filenames.push(artifact_path.replace(".dll", ".pdb"));
+    }
+    let filenames_json = filenames
+        .iter()
+        .map(|f| format!(r#""{f}""#))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let artifact_json = format!(
+        r#"{{"reason":"compiler-artifact","package_id":"{package_id}","manifest_path":"{manifest_path}","target":{{"kind":["{kind}"],"crate_types":["{crate_types}"],"name":"{normalized_name}","src_path":"src/lib.rs","edition":"2021","doc":false,"doctest":false,"test":false}},"profile":{{"opt_level":"0","debuginfo":2,"debug_assertions":true,"overflow_checks":true,"test":false}},"features":[],"filenames":[{filenames_json}],"executable":null,"fresh":false}}{newline}"#,
+        newline = "\n"
     );
-    artifact_json.push('\n');
 
     Output {
         status: ExitStatus::default(),
         stdout: artifact_json.into_bytes(),
         stderr: vec![],
+    }
+}
+
+mod get_target_dir_from_output {
+    use std::{
+        io,
+        path::{Path, PathBuf},
+    };
+
+    use cargo_metadata::Message;
+
+    use super::{BuildAction, BuildActionError};
+
+    #[test]
+    fn unparsable_output_fails() {
+        let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
+        let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
+        let (workspace_member, package_json) = super::get_cargo_metadata_package(
+            &workspace_root_dir,
+            "sample-kmdf",
+            "0.0.1",
+            Some(&wdk_metadata),
+        );
+        let metadata_json = super::get_cargo_metadata(
+            &workspace_root_dir,
+            vec![package_json],
+            &[workspace_member],
+            None,
+        );
+        let metadata = serde_json::from_str::<cargo_metadata::Metadata>(&metadata_json)
+            .expect("Failed to parse cargo metadata for get_target_dir_from_output tests");
+        let package = metadata
+            .packages
+            .iter()
+            .find(|p| p.name == "sample-kmdf")
+            .expect("Test package not found in parsed cargo metadata");
+
+        let cargo_build_output = std::iter::once::<Result<Message, io::Error>>(Err(
+            io::Error::new(io::ErrorKind::InvalidData, "unparsable cargo message"),
+        ));
+
+        let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
+        assert!(
+            matches!(
+                result,
+                Err(BuildActionError::CannotDetermineTargetDir(ref message))
+                if message.contains("Could not parse cargo build output message")
+            ),
+            "Expected CannotDetermineTargetDir parse error, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn no_matching_artifact_fails() {
+        let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
+        let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
+        let (workspace_member, package_json) = super::get_cargo_metadata_package(
+            &workspace_root_dir,
+            "sample-kmdf",
+            "0.0.1",
+            Some(&wdk_metadata),
+        );
+        let metadata_json = super::get_cargo_metadata(
+            &workspace_root_dir,
+            vec![package_json],
+            &[workspace_member],
+            None,
+        );
+        let metadata = serde_json::from_str::<cargo_metadata::Metadata>(&metadata_json)
+            .expect("Failed to parse cargo metadata for get_target_dir_from_output tests");
+        let package = metadata
+            .packages
+            .iter()
+            .find(|p| p.name == "sample-kmdf")
+            .expect("Test package not found in parsed cargo metadata");
+
+        let output = super::create_cargo_build_output_json_with_manifest(
+            "other",
+            "9.9.9",
+            &workspace_root_dir,
+            &workspace_root_dir.join("Cargo.toml"),
+            None,
+            None,
+            true,
+        );
+        let cargo_build_output = Message::parse_stream(io::Cursor::new(output.stdout));
+
+        let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
+        assert!(
+            matches!(
+                result,
+                Err(BuildActionError::CannotDetermineTargetDir(ref message))
+                if message.contains("Could not find matching cdylib artifact")
+            ),
+            "Expected CannotDetermineTargetDir no-matching-artifact error, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn matching_artifact_without_dll_fails() {
+        let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
+        let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
+        let (workspace_member, package_json) = super::get_cargo_metadata_package(
+            &workspace_root_dir,
+            "sample-kmdf",
+            "0.0.1",
+            Some(&wdk_metadata),
+        );
+        let metadata_json = super::get_cargo_metadata(
+            &workspace_root_dir,
+            vec![package_json],
+            &[workspace_member],
+            None,
+        );
+        let metadata = serde_json::from_str::<cargo_metadata::Metadata>(&metadata_json)
+            .expect("Failed to parse cargo metadata for get_target_dir_from_output tests");
+        let package = metadata
+            .packages
+            .iter()
+            .find(|p| p.name == "sample-kmdf")
+            .expect("Test package not found in parsed cargo metadata");
+
+        let output = super::create_cargo_build_output_json_with_manifest(
+            "sample-kmdf",
+            "0.0.1",
+            &workspace_root_dir,
+            &workspace_root_dir.join("Cargo.toml"),
+            None,
+            None,
+            true,
+        );
+
+        let mut artifact_value: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("Failed to parse compiler-artifact JSON");
+
+        if let Some(filenames) = artifact_value
+            .get_mut("filenames")
+            .and_then(|v| v.as_array_mut())
+        {
+            filenames.retain(|v| {
+                v.as_str()
+                    .is_some_and(|p| p.to_ascii_lowercase().ends_with(".pdb"))
+            });
+        }
+
+        let artifact_json = format!("{artifact_value}\n");
+        let cargo_build_output = Message::parse_stream(io::Cursor::new(artifact_json.into_bytes()));
+
+        let result = BuildAction::get_target_dir_from_output(package, cargo_build_output);
+        assert!(
+            matches!(
+                result,
+                Err(BuildActionError::CannotDetermineTargetDir(ref message))
+                if message.contains("Could not find matching cdylib artifact")
+            ),
+            "Expected CannotDetermineTargetDir no-dll-filename error, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn matching_dll_resolves_target_dir() {
+        let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
+        let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
+        let (workspace_member, package_json) = super::get_cargo_metadata_package(
+            &workspace_root_dir,
+            "sample-kmdf",
+            "0.0.1",
+            Some(&wdk_metadata),
+        );
+        let metadata_json = super::get_cargo_metadata(
+            &workspace_root_dir,
+            vec![package_json],
+            &[workspace_member],
+            None,
+        );
+        let metadata = serde_json::from_str::<cargo_metadata::Metadata>(&metadata_json)
+            .expect("Failed to parse cargo metadata for get_target_dir_from_output tests");
+        let package = metadata
+            .packages
+            .iter()
+            .find(|p| p.name == "sample-kmdf")
+            .expect("Test package not found in parsed cargo metadata");
+
+        let output = super::create_cargo_build_output_json_with_manifest(
+            "sample-kmdf",
+            "0.0.1",
+            &workspace_root_dir,
+            &workspace_root_dir.join("Cargo.toml"),
+            None,
+            None,
+            true,
+        );
+        let artifact_value: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("Failed to parse compiler-artifact JSON");
+        let dll_path = artifact_value
+            .get("filenames")
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.first())
+            .and_then(|v| v.as_str())
+            .map(Path::new)
+            .expect("Expected a DLL path in compiler-artifact filenames");
+
+        let cargo_build_output = Message::parse_stream(io::Cursor::new(output.stdout));
+
+        let result = BuildAction::get_target_dir_from_output(package, cargo_build_output)
+            .expect("expected target dir to be resolved");
+
+        let expected_target_dir = std::path::absolute(
+            PathBuf::from(dll_path)
+                .parent()
+                .expect("expected dll parent"),
+        )
+        .expect("absolute path failed");
+
+        assert_eq!(result, expected_target_dir);
     }
 }

@@ -203,7 +203,7 @@ mod tests {
         let profile = Profile::Release;
         let target_arch = CpuArchitecture::Amd64;
         let verbosity = clap_verbosity_flag::Verbosity::default();
-        let mut expected_args = vec![
+        let expected_args = vec![
             "build".to_string(),
             "--message-format=json".to_string(),
             "-p".to_string(),
@@ -215,9 +215,6 @@ mod tests {
             "--target".to_string(),
             "x86_64-pc-windows-msvc".to_string(),
         ];
-        if let Some(flag) = trace::get_cargo_verbose_flags(verbosity) {
-            expected_args.push(flag.to_string());
-        }
         let expected_working_dir = working_dir.clone();
         let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
         expected_stdout.push(b'\n');
