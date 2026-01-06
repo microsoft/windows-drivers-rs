@@ -8,10 +8,7 @@
 //! necessary files and configurations.
 mod error;
 
-use std::{
-    fs::create_dir_all,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use clap_verbosity_flag::Verbosity;
 use error::NewActionError;
@@ -276,7 +273,8 @@ impl<'a> NewAction<'a> {
     ///   config.toml template content to the destination config.toml file.
     pub fn copy_cargo_config(&self) -> Result<(), NewActionError> {
         debug!("Copying .cargo/config.toml file");
-        create_dir_all(self.path.join(".cargo"))?;
+        let cargo_dir = self.path.join(".cargo");
+        self.fs.create_dir_all(&cargo_dir)?;
         let cargo_config_path = self.path.join(".cargo").join("config.toml");
         let cargo_config_template_path = PathBuf::from("config.toml.tmp");
         let cargo_config_template_file = TEMPLATES_DIR
@@ -830,6 +828,12 @@ mod tests {
         }
 
         fn expect_copy_cargo_config(mut self, is_copy_success: bool) -> Self {
+            let cargo_dir = self.path.join(".cargo");
+            self.mock_fs
+                .expect_create_dir_all()
+                .withf(move |path| path == cargo_dir)
+                .returning(move |_| Ok(()));
+
             let cargo_config_path = self.path.join(".cargo").join("config.toml");
             let expected_cargo_config_path = cargo_config_path.clone();
             self.mock_fs
