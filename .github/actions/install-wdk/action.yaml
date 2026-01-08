@@ -139,7 +139,7 @@ runs:
             Write-Host "Using specified version: $version"
         }
 
-        $packages = "C:\packages"
+        $packagesRootDir = "C:\packages"
 
         # Install WDK packages for both x64 and ARM64 architectures
         # Host architecture needed for build tools and binaries
@@ -152,7 +152,7 @@ runs:
 
         foreach ($packageName in $packagesToInstall) {
             Write-Host "Installing $packageName version $version..."
-            nuget install $packageName -Version $version -OutputDirectory $packages
+            nuget install $packageName -Version $version -OutputDirectory $packagesRootDir
             if ($LASTEXITCODE -ne 0) { 
                 throw "Failed to install $packageName version $version"
             }
@@ -162,7 +162,7 @@ runs:
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
-        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
+        $packageDirs = Get-ChildItem -Path $packagesRootDir -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
         Write-Host "Found $($packageDirs.Count) package directories:"
         foreach ($dir in $packageDirs) {
             Write-Host "  - $($dir.Name)"
@@ -214,7 +214,7 @@ runs:
             "WDKContentRoot" = "$targetWdkPackageDir\c\"
             "WDKBinRoot" = "$hostWdkPackageDir\c\bin\$sdkVersion.0"
             "WDKToolRoot" = "$hostWdkPackageDir\c\tools\$sdkVersion.0"
-            "NugetPackagesRoot" = "$packages"
+            "NugetPackagesRoot" = "$packagesRootDir"
             "FullVersionNumber" = "$version"
         }
 
