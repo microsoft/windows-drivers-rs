@@ -23,7 +23,7 @@ use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, Tar
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
-use tracing::{debug, error as err, info, warn};
+use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -411,79 +411,70 @@ impl<'a> BuildAction<'a> {
     /// - `BuildActionError::CannotDetermineTargetDir` - If:
     ///   - no matching DLL file is found in the output,
     ///   - the DLL's parent folder cannot be determined,
-    ///   - the DLL's parent path could not be made absolute, or
     ///   - a cargo message could not be parsed.
     fn get_target_dir_from_output(
         package: &Package,
-        mut cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
+        cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
     ) -> Result<PathBuf, BuildActionError> {
-        cargo_build_output
-            .find_map(|message| {
-                let artifact = match message {
-                    Ok(Message::CompilerArtifact(artifact)) => artifact,
-                    Ok(_) => return None,
-                    Err(err) => {
-                        return Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
-                            "Could not parse cargo build output message: {err}"
-                        ))));
-                    }
-                };
-                let package_matches = artifact.package_id == package.id;
-                let is_cdylib = artifact.target.crate_types.contains(&CrateType::CDyLib)
-                    && artifact.target.kind.contains(&TargetKind::CDyLib);
-                if !(package_matches && is_cdylib) {
-                    debug!(
-                        "Skipping crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
-                        artifact.target.name,
-                        &artifact.target.kind,
-                        &artifact.target.crate_types,
-                        &artifact.filenames
-                    );
-                    return None;
+        for message in cargo_build_output {
+            let artifact = match message {
+                Ok(Message::CompilerArtifact(artifact)) => artifact,
+                Ok(_) => continue,
+                Err(err) => {
+                    return Err(BuildActionError::CannotDetermineTargetDir(format!(
+                        "Could not parse cargo build output message: {err}"
+                    )));
                 }
-                artifact.filenames.iter().find_map(|path| {
-                    if !path
-                        .extension()
+            };
+
+            let package_matches = artifact.package_id == package.id;
+            let is_cdylib = artifact.target.crate_types.contains(&CrateType::CDyLib)
+                && artifact.target.kind.contains(&TargetKind::CDyLib);
+
+            if !(package_matches && is_cdylib) {
+                trace!(
+                    "Skipping crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
+                    artifact.target.name,
+                    &artifact.target.kind,
+                    &artifact.target.crate_types,
+                    &artifact.filenames
+                );
+                continue;
+            }
+
+            trace!(
+                "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
+                artifact.target.name,
+                &artifact.target.kind,
+                &artifact.target.crate_types,
+                &artifact.filenames
+            );
+
+            let Some(dll_path) = artifact
+                .filenames
+                .iter()
+                .find(|path| {
+                    path.extension()
                         .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
-                    {
-                        return None;
-                    }
-                    debug!(
-                        "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, \
-                         filenames={:?})",
-                        artifact.target.name,
-                        &artifact.target.kind,
-                        &artifact.target.crate_types,
-                        &artifact.filenames
-                    );
-                    let dll_path = path.as_std_path();
-                    let Some(parent) = dll_path.parent() else {
-                        return Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
-                            "Cannot determine parent directory for driver binary {}",
-                            dll_path.display()
-                        ))));
-                    };
-                    match absolute(parent) {
-                        Ok(artifacts_dir) => {
-                            debug!(
-                                "Driver artifacts parent directory: {}",
-                                artifacts_dir.display()
-                            );
-                            Some(Ok(artifacts_dir))
-                        }
-                        Err(error) => {
-                            Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
-                                "Could not make driver binary's parent directory absolute: {error}"
-                            ))))
-                        }
-                    }
                 })
-            })
-            .unwrap_or_else(|| {
-                Err(BuildActionError::CannotDetermineTargetDir(String::from(
-                    "Could not find matching cdylib artifact in cargo build output",
-                )))
-            })
+                .map(|path| path.as_std_path())
+            else {
+                continue;
+            };
+
+            let parent = dll_path.parent().ok_or_else(|| {
+                BuildActionError::CannotDetermineTargetDir(format!(
+                    "Cannot determine parent directory for driver binary {}",
+                    dll_path.display()
+                ))
+            })?;
+
+            return Ok(parent.to_path_buf());
+        }
+
+        Err(BuildActionError::CannotDetermineTargetDir(String::from(
+            "Could not find matching cdylib artifact in cargo build output",
+        )))
     }
 
     /// Invokes `cargo rustc -- --print cfg` and finds the `target_arch` value
@@ -508,8 +499,9 @@ impl<'a> BuildAction<'a> {
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {
-            line.strip_prefix("target_arch=\"")
-                .and_then(|rest| rest.split('"').next())
+            line.trim()
+                .strip_prefix("target_arch=\"")?
+                .strip_suffix("\"")
                 .filter(|arch| !arch.is_empty())
         });
 
