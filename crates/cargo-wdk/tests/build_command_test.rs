@@ -17,9 +17,9 @@ const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
     clean_build_and_verify_project(
-        Some("tests/mixed-package-kmdf-workspace"),
         "kmdf",
         "driver",
+        Some("tests/mixed-package-kmdf-workspace"),
         None,
         None,
         None,
@@ -60,19 +60,19 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    clean_build_and_verify_project(None, "kmdf", driver, None, None, None, None, None);
+    clean_build_and_verify_project("kmdf", driver, None, None, None, None, None, None);
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
     let driver = "umdf-driver";
-    clean_build_and_verify_project(None, "umdf", driver, None, None, None, None, None);
+    clean_build_and_verify_project("umdf", driver, None, None, None, None, None, None);
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
     let driver = "wdm-driver";
-    clean_build_and_verify_project(None, "wdm", driver, None, None, None, None, None);
+    clean_build_and_verify_project("wdm", driver, None, None, None, None, None, None);
 }
 
 #[test]
@@ -80,9 +80,9 @@ fn wdm_driver_builds_successfully_with_given_version() {
     let driver = "wdm-driver";
     let env = [(STAMPINF_VERSION_ENV_VAR, Some("5.1.0".to_string()))];
     clean_build_and_verify_project(
-        None,
         "wdm",
         driver,
+        None,
         Some("5.1.0.0"),
         None,
         None,
@@ -125,13 +125,11 @@ fn emulated_workspace_builds_successfully() {
 fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
     let driver = "kmdf-driver";
     let target_arch = "ARM64";
-    let (wdk_content_root_key, wdk_content_root) =
-        get_wdk_content_root_from_nuget_packages_root(target_arch);
-    let env = [(wdk_content_root_key, wdk_content_root)];
+    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
     clean_build_and_verify_project(
-        None,
         "kmdf",
         driver,
+        None,
         None,
         Some(target_arch),
         None,
@@ -145,13 +143,11 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
 fn kmdf_driver_with_target_override_via_config_toml() {
     let driver = "kmdf-driver-with-target-override";
     let target_arch = "x64";
-    let (wdk_content_root_key, wdk_content_root) =
-        get_wdk_content_root_from_nuget_packages_root(target_arch);
-    let env = [(wdk_content_root_key, wdk_content_root)];
+    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
     clean_build_and_verify_project(
-        None,
         "kmdf",
         driver,
+        None,
         None,
         None,
         None,
@@ -168,13 +164,11 @@ fn kmdf_driver_with_target_override_env_wins() {
         "CARGO_BUILD_TARGET",
         Some(AARCH64_TARGET_TRIPLE_NAME.to_string()),
     )];
-    let (wdk_content_root_key, wdk_content_root) =
-        get_wdk_content_root_from_nuget_packages_root(target_arch);
-    env.push((wdk_content_root_key, wdk_content_root));
+    env.push(get_wdk_content_root_from_nuget_packages_root(target_arch));
     clean_build_and_verify_project(
-        None,
         "kmdf",
         driver,
+        None,
         None,
         None,
         None,
@@ -194,13 +188,11 @@ fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
         "CARGO_BUILD_TARGET",
         Some(X86_64_TARGET_TRIPLE_NAME.to_string()),
     )];
-    let (wdk_content_root_key, wdk_content_root) =
-        get_wdk_content_root_from_nuget_packages_root(target_arch);
-    env.push((wdk_content_root_key, wdk_content_root));
+    env.push(get_wdk_content_root_from_nuget_packages_root(target_arch));
     clean_build_and_verify_project(
-        None,
         "kmdf",
         driver,
+        None,
         None,
         Some(target_arch),
         None,
@@ -214,13 +206,11 @@ fn umdf_driver_with_target_arch_and_release_profile() {
     let driver = "umdf-driver";
     let target_arch = "ARM64";
     let profile = "release";
-    let (wdk_content_root_key, wdk_content_root) =
-        get_wdk_content_root_from_nuget_packages_root(target_arch);
-    let env = [(wdk_content_root_key, wdk_content_root)];
+    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
     clean_build_and_verify_project(
-        None,
         "umdf",
         driver,
+        None,
         None,
         Some(target_arch),
         Some(profile),
@@ -231,9 +221,9 @@ fn umdf_driver_with_target_arch_and_release_profile() {
 
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
-    project_path: Option<&str>,
     driver_type: &str,
     driver_name: &str,
+    project_path: Option<&str>,
     driver_version: Option<&str>,
     input_target_arch: Option<&str>,
     profile: Option<&str>,
