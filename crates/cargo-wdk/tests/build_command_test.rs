@@ -64,9 +64,44 @@ fn kmdf_driver_builds_successfully() {
 }
 
 #[test]
+fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
+    let driver = "kmdf-driver";
+    let target_arch = "ARM64";
+    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
+    clean_build_and_verify_project(
+        "kmdf",
+        driver,
+        None,
+        None,
+        Some(target_arch),
+        None,
+        Some(&env),
+        Some(target_arch),
+    );
+}
+
+#[test]
 fn umdf_driver_builds_successfully() {
     let driver = "umdf-driver";
     clean_build_and_verify_project("umdf", driver, None, None, None, None, None, None);
+}
+
+#[test]
+fn umdf_driver_with_target_arch_and_release_profile_builds_successfully() {
+    let driver = "umdf-driver";
+    let target_arch = "ARM64";
+    let profile = "release";
+    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
+    clean_build_and_verify_project(
+        "umdf",
+        driver,
+        None,
+        None,
+        Some(target_arch),
+        Some(profile),
+        Some(&env),
+        Some(target_arch),
+    );
 }
 
 #[test]
@@ -121,26 +156,9 @@ fn emulated_workspace_builds_successfully() {
     });
 }
 
-#[test]
-fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
-    let driver = "kmdf-driver";
-    let target_arch = "ARM64";
-    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
-    clean_build_and_verify_project(
-        "kmdf",
-        driver,
-        None,
-        None,
-        Some(target_arch),
-        None,
-        Some(&env),
-        Some(target_arch),
-    );
-}
-
 // `config.toml` with `build.target` = "x86_64-pc-windows-msvc"
 #[test]
-fn kmdf_driver_with_target_override_via_config_toml() {
+fn kmdf_driver_with_target_override_via_config_toml_builds_successfully() {
     let driver = "kmdf-driver-with-target-override";
     let target_arch = "x64";
     let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
@@ -157,7 +175,7 @@ fn kmdf_driver_with_target_override_via_config_toml() {
 }
 
 #[test]
-fn kmdf_driver_with_target_override_env_wins() {
+fn kmdf_driver_with_target_override_via_env_wins_over_config_toml() {
     let driver = "kmdf-driver-with-target-override";
     let target_arch = "ARM64";
     let mut env: Vec<(&str, Option<String>)> = vec![(
@@ -197,24 +215,6 @@ fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
         Some(target_arch),
         None,
         Some(env.as_slice()),
-        Some(target_arch),
-    );
-}
-
-#[test]
-fn umdf_driver_with_target_arch_and_release_profile() {
-    let driver = "umdf-driver";
-    let target_arch = "ARM64";
-    let profile = "release";
-    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
-    clean_build_and_verify_project(
-        "umdf",
-        driver,
-        None,
-        None,
-        Some(target_arch),
-        Some(profile),
-        Some(&env),
         Some(target_arch),
     );
 }
