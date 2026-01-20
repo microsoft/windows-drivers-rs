@@ -1328,8 +1328,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         None,
     );
 
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        // Even when cwd is changed to driver project inside the workspace, cargo metadata read
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class) // Even when cwd is changed to driver project inside the workspace, cargo metadata read
         // is going to be for the whole workspace
         .set_up_workspace_with_multiple_driver_projects(
             &workspace_root_dir,
@@ -2310,6 +2309,11 @@ impl TestBuildAction {
                           _env_vars: &Option<&HashMap<&str, &str>>,
                           _working_dir: &Option<&Path>|
                           -> bool {
+                        println!("command: {command}, args: {args:?}");
+                        println!(
+                            "expected_command: {expected_stampinf_command}, expected_args: \
+                             {expected_stampinf_args:?}"
+                        );
                         command == expected_stampinf_command && args == expected_stampinf_args
                     },
                 )
@@ -2369,6 +2373,11 @@ impl TestBuildAction {
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
+                    println!("command: {command}, args: {args:?}");
+                    println!(
+                        "expected_command: {expected_inf2cat_command}, expected_args: \
+                         {expected_inf2cat_args:?}"
+                    );
                     command == expected_inf2cat_command && args == expected_inf2cat_args
                 },
             )
@@ -3348,35 +3357,6 @@ mod get_target_arch_from_cargo_rustc {
 
     use super::{BuildActionError, TestBuildAction};
 
-    fn expect_cargo_rustc_print_cfg(
-        test_build_action: &mut TestBuildAction,
-        cwd: PathBuf,
-        stdout: Vec<u8>,
-    ) {
-        test_build_action
-            .mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      working_dir: &Option<&Path>|
-                      -> bool {
-                    command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
-                        && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: stdout.clone(),
-                    stderr: vec![],
-                })
-            });
-    }
-
     #[test]
     fn parses_amd64() {
         let cwd = PathBuf::from(r"C:\tmp");
@@ -3471,5 +3451,34 @@ mod get_target_arch_from_cargo_rustc {
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected CannotDetectTargetArch error");
         assert!(matches!(err, BuildActionError::CannotDetectTargetArch));
+    }
+
+    fn expect_cargo_rustc_print_cfg(
+        test_build_action: &mut TestBuildAction,
+        cwd: PathBuf,
+        stdout: Vec<u8>,
+    ) {
+        test_build_action
+            .mock_run_command
+            .expect_run()
+            .withf(
+                move |command: &str,
+                      args: &[&str],
+                      _env_vars: &Option<&HashMap<&str, &str>>,
+                      working_dir: &Option<&Path>|
+                      -> bool {
+                    command == "cargo"
+                        && args == ["rustc", "--", "--print", "cfg"]
+                        && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
+                },
+            )
+            .once()
+            .returning(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: stdout.clone(),
+                    stderr: vec![],
+                })
+            });
     }
 }
