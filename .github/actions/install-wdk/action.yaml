@@ -142,8 +142,6 @@ runs:
         $packagesRootDir = "C:\packages"
 
         # Install WDK packages for both x64 and ARM64 architectures
-        # Host architecture needed for build tools and binaries
-        # Target architecture needed for content (libraries, headers)
 
         $packagesToInstall = @("Microsoft.Windows.WDK.x64", "Microsoft.Windows.WDK.ARM64")
 
