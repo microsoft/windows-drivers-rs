@@ -499,13 +499,16 @@ impl<'a> BuildAction<'a> {
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {
-            line.trim()
+            let line_without_whitespace: String =
+                line.chars().filter(|c| !c.is_whitespace()).collect();
+            line_without_whitespace
                 .strip_prefix("target_arch=\"")?
                 .strip_suffix("\"")
                 .filter(|arch| !arch.is_empty())
+                .map(ToString::to_string)
         });
 
-        match arch {
+        match arch.as_deref() {
             Some("x86_64") => Ok(CpuArchitecture::Amd64),
             Some("aarch64") => Ok(CpuArchitecture::Arm64),
             Some(arch) => Err(BuildActionError::UnsupportedArchitecture(arch.to_string())),

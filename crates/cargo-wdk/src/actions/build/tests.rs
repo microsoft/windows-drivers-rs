@@ -3398,6 +3398,26 @@ mod get_target_arch_from_cargo_rustc {
     }
 
     #[test]
+    fn parses_arm64_with_internal_whitespace() {
+        let cwd = PathBuf::from(r"C:\tmp");
+        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
+        expect_cargo_rustc_print_cfg(
+            &mut test_build_action,
+            cwd.clone(),
+            b"target_arch =  \"aarch64\"\n".to_vec(),
+        );
+
+        let build_action =
+            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
+                .expect("Failed to init build action");
+
+        let arch = build_action
+            .get_target_arch_from_cargo_rustc(&cwd)
+            .expect("Expected target arch to be detected");
+        assert_eq!(arch, CpuArchitecture::Arm64);
+    }
+
+    #[test]
     fn unsupported_arch_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
         let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
