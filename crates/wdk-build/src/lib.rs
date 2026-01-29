@@ -1547,6 +1547,8 @@ pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(nightly_toolchain)]
+    use std::assert_matches::assert_matches;
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
     use super::*;
@@ -1822,7 +1824,8 @@ mod tests {
     fn default_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], Config::new);
 
-        assert!(matches!(config.driver_config, DriverConfig::Wdm));
+        #[cfg(nightly_toolchain)]
+        assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
@@ -1833,7 +1836,8 @@ mod tests {
             ..Config::default()
         });
 
-        assert!(matches!(config.driver_config, DriverConfig::Wdm));
+        #[cfg(nightly_toolchain)]
+        assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
@@ -1844,14 +1848,15 @@ mod tests {
             ..Config::default()
         });
 
-        assert!(matches!(
+        #[cfg(nightly_toolchain)]
+        assert_matches!(
             config.driver_config,
             DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 33,
                 minimum_kmdf_version_minor: None
             })
-        ));
+        );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
@@ -1866,14 +1871,15 @@ mod tests {
             ..Config::default()
         });
 
-        assert!(matches!(
+        #[cfg(nightly_toolchain)]
+        assert_matches!(
             config.driver_config,
             DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 15,
                 minimum_kmdf_version_minor: None
             })
-        ));
+        );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
@@ -1884,14 +1890,15 @@ mod tests {
             ..Config::default()
         });
 
-        assert!(matches!(
+        #[cfg(nightly_toolchain)]
+        assert_matches!(
             config.driver_config,
             DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
                 target_umdf_version_minor: 33,
                 minimum_umdf_version_minor: None
             })
-        ));
+        );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
     }
 
@@ -1906,14 +1913,15 @@ mod tests {
             ..Config::default()
         });
 
-        assert!(matches!(
+        #[cfg(nightly_toolchain)]
+        assert_matches!(
             config.driver_config,
             DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
                 target_umdf_version_minor: 15,
                 minimum_umdf_version_minor: None
             })
-        ));
+        );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
     }
 
@@ -2074,11 +2082,11 @@ mod tests {
                 Config::validate_and_add_folder_path(&mut include_paths, non_existent_path);
 
             assert!(result.is_err());
-            assert!(matches!(
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
                 result.unwrap_err(),
-                ConfigError::DirectoryNotFound { directory }
-                    if directory == non_existent_path.to_string_lossy().as_ref()
-            ));
+                ConfigError::DirectoryNotFound { directory } if directory == non_existent_path.to_string_lossy()
+            );
             assert_eq!(include_paths.len(), 0);
         }
 
@@ -2092,11 +2100,11 @@ mod tests {
             let result = Config::validate_and_add_folder_path(&mut include_paths, file.path());
 
             assert!(result.is_err());
-            assert!(matches!(
+            #[cfg(nightly_toolchain)]
+            assert_matches!(
                 result.unwrap_err(),
-                ConfigError::DirectoryNotFound { directory }
-                    if directory == file.path().to_string_lossy().as_ref()
-            ));
+                ConfigError::DirectoryNotFound { directory } if directory == file.path().to_string_lossy()
+            );
             assert_eq!(include_paths.len(), 0);
         }
 
