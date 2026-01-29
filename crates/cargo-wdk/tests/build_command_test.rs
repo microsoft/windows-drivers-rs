@@ -156,67 +156,102 @@ fn emulated_workspace_builds_successfully() {
     });
 }
 
-// `config.toml` with `build.target` = "x86_64-pc-windows-msvc"
-#[test]
-fn kmdf_driver_with_target_override_via_config_toml_builds_successfully() {
-    let driver = "kmdf-driver-with-target-override";
-    let target_arch = "x64";
-    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
-    clean_build_and_verify_project(
-        "kmdf",
-        driver,
-        None,
-        None,
-        None,
-        None,
-        Some(&env),
-        Some(target_arch),
-    );
-}
+mod target_override_tests {
+    use super::*;
 
-#[test]
-fn kmdf_driver_with_target_override_via_env_wins_over_config_toml() {
-    let driver = "kmdf-driver-with-target-override";
-    let target_arch = "ARM64";
-    let mut env: Vec<(&str, Option<String>)> = vec![(
-        "CARGO_BUILD_TARGET",
-        Some(AARCH64_TARGET_TRIPLE_NAME.to_string()),
-    )];
-    env.push(get_wdk_content_root_from_nuget_packages_root(target_arch));
-    clean_build_and_verify_project(
-        "kmdf",
-        driver,
-        None,
-        None,
-        None,
-        None,
-        Some(env.as_slice()),
-        Some(target_arch),
-    );
-}
+    const DRIVER_WITH_TARGET_OVERRIDE: &str = "kmdf-driver-with-target-override";
+    const DRIVER_BASE: &str = "kmdf-driver";
+    const CARGO_BUILD_TARGET_ENV_VAR: &str = "CARGO_BUILD_TARGET";
 
-/// Verifies that the CLI `--target-arch` argument takes precedence over:
-/// - `.cargo/config.toml` `build.target` setting
-/// - `CARGO_BUILD_TARGET` environment variable
-#[test]
-fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
-    let driver = "kmdf-driver-with-target-override";
-    let target_arch = "ARM64";
-    let mut env: Vec<(&str, Option<String>)> = vec![(
-        "CARGO_BUILD_TARGET",
-        Some(X86_64_TARGET_TRIPLE_NAME.to_string()),
-    )];
-    env.push(get_wdk_content_root_from_nuget_packages_root(target_arch));
-    clean_build_and_verify_project(
-        "kmdf",
-        driver,
-        None,
-        None,
-        Some(target_arch),
-        None,
-        Some(env.as_slice()),
-        Some(target_arch),
-    );
+    fn env_with_wdk(target_arch: &str) -> Vec<(&'static str, Option<String>)> {
+        vec![get_wdk_content_root_from_nuget_packages_root(target_arch)]
+    }
+
+    fn env_with_cargo_build_target(
+        target_triple: &str,
+        wdk_target_arch: &str,
+    ) -> Vec<(&'static str, Option<String>)> {
+        let mut env: Vec<(&'static str, Option<String>)> =
+            vec![(CARGO_BUILD_TARGET_ENV_VAR, Some(target_triple.to_string()))];
+        env.push(get_wdk_content_root_from_nuget_packages_root(
+            wdk_target_arch,
+        ));
+        env
+    }
+
+    fn build_kmdf_and_verify(
+        driver: &str,
+        cli_target_arch: Option<&str>,
+        env_overrides: Option<&[(&str, Option<String>)]>,
+        target_arch_for_verification: Option<&str>,
+    ) {
+        clean_build_and_verify_project(
+            "kmdf",
+            driver,
+            None,
+            None,
+            cli_target_arch,
+            None,
+            env_overrides,
+            target_arch_for_verification,
+        );
+    }
+
+    // `config.toml` with `build.target` = "x86_64-pc-windows-msvc"
+    #[test]
+    fn kmdf_driver_with_target_override_via_config_toml_builds_successfully() {
+        let target_arch = "x64";
+        let env = env_with_wdk(target_arch);
+        build_kmdf_and_verify(
+            DRIVER_WITH_TARGET_OVERRIDE,
+            None,
+            Some(env.as_slice()),
+            Some(target_arch),
+        );
+    }
+
+    #[test]
+    fn kmdf_driver_with_target_override_via_env_wins_over_config_toml() {
+        let target_arch = "ARM64";
+        let env = env_with_cargo_build_target(AARCH64_TARGET_TRIPLE_NAME, target_arch);
+        build_kmdf_and_verify(
+            DRIVER_WITH_TARGET_OVERRIDE,
+            None,
+            Some(env.as_slice()),
+            Some(target_arch),
+        );
+    }
+
+    /// Verifies that the CLI `--target-arch` argument takes precedence over:
+    /// - `.cargo/config.toml` `build.target` setting
+    /// - `CARGO_BUILD_TARGET` environment variable
+    #[test]
+    fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
+        let target_arch = "ARM64";
+        let env = env_with_cargo_build_target(X86_64_TARGET_TRIPLE_NAME, target_arch);
+        build_kmdf_and_verify(
+            DRIVER_WITH_TARGET_OVERRIDE,
+            Some(target_arch),
+            Some(env.as_slice()),
+            Some(target_arch),
+        );
+    }
+
+    /// Verifies that the CLI `--target-arch` argument takes precedence over
+    /// `CARGO_BUILD_TARGET` (without relying on `.cargo/config.toml`).
+    #[test]
+    fn kmdf_driver_with_target_override_cli_wins_over_env() {
+        let cli_target_arch = "x64";
+
+        // Env explicitly requests ARM64, but CLI should win.
+        let env = env_with_cargo_build_target(AARCH64_TARGET_TRIPLE_NAME, cli_target_arch);
+        build_kmdf_and_verify(
+            DRIVER_BASE,
+            Some(cli_target_arch),
+            Some(env.as_slice()),
+            Some(cli_target_arch),
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
