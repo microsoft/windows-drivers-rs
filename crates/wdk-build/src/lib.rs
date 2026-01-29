@@ -1548,7 +1548,7 @@ pub fn detect_wdk_build_number() -> Result<u32, ConfigError> {
 #[cfg(test)]
 mod tests {
     #[cfg(nightly_toolchain)]
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
     use std::{collections::HashMap, ffi::OsStr, sync::Mutex};
 
     use super::*;

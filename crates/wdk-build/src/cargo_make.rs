@@ -513,16 +513,14 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 }
 
 fn is_cargo_make_color_disabled() -> bool {
-    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR)
-        .map(|value| {
-            !matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                // when color is enabled in cargo-make, the env var is guaranteed to be set to one
-                // of the below values, or not be set at all
-                "0" | "false" | "no" | ""
-            )
-        })
-        .unwrap_or(false)
+    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR).is_ok_and(|value| {
+        !matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            // when color is enabled in cargo-make, the env var is guaranteed to be set to one
+            // of the below values, or not be set at all
+            "0" | "false" | "no" | ""
+        )
+    })
 }
 
 /// Prepends the path variable with the necessary paths to access WDK(+SDK)
