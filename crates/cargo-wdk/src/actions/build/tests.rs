@@ -2000,9 +2000,7 @@ impl TestBuildAction {
                       working_dir: &Option<&Path>| {
                     command == "cargo"
                         && args == ["rustc", "--", "--print", "cfg"]
-                        && working_dir
-                            .map(|d| d == expected_working_dir.as_path())
-                            .unwrap_or(false)
+                        && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
                 },
             )
             .once()
