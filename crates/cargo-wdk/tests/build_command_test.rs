@@ -1,6 +1,7 @@
 //! System level tests for cargo wdk build flow
 mod test_utils;
 use std::{
+    env,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -11,6 +12,9 @@ use sha2::{Digest, Sha256};
 use test_utils::{create_cargo_wdk_cmd, with_mutex};
 
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+const WDK_CONTENT_ROOT_ENV_VAR: &str = "WDKContentRoot";
+const NUGET_PACKAGES_ROOT_ENV_VAR: &str = "NugetPackagesRoot";
+const FULL_VERSION_NUMBER_ENV_VAR: &str = "FullVersionNumber";
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
@@ -64,10 +68,11 @@ fn kmdf_driver_builds_successfully() {
 }
 
 #[test]
-fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
+fn kmdf_driver_cross_compiles_with_cli_option_successfully() {
     let driver = "kmdf-driver";
-    let target_arch = "ARM64";
-    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
+    let target_arch = cross_compile_target_arch();
+    let env_overrides = nuget_wdk_content_root_path(target_arch)
+        .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
     clean_build_and_verify_project(
         "kmdf",
         driver,
@@ -75,7 +80,7 @@ fn kmdf_driver_with_target_arch_cli_option_builds_successfully() {
         None,
         Some(target_arch),
         None,
-        Some(&env),
+        env_overrides.as_deref(),
         Some(target_arch),
     );
 }
@@ -87,11 +92,30 @@ fn umdf_driver_builds_successfully() {
 }
 
 #[test]
-fn umdf_driver_with_target_arch_and_release_profile_builds_successfully() {
+fn umdf_driver_cross_compiles_with_cli_option_successfully() {
+    let driver = "umdf-driver";
+    let target_arch = cross_compile_target_arch();
+    let env_overrides = nuget_wdk_content_root_path(target_arch)
+        .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
+    clean_build_and_verify_project(
+        "umdf",
+        driver,
+        None,
+        None,
+        Some(target_arch),
+        None,
+        env_overrides.as_deref(),
+        Some(target_arch),
+    );
+}
+
+#[test]
+fn umdf_driver_with_target_arch_cli_option_and_release_profile_builds_successfully() {
     let driver = "umdf-driver";
     let target_arch = "ARM64";
     let profile = "release";
-    let env = [get_wdk_content_root_from_nuget_packages_root(target_arch)];
+    let env_overrides = nuget_wdk_content_root_path(target_arch)
+        .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
     clean_build_and_verify_project(
         "umdf",
         driver,
@@ -99,7 +123,7 @@ fn umdf_driver_with_target_arch_and_release_profile_builds_successfully() {
         None,
         Some(target_arch),
         Some(profile),
-        Some(&env),
+        env_overrides.as_deref(),
         Some(target_arch),
     );
 }
@@ -123,6 +147,24 @@ fn wdm_driver_builds_successfully_with_given_version() {
         None,
         Some(&env),
         None,
+    );
+}
+
+#[test]
+fn wdm_driver_cross_compiles_with_cli_option_successfully() {
+    let driver = "wdm-driver";
+    let target_arch = cross_compile_target_arch();
+    let env_overrides = nuget_wdk_content_root_path(target_arch)
+        .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
+    clean_build_and_verify_project(
+        "wdm",
+        driver,
+        None,
+        None,
+        Some(target_arch),
+        None,
+        env_overrides.as_deref(),
+        Some(target_arch),
     );
 }
 
@@ -156,54 +198,39 @@ fn emulated_workspace_builds_successfully() {
     });
 }
 
-mod target_override_tests {
+mod kmdf_driver_with_target_override {
     use super::*;
 
-    const DRIVER_WITH_TARGET_OVERRIDE: &str = "kmdf-driver-with-target-override";
-    const DRIVER_BASE: &str = "kmdf-driver";
+    const DRIVER_PROJECT: &str = "kmdf-driver-with-target-override";
     const CARGO_BUILD_TARGET_ENV_VAR: &str = "CARGO_BUILD_TARGET";
 
-    fn env_with_wdk(target_arch: &str) -> Vec<(&'static str, Option<String>)> {
-        vec![get_wdk_content_root_from_nuget_packages_root(target_arch)]
-    }
-
-    fn env_with_cargo_build_target(
-        target_triple: &str,
+    fn configure_env(
         wdk_target_arch: &str,
+        cargo_build_target: Option<&str>,
     ) -> Vec<(&'static str, Option<String>)> {
-        let mut env: Vec<(&'static str, Option<String>)> =
-            vec![(CARGO_BUILD_TARGET_ENV_VAR, Some(target_triple.to_string()))];
-        env.push(get_wdk_content_root_from_nuget_packages_root(
-            wdk_target_arch,
-        ));
-        env
-    }
+        let mut env: Vec<(&'static str, Option<String>)> = Vec::new();
 
-    fn build_kmdf_and_verify(
-        driver: &str,
-        cli_target_arch: Option<&str>,
-        env_overrides: Option<&[(&str, Option<String>)]>,
-        target_arch_for_verification: Option<&str>,
-    ) {
-        clean_build_and_verify_project(
-            "kmdf",
-            driver,
-            None,
-            None,
-            cli_target_arch,
-            None,
-            env_overrides,
-            target_arch_for_verification,
-        );
+        if let Some(target_triple) = cargo_build_target {
+            env.push((CARGO_BUILD_TARGET_ENV_VAR, Some(target_triple.to_string())));
+        }
+
+        if let Some(path) = nuget_wdk_content_root_path(wdk_target_arch) {
+            env.push((WDK_CONTENT_ROOT_ENV_VAR, Some(path)));
+        }
+        env
     }
 
     // `config.toml` with `build.target` = "x86_64-pc-windows-msvc"
     #[test]
-    fn kmdf_driver_with_target_override_via_config_toml_builds_successfully() {
+    fn via_config_toml_builds_successfully() {
         let target_arch = "x64";
-        let env = env_with_wdk(target_arch);
-        build_kmdf_and_verify(
-            DRIVER_WITH_TARGET_OVERRIDE,
+        let env = configure_env(target_arch, None);
+        clean_build_and_verify_project(
+            "kmdf",
+            DRIVER_PROJECT,
+            None,
+            None,
+            None,
             None,
             Some(env.as_slice()),
             Some(target_arch),
@@ -211,45 +238,51 @@ mod target_override_tests {
     }
 
     #[test]
-    fn kmdf_driver_with_target_override_via_env_wins_over_config_toml() {
+    fn via_env_wins_over_config_toml() {
         let target_arch = "ARM64";
-        let env = env_with_cargo_build_target(AARCH64_TARGET_TRIPLE_NAME, target_arch);
-        build_kmdf_and_verify(
-            DRIVER_WITH_TARGET_OVERRIDE,
+        let env = configure_env(target_arch, Some(AARCH64_TARGET_TRIPLE_NAME));
+        clean_build_and_verify_project(
+            "kmdf",
+            DRIVER_PROJECT,
+            None,
+            None,
+            None,
             None,
             Some(env.as_slice()),
             Some(target_arch),
         );
     }
 
-    /// Verifies that the CLI `--target-arch` argument takes precedence over:
-    /// - `.cargo/config.toml` `build.target` setting
-    /// - `CARGO_BUILD_TARGET` environment variable
     #[test]
-    fn kmdf_driver_with_target_override_cli_wins_over_env_and_config() {
-        let target_arch = "ARM64";
-        let env = env_with_cargo_build_target(X86_64_TARGET_TRIPLE_NAME, target_arch);
-        build_kmdf_and_verify(
-            DRIVER_WITH_TARGET_OVERRIDE,
-            Some(target_arch),
+    fn via_cli_wins_over_env() {
+        let target_arch = "x64";
+        let cli_target_arch = "amd64";
+        let env = configure_env(target_arch, Some(AARCH64_TARGET_TRIPLE_NAME));
+        clean_build_and_verify_project(
+            "kmdf",
+            DRIVER_PROJECT,
+            None,
+            None,
+            Some(cli_target_arch),
+            None,
             Some(env.as_slice()),
-            Some(target_arch),
+            Some(cli_target_arch),
         );
     }
 
-    /// Verifies that the CLI `--target-arch` argument takes precedence over
-    /// `CARGO_BUILD_TARGET` (without relying on `.cargo/config.toml`).
     #[test]
-    fn kmdf_driver_with_target_override_cli_wins_over_env() {
-        let cli_target_arch = "x64";
-
-        // Env explicitly requests ARM64, but CLI should win.
-        let env = env_with_cargo_build_target(AARCH64_TARGET_TRIPLE_NAME, cli_target_arch);
-        build_kmdf_and_verify(
-            DRIVER_BASE,
-            Some(cli_target_arch),
+    fn via_cli_wins_over_env_and_config() {
+        let target_arch = "ARM64";
+        let env = configure_env(target_arch, Some(X86_64_TARGET_TRIPLE_NAME));
+        clean_build_and_verify_project(
+            "kmdf",
+            DRIVER_PROJECT,
+            None,
+            None,
+            Some(target_arch),
+            None,
             Some(env.as_slice()),
-            Some(cli_target_arch),
+            Some(target_arch),
         );
     }
 }
@@ -450,24 +483,24 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
     format!("{result:x}")
 }
 
-/// Returns an environment override for `WDKContentRoot`, derived from Nuget.
+/// Returns the `WDKContentRoot` path derived from the Nuget WDK package, if the
+/// Nuget WDK and Full Version Numberenv vars are present.
 ///
-/// # Returns:
-/// - `(\"WDKContentRoot\", Some(path))` if `NugetPackagesRoot` and
-///   `FullVersionNumber` environment variables are set.
-/// - `(\"WDKContentRoot\", None)` if one of these environment variables is not
-///   set.
+/// Behavior:
+/// - If `NugetPackagesRoot` and `FullVersionNumber` are set, returns
+///   `Some(path)`.
+/// - Otherwise, returns `None` so tests do not override (or remove)
+///   `WDKContentRoot` in non-Nuget environments.
 ///
 /// # Panics:
-/// - If the expected WDK package folder cannot be found.
-fn get_wdk_content_root_from_nuget_packages_root(
-    target_arch: &str,
-) -> (&'static str, Option<String>) {
-    let Ok(nuget_packages_root) = std::env::var("NugetPackagesRoot") else {
-        return ("WDKContentRoot", None);
+/// - If the Nuget env vars are set but the expected WDK package folder cannot
+///   be found.
+fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
+    let Ok(nuget_packages_root) = std::env::var(NUGET_PACKAGES_ROOT_ENV_VAR) else {
+        return None;
     };
-    let Ok(full_version_number) = std::env::var("FullVersionNumber") else {
-        return ("WDKContentRoot", None);
+    let Ok(full_version_number) = std::env::var(FULL_VERSION_NUMBER_ENV_VAR) else {
+        return None;
     };
 
     let expected_wdk_package_dir_name =
@@ -475,7 +508,7 @@ fn get_wdk_content_root_from_nuget_packages_root(
 
     let wdk_package_dir = fs::read_dir(Path::new(&nuget_packages_root))
         .unwrap_or_else(|err| {
-            panic!("Failed to read NuGet package root '{nuget_packages_root}': {err}")
+            panic!("Failed to read Nuget package root '{nuget_packages_root}': {err}")
         })
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -499,8 +532,20 @@ fn get_wdk_content_root_from_nuget_packages_root(
         "Expected WDK content root '{}' to exist",
         wdk_content_root_path.display()
     );
-    (
-        "WDKContentRoot",
-        Some(wdk_content_root_path.to_string_lossy().into_owned()),
-    )
+    Some(wdk_content_root_path.to_string_lossy().into_owned())
+}
+
+/// Returns the cross-compilation target architecture for the current host.
+///
+/// - If host is `x86_64`, we cross-compile to `ARM64`.
+/// - If host is `aarch64`, we cross-compile to `x64`.
+fn cross_compile_target_arch() -> &'static str {
+    match env::consts::ARCH {
+        "x86_64" => "ARM64",
+        "aarch64" => "x64",
+        other => panic!(
+            "Unsupported host architecture '{other}' for cross-compilation tests. Expected \
+             'x86_64' or 'aarch64'."
+        ),
+    }
 }
