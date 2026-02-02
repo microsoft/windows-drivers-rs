@@ -469,7 +469,17 @@ impl<'a> BuildAction<'a> {
                 ))
             })?;
 
-            return Ok(parent.to_path_buf());
+            if parent.is_absolute() {
+                return Ok(parent.to_path_buf());
+            }
+
+            let abs_parent = std::path::absolute(parent).map_err(|err| {
+                BuildActionError::CannotDetermineTargetDir(format!(
+                    "Cannot convert target directory {} to absolute path: {err}",
+                    parent.display()
+                ))
+            })?;
+            return Ok(abs_parent);
         }
 
         Err(BuildActionError::CannotDetermineTargetDir(String::from(
