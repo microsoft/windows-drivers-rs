@@ -3087,10 +3087,15 @@ fn create_cargo_build_output_json(
 
 fn strip_windows_extended_prefix(path: &Path) -> String {
     let path_str = path.to_string_lossy();
-    path_str
-        .strip_prefix(r"\\?\")
-        .unwrap_or(&path_str)
-        .to_string()
+    let Some(without_prefix) = path_str.strip_prefix(r"\\?\") else {
+        return path_str.into_owned();
+    };
+
+    // Handle UNC paths
+    without_prefix.strip_prefix("UNC\\").map_or_else(
+        || without_prefix.to_string(),
+        |unc_rest| format!(r"\\{unc_rest}"),
+    )
 }
 
 fn create_cargo_build_output_json_with_manifest(

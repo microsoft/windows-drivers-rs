@@ -538,11 +538,11 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
 /// Returns the cross-compilation target architecture for the current host.
 ///
 /// - If host is `x86_64`, we cross-compile to `ARM64`.
-/// - If host is `aarch64`, we cross-compile to `x64`.
+/// - If host is `aarch64`, we cross-compile to `AMD64`.
 fn cross_compile_target_arch() -> &'static str {
     match env::consts::ARCH {
         "x86_64" => "ARM64",
-        "aarch64" => "x64",
+        "aarch64" => "AMD64",
         other => panic!(
             "Unsupported host architecture '{other}' for cross-compilation tests. Expected \
              'x86_64' or 'aarch64'."
