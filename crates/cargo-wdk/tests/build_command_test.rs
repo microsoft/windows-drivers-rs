@@ -503,8 +503,17 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
         return None;
     };
 
+    // NuGet WDK package folder names use `x64` (not `amd64`) and are lowercase.
+    // `cargo-wdk` CLI historically uses `amd64` / `arm64` (case-insensitive), so
+    // normalize here to locate the right package folder during tests.
+    let nuget_arch = match target_arch.to_ascii_lowercase().as_str() {
+        "amd64" | "x64" | "x86_64" => "x64",
+        "arm64" | "aarch64" => "arm64",
+        other => other,
+    };
+
     let expected_wdk_package_dir_name =
-        format!("Microsoft.Windows.WDK.{target_arch}.{full_version_number}");
+        format!("Microsoft.Windows.WDK.{nuget_arch}.{full_version_number}");
 
     let wdk_package_dir = fs::read_dir(Path::new(&nuget_packages_root))
         .unwrap_or_else(|err| {
@@ -521,8 +530,8 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
         })
         .unwrap_or_else(|| {
             panic!(
-                "Unable to locate WDK package for target architecture {target_arch} under \
-                 '{nuget_packages_root}'"
+                "Unable to locate WDK package for target architecture {target_arch} (NuGet arch: \
+                 {nuget_arch}) under '{nuget_packages_root}'"
             )
         });
 
