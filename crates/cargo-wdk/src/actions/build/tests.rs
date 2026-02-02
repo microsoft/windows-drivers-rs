@@ -3360,15 +3360,10 @@ mod get_target_arch_from_cargo_rustc {
 
     use super::{BuildActionError, TestBuildAction};
 
-    #[test]
-    fn parses_amd64() {
+    fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
         let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
-            b"target_arch=\"x86_64\"\n".to_vec(),
-        );
+        expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), cfg_output);
 
         let build_action =
             super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
@@ -3377,47 +3372,28 @@ mod get_target_arch_from_cargo_rustc {
         let arch = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect("Expected target arch to be detected");
-        assert_eq!(arch, CpuArchitecture::Amd64);
+        assert_eq!(arch, expected_arch);
+    }
+
+    #[test]
+    fn parses_amd64() {
+        run_parse_test(b"target_arch=\"x86_64\"\n".to_vec(), CpuArchitecture::Amd64);
     }
 
     #[test]
     fn parses_arm64_with_whitespace_and_crlf() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
+        run_parse_test(
             b"  \ttarget_arch=\"aarch64\"\r\n".to_vec(),
+            CpuArchitecture::Arm64,
         );
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let arch = build_action
-            .get_target_arch_from_cargo_rustc(&cwd)
-            .expect("Expected target arch to be detected");
-        assert_eq!(arch, CpuArchitecture::Arm64);
     }
 
     #[test]
     fn parses_arm64_with_internal_whitespace() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
+        run_parse_test(
             b"target_arch =  \"aarch64\"\n".to_vec(),
+            CpuArchitecture::Arm64,
         );
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let arch = build_action
-            .get_target_arch_from_cargo_rustc(&cwd)
-            .expect("Expected target arch to be detected");
-        assert_eq!(arch, CpuArchitecture::Arm64);
     }
 
     #[test]

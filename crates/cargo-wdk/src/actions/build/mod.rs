@@ -509,13 +509,13 @@ impl<'a> BuildAction<'a> {
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {
-            let line_without_whitespace: String =
-                line.chars().filter(|c| !c.is_whitespace()).collect();
-            line_without_whitespace
-                .strip_prefix("target_arch=\"")?
-                .strip_suffix("\"")
-                .filter(|arch| !arch.is_empty())
-                .map(ToString::to_string)
+            let (key, value) = line.trim().split_once('=')?;
+            (key.trim() == "target_arch")
+                .then_some(value)
+                .map(str::trim)
+                .map(|v| v.trim_matches('"'))
+                .filter(|v| !v.is_empty())
+                .map(str::to_owned)
         });
 
         match arch.as_deref() {
