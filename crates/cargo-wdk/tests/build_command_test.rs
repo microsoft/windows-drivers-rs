@@ -503,9 +503,10 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
         return None;
     };
 
-    // NuGet WDK package folder names use `x64` (not `amd64`) and are lowercase.
-    // `cargo-wdk` CLI uses `amd64` / `arm64` (case-insensitive), so
-    // normalize here to locate the right package folder during tests.
+    // NuGet WDK package folder names use `x64` (lowercase and not `amd64`) and
+    // `ARM64` (uppercase) whereas `cargo-wdk` CLI uses `amd64` / `arm64`
+    // (case-insensitive), so we normalize here in order to locate the right package
+    // folder during tests.
     let target_arch_lower = target_arch.to_ascii_lowercase();
     let nuget_arch = match target_arch_lower.as_str() {
         "amd64" | "x64" | "x86_64" => "x64",
