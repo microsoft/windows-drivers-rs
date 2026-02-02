@@ -509,7 +509,7 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
     let target_arch_lower = target_arch.to_ascii_lowercase();
     let nuget_arch = match target_arch_lower.as_str() {
         "amd64" | "x64" | "x86_64" => "x64",
-        "arm64" | "aarch64" => "arm64",
+        "arm64" | "aarch64" => "ARM64",
         other => other,
     };
 
