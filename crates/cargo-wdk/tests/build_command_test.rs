@@ -484,7 +484,7 @@ fn digest_file<P: AsRef<Path>>(path: P) -> String {
 }
 
 /// Returns the `WDKContentRoot` path derived from the Nuget WDK package, if the
-/// Nuget WDK and Full Version Numberenv vars are present.
+/// Nuget WDK and Full Version Number env vars are present.
 ///
 /// Behavior:
 /// - If `NugetPackagesRoot` and `FullVersionNumber` are set, returns
