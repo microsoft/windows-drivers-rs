@@ -509,12 +509,12 @@ impl<'a> BuildAction<'a> {
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {
-            line.trim()
-                .strip_prefix("target_arch=")
-                .map(str::trim)
-                .map(|v| v.trim_matches('"'))
-                .filter(|v| !v.is_empty())
-                .map(str::to_owned)
+            let arch = line
+                .trim()
+                .strip_prefix("target_arch=")?
+                .trim()
+                .trim_matches('"');
+            (!arch.is_empty()).then_some(arch.to_owned())
         });
 
         match arch.as_deref() {
