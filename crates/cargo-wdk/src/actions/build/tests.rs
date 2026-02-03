@@ -3391,7 +3391,7 @@ mod get_target_arch_from_cargo_rustc {
     #[test]
     fn parses_arm64_with_internal_whitespace() {
         run_parse_test(
-            b"target_arch =  \"aarch64\"\n".to_vec(),
+            b"target_arch=  \"aarch64\"\n".to_vec(),
             CpuArchitecture::Arm64,
         );
     }

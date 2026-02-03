@@ -509,9 +509,8 @@ impl<'a> BuildAction<'a> {
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {
-            let (key, value) = line.trim().split_once('=')?;
-            (key.trim() == "target_arch")
-                .then_some(value)
+            line.trim()
+                .strip_prefix("target_arch=")
                 .map(str::trim)
                 .map(|v| v.trim_matches('"'))
                 .filter(|v| !v.is_empty())
