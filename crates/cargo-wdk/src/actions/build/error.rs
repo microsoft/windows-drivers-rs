@@ -35,13 +35,17 @@ pub enum BuildActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("One or more workspace members failed to build in the workspace: {0}")]
     OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+    #[error("Unsupported target arch: {0}")]
+    UnsupportedArchitecture(String),
+    #[error("Failed to detect target arch")]
+    CannotDetectTargetArch,
+    #[error("Could not determine target directory for packaging. Cause: {0}")]
+    CannotDetermineTargetDir(String),
 }
 
 /// Errors for the low level build task layer
 #[derive(Error, Debug)]
 pub enum BuildTaskError {
-    #[error("Error getting canonicalized path for manifest file")]
-    CanonicalizeManifestPath(#[from] std::io::Error),
     #[error("Empty manifest path found error")]
     EmptyManifestPath,
     #[error("Error running cargo build command")]

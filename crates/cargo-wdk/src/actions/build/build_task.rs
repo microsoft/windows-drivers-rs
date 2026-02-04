@@ -8,13 +8,15 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use cargo_metadata::Message;
 use mockall_double::double;
 use tracing::debug;
+use wdk_build::CpuArchitecture;
 
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{Profile, TargetArch, build::error::BuildTaskError, to_target_triple},
+    actions::{Profile, build::error::BuildTaskError, to_target_triple},
     trace,
 };
 
@@ -22,7 +24,7 @@ use crate::{
 pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
-    target_arch: TargetArch,
+    target_arch: Option<CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -49,7 +51,7 @@ impl<'a> BuildTask<'a> {
         package_name: &'a str,
         working_dir: &'a Path,
         profile: Option<&'a Profile>,
-        target_arch: TargetArch,
+        target_arch: Option<CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
     ) -> Self {
@@ -69,16 +71,27 @@ impl<'a> BuildTask<'a> {
         }
     }
 
-    /// Entry point method to run the build task
+    /// Run `cargo build` with the configured options
+    ///
     /// # Returns
-    /// * `Result<(), BuildTaskError>` - Result indicating success or failure of
-    ///   the build task
+    /// `Result<impl Iterator<Item = Result<Message, std::io::Error>>,
+    /// BuildTaskError>`
+    ///
+    /// The returned iterator yields `Result<Message, std::io::Error>` values.
+    /// Consumers must handle these results while iterating, because parsing
+    /// errors surface lazily when the message stream is consumed.
+    ///
     /// # Errors
-    /// * `BuildTaskError::CargoBuild` - If there is an error running the cargo
-    ///   build command
-    pub fn run(&self) -> Result<(), BuildTaskError> {
+    /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty or
+    ///   not a valid unicode
+    /// * `BuildTaskError::CargoBuild` - If there is an error running the `cargo
+    ///   build` command
+    pub fn run(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
+        args.push("--message-format=json".to_string());
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
         if let Some(path) = self.manifest_path.to_str() {
@@ -91,7 +104,7 @@ impl<'a> BuildTask<'a> {
             args.push("--profile".to_string());
             args.push(profile.to_string());
         }
-        if let TargetArch::Selected(target_arch) = self.target_arch {
+        if let Some(target_arch) = self.target_arch {
             args.push("--target".to_string());
             args.push(to_target_triple(target_arch));
         }
@@ -105,26 +118,37 @@ impl<'a> BuildTask<'a> {
 
         // Run cargo build from the provided working directory so that config.toml
         // is respected
-        self.command_exec
+        let output = self
+            .command_exec
             .run("cargo", &args, None, Some(self.working_dir))?;
+
         debug!("cargo build done");
-        Ok(())
+        Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        os::windows::process::ExitStatusExt,
+        process::{ExitStatus, Output},
+    };
+
+    use cargo_metadata::{BuildFinished, Message};
     use wdk_build::CpuArchitecture;
 
     use super::*;
-    use crate::actions::{Profile, TargetArch};
+    use crate::{
+        actions::Profile,
+        providers::{error::CommandError, exec::MockCommandExec},
+    };
 
     #[test]
     fn new_succeeds_for_valid_args() {
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let package_name = "test_package";
         let profile = Profile::Dev;
-        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let target_arch = Some(CpuArchitecture::Amd64);
         let verbosity_level = clap_verbosity_flag::Verbosity::default();
         let command_exec = CommandExec::new();
 
@@ -157,7 +181,7 @@ mod tests {
         let working_dir = PathBuf::from("relative/path/to/working/dir");
         let package_name = "test_package";
         let profile = Some(Profile::Dev);
-        let target_arch = TargetArch::Selected(CpuArchitecture::Amd64);
+        let target_arch = Some(CpuArchitecture::Arm64);
         let verbosity_level = clap_verbosity_flag::Verbosity::default();
         let command_exec = CommandExec::new();
 
@@ -169,5 +193,121 @@ mod tests {
             verbosity_level,
             &command_exec,
         );
+    }
+
+    #[test]
+    fn run_invokes_cargo_build_with_expected_args_and_returns_output() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let manifest_path = working_dir.join("Cargo.toml");
+        let manifest_path_string = manifest_path.to_string_lossy().to_string();
+        let profile = Profile::Release;
+        let target_arch = CpuArchitecture::Amd64;
+        let verbosity = clap_verbosity_flag::Verbosity::default();
+        let expected_args = vec![
+            "build".to_string(),
+            "--message-format=json".to_string(),
+            "-p".to_string(),
+            "my-driver".to_string(),
+            "--manifest-path".to_string(),
+            manifest_path_string,
+            "--profile".to_string(),
+            "release".to_string(),
+            "--target".to_string(),
+            "x86_64-pc-windows-msvc".to_string(),
+        ];
+        let expected_working_dir = working_dir.clone();
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_stdout_for_mock = expected_stdout.clone();
+
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(move |command, args, _env, working_dir_opt| {
+                let matches_command = command == "cargo";
+                let matches_args = args.len() == expected_args.len()
+                    && args
+                        .iter()
+                        .zip(expected_args.iter())
+                        .all(|(actual, expected)| actual == expected);
+                let working_dir = working_dir_opt
+                    .expect("working directory must be provided when running cargo build");
+                let matches_working_dir = working_dir == expected_working_dir.as_path();
+                matches_command && matches_args && matches_working_dir
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout_for_mock,
+                    stderr: Vec::new(),
+                })
+            });
+        let task = BuildTask::new(
+            "my-driver",
+            &working_dir,
+            Some(&profile),
+            Some(target_arch),
+            verbosity,
+            &mock,
+        );
+
+        let messages = task
+            .run()
+            .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [Message::BuildFinished(BuildFinished { success: true, .. })]
+            ),
+            "expected one successful BuildFinished message, got: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn run_returns_error_when_cargo_command_fails() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let mut mock = MockCommandExec::new();
+        mock.expect_run().return_once(|_, _, _, _| {
+            let failure_output = Output {
+                status: ExitStatus::from_raw(1),
+                stdout: b"error".to_vec(),
+                stderr: b"failure".to_vec(),
+            };
+            Err(CommandError::from_output(
+                "cargo",
+                &["build"],
+                &failure_output,
+            ))
+        });
+
+        let task = BuildTask::new(
+            "my-driver",
+            &working_dir,
+            None,
+            None,
+            clap_verbosity_flag::Verbosity::default(),
+            &mock,
+        );
+
+        let err = task.run().err().expect("expected cargo failure");
+        let BuildTaskError::CargoBuild(command_error) = err else {
+            panic!("expected cargo build error");
+        };
+        match command_error {
+            CommandError::CommandFailed {
+                command,
+                args,
+                stdout,
+            } => {
+                assert_eq!(command, "cargo");
+                assert_eq!(args, vec!["build".to_string()]);
+                assert_eq!(stdout, "error");
+            }
+            CommandError::IoError(_, _, err) => {
+                panic!("expected CommandFailed, got IoError: {err}")
+            }
+        }
     }
 }

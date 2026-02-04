@@ -139,26 +139,18 @@ runs:
             Write-Host "Using specified version: $version"
         }
 
-        $packages = "C:\packages"
+        $packagesRootDir = "C:\packages"
 
-        # Install WDK packages for both host and target architectures
-        # Host architecture needed for build tools and binaries
-        # Target architecture needed for content (libraries, headers)
-        $hostWdkPackage = "Microsoft.Windows.WDK.$hostArch"
-        $targetWdkPackage = "Microsoft.Windows.WDK.$targetArch"
+        # Install WDK packages for both x64 and ARM64 architectures
 
-        # Determine packages to install (avoid duplicates if host == target)
-        $packagesToInstall = @($hostWdkPackage)
-        if ($targetWdkPackage -ne $hostWdkPackage) {
-            $packagesToInstall += $targetWdkPackage
-        }
+        $packagesToInstall = @("Microsoft.Windows.WDK.x64", "Microsoft.Windows.WDK.ARM64")
 
         Write-Host "Installing WDK NuGet packages for version $version..."
         Write-Host "Required packages: $($packagesToInstall -join ', ')"
 
         foreach ($packageName in $packagesToInstall) {
             Write-Host "Installing $packageName version $version..."
-            nuget install $packageName -Version $version -OutputDirectory $packages
+            nuget install $packageName -Version $version -OutputDirectory $packagesRootDir
             if ($LASTEXITCODE -ne 0) { 
                 throw "Failed to install $packageName version $version"
             }
@@ -168,7 +160,7 @@ runs:
 
         # Discover installed package paths in packages folder
         Write-Host "Discovering installed package paths..."
-        $packageDirs = Get-ChildItem -Path $packages -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
+        $packageDirs = Get-ChildItem -Path $packagesRootDir -Directory | Where-Object { $_.Name -like "Microsoft.Windows.*.$sdkVersion.*" }
         Write-Host "Found $($packageDirs.Count) package directories:"
         foreach ($dir in $packageDirs) {
             Write-Host "  - $($dir.Name)"
@@ -220,6 +212,8 @@ runs:
             "WDKContentRoot" = "$targetWdkPackageDir\c\"
             "WDKBinRoot" = "$hostWdkPackageDir\c\bin\$sdkVersion.0"
             "WDKToolRoot" = "$hostWdkPackageDir\c\tools\$sdkVersion.0"
+            "NugetPackagesRoot" = "$packagesRootDir"
+            "FullVersionNumber" = "$version"
         }
 
         # Validate paths exist before setting environment variables
