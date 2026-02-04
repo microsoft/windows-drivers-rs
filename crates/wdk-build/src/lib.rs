@@ -815,7 +815,7 @@ impl Config {
             ApiSubset::Base => self.base_headers(),
             ApiSubset::Wdf => self.wdf_headers(),
             ApiSubset::Gpio => self.gpio_headers(),
-            ApiSubset::Hid => self.hid_headers(),
+            ApiSubset::Hid => return self.hid_headers().map(std::iter::IntoIterator::into_iter),
             ApiSubset::ParallelPorts => self.parallel_ports_headers(),
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
@@ -861,20 +861,41 @@ impl Config {
         headers
     }
 
-    #[tracing::instrument(level = "trace")]
-    fn hid_headers(&self) -> Vec<&'static str> {
-        let mut headers = vec!["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
-        if matches!(
-            self.driver_config,
-            DriverConfig::Wdm | DriverConfig::Kmdf(_)
-        ) {
-            headers.extend(["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"]);
+    fn kernel_mode_include_path(&self) -> Result<PathBuf, ConfigError> {
+        let sdk_version = detect_windows_sdk_version(&self.wdk_content_root)?;
+        let include_directory = self.wdk_content_root.join("Include");
+        Ok(include_directory.join(sdk_version).join("km"))
+    }
+
+    fn hid_headers(&self) -> Result<Vec<String>, ConfigError> {
+        let mut headers = Vec::<String>::new();
+
+        let common = ["hidclass.h", "hidsdi.h", "hidpi.h", "vhf.h"];
+        let common_wdm_kmdf = ["hidpddi.h", "hidport.h", "kbdmou.h", "ntdd8042.h"];
+
+        headers.extend(common.map(String::from));
+
+        match &self.driver_config {
+            DriverConfig::Wdm => {
+                headers.extend(common_wdm_kmdf.map(String::from));
+            }
+            DriverConfig::Kmdf(_) => {
+                headers.extend(common_wdm_kmdf.map(String::from));
+                headers.push("HidSpiCx/1.0/hidspicx.h".into());
+            }
+            DriverConfig::Umdf(_) => {
+                let hidports_path = self.kernel_mode_include_path()?.join("hidport.h");
+                let hidports_path =
+                    absolute(hidports_path)
+                        .unwrap()
+                        .to_string_lossy()
+                        .replace('\\', "/");
+
+                headers.push(hidports_path.into());
+            }
         }
 
-        if matches!(self.driver_config, DriverConfig::Kmdf(_)) {
-            headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
-        }
-        headers
+        Ok(headers)
     }
 
     #[tracing::instrument(level = "trace")]
