@@ -88,11 +88,22 @@ Building a sample driver requires the `--sample` flag. If it is not specified, t
 
 If you have a workspace with a mix of sample and non-sample driver projects, the build will fail as that scenario is not supported yet. In the future `build` will be able to automatically detect sample projects. That will remove the need for the `--sample` flag and enable support for this scenario.
 
-#### Signing and Verification
+#### Signing
 
-To sign driver artifacts `build` looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. Make sure you place your signing certificate there with that name. If no certificate is found, `build` will automatically generate a new self-signed one and add it for you.
+By default, `build` signs the driver binary and catalog using a certificate with `CN = WDRLocalTestCert` in the `WDRTestCertStore`. To check whether a certificate already exists, run `certmgr.msc` from the Windows Run dialog and look under `WDRTestCertStore > Certificates`. The signing certificate is also included as `WDRLocalTestCert.cer` in `target\<profile>\<project-name>-package`.
+
+If no certificate is found, `build` automatically creates a self-signed certificate, uses it for signing, and adds it to `WDRTestCertStore` for reuse in subsequent builds.
+
+#### Verification
 
 If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually. 
+
+#### Installing self signed certificate (non-prod case)
+
+The driver package that gets generated at `target\<profile>\<project-name>-package` post build also includes the self signed certificate `WDRLocalTestCert.cer`. Since the driver and catalog files are signed with self signed certificate instead of production certificate (CA issued). We need to manually add a copy of this certificate in the `Trusted Root Certification Authorities` store on the target machine where you want to install the driver.
+
+To install the certificate on Windows, double‑click the certificate file and choose "Install Certificate". In the wizard, select the store location (Local Machine is recommended), choose "Place all certificates in the following store", browse to "Trusted Root Certification Authorities", then complete the wizard.
+
 
 #### Examples
 
