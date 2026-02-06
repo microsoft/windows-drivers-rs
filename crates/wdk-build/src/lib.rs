@@ -335,6 +335,8 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    /// API subset for network drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_netvista/>
+    Network,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -687,21 +689,25 @@ impl Config {
         // ]
         // .into_iter()
         // .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string())))
+        let mut defs = vec![("NDIS_SUPPORT_NDIS6", None)];
+
         match self.cpu_architecture {
             // Definitions sourced from `Program Files\Windows
             // Kits\10\build\10.0.22621.0\WindowsDriver.x64.props`
             CpuArchitecture::Amd64 => {
-                vec![("_WIN64", None), ("_AMD64_", None), ("AMD64", None)]
+                defs.extend([("_WIN64", None), ("_AMD64_", None), ("AMD64", None)]);
+                defs
             }
             // Definitions sourced from `Program Files\Windows
             // Kits\10\build\10.0.22621.0\WindowsDriver.arm64.props`
             CpuArchitecture::Arm64 => {
-                vec![
+                defs.extend([
                     ("_ARM64_", None),
                     ("ARM64", None),
                     ("_USE_DECLSPECS_FOR_SAL", Some(1)),
                     ("STD_CALL", None),
-                ]
+                ]);
+                defs
             }
         }
         .into_iter()
@@ -816,6 +822,7 @@ impl Config {
             ApiSubset::Wdf => self.wdf_headers(),
             ApiSubset::Gpio => self.gpio_headers(),
             ApiSubset::Hid => self.hid_headers(),
+            ApiSubset::Network => self.network_headers(),
             ApiSubset::ParallelPorts => self.parallel_ports_headers(),
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
@@ -994,6 +1001,11 @@ impl Config {
         Ok(headers)
     }
 
+    #[tracing::instrument(level = "trace")]
+    fn network_headers(&self) -> Vec<&'static str> {
+        vec!["ndis.h", "fwpmk.h", "fwpsk.h"]
+    }
+
     /// Determines whether to include the ufxclient.h header based on the Clang
     /// version used by bindgen.
     ///
@@ -1167,6 +1179,8 @@ impl Config {
                 println!("cargo::rustc-link-lib=static=wmilib");
                 println!("cargo::rustc-link-lib=static=WdfLdr");
                 println!("cargo::rustc-link-lib=static=WdfDriverEntry");
+                println!("cargo::rustc-link-lib=static=Fwpkclnt");
+                println!("cargo::rustc-link-lib=static=netio");
 
                 // Emit ARM64-specific libraries to link to derived from
                 // WindowsDriver.arm64.props

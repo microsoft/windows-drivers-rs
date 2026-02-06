@@ -89,6 +89,16 @@ pub mod storage;
 ))]
 pub mod usb;
 
+#[cfg(all(
+    any(
+        driver_model__driver_type = "WDM",
+        driver_model__driver_type = "KMDF",
+        driver_model__driver_type = "UMDF"
+    ),
+    feature = "network"
+))]
+pub mod network;
+
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
 

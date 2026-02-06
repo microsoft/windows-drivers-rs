@@ -145,6 +145,8 @@ const ENABLED_API_SUBSETS: &[ApiSubset] = &[
     ApiSubset::Storage,
     #[cfg(feature = "usb")]
     ApiSubset::Usb,
+    #[cfg(feature = "network")]
+    ApiSubset::Network,
 ];
 
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
@@ -165,6 +167,8 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("storage.rs", generate_storage),
     #[cfg(feature = "usb")]
     ("usb.rs", generate_usb),
+    #[cfg(feature = "network")]
+    ("network.rs", generate_network),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -488,6 +492,36 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     trace!(bindgen_builder = ?bindgen_builder);
 
     let output_file_path = out_path.join("usb.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
+}
+
+#[cfg(feature = "network")]
+fn generate_network(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    info!("Generating bindings to WDK: network.rs");
+
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Network])?;
+    trace!(header_contents = ?header_contents);
+
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("network.h", &header_contents);
+
+        // Only allowlist files in the network-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Network)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+        }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("network.rs");
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
