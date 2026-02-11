@@ -297,7 +297,8 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 /// the child runs in a clean environment.
 ///
 /// In particular, this function removes:
-/// - All env vars starting with "CARGO" or "RUST"
+/// - All env vars starting with `CARGO` or `RUST` except `CARGO_HOME` and
+///   `RUSTUP_HOME`
 /// - Entries added to the "PATH" variable by cargo
 fn sanitize_env_vars(cmd: &mut Command) {
     const PATH_VAR: &str = "PATH";
@@ -305,7 +306,13 @@ fn sanitize_env_vars(cmd: &mut Command) {
     // Remove all vars added by cargo
     let vars_to_remove = env::vars().filter_map(|(var, _)| {
         let var_upper = var.to_uppercase();
-        if var_upper.starts_with("CARGO") || var_upper.starts_with("RUST") {
+        if (var_upper.starts_with("CARGO") || var_upper.starts_with("RUST"))
+            // Leaving these two in as removing them can cause
+            // issues with finding toolchains installed at 
+            // non-default locations
+            && var_upper != "CARGO_HOME"
+            && var_upper != "RUSTUP_HOME"
+        {
             Some(var)
         } else {
             None
