@@ -92,7 +92,7 @@ pub unsafe extern "system" fn driver_entry(
     };
 
     let driver_attributes = WDF_NO_OBJECT_ATTRIBUTES;
-    let driver_handle_output = WDF_NO_HANDLE.cast::<WDFDRIVER>();
+    let driver_handle_output: *mut *mut wdk_sys::WDFDRIVER__ = WDF_NO_HANDLE.cast::<WDFDRIVER>();
 
     let wdf_driver_create_ntstatus;
     // SAFETY: This is safe because:
