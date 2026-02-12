@@ -39,7 +39,8 @@ impl<const T: usize> WdkFormatBuffer<T> {
     /// Creates a zeroed formatting buffer with capacity `T`.
     ///
     /// The buffer starts empty (`used == 0`) and is ready for `fmt::Write`.
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             buffer: [0; T],
             used: 0,
@@ -63,7 +64,7 @@ impl<const T: usize> WdkFormatBuffer<T> {
     ///
     /// # Errors
     /// Returns an error only if no terminator is found, e.g. if `T == 0`.
-    pub fn as_cstr(&mut self) -> Result<&CStr, FromBytesUntilNulError> {
+    pub const fn as_cstr(&mut self) -> Result<&CStr, FromBytesUntilNulError> {
         if self.used == T && T != 0 {
             self.buffer[self.used - 1] = 0;
         }
@@ -88,6 +89,12 @@ impl<const T: usize> WdkFormatBuffer<T> {
         //         CStr::from_bytes_with_nul_unchecked(b"\0")
         //     }
         // })
+    }
+}
+
+impl<const T: usize> Default for WdkFormatBuffer<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -128,7 +135,8 @@ mod test {
     #[test]
     fn write() {
         let mut fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "Hello {}!", "world").is_ok());
+        let world: &str = "world";
+        assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
 
         let mut cmp_buffer: [u8; 512] = [0; 512];
         let cmp_str: &str = "Hello world!";
@@ -140,14 +148,16 @@ mod test {
     #[test]
     fn as_str() {
         let mut fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "Hello {}!", "world").is_ok());
+        let world: &str = "world";
+        assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
         assert_eq!(fmt_buffer.as_str().unwrap(), "Hello world!");
     }
 
     #[test]
     fn ref_sanity_check() {
         let mut fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "Hello {}!", "world").is_ok());
+        let world: &str = "world";
+        assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
 
         // borrow fmt_buffer -- while this is in scope we cannot edit fmt_buffer
         let buf_str = fmt_buffer.as_str().unwrap();
@@ -162,10 +172,10 @@ mod test {
         );
 
         // as_cstr borrows mutably so we cannot edit here
-        let cmp_cstr: &core::ffi::CStr =
+        let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"Hello world! Second sentence!\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
 
         // mutable borrow ends here so we can edit the backing buffer.
         assert!(write!(&mut fmt_buffer, " A third sentence!").is_ok());
@@ -189,10 +199,10 @@ mod test {
         let buf_str = fmt_buffer.as_str().unwrap();
         assert_eq!(buf_str, cmp_str);
 
-        let cmp_cstr: &core::ffi::CStr =
+        let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
@@ -209,10 +219,10 @@ mod test {
         let buf_str = fmt_buffer.as_str().unwrap();
         assert_eq!(buf_str, cmp_str);
 
-        let cmp_cstr: &core::ffi::CStr =
+        let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
@@ -230,10 +240,10 @@ mod test {
         let buf_str = fmt_buffer.as_str().unwrap();
         assert_eq!(buf_str, cmp_str);
 
-        let cmp_cstr: &core::ffi::CStr =
+        let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
@@ -253,10 +263,10 @@ mod test {
         let buf_str = fmt_buffer.as_str().unwrap();
         assert_eq!(buf_str, cmp_str);
 
-        let cmp_cstr: &core::ffi::CStr =
+        let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
@@ -274,10 +284,10 @@ mod test {
         let buf_str = fmt_buffer.as_str().unwrap();
         assert_eq!(buf_str, cmp_str);
 
-        let cmp_cstr: &core::ffi::CStr =
+        let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
@@ -293,9 +303,9 @@ mod test {
         let buf_str = fmt_buffer.as_str().unwrap();
         assert_eq!(buf_str, cmp_str);
 
-        let cmp_cstr: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
@@ -309,9 +319,9 @@ mod test {
 
         assert_eq!(fmt_buffer.as_str().unwrap(), "");
 
-        let cmp_cstr: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_cstr = fmt_buffer.as_cstr().unwrap();
-        assert_eq!(buf_cstr, cmp_cstr);
+        let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
+        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
