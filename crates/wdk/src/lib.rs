@@ -36,6 +36,9 @@ pub use wdk_sys::PAGED_CODE as paged_code;
 ))]
 mod print;
 
+mod fmt;
+pub use fmt::WdkFormatBuffer;
+
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
 
