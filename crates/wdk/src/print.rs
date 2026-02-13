@@ -5,8 +5,6 @@ use core::fmt;
 #[cfg(driver_model__driver_type = "UMDF")]
 use std::ffi::CString;
 
-use crate::fmt::WdkFormatBuffer;
-
 /// Prints to the debugger.
 ///
 /// Equivalent to the println! macro except that a newline is not printed at the
