@@ -10,7 +10,6 @@
 //! includes being ables to select different WDF versions and different driver
 //! models (WDM, KMDF, UMDF).
 
-#![cfg_attr(nightly_toolchain, feature(assert_matches))]
 use std::{
     env,
     fmt,
