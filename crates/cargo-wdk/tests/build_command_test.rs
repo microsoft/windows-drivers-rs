@@ -370,14 +370,15 @@ fn run_build_cmd(
         .output()
         .expect("Failed to execute cargo wdk build command");
 
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(
         output.status.success(),
         "Cargo wdk build command failed to execute successfully. \nSTDOUT: {}\nSTDERR: {}",
         String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+        stderr
     );
 
-    String::from_utf8_lossy(&output.stderr).to_string()
+    stderr
 }
 
 fn verify_driver_package_files(

@@ -164,10 +164,20 @@ fn verify_project_build(path: &std::path::Path) {
     // assert if cargo wdk build works on the created driver project
     let mut cmd = create_cargo_wdk_cmd("build", None, None, Some(path));
 
-    let cmd_assertion = cmd.assert().failure();
-    let output = cmd_assertion.get_output();
-    let stderr: String = String::from_utf8_lossy(&output.stderr).into();
+    let output = cmd
+        .output()
+        .expect("Failed to execute cargo wdk build command");
 
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success(),
+        "Cargo wdk build command succeeded unexpectedly. \nSTDOUT: {}\nSTDERR: {}",
+        stdout,
+        stderr
+    );
+
+    let stderr: String = stderr.into();
     // Assert build output contains expected errors (the INF file is intentionally
     // incomplete)
     assert!(
@@ -209,16 +219,21 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
     cmd.args(args);
 
-    let cmd_assertion = cmd.assert();
-    let cmd_assertion = if command_succeeds {
-        cmd_assertion.success()
-    } else {
-        cmd_assertion.failure()
-    };
-    let output = cmd_assertion.get_output();
+    let output = cmd
+        .output()
+        .expect("Failed to execute cargo wdk build command");
+
     let stdout = String::from_utf8_lossy(&output.stdout);
-    println!("stdout: {stdout}");
     let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        output.status.success() == command_succeeds,
+        "Cargo wdk new command did not execute as expected. \nSTDOUT: {}\nSTDERR: {}",
+        stdout,
+        stderr
+    );
+
+    println!("stdout: {stdout}");
     println!("stderr: {stderr}");
 
     assert(&stdout, &stderr);
