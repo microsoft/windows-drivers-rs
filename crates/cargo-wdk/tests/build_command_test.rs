@@ -4,7 +4,7 @@ use std::{
     env,
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 use assert_cmd::prelude::*;
@@ -353,7 +353,10 @@ fn to_target_triple(target_arch: &str) -> Option<&'static str> {
 fn run_cargo_clean(driver_path: &str) {
     let mut cmd = Command::new("cargo");
     cmd.args(["clean"]).current_dir(driver_path);
-    cmd.assert().success();
+    cmd.stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .assert()
+        .success();
 }
 
 fn run_build_cmd(
@@ -363,8 +366,16 @@ fn run_build_cmd(
 ) -> String {
     // assert command output
     let mut cmd = create_cargo_wdk_cmd("build", args, env_vars, Some(path));
-    let cmd_assertion = cmd.assert().success();
-    let output = cmd_assertion.get_output();
+    let output = cmd
+        .output()
+        .expect("Failed to execute cargo wdk build command");
+
+    assert!(
+        output.status.success(),
+        "Cargo wdk build command failed to execute successfully. \nSTDOUT: {}\nSTDERR: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     String::from_utf8_lossy(&output.stderr).to_string()
 }

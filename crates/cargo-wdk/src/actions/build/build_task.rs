@@ -91,7 +91,10 @@ impl<'a> BuildTask<'a> {
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
-        args.push("--message-format=json".to_string());
+        // We use `json-render-diagnostics` message format to
+        // ensure only compiler diagnostics are emitted to stdout while still allowing
+        // errors and warnings to be sent to stderr
+        args.push("--message-format=json-render-diagnostics".to_string());
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
         if let Some(path) = self.manifest_path.to_str() {
