@@ -17,8 +17,10 @@ requirements of that function apply. In particular, this should only be called a
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
-automatically buffer and chunk the output if it exceeds that limit.
+Output is formatted into a fixed 512-byte stack buffer and passed to
+[`wdk_sys::ntddk::DbgPrint`] in a single call. If the formatted output exceeds 511 bytes
+(reserving one byte for the NUL terminator), it is silently truncated. Interior NUL bytes
+in the formatted output will cause the string to be truncated at the first NUL.
 "
 )]
 #[cfg_attr(
@@ -51,8 +53,10 @@ requirements of that function apply. In particular, this should only be called a
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
-automatically buffer and chunk the output if it exceeds that limit.
+Output is formatted into a fixed 512-byte stack buffer and passed to
+[`wdk_sys::ntddk::DbgPrint`] in a single call. If the formatted output exceeds 511 bytes
+(reserving one byte for the NUL terminator), it is silently truncated. Interior NUL bytes
+in the formatted output will cause the string to be truncated at the first NUL.
 "
 )]
 #[cfg_attr(
@@ -142,9 +146,9 @@ macro_rules! dbg {
 /// detail and should never be called directly, but must be public to be useable
 /// by the print! and println! macro
 ///
-/// # Panics
-///
-/// Panics if an internal null byte is passed in
+/// Interior NUL bytes in the formatted output will cause the string to be
+/// truncated at the first NUL. Output exceeding the buffer capacity is
+/// silently truncated.
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
