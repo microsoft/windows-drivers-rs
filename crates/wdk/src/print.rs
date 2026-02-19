@@ -153,7 +153,7 @@ macro_rules! dbg {
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
-            let mut buffered_writer: WdkFormatBuffer = WdkFormatBuffer::new();
+            let mut buffered_writer: crate::WdkFormatBuffer = crate::WdkFormatBuffer::new();
             // We do not care whether this is `Ok` or `Err` right now. If `Err` will simply write all until overflow.
             // TODO: create custom `flush` param in `WdkFormatBuffer` to preserve old functionality
             let _ = fmt::write(&mut buffered_writer, args);
