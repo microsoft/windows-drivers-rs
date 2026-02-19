@@ -19,7 +19,7 @@ const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 /// ```
 /// use core::fmt::Write;
 ///
-/// use wdk::fmt::WdkFormatBuffer;
+/// use wdk::WdkFormatBuffer;
 ///
 /// let mut buf = WdkFormatBuffer::<16>::new();
 /// write!(&mut buf, "hello {}", 42).unwrap();
