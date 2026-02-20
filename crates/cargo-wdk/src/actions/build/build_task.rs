@@ -17,6 +17,7 @@ use wdk_build::CpuArchitecture;
 use crate::providers::exec::CommandExec;
 use crate::{
     actions::{Profile, build::error::BuildTaskError, to_target_triple},
+    providers::exec::CaptureStream,
     trace,
 };
 
@@ -121,9 +122,13 @@ impl<'a> BuildTask<'a> {
 
         // Run cargo build from the provided working directory so that config.toml
         // is respected
-        let output = self
-            .command_exec
-            .run("cargo", &args, None, Some(self.working_dir))?;
+        let output = self.command_exec.run(
+            "cargo",
+            &args,
+            None,
+            Some(self.working_dir),
+            CaptureStream::StdErr,
+        )?;
 
         debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
@@ -143,7 +148,10 @@ mod tests {
     use super::*;
     use crate::{
         actions::Profile,
-        providers::{error::CommandError, exec::MockCommandExec},
+        providers::{
+            error::CommandError,
+            exec::{CaptureStream, MockCommandExec},
+        },
     };
 
     #[test]
@@ -208,7 +216,7 @@ mod tests {
         let verbosity = clap_verbosity_flag::Verbosity::default();
         let expected_args = vec![
             "build".to_string(),
-            "--message-format=json".to_string(),
+            "--message-format=json-render-diagnostics".to_string(),
             "-p".to_string(),
             "my-driver".to_string(),
             "--manifest-path".to_string(),
@@ -225,19 +233,21 @@ mod tests {
 
         let mut mock = MockCommandExec::new();
         mock.expect_run()
-            .withf(move |command, args, _env, working_dir_opt| {
-                let matches_command = command == "cargo";
-                let matches_args = args.len() == expected_args.len()
-                    && args
-                        .iter()
-                        .zip(expected_args.iter())
-                        .all(|(actual, expected)| actual == expected);
-                let working_dir = working_dir_opt
-                    .expect("working directory must be provided when running cargo build");
-                let matches_working_dir = working_dir == expected_working_dir.as_path();
-                matches_command && matches_args && matches_working_dir
-            })
-            .return_once(move |_, _, _, _| {
+            .withf(
+                move |command, args, _env, working_dir_opt, _capture_stream| {
+                    let matches_command = command == "cargo";
+                    let matches_args = args.len() == expected_args.len()
+                        && args
+                            .iter()
+                            .zip(expected_args.iter())
+                            .all(|(actual, expected)| actual == expected);
+                    let working_dir = working_dir_opt
+                        .expect("working directory must be provided when running cargo build");
+                    let matches_working_dir = working_dir == expected_working_dir.as_path();
+                    matches_command && matches_args && matches_working_dir
+                },
+            )
+            .return_once(move |_, _, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
                     stdout: expected_stdout_for_mock,
@@ -272,7 +282,7 @@ mod tests {
     fn run_returns_error_when_cargo_command_fails() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let mut mock = MockCommandExec::new();
-        mock.expect_run().return_once(|_, _, _, _| {
+        mock.expect_run().return_once(|_, _, _, _, _| {
             let failure_output = Output {
                 status: ExitStatus::from_raw(1),
                 stdout: b"error".to_vec(),
@@ -282,6 +292,7 @@ mod tests {
                 "cargo",
                 &["build"],
                 &failure_output,
+                CaptureStream::StdErr,
             ))
         });
 
@@ -302,11 +313,12 @@ mod tests {
             CommandError::CommandFailed {
                 command,
                 args,
-                stdout,
+                output,
+                ..
             } => {
                 assert_eq!(command, "cargo");
                 assert_eq!(args, vec!["build".to_string()]);
-                assert_eq!(stdout, "error");
+                assert_eq!(output, "failure");
             }
             CommandError::IoError(_, _, err) => {
                 panic!("expected CommandFailed, got IoError: {err}")

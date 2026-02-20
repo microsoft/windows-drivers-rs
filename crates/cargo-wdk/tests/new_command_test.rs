@@ -172,9 +172,7 @@ fn verify_project_build(path: &std::path::Path) {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         !output.status.success(),
-        "Cargo wdk build command succeeded unexpectedly. \nSTDOUT: {}\nSTDERR: {}",
-        stdout,
-        stderr
+        "Cargo wdk build command succeeded unexpectedly. \nSTDOUT: {stdout}\nSTDERR: {stderr}"
     );
 
     let stderr: String = stderr.into();
@@ -228,9 +226,7 @@ fn test_command_invocation<F: FnOnce(&str, &str)>(
 
     assert!(
         output.status.success() == command_succeeds,
-        "Cargo wdk new command did not execute as expected. \nSTDOUT: {}\nSTDERR: {}",
-        stdout,
-        stderr
+        "Cargo wdk new command did not execute as expected. \nSTDOUT: {stdout}\nSTDERR: {stderr}",
     );
 
     println!("stdout: {stdout}");

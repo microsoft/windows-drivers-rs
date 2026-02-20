@@ -24,6 +24,24 @@ use tracing::debug;
 
 use super::error::CommandError;
 
+/// Specifies which output stream to capture in error reporting
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureStream {
+    /// Capture the standard output stream
+    StdOut,
+    /// Capture the standard error stream
+    StdErr,
+}
+
+impl std::fmt::Display for CaptureStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StdOut => write!(f, "STDOUT"),
+            Self::StdErr => write!(f, "STDERR"),
+        }
+    }
+}
+
 /// Provides limited access to `std::process::Command` methods
 #[derive(Debug, Default)]
 pub struct CommandExec {}
@@ -36,6 +54,7 @@ impl CommandExec {
         args: &'a [&'a str],
         env_vars: Option<&'a HashMap<&'a str, &'a str>>,
         working_dir: Option<&'a Path>,
+        capture_stream: CaptureStream,
     ) -> Result<Output, CommandError> {
         debug!("Running: {} {:?}", command, args);
 
@@ -52,14 +71,25 @@ impl CommandExec {
             cmd.current_dir(working_dir);
         }
 
+        cmd.stdout(Stdio::piped());
+
+        // Capture this stream only on need basis to avoid unnecessary overhead
+        if matches!(capture_stream, CaptureStream::StdErr) {
+            cmd.stderr(Stdio::piped());
+        }
+
         let output = cmd
-            .stdout(Stdio::piped())
             .spawn()
             .and_then(std::process::Child::wait_with_output)
             .map_err(|e| CommandError::from_io_error(command, args, e))?;
 
         if !output.status.success() {
-            return Err(CommandError::from_output(command, args, &output));
+            return Err(CommandError::from_output(
+                command,
+                args,
+                &output,
+                capture_stream,
+            ));
         }
 
         debug!(

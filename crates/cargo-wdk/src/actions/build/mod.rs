@@ -29,9 +29,9 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::Profile;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+use crate::{actions::Profile, providers::exec::CaptureStream};
 
 pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
@@ -503,9 +503,13 @@ impl<'a> BuildAction<'a> {
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {
         let args = ["rustc", "--", "--print", "cfg"];
-        let output = self
-            .command_exec
-            .run("cargo", &args, None, Some(working_dir))?;
+        let output = self.command_exec.run(
+            "cargo",
+            &args,
+            None,
+            Some(working_dir),
+            CaptureStream::StdOut,
+        )?;
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {
