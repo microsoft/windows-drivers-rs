@@ -94,8 +94,10 @@ requirements of that function apply. In particular, this should only be called a
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
-automatically buffer and chunk the output if it exceeds that limit.
+Output is formatted into a fixed 512-byte stack buffer and passed to
+[`wdk_sys::ntddk::DbgPrint`] in a single call. If the formatted output exceeds 511 bytes
+(reserving one byte for the NUL terminator), it is silently truncated. Interior NUL bytes
+in the formatted output will cause the string to be truncated at the first NUL.
 "
 )]
 #[cfg_attr(
@@ -163,6 +165,11 @@ pub fn _print(args: fmt::Arguments) {
                 Err(_e) => return, // silently return on error, no null terminator. (Should this be a placeholder string for debugging purposes?)
             };
 
+            // SAFETY:
+            // - `c"%s"` is a compile-time NUL-terminated format literal.
+            // - `cstr_buffer` is a valid NUL-terminated CStr from `WdkFormatBuffer::as_cstr`.
+            // - IRQL requirements (must be <= DIRQL) are the caller's responsibility,
+            //   as documented on the print! macro.
             unsafe {
                 wdk_sys::ntddk::DbgPrint(
                     c"%s".as_ptr().cast(),
