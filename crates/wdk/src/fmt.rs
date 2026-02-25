@@ -1,5 +1,5 @@
 use core::{
-    ffi::{CStr, FromBytesUntilNulError},
+    ffi::CStr,
     fmt,
     str::Utf8Error,
 };
@@ -28,7 +28,7 @@ const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 /// let s = buf.as_str().unwrap();
 /// assert_eq!(s, "hello 42");
 ///
-/// let c = buf.as_cstr().unwrap();
+/// let c = buf.as_cstr();
 /// assert_eq!(c.to_bytes(), b"hello 42");
 /// ```
 pub struct WdkFormatBuffer<const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE> {
@@ -40,8 +40,15 @@ impl<const N: usize> WdkFormatBuffer<N> {
     /// Creates a zeroed formatting buffer with capacity `N`.
     ///
     /// The buffer starts empty (`used == 0`) and is ready for `fmt::Write`.
+    ///
+    /// `N` must be at least 1. A zero-sized buffer will not compile:
+    /// ```compile_fail
+    /// use wdk::WdkFormatBuffer;
+    /// let _ = WdkFormatBuffer::<0>::new();
+    /// ```
     #[must_use]
     pub const fn new() -> Self {
+        const { assert!(N > 0, "N must be at least 1") }
         Self {
             buffer: [0; N],
             used: 0,
@@ -61,12 +68,14 @@ impl<const N: usize> WdkFormatBuffer<N> {
     /// Returns a C string view up to the first `NUL` byte.
     ///
     /// The buffer always contains a NUL terminator because `write_str`
-    /// reserves the last byte. This method does not modify the buffer.
-    ///
-    /// # Errors
-    /// Returns an error only if no terminator is found, e.g. if `N == 0`.
-    pub const fn as_cstr(&self) -> Result<&CStr, FromBytesUntilNulError> {
-        CStr::from_bytes_until_nul(&self.buffer)
+    /// reserves the last byte.
+    pub const fn as_cstr(&self) -> &CStr {
+        match CStr::from_bytes_until_nul(&self.buffer) {
+            Ok(cstr) => cstr,
+            // `unreachable!()` with a message uses `format_args!`, which is
+            // not const-compatible. Use `panic!` with a string literal instead.
+            Err(_) => panic!("internal error: entered unreachable code: buffer must contain a NUL byte"),
+        }
     }
 }
 
@@ -78,12 +87,8 @@ impl<const N: usize> Default for WdkFormatBuffer<N> {
 
 impl<const N: usize> fmt::Write for WdkFormatBuffer<N> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        if N == 0 {
-            return Err(fmt::Error);
-        }
-
         // The last byte (buffer[N-1]) is reserved for the NUL terminator
-        // so that `as_cstr` can read without mutating the buffer.
+        // so that the buffer always contains a valid `CStr`.
         let capacity = N - 1;
         let remaining = capacity - self.used;
 
@@ -165,7 +170,7 @@ mod test {
         // as_cstr now borrows immutably
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"Hello world! Second sentence!\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
 
         // mutable borrow ends here so we can edit the backing buffer.
@@ -187,7 +192,7 @@ mod test {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -202,7 +207,7 @@ mod test {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -217,7 +222,7 @@ mod test {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -232,7 +237,7 @@ mod test {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -249,7 +254,7 @@ mod test {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -265,7 +270,7 @@ mod test {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -277,7 +282,7 @@ mod test {
         assert_eq!(buf_str, "");
 
         let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
@@ -293,15 +298,8 @@ mod test {
         assert_eq!(fmt_buffer.as_str().unwrap(), "");
 
         let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr().unwrap();
+        let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
-    #[test]
-    fn zero_sized_buffer() {
-        let mut fmt_buffer: WdkFormatBuffer<0> = WdkFormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "uh oh!").is_err());
-        assert_eq!(fmt_buffer.as_str().unwrap(), "");
-        assert!(fmt_buffer.as_cstr().is_err());
-    }
 }

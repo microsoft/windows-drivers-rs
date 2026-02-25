@@ -160,10 +160,7 @@ pub fn _print(args: fmt::Arguments) {
             // TODO: create custom `flush` param in `WdkFormatBuffer` to preserve old functionality
             let _ = fmt::write(&mut buffered_writer, args);
 
-            let cstr_buffer = match buffered_writer.as_cstr() {
-                Ok(cstr) => cstr,
-                Err(_e) => return, // silently return on error, no null terminator. (Should this be a placeholder string for debugging purposes?)
-            };
+            let cstr_buffer = buffered_writer.as_cstr();
 
             // SAFETY:
             // - `c"%s"` is a compile-time NUL-terminated format literal.
