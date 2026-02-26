@@ -108,10 +108,6 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 
 The crates in this repository are designed to work with `stable` rust. Some of the crates expose a `nightly` feature that adds additional functionality that requires unstable rust features in the `nightly` toolchains.
 
-#### In `test` targets and unit tests
-
-`test` targets and unit tests in other targets will automatically enable nightly features when a nightly toolchain is detected. This is done via the `nightly_toolchain` `cfg` value. This allows us to take advantage of unstable features (ex. [`assert_matches`](https://doc.rust-lang.org/std/assert_matches/macro.assert_matches.html)) in tests.
-
 ### Build and Test
 
 To **only build** the workspace: `cargo build --locked --all-features`

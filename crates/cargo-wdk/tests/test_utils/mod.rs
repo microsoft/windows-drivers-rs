@@ -237,10 +237,12 @@ impl Drop for NamedMutex {
 ///
 /// * `cmd_name` - Name of the cargo-wdk command. Can be only "new" or "build"
 /// * `cmd_args` - Optional args for the command
+/// * `env_vars` - Optional environment variables to overlay for the command
 /// * `curr_working_dir` - Optional current working directory for the command
 pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     cmd_name: &str,
     cmd_args: Option<&[&str]>,
+    env_vars: Option<&[(&str, Option<String>)]>,
     curr_working_dir: Option<P>,
 ) -> Command {
     assert!(
@@ -256,11 +258,24 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     }
     cmd.args(args);
 
+    sanitize_env_vars(&mut cmd);
+
+    if let Some(env_vars) = env_vars {
+        for (key, value) in env_vars {
+            match value {
+                Some(value) => {
+                    cmd.env(key, value);
+                }
+                None => {
+                    cmd.env_remove(key);
+                }
+            }
+        }
+    }
+
     if let Some(curr_working_dir) = curr_working_dir {
         cmd.current_dir(curr_working_dir);
     }
-
-    sanitize_env_vars(&mut cmd);
 
     if cmd_name == "build" {
         // RUSTFLAGS is relevant only for cargo wdk build
@@ -282,7 +297,8 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 /// the child runs in a clean environment.
 ///
 /// In particular, this function removes:
-/// - All env vars starting with "CARGO" or "RUST"
+/// - All env vars starting with `CARGO` or `RUST` except `CARGO_HOME` and
+///   `RUSTUP_HOME`
 /// - Entries added to the "PATH" variable by cargo
 fn sanitize_env_vars(cmd: &mut Command) {
     const PATH_VAR: &str = "PATH";
@@ -290,7 +306,13 @@ fn sanitize_env_vars(cmd: &mut Command) {
     // Remove all vars added by cargo
     let vars_to_remove = env::vars().filter_map(|(var, _)| {
         let var_upper = var.to_uppercase();
-        if var_upper.starts_with("CARGO") || var_upper.starts_with("RUST") {
+        if (var_upper.starts_with("CARGO") || var_upper.starts_with("RUST"))
+            // Leaving these two in as removing them can cause
+            // issues with finding toolchains installed at 
+            // non-default locations
+            && var_upper != "CARGO_HOME"
+            && var_upper != "RUSTUP_HOME"
+        {
             Some(var)
         } else {
             None
