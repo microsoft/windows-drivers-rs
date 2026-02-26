@@ -1,8 +1,4 @@
-use core::{
-    ffi::CStr,
-    fmt,
-    str::Utf8Error,
-};
+use core::{ffi::CStr, fmt, str::Utf8Error};
 
 const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 
@@ -55,6 +51,12 @@ impl<const N: usize> WdkFormatBuffer<N> {
         }
     }
 
+    /// Resets the buffer to its initial empty state.
+    pub fn reset(&mut self) {
+        self.buffer = [0; N];
+        self.used = 0;
+    }
+
     /// Returns a UTF-8 view over the written bytes.
     ///
     /// Only the bytes successfully written are interpreted as UTF-8.
@@ -74,7 +76,9 @@ impl<const N: usize> WdkFormatBuffer<N> {
             Ok(cstr) => cstr,
             // `unreachable!()` with a message uses `format_args!`, which is
             // not const-compatible. Use `panic!` with a string literal instead.
-            Err(_) => panic!("internal error: entered unreachable code: buffer must contain a NUL byte"),
+            Err(_) => {
+                panic!("internal error: entered unreachable code: buffer must contain a NUL byte")
+            }
         }
     }
 }
@@ -107,8 +111,74 @@ impl<const N: usize> fmt::Write for WdkFormatBuffer<N> {
     }
 }
 
+/// A [`WdkFormatBuffer`] wrapper that auto-flushes on overflow.
+///
+/// When a `write_str` call would exceed the buffer capacity, the current
+/// contents are flushed via the provided closure, the buffer is reset, and
+/// writing continues with the remainder. This allows arbitrarily long
+/// formatted output to be processed in fixed-size chunks.
+///
+/// After all writes are complete, the caller must call [`flush`](Self::flush)
+/// to drain any remaining buffered content.
+pub struct WdkFlushableFormatBuffer<
+    F: FnMut(&WdkFormatBuffer<N>),
+    const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE,
+> {
+    format_buffer: WdkFormatBuffer<N>,
+    flush_fn: F,
+}
+
+impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> WdkFlushableFormatBuffer<F, N> {
+    /// Creates a new flushable writer with the given flush closure.
+    #[must_use]
+    pub fn new(flush_fn: F) -> Self {
+        Self {
+            format_buffer: WdkFormatBuffer::new(),
+            flush_fn,
+        }
+    }
+
+    /// Flushes any remaining buffered content via the closure.
+    ///
+    /// This is a no-op if the buffer is empty.
+    pub fn flush(&mut self) {
+        if self.format_buffer.used == 0 {
+            return;
+        }
+        (self.flush_fn)(&self.format_buffer);
+        self.format_buffer.reset();
+    }
+}
+
+impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableFormatBuffer<F, N> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let capacity = N - 1;
+        let mut remaining = &s.as_bytes()[..];
+
+        // Fill what fits, flush, continue with the rest.
+        while remaining.len() > capacity - self.format_buffer.used {
+            let space = capacity - self.format_buffer.used;
+            self.format_buffer.buffer[self.format_buffer.used..self.format_buffer.used + space]
+                .copy_from_slice(&remaining[..space]);
+            self.format_buffer.used = capacity;
+
+            (self.flush_fn)(&self.format_buffer);
+            self.format_buffer.reset();
+
+            remaining = &remaining[space..];
+        }
+
+        // Remaining bytes fit in the buffer.
+        self.format_buffer.buffer
+            [self.format_buffer.used..self.format_buffer.used + remaining.len()]
+            .copy_from_slice(remaining);
+        self.format_buffer.used += remaining.len();
+        Ok(())
+    }
+}
+
 #[cfg(test)]
-mod test {
+mod wdk_format_buffer_tests {
     use core::fmt::Write;
 
     use super::WdkFormatBuffer;
@@ -301,5 +371,103 @@ mod test {
         let buf_c_str = fmt_buffer.as_cstr();
         assert_eq!(buf_c_str, cmp_c_str);
     }
+}
 
+#[cfg(test)]
+mod wdk_flushable_format_buffer_tests {
+    use core::fmt::Write;
+
+    use super::WdkFlushableFormatBuffer;
+
+    #[test]
+    fn write_fits_in_buffer() {
+        let mut flushed: Vec<String> = Vec::new();
+        let mut writer = WdkFlushableFormatBuffer::<_, 16>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        assert!(write!(&mut writer, "hello").is_ok());
+        writer.flush();
+        assert_eq!(flushed, vec!["hello"]);
+    }
+
+    #[test]
+    fn overflow_triggers_flush() {
+        let mut flushed: Vec<String> = Vec::new();
+        // Capacity is N-1 = 7 usable bytes
+        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        // "0123456789" is 10 bytes — exceeds 7-byte capacity.
+        // First 7 bytes fill the buffer, triggering a flush.
+        // Remaining "789" goes into the reset buffer.
+        assert!(write!(&mut writer, "0123456789").is_ok());
+        writer.flush();
+        assert_eq!(flushed, vec!["0123456", "789"]);
+    }
+
+    #[test]
+    fn multi_flush() {
+        let mut flushed: Vec<String> = Vec::new();
+        // Capacity is N-1 = 3 usable bytes
+        let mut writer = WdkFlushableFormatBuffer::<_, 4>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        // "0123456789" is 10 bytes — triggers 3 flushes (3+3+3), leaves "9" in buffer.
+        assert!(write!(&mut writer, "0123456789").is_ok());
+        writer.flush();
+        assert_eq!(flushed, vec!["012", "345", "678", "9"]);
+    }
+
+    #[test]
+    fn empty_write_does_not_flush() {
+        let mut flushed: Vec<String> = Vec::new();
+        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        assert!(write!(&mut writer, "").is_ok());
+        assert!(write!(&mut writer, "").is_ok());
+        writer.flush();
+        assert!(flushed.is_empty());
+    }
+
+    #[test]
+    fn flush_empty_buffer_is_noop() {
+        let mut flushed: Vec<String> = Vec::new();
+        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        writer.flush();
+        assert!(flushed.is_empty());
+    }
+
+    #[test]
+    fn exact_capacity_fit() {
+        let mut flushed: Vec<String> = Vec::new();
+        // Capacity is N-1 = 7 usable bytes
+        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        // Exactly 7 bytes — fits perfectly, no flush triggered.
+        assert!(write!(&mut writer, "0123456").is_ok());
+        writer.flush();
+        assert_eq!(flushed, vec!["0123456"]);
+    }
+
+    #[test]
+    fn multiple_writes_with_intermittent_overflow() {
+        let mut flushed: Vec<String> = Vec::new();
+        // Capacity is N-1 = 7 usable bytes
+        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+            flushed.push(buf.as_str().unwrap().to_owned());
+        });
+        assert!(write!(&mut writer, "abc").is_ok());
+        assert!(write!(&mut writer, "def").is_ok());
+        assert!(write!(&mut writer, "ghi").is_ok());
+        assert!(write!(&mut writer, "jkl").is_ok());
+        assert!(write!(&mut writer, "mno").is_ok());
+        writer.flush();
+        // Flush order proves overflow happened at the right boundaries:
+        // "abcdefg" (7), "hijklmn" (7), "o" (remainder)
+        assert_eq!(flushed, vec!["abcdefg", "hijklmn", "o"]);
+    }
 }

@@ -48,7 +48,7 @@ mod fmt;
     driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF"
 ))]
-pub use fmt::WdkFormatBuffer;
+pub use fmt::{WdkFlushableFormatBuffer, WdkFormatBuffer};
 
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;

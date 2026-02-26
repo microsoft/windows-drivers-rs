@@ -17,10 +17,9 @@ requirements of that function apply. In particular, this should only be called a
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-Output is formatted into a fixed 512-byte stack buffer and passed to
-[`wdk_sys::ntddk::DbgPrint`] in a single call. If the formatted output exceeds 511 bytes
-(reserving one byte for the NUL terminator), it is silently truncated. Interior NUL bytes
-in the formatted output will cause the string to be truncated at the first NUL.
+[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
+automatically buffer and chunk the output if it exceeds that limit. Interior NUL bytes
+in the formatted output will cause each chunk to be truncated at the first NUL.
 "
 )]
 #[cfg_attr(
@@ -53,10 +52,9 @@ requirements of that function apply. In particular, this should only be called a
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-Output is formatted into a fixed 512-byte stack buffer and passed to
-[`wdk_sys::ntddk::DbgPrint`] in a single call. If the formatted output exceeds 511 bytes
-(reserving one byte for the NUL terminator), it is silently truncated. Interior NUL bytes
-in the formatted output will cause the string to be truncated at the first NUL.
+[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
+automatically buffer and chunk the output if it exceeds that limit. Interior NUL bytes
+in the formatted output will cause each chunk to be truncated at the first NUL.
 "
 )]
 #[cfg_attr(
@@ -94,10 +92,9 @@ requirements of that function apply. In particular, this should only be called a
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-Output is formatted into a fixed 512-byte stack buffer and passed to
-[`wdk_sys::ntddk::DbgPrint`] in a single call. If the formatted output exceeds 511 bytes
-(reserving one byte for the NUL terminator), it is silently truncated. Interior NUL bytes
-in the formatted output will cause the string to be truncated at the first NUL.
+[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
+automatically buffer and chunk the output if it exceeds that limit. Interior NUL bytes
+in the formatted output will cause each chunk to be truncated at the first NUL.
 "
 )]
 #[cfg_attr(
@@ -149,31 +146,32 @@ macro_rules! dbg {
 /// by the print! and println! macro
 ///
 /// Interior NUL bytes in the formatted output will cause the string to be
-/// truncated at the first NUL. Output exceeding the buffer capacity is
-/// silently truncated.
+/// truncated at the first NUL.
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
-            let mut buffered_writer: crate::WdkFormatBuffer = crate::WdkFormatBuffer::new();
-            // We do not care whether this is `Ok` or `Err` right now. If `Err` will simply write all until overflow.
-            // TODO: create custom `flush` param in `WdkFormatBuffer` to preserve old functionality
-            let _ = fmt::write(&mut buffered_writer, args);
+            let mut writer = crate::WdkFlushableFormatBuffer::new(|buf| {
+                let cstr = buf.as_cstr();
 
-            let cstr_buffer = buffered_writer.as_cstr();
+                // SAFETY:
+                // - `c"%s"` is a compile-time NUL-terminated format literal.
+                // - `cstr` is a valid NUL-terminated CStr from `WdkFormatBuffer::as_cstr`.
+                // - Using `%s` prevents `DbgPrint` from interpreting format specifiers
+                //   in the buffer contents, which could cause UB.
+                // - IRQL requirements (must be <= DIRQL) are the caller's responsibility,
+                //   as documented on the print! macro.
+                unsafe {
+                    wdk_sys::ntddk::DbgPrint(
+                        c"%s".as_ptr().cast(),
+                        cstr.as_ptr().cast::<wdk_sys::CHAR>(),
+                    );
+                }
+            });
 
-            // SAFETY:
-            // - `c"%s"` is a compile-time NUL-terminated format literal.
-            // - `cstr_buffer` is a valid NUL-terminated CStr from `WdkFormatBuffer::as_cstr`.
-            // - IRQL requirements (must be <= DIRQL) are the caller's responsibility,
-            //   as documented on the print! macro.
-            unsafe {
-                wdk_sys::ntddk::DbgPrint(
-                    c"%s".as_ptr().cast(),
-                    cstr_buffer.as_ptr().cast::<wdk_sys::CHAR>(),
-                );
-            }
-
+            // FlushedWriter always returns Ok — overflow is handled by flushing.
+            let _ = fmt::write(&mut writer, args);
+            writer.flush();
 
         } else if #[cfg(driver_model__driver_type = "UMDF")] {
             match CString::new(format!("{args}")) {
