@@ -151,7 +151,7 @@ macro_rules! dbg {
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
-            let mut writer = crate::WdkFlushableFormatBuffer::new(|buf| {
+            let mut writer = crate::WdkFlushableFormatBuffer::<_, 512>::new(|buf| {
                 let cstr = buf.as_cstr();
 
                 // SAFETY:
