@@ -578,7 +578,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     prepend_to_semicolon_delimited_env_var(
         PATH_ENV_VAR,
-        format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
+        format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}"),
     );
 
     let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, &sdk_version);

@@ -1264,10 +1264,10 @@ impl Config {
                 .join(sdk_version)
                 .join(match self.driver_config {
                     DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                        format!("km/{}", self.cpu_architecture.as_windows_str(),)
+                        format!("km/{}", self.cpu_architecture.as_windows_str())
                     }
                     DriverConfig::Umdf(_) => {
-                        format!("um/{}", self.cpu_architecture.as_windows_str(),)
+                        format!("um/{}", self.cpu_architecture.as_windows_str())
                     }
                 });
         if !windows_sdk_library_path.is_dir() {
