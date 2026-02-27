@@ -6,6 +6,7 @@ const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 ///
 /// Allocates `N` bytes on the stack (default 512). The last byte is reserved
 /// for a NUL terminator, so the usable content capacity is `N-1` bytes.
+/// `N` must be at least 2; smaller values will not compile.
 /// Intended for constrained driver environments where heap allocation is
 /// undesirable.
 ///
@@ -37,14 +38,20 @@ impl<const N: usize> WdkFormatBuffer<N> {
     ///
     /// The buffer starts empty (`used == 0`) and is ready for `fmt::Write`.
     ///
-    /// `N` must be at least 1. A zero-sized buffer will not compile:
+    /// `N` must be at least 2 (one byte of content plus the NUL terminator).
+    /// Smaller values will not compile:
     /// ```compile_fail
     /// use wdk::WdkFormatBuffer;
-    /// let _ = WdkFormatBuffer::<0>::new();
+    /// let _ = WdkFormatBuffer::<1>::new();
     /// ```
     #[must_use]
     pub const fn new() -> Self {
-        const { assert!(N > 0, "N must be at least 1") }
+        const {
+            assert!(
+                N >= 2,
+                "N must be at least 2 (one byte of content plus the NUL terminator)"
+            )
+        }
         Self {
             buffer: [0; N],
             used: 0,
@@ -117,6 +124,7 @@ impl<const N: usize> fmt::Write for WdkFormatBuffer<N> {
 /// contents are flushed via the provided closure, the buffer is reset, and
 /// writing continues with the remainder. This allows arbitrarily long
 /// formatted output to be processed in fixed-size chunks.
+/// `N` must be at least 2 (enforced by [`WdkFormatBuffer::new`]).
 ///
 /// After all writes are complete, the caller must call [`flush`](Self::flush)
 /// to drain any remaining buffered content.
