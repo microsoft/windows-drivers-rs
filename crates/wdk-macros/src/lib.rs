@@ -513,14 +513,14 @@ fn generate_wdf_function_info_file_cache(
         .ok_or_else(|| {
             Error::new(
                 span,
-                format!("Failed to find {WDF_FUNC_ENUM_MOD_NAME} module in types.rs file",),
+                format!("Failed to find {WDF_FUNC_ENUM_MOD_NAME} module in types.rs file"),
             )
         })?;
 
     let (_brace, func_enum_mod_contents) = &func_enum_mod.content.as_ref().ok_or_else(|| {
         Error::new(
             span,
-            format!("Failed to find {WDF_FUNC_ENUM_MOD_NAME} module contents in types.rs file",),
+            format!("Failed to find {WDF_FUNC_ENUM_MOD_NAME} module contents in types.rs file"),
         )
     })?;
 
