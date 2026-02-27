@@ -169,7 +169,7 @@ pub fn _print(args: fmt::Arguments) {
                 }
             });
 
-            // FlushedWriter always returns Ok — overflow is handled by flushing.
+            // WdkFlushableFormatBuffer's fmt::Write impl always returns Ok — overflow is handled by flushing.
             let _ = fmt::write(&mut writer, args);
             writer.flush();
 
