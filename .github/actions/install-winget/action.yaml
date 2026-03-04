@@ -110,26 +110,35 @@ runs:
       run: |
         Set-StrictMode -Version Latest
 
+        # Use Install-PSResource (PSResourceGet, built into PowerShell 7.4+) instead of the
+        # legacy Install-Module. PSResourceGet has its own repository system that is independent
+        # of the old PowerShellGet/NuGet pipeline, which avoids transient PSGallery registration
+        # failures on freshly provisioned runners.
+        # See https://github.com/actions/runner-images/issues/13758
+        if (-not (Get-PSResourceRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Register-PSResourceRepository -PSGallery -Trusted
+        }
+
         $cliVersion = (winget --version).Trim() -replace '^v', ''
         $cliMajor = ($cliVersion -split '\.')[0]
         Write-Host "WinGet CLI version: $cliVersion (major: $cliMajor)"
 
         # Try exact match first, then best matching major version, then latest
-        $matchingModule = Find-Module -Name Microsoft.WinGet.Client -Repository PSGallery -RequiredVersion $cliVersion -ErrorAction SilentlyContinue
-        if ($matchingModule) {
-          Write-Host "Installing exact matching module version: $cliVersion"
-          Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -RequiredVersion $cliVersion -Force
+        $found = Find-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $cliVersion -ErrorAction SilentlyContinue
+        if ($found) {
+            Write-Host "Installing exact matching module version: $cliVersion"
+            Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $cliVersion -TrustRepository -Quiet
         } else {
-          $allVersions = Find-Module -Name Microsoft.WinGet.Client -Repository PSGallery -AllVersions -ErrorAction SilentlyContinue
-          $majorMatch = $allVersions | Where-Object { ($_.Version.ToString() -split '\.')[0] -eq $cliMajor } | Select-Object -First 1
-          if ($majorMatch) {
-            Write-Host "Exact match not found. Installing latest module with matching major version: $($majorMatch.Version)"
-            Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -RequiredVersion $majorMatch.Version -Force
-          } else {
-            Write-Warning "No module with major version $cliMajor found on PSGallery. Installing latest version."
-            Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
-          }
+            $allVersions = Find-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version "[$cliMajor.0.0, $([int]$cliMajor + 1).0.0)" -ErrorAction SilentlyContinue
+            if ($allVersions) {
+                $best = ($allVersions | Sort-Object Version -Descending | Select-Object -First 1).Version
+                Write-Host "Exact match not found. Installing latest module with matching major version: $best"
+                Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $best -TrustRepository -Quiet
+            } else {
+                Write-Warning "No module with major version $cliMajor found on PSGallery. Installing latest version."
+                Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -TrustRepository -Quiet
+            }
         }
 
-        $moduleVersion = (Get-InstalledModule Microsoft.WinGet.Client).Version.ToString()
+        $moduleVersion = (Get-Module -ListAvailable Microsoft.WinGet.Client | Select-Object -First 1).Version.ToString()
         Write-Host "Installed module version: $moduleVersion"
