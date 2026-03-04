@@ -25,7 +25,6 @@ runs:
       shell: pwsh
       run: |
         Set-StrictMode -Version Latest
-        $ErrorActionPreference = 'Stop'
 
         $source = '${{ inputs.source }}'
         $version = '${{ inputs.version }}'
@@ -76,7 +75,6 @@ runs:
       run: |
         # Optimization: Set strict mode and error handling
         Set-StrictMode -Version Latest
-        $ErrorActionPreference = 'Stop'
         $ProgressPreference = 'SilentlyContinue'
 
         # Helper function to select a single package from a collection
@@ -251,7 +249,6 @@ runs:
       shell: pwsh
       run: |
         Set-StrictMode -Version Latest
-        $ErrorActionPreference = 'Stop'
 
         $inputVersion = '${{ inputs.version }}'
         Write-Host "Processing WDK version: $inputVersion"

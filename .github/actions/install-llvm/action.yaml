@@ -13,7 +13,6 @@ runs:
       shell: pwsh
       run: |
         Set-StrictMode -Version Latest
-        $ErrorActionPreference = 'Stop'
 
         $version = '${{ inputs.version }}'
         Write-Host "Validating LLVM installation inputs..."
@@ -37,7 +36,6 @@ runs:
       shell: pwsh
       run: |
         Set-StrictMode -Version Latest
-        $ErrorActionPreference = 'Stop'
 
         $clangVersion = & clang --version 2>&1
         Write-Host "✅ LLVM/Clang verification successful:"
