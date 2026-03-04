@@ -70,14 +70,13 @@ Before you submit your Pull Request (PR) consider the following guidelines:
 * Commit your changes using a descriptive commit message.
 * Push your commit to your forked repository.
 * In GitHub, create a pull request to merge your fork to `main`.
-  * Make sure to use the [Conventional Commits](https://www.conventionalcommits.org) specification
-   for the title of your PR.
+  * Use the [Conventional Commits](https://www.conventionalcommits.org) specification for both the PR title and body. PRs are squash-merged, so the PR title becomes the final commit message.
 * If we suggest changes then:
   * Make the required updates.
   * Rebase your fork and force push to your GitHub repository (this will update your Pull Request):
 
     ```shell
-    git rebase master -i
+    git rebase main -i
     git push -f
     ```
 
