@@ -1,0 +1,56 @@
+name: Install Cargo Tool
+description: >
+  Install a cargo tool via taiki-e/install-action@v2 with automatic fallback
+  to `cargo install` if the tool binary is not found after installation.
+  This works around intermittent silent bash failures on windows-11-arm where
+  shell: bash steps exit 0 with zero output under WoW64 arm64 emulation
+  (see https://github.com/actions/partner-runner-images/issues/169).
+
+inputs:
+  tool:
+    description: >
+      The cargo tool to install. Supports version pinning (e.g., 'cargo-make'
+      or 'cargo-expand@1.0.85'). Passed directly to taiki-e/install-action.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install ${{ inputs.tool }} via install-action
+      uses: taiki-e/install-action@v2
+      with:
+        tool: ${{ inputs.tool }}
+
+    - name: Verify ${{ inputs.tool }} (fallback to cargo install)
+      shell: pwsh
+      run: |
+        $toolInput = "${{ inputs.tool }}"
+        # Strip version suffix (e.g., 'cargo-expand@1.0.85' -> 'cargo-expand')
+        $toolName = ($toolInput -split '@')[0]
+
+        # For cargo subcommands (cargo-make -> cargo make), derive the subcommand name
+        if ($toolName.StartsWith('cargo-')) {
+          $subcommand = $toolName.Substring(6)
+        } else {
+          $subcommand = $null
+        }
+
+        if (Get-Command $toolName -ErrorAction SilentlyContinue) {
+          Write-Host "$toolName is installed via install-action."
+          if ($subcommand) { & cargo $subcommand --version } else { & $toolName --version }
+        } else {
+          Write-Host "::warning::$toolName was not found after install-action. Falling back to cargo install. See https://github.com/actions/partner-runner-images/issues/169"
+
+          $version = if ($toolInput -match '@(.+)$') { $Matches[1] } else { $null }
+          if ($version) {
+            cargo install --locked $toolName --version $version
+          } else {
+            cargo install --locked $toolName
+          }
+
+          if (-not (Get-Command $toolName -ErrorAction SilentlyContinue)) {
+            Write-Error "$toolName is still not found after cargo install fallback."
+            exit 1
+          }
+          if ($subcommand) { & cargo $subcommand --version } else { & $toolName --version }
+        }

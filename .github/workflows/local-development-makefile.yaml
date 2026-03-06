@@ -87,7 +87,7 @@ jobs:
             aarch64-pc-windows-msvc
 
       - name: Install Cargo Make
-        uses: taiki-e/install-action@v2
+        uses: ./.github/actions/install-cargo-tool
         with:
           tool: cargo-make
 
