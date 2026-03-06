@@ -1,0 +1,43 @@
+name: Install Cargo Tool
+description: >
+  Install a cargo tool via taiki-e/install-action@v2 with automatic fallback
+  to `cargo install` if the tool binary is not found after installation.
+  This works around intermittent silent bash failures on windows-11-arm where
+  shell: bash steps exit 0 with zero output under WoW64 arm64 emulation
+  (see https://github.com/actions/partner-runner-images/issues/169).
+
+inputs:
+  tool:
+    description: >
+      The cargo tool to install. Supports version pinning (e.g., 'cargo-make'
+      or 'cargo-expand@1.0.85'). Passed directly to taiki-e/install-action.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install ${{ inputs.tool }} via install-action
+      uses: taiki-e/install-action@v2
+      with:
+        tool: ${{ inputs.tool }}
+
+    - name: Verify ${{ inputs.tool }} (fallback to cargo install)
+      shell: pwsh
+      run: |
+        $toolInput = "${{ inputs.tool }}"
+        # Strip version suffix (e.g., 'cargo-expand@1.0.85' -> 'cargo-expand')
+        $toolName = ($toolInput -split '@')[0]
+
+        if (Get-Command $toolName -ErrorAction SilentlyContinue) {
+          $version = & $toolName --version 2>&1
+          Write-Host "$toolName is installed: $version"
+        } else {
+          Write-Host "::warning::$toolName was not found after install-action. Falling back to cargo install. See https://github.com/actions/partner-runner-images/issues/169"
+
+          $version = if ($toolInput -match '@(.+)$') { $Matches[1] } else { $null }
+          if ($version) {
+            cargo install $toolName --version $version
+          } else {
+            cargo install $toolName
+          }
+        }

@@ -87,12 +87,12 @@ jobs:
           tool: cargo-llvm-cov
 
       - name: Install Cargo Expand
-        uses: taiki-e/install-action@v2
+        uses: ./.github/actions/install-cargo-tool
         with:
           tool: cargo-expand@1.0.85
 
       - name: Install Cargo Make
-        uses: taiki-e/install-action@v2
+        uses: ./.github/actions/install-cargo-tool
         with:
           tool: cargo-make
 
