@@ -28,16 +28,29 @@ runs:
         # Strip version suffix (e.g., 'cargo-expand@1.0.85' -> 'cargo-expand')
         $toolName = ($toolInput -split '@')[0]
 
+        # For cargo subcommands (cargo-make -> cargo make), derive the subcommand name
+        if ($toolName.StartsWith('cargo-')) {
+          $subcommand = $toolName.Substring(6)
+        } else {
+          $subcommand = $null
+        }
+
         if (Get-Command $toolName -ErrorAction SilentlyContinue) {
-          $version = & $toolName --version 2>&1
-          Write-Host "$toolName is installed: $version"
+          Write-Host "$toolName is installed via install-action."
+          if ($subcommand) { & cargo $subcommand --version } else { & $toolName --version }
         } else {
           Write-Host "::warning::$toolName was not found after install-action. Falling back to cargo install. See https://github.com/actions/partner-runner-images/issues/169"
 
           $version = if ($toolInput -match '@(.+)$') { $Matches[1] } else { $null }
           if ($version) {
-            cargo install $toolName --version $version
+            cargo install --locked $toolName --version $version
           } else {
-            cargo install $toolName
+            cargo install --locked $toolName
           }
+
+          if (-not (Get-Command $toolName -ErrorAction SilentlyContinue)) {
+            Write-Error "$toolName is still not found after cargo install fallback."
+            exit 1
+          }
+          if ($subcommand) { & cargo $subcommand --version } else { & $toolName --version }
         }

@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   analyze:
+    if: false # Disabled for ARM64-only test run
     name: Analyze
     runs-on: windows-2025
     permissions:
