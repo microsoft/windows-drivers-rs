@@ -121,7 +121,13 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! # NOTE: When this makefile is loaded by downstream consumers via
+//! # `load_rust_driver_makefile()`, and `wdk-build` is resolved from a
+//! # registry source (not a local path), this path dependency is
+//! # automatically rewritten to a version-only registry dependency. This
+//! # ensures cargo applies `--cap-lints allow` to wdk-build, preventing the
+//! # caller's RUSTFLAGS from leaking into the published crate's compilation.
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -143,7 +149,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -183,7 +189,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -228,7 +234,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -253,7 +259,7 @@ script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -316,7 +322,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -340,7 +346,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -363,7 +369,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -386,7 +392,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -434,7 +440,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]
@@ -455,7 +461,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -541,7 +547,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = "." }
 //! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]

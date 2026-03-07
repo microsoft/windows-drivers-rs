@@ -846,17 +846,25 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
     load_wdk_build_makefile(RUST_DRIVER_SAMPLE_MAKEFILE_NAME)
 }
 
-/// Symlinks a [`wdk_build`] `cargo-make` makefile to the `target` folder where
-/// it can be extended from a downstream `Makefile.toml`.
+/// Makes a [`wdk_build`] `cargo-make` makefile available in the `target`
+/// folder where it can be extended from a downstream `Makefile.toml`.
 ///
-/// This is necessary so that paths in the [`wdk_build`] makefile can be
-/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`. The
-/// version of `wdk-build` from which the file being symlinked to comes from is
-/// determined by the working directory of the process that invokes this
-/// function. For example, if this function is ultimately executing in a
-/// `cargo_make` `load_script`, the files will be symlinked from the `wdk-build`
-/// version that is in the `.Cargo.lock` file, and not the `wdk-build` version
-/// specified in the `load_script`.
+/// When `wdk-build` is a **registry dependency**, the makefile is copied and
+/// its embedded `rust-script` `path = "."` dependencies are rewritten to
+/// version-only dependencies. This ensures cargo applies `--cap-lints allow`
+/// to the published `wdk-build` crate, preventing the caller's `RUSTFLAGS`
+/// from leaking into its compilation.
+///
+/// When `wdk-build` is a **path or git dependency**, the makefile is symlinked
+/// so that `path = "."` resolves correctly via `--base-path`, preserving the
+/// user's intent to build against their local `wdk-build` source.
+///
+/// The version of `wdk-build` from which the file comes is determined by the
+/// working directory of the process that invokes this function. For example,
+/// if this function is ultimately executing in a `cargo_make` `load_script`,
+/// the files will come from the `wdk-build` version that is in the
+/// `Cargo.lock` file, and not the `wdk-build` version specified in the
+/// `load_script`.
 ///
 /// # Errors
 ///
@@ -900,7 +908,9 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         }
     }
 
-    let rust_driver_makefile_toml_path = wdk_build_package_matches[0]
+    let wdk_build_package = &wdk_build_package_matches[0];
+
+    let rust_driver_makefile_toml_path = wdk_build_package
         .manifest_path
         .parent()
         .expect("The parsed manifest_path should have a valid parent directory")
@@ -916,36 +926,97 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .join("target")
         .join(&makefile_name);
 
-    // Only create a new symlink if the existing one is not already pointing to the
-    // correct file
-    if !destination_path.exists() {
-        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
-            .map_err(|source| {
-                IoError::with_src_dest_paths(
-                    rust_driver_makefile_toml_path,
-                    destination_path,
-                    source,
-                )
-            })?;
-    } else if !destination_path.is_symlink()
-        || std::fs::read_link(&destination_path)
-            .map_err(|source| IoError::with_path(&destination_path, source))?
-            != rust_driver_makefile_toml_path
-    {
-        std::fs::remove_file(&destination_path)
-            .map_err(|source| IoError::with_path(&destination_path, source))?;
-        std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
-            .map_err(|source| {
-                IoError::with_src_dest_paths(
-                    rust_driver_makefile_toml_path,
-                    destination_path,
-                    source,
-                )
-            })?;
+    let is_registry_source = wdk_build_package
+        .source
+        .as_ref()
+        .is_some_and(|s| s.repr.starts_with("registry+") || s.repr.starts_with("sparse+"));
+
+    if is_registry_source {
+        // wdk-build is a registry dependency. Rewrite path dependencies in the
+        // makefile's rust-script embedded manifests to version-only dependencies
+        // so that cargo treats wdk-build as a registry dep and applies
+        // --cap-lints. This prevents the caller's RUSTFLAGS (e.g. -D warnings)
+        // from leaking into the published wdk-build crate's compilation.
+        let makefile_content = std::fs::read_to_string(&rust_driver_makefile_toml_path)
+            .map_err(|source| IoError::with_path(&rust_driver_makefile_toml_path, source))?;
+
+        let version = &wdk_build_package.version;
+        let patched_content = rewrite_wdk_build_path_deps_to_version(&makefile_content, version);
+
+        if patched_content == makefile_content {
+            warn!(
+                "No wdk-build path dependency found to rewrite in {makefile_name:?}. The makefile \
+                 format may have changed."
+            );
+        }
+
+        // Only write if content changed or file doesn't exist, to avoid
+        // unnecessary rebuilds from rust-script cache invalidation
+        let should_write = if destination_path.exists() {
+            let existing_content = std::fs::read_to_string(&destination_path)
+                .map_err(|source| IoError::with_path(&destination_path, source))?;
+            existing_content != patched_content
+        } else {
+            true
+        };
+
+        if should_write {
+            if destination_path.exists() {
+                std::fs::remove_file(&destination_path)
+                    .map_err(|source| IoError::with_path(&destination_path, source))?;
+            }
+            std::fs::write(&destination_path, patched_content)
+                .map_err(|source| IoError::with_path(&destination_path, source))?;
+        }
+    } else {
+        // wdk-build is a path dependency, workspace member, or git dependency.
+        // Keep the symlink so that path = "." resolves correctly via
+        // --base-path, preserving the user's intent to build against their
+        // local wdk-build source.
+        if !destination_path.exists() {
+            std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+                .map_err(|source| {
+                    IoError::with_src_dest_paths(
+                        rust_driver_makefile_toml_path,
+                        destination_path,
+                        source,
+                    )
+                })?;
+        } else if !destination_path.is_symlink()
+            || std::fs::read_link(&destination_path)
+                .map_err(|source| IoError::with_path(&destination_path, source))?
+                != rust_driver_makefile_toml_path
+        {
+            std::fs::remove_file(&destination_path)
+                .map_err(|source| IoError::with_path(&destination_path, source))?;
+            std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
+                .map_err(|source| {
+                    IoError::with_src_dest_paths(
+                        rust_driver_makefile_toml_path,
+                        destination_path,
+                        source,
+                    )
+                })?;
+        }
+        // Symlink is already up to date
     }
 
-    // Symlink is already up to date
     Ok(())
+}
+
+/// Rewrites `wdk-build = { path = "." }` dependency specs in a makefile's
+/// content to version-only registry dependencies (`wdk-build = "X.Y.Z"`).
+///
+/// Returns the patched content. If no replacements were made, the content is
+/// returned unchanged.
+fn rewrite_wdk_build_path_deps_to_version(
+    makefile_content: &str,
+    version: &semver::Version,
+) -> String {
+    makefile_content.replace(
+        r#"wdk-build = { path = "." }"#,
+        &format!("wdk-build = \"{version}\""),
+    )
 }
 
 /// Get [`cargo_metadata::Metadata`] based off of manifest in
@@ -1407,6 +1478,61 @@ mod tests {
                 ],
                 &expected_paths,
             );
+        }
+    }
+
+    mod rewrite_wdk_build_path_deps {
+        use semver::Version;
+
+        use super::super::rewrite_wdk_build_path_deps_to_version;
+
+        #[test]
+        fn rewrites_path_dep_to_version() {
+            let input = r#"
+//! ```cargo
+//! [dependencies]
+//! wdk-build = { path = "." }
+//! ```
+"#;
+            let version = Version::new(0, 5, 1);
+            let result = rewrite_wdk_build_path_deps_to_version(input, &version);
+            assert!(result.contains(r#"wdk-build = "0.5.1""#));
+            assert!(!result.contains(r#"path = ".""#));
+        }
+
+        #[test]
+        fn rewrites_multiple_occurrences() {
+            let input = r#"
+//! wdk-build = { path = "." }
+some other content
+//! wdk-build = { path = "." }
+"#;
+            let version = Version::new(1, 2, 3);
+            let result = rewrite_wdk_build_path_deps_to_version(input, &version);
+            assert_eq!(result.matches(r#"wdk-build = "1.2.3""#).count(), 2);
+            assert_eq!(result.matches(r#"path = ".""#).count(), 0);
+        }
+
+        #[test]
+        fn no_match_returns_unchanged() {
+            let input = r#"
+//! wdk-build = "0.5.1"
+some other content
+"#;
+            let version = Version::new(0, 5, 1);
+            let result = rewrite_wdk_build_path_deps_to_version(input, &version);
+            assert_eq!(result, input);
+        }
+
+        #[test]
+        fn does_not_rewrite_path_with_version() {
+            // If someone still has path + version (shouldn't happen after this
+            // PR but test the boundary)
+            let input = r#"//! wdk-build = { path = ".", version = "0.5.1" }"#;
+            let version = Version::new(0, 5, 1);
+            let result = rewrite_wdk_build_path_deps_to_version(input, &version);
+            // The pattern doesn't match because version is still present
+            assert_eq!(result, input);
         }
     }
 }
