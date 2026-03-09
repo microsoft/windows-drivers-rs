@@ -24,6 +24,7 @@ runs:
     - name: Verify ${{ inputs.tool }} (fallback to cargo install)
       shell: pwsh
       run: |
+        Set-StrictMode -Version Latest
         $toolInput = "${{ inputs.tool }}"
         # Strip version suffix (e.g., 'cargo-expand@1.0.85' -> 'cargo-expand')
         $toolName = ($toolInput -split '@')[0]
