@@ -29,6 +29,9 @@ The output is routed to the debugger via [`wdk_sys::windows::OutputDebugStringA`
 
 If there is no debugger attached to WUDFHost of the driver (i.e., user-mode debugging),
 the output will be routed to the system debugger (i.e., kernel-mode debugging).
+
+Interior NUL bytes in the formatted output will be stripped and the remaining
+content will be printed.
 "#
 )]
 /// See the formatting documentation in [`core::fmt`] for details of the macro
@@ -64,6 +67,9 @@ The output is routed to the debugger via [`wdk_sys::windows::OutputDebugStringA`
 
 If there is no debugger attached to WUDFHost of the driver (i.e., user-mode debugging),
 the output will be routed to the system debugger (i.e., kernel-mode debugging).
+
+Interior NUL bytes in the formatted output will be stripped and the remaining
+content will be printed.
 "
 )]
 /// See the formatting documentation in [`core::fmt`] for details of the macro
@@ -104,6 +110,9 @@ The output is routed to the debugger via [`wdk_sys::windows::OutputDebugStringA`
 
 If there is no debugger attached to WUDFHost of the driver (i.e., user-mode debugging),
 the output will be routed to the system debugger (i.e., kernel-mode debugging).
+
+Interior NUL bytes in the formatted output will be stripped and the remaining
+content will be printed.
 "
 )]
 #[macro_export]
@@ -169,7 +178,10 @@ pub fn _print(args: fmt::Arguments) {
                 }
             });
 
-            // WdkFlushableFormatBuffer's fmt::Write impl always returns Ok — overflow is handled by flushing.
+            // For N=512, write_str cannot fail: the largest UTF-8 code point
+            // is 4 bytes, which always fits in the 511-byte capacity. Overflow
+            // is handled by flushing. Errors from Display impls are silently
+            // dropped — partial output is acceptable for debug printing.
             let _ = fmt::write(&mut writer, args);
             writer.flush();
 
