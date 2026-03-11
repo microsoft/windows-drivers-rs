@@ -14,8 +14,10 @@
 
 use std::{
     collections::HashMap,
+    io::{BufRead, BufReader, Read, Write},
     path::Path,
     process::{Command, Output, Stdio},
+    thread,
 };
 
 use anyhow::Result;
@@ -40,6 +42,19 @@ impl std::fmt::Display for CaptureStream {
             Self::StdErr => write!(f, "STDERR"),
         }
     }
+}
+
+/// Reads lines from `reader` and writes each line to `writer` in real-time.
+/// Returns the collected lines.
+fn tee_stream(reader: impl Read, mut writer: impl Write) -> std::io::Result<Vec<String>> {
+    let buf_reader = BufReader::new(reader);
+    let mut lines = Vec::new();
+    for line in buf_reader.lines() {
+        let line = line?;
+        writeln!(writer, "{line}")?;
+        lines.push(line);
+    }
+    Ok(lines)
 }
 
 /// Provides limited access to `std::process::Command` methods
@@ -71,17 +86,68 @@ impl CommandExec {
             cmd.current_dir(working_dir);
         }
 
-        cmd.stdout(Stdio::piped());
+        // Force child processes to emit ANSI color codes even though the
+        // captured stream is a pipe (not a TTY). Without this, most tools
+        // detect the pipe and suppress colors.
+        cmd.env("CARGO_TERM_COLOR", "always");
+        cmd.env("CLICOLOR_FORCE", "1");
 
-        // Capture this stream only on need basis to avoid unnecessary overhead
-        if matches!(capture_stream, CaptureStream::StdErr) {
-            cmd.stderr(Stdio::piped());
-        }
+        // Pipe only the captured stream; the other inherits by default
+        // so it renders directly in the console with full fidelity.
+        match capture_stream {
+            CaptureStream::StdOut => cmd.stdout(Stdio::piped()),
+            CaptureStream::StdErr => cmd.stderr(Stdio::piped()),
+        };
 
-        let output = cmd
+        let mut child = cmd
             .spawn()
-            .and_then(std::process::Child::wait_with_output)
             .map_err(|e| CommandError::from_io_error(command, args, e))?;
+
+        // Take the appropriate pipe before spawning the thread, to avoid moving child.
+        let handle = match capture_stream {
+            CaptureStream::StdOut => {
+                let pipe = child.stdout.take();
+                thread::spawn(move || -> std::io::Result<Vec<String>> {
+                    pipe.map_or_else(
+                        || Ok(Vec::new()),
+                        |reader| tee_stream(reader, std::io::stdout()),
+                    )
+                })
+            }
+            CaptureStream::StdErr => {
+                let pipe = child.stderr.take();
+                thread::spawn(move || -> std::io::Result<Vec<String>> {
+                    pipe.map_or_else(
+                        || Ok(Vec::new()),
+                        |reader| tee_stream(reader, std::io::stderr()),
+                    )
+                })
+            }
+        };
+
+        let status = child
+            .wait()
+            .map_err(|e| CommandError::from_io_error(command, args, e))?;
+
+        let captured_lines = handle
+            .join()
+            .expect("tee thread panicked")
+            .map_err(|e| CommandError::from_io_error(command, args, e))?;
+
+        let captured_buf = captured_lines.join("\n").into_bytes();
+
+        let output = match capture_stream {
+            CaptureStream::StdOut => Output {
+                status,
+                stdout: captured_buf,
+                stderr: Vec::new(),
+            },
+            CaptureStream::StdErr => Output {
+                status,
+                stdout: Vec::new(),
+                stderr: captured_buf,
+            },
+        };
 
         if !output.status.success() {
             return Err(CommandError::from_output(
