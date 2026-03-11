@@ -508,7 +508,7 @@ impl<'a> BuildAction<'a> {
             &args,
             None,
             Some(working_dir),
-            CaptureStream::StdOut,
+            CaptureStream::StdErr,
         )?;
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;

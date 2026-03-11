@@ -234,7 +234,7 @@ mod tests {
         let mut mock = MockCommandExec::new();
         mock.expect_run()
             .withf(
-                move |command, args, _env, working_dir_opt, _capture_stream| {
+                move |command, args, _env, working_dir_opt, capture_stream| {
                     let matches_command = command == "cargo";
                     let matches_args = args.len() == expected_args.len()
                         && args
@@ -244,7 +244,10 @@ mod tests {
                     let working_dir = working_dir_opt
                         .expect("working directory must be provided when running cargo build");
                     let matches_working_dir = working_dir == expected_working_dir.as_path();
-                    matches_command && matches_args && matches_working_dir
+                    matches_command
+                        && matches_args
+                        && matches_working_dir
+                        && *capture_stream == CaptureStream::StdErr
                 },
             )
             .return_once(move |_, _, _, _, _| {

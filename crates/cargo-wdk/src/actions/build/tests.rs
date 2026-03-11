@@ -2002,14 +2002,15 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream| {
+                      capture_stream: &CaptureStream| {
                     command == "cargo"
                         && args == ["rustc", "--", "--print", "cfg"]
                         && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
+                        && matches!(capture_stream, CaptureStream::StdErr)
                 },
             )
             .once()
-            .returning(move |_, _, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, stream| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2020,7 +2021,7 @@ impl TestBuildAction {
                         "cargo",
                         &["rustc", "--", "--print", "cfg"],
                         &output,
-                        CaptureStream::StdOut,
+                        stream,
                     )),
                 },
                 None => Ok(Output {
@@ -2312,14 +2313,16 @@ impl TestBuildAction {
                           args: &[&str],
                           _env_vars: &Option<&HashMap<&str, &str>>,
                           _working_dir: &Option<&Path>,
-                          _capture_stream: &CaptureStream|
+                          capture_stream: &CaptureStream|
                           -> bool {
                         println!("command: {command}, args: {args:?}");
                         println!(
                             "expected_command: {expected_stampinf_command}, expected_args: \
                              {expected_stampinf_args:?}"
                         );
-                        command == expected_stampinf_command && args == expected_stampinf_args
+                        command == expected_stampinf_command
+                            && args == expected_stampinf_args
+                            && matches!(capture_stream, CaptureStream::StdOut)
                     },
                 )
                 .once()
@@ -2382,14 +2385,16 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
                         "expected_command: {expected_inf2cat_command}, expected_args: \
                          {expected_inf2cat_args:?}"
                     );
-                    command == expected_inf2cat_command && args == expected_inf2cat_args
+                    command == expected_inf2cat_command
+                        && args == expected_inf2cat_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2428,9 +2433,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
+                    command == expected_certmgr_command
+                        && args == expected_certmgr_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .returning(move |_, _, _, _, _| match override_output.clone() {
@@ -2484,9 +2491,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
+                    command == expected_certmgr_command
+                        && args == expected_certmgr_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2539,9 +2548,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_makecert_command && args == expected_makecert_args
+                    command == expected_makecert_command
+                        && args == expected_makecert_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2606,9 +2617,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2672,9 +2685,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2731,9 +2746,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_verify_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2790,9 +2807,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_verify_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -2859,9 +2878,11 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_infverif_command && args == expected_infverif_args
+                    command == expected_infverif_command
+                        && args == expected_infverif_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
@@ -3532,11 +3553,12 @@ mod get_target_arch_from_cargo_rustc {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>,
-                      _capture_stream: &CaptureStream|
+                      capture_stream: &CaptureStream|
                       -> bool {
                     command == "cargo"
                         && args == ["rustc", "--", "--print", "cfg"]
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
+                        && *capture_stream == CaptureStream::StdErr
                 },
             )
             .once()
