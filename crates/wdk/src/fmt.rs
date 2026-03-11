@@ -59,8 +59,8 @@ impl<const N: usize> WdkFormatBuffer<N> {
         }
     }
 
-    /// Resets the buffer to its initial empty state.
-    pub fn reset(&mut self) {
+    /// Clears the buffer, resetting it to its initial empty state.
+    pub fn clear(&mut self) {
         self.buffer = [0; N];
         self.used = 0;
     }
@@ -125,13 +125,14 @@ impl<const N: usize> fmt::Write for WdkFormatBuffer<N> {
 /// A [`WdkFormatBuffer`] wrapper that auto-flushes on overflow.
 ///
 /// When a `write_str` call would exceed the buffer capacity, the current
-/// contents are flushed via the provided closure, the buffer is reset, and
+/// contents are flushed via the provided closure, the buffer is cleared, and
 /// writing continues with the remainder. This allows arbitrarily long
 /// formatted output to be processed in fixed-size chunks.
 /// `N` must be at least 2 (enforced by [`WdkFormatBuffer::new`]).
 ///
-/// After all writes are complete, the caller must call [`flush`](Self::flush)
-/// to drain any remaining buffered content.
+/// After all writes are complete, any remaining buffered content is
+/// automatically flushed when the writer is dropped. The caller may also
+/// call [`flush`](Self::flush) explicitly to drain the buffer early.
 pub struct WdkFlushableFormatBuffer<
     F: FnMut(&WdkFormatBuffer<N>),
     const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE,
@@ -158,7 +159,13 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> WdkFlushableFormatBuffer<F, 
             return;
         }
         (self.flush_fn)(&self.format_buffer);
-        self.format_buffer.reset();
+        self.format_buffer.clear();
+    }
+}
+
+impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> Drop for WdkFlushableFormatBuffer<F, N> {
+    fn drop(&mut self) {
+        self.flush();
     }
 }
 
@@ -172,8 +179,8 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableF
 
         // Fill what fits at a char boundary, flush, continue with the rest.
         while remaining.len() > capacity - self.format_buffer.used {
-            let space = capacity - self.format_buffer.used;
-            let split = remaining.floor_char_boundary(space);
+            let remaining_space = capacity - self.format_buffer.used;
+            let split = remaining.floor_char_boundary(remaining_space);
 
             if split == 0 {
                 if self.format_buffer.used == 0 {
@@ -182,7 +189,7 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableF
                 }
                 // Buffer has content but no room for the next char — flush and retry.
                 (self.flush_fn)(&self.format_buffer);
-                self.format_buffer.reset();
+                self.format_buffer.clear();
                 continue;
             }
 
@@ -191,7 +198,7 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableF
             self.format_buffer.used += split;
 
             (self.flush_fn)(&self.format_buffer);
-            self.format_buffer.reset();
+            self.format_buffer.clear();
 
             remaining = &remaining[split..];
         }
@@ -422,10 +429,10 @@ mod wdk_format_buffer_tests {
     }
 
     #[test]
-    fn reset_clears_buffer() {
+    fn clear_empties_buffer() {
         let mut fmt_buffer = WdkFormatBuffer::<8>::new();
         assert!(write!(&mut fmt_buffer, "hello").is_ok());
-        fmt_buffer.reset();
+        fmt_buffer.clear();
         assert_eq!(fmt_buffer.used, 0);
         assert_eq!(fmt_buffer.as_str(), "");
         assert_eq!(fmt_buffer.as_cstr(), c"");
@@ -461,7 +468,7 @@ mod wdk_flushable_format_buffer_tests {
         });
         // "0123456789" is 10 bytes — exceeds 7-byte capacity.
         // First 7 bytes fill the buffer, triggering a flush.
-        // Remaining "789" goes into the reset buffer.
+        // Remaining "789" goes into the cleared buffer.
         assert!(write!(&mut writer, "0123456789").is_ok());
         writer.flush();
         assert_eq!(flushed, vec!["0123456", "789"]);
