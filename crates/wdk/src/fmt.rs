@@ -61,7 +61,6 @@ impl<const N: usize> WdkFormatBuffer<N> {
 
     /// Clears the buffer, resetting it to its initial empty state.
     pub fn clear(&mut self) {
-        self.buffer = [0; N];
         self.used = 0;
     }
 
