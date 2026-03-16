@@ -154,8 +154,9 @@ macro_rules! dbg {
 /// detail and should never be called directly, but must be public to be useable
 /// by the print! and println! macro
 ///
-/// Interior NUL bytes in the formatted output will cause the string to be
-/// truncated at the first NUL.
+/// Interior NUL bytes in the formatted output are handled differently per
+/// driver model: WDM/KMDF truncates at the first NUL (via `as_cstr()`),
+/// while UMDF strips NUL bytes and prints the remaining content.
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
