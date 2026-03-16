@@ -32,18 +32,8 @@ pub use wdk_sys::PAGED_CODE as paged_code;
 ))]
 mod print;
 
-#[cfg(any(
-    driver_model__driver_type = "WDM",
-    driver_model__driver_type = "KMDF",
-    driver_model__driver_type = "UMDF",
-))]
 mod fmt;
 
-#[cfg(any(
-    driver_model__driver_type = "WDM",
-    driver_model__driver_type = "KMDF",
-    driver_model__driver_type = "UMDF",
-))]
 pub use fmt::{WdkFlushableFormatBuffer, WdkFormatBuffer};
 
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
