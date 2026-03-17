@@ -1,5 +1,15 @@
 exclude = ["target/**"]
 
 [formatting]
-# enable crlf endings since core.eol is CRLF by default on Windows
+# enable crlf endings since git's core.eol is CRLF by default on Windows
 crlf = true
+
+reorder_arrays = true
+reorder_inline_tables = true
+reorder_keys = true
+
+[[rule]]
+include = ["**/*akefile.toml"]
+[rule.formatting]
+# Disable array re-ordering in Makefile.toml files since args and dependencies are order-dependent
+reorder_arrays = false

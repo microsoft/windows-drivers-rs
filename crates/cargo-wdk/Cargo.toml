@@ -1,14 +1,14 @@
 [package]
-edition.workspace = true
-name = "cargo-wdk"
-version = "0.1.1"
 authors = ["Microsoft"]
-description = "A Cargo extension for developing Windows drivers in Rust"
-repository.workspace = true
-license.workspace = true
-keywords = ["wdk", "windows", "cargo"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins"]
+description = "A Cargo extension for developing Windows drivers in Rust"
+edition.workspace = true
 exclude = ["tests"]
+keywords = ["cargo", "wdk", "windows"]
+license.workspace = true
+name = "cargo-wdk"
+repository.workspace = true
+version = "0.1.1"
 
 [dependencies]
 anyhow.workspace = true
@@ -26,8 +26,8 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wdk-build.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
-  "Win32_System_Threading",
   "Win32_Security",
+  "Win32_System_Threading",
 ] }
 
 [dev-dependencies]
@@ -44,9 +44,9 @@ unsafe_op_in_unsafe_fn = "forbid"
 [lints.clippy]
 # Lint Groups
 all = "deny"
-pedantic = "warn"
-nursery = "warn"
 cargo = "warn"
+nursery = "warn"
+pedantic = "warn"
 # Individual Lints
 # multiple_unsafe_ops_per_block = "forbid"
 multiple_unsafe_ops_per_block = "deny" # This is lowered to deny since clap generates allow(clippy::restriction) in its Parser and Args derive macros

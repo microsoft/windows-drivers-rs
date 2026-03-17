@@ -1,13 +1,13 @@
 [package]
-edition.workspace = true
-name = "wdk-alloc"
-version = "0.4.1"
+categories = ["hardware-support", "memory-management", "no-std"]
 description = "alloc support for binaries compiled with the Windows Development Kit (WDK)"
-repository.workspace = true
-readme.workspace = true
-license.workspace = true
+edition.workspace = true
 keywords = ["allocator", "wdk", "windows"]
-categories = ["memory-management", "no-std", "hardware-support"]
+license.workspace = true
+name = "wdk-alloc"
+readme.workspace = true
+repository.workspace = true
+version = "0.4.1"
 
 [dependencies]
 wdk-sys.workspace = true

@@ -1,13 +1,13 @@
 [package]
-edition.workspace = true
-name = "wdk-panic"
-version = "0.4.1"
+categories = ["hardware-support", "no-std"]
 description = "Default panic handler implementations for programs built with WDK"
-repository.workspace = true
-readme.workspace = true
+edition.workspace = true
+keywords = ["panic", "panic-handler", "panic-impl", "wdk", "windows"]
 license.workspace = true
-keywords = ["panic-handler", "panic", "panic-impl", "wdk", "windows"]
-categories = ["no-std", "hardware-support"]
+name = "wdk-panic"
+readme.workspace = true
+repository.workspace = true
+version = "0.4.1"
 
 [lints]
 workspace = true
