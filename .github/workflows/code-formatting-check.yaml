@@ -44,7 +44,7 @@ jobs:
       # Using cache-cargo-install-action to cache the compiled binary.
       # Once taplo ships a release with field-level `keys` matching, this can
       # be simplified back to install-action with a normal version pin.
-      - name: Install taplo-cli from main
+      - name: Install taplo-cli from pinned revision b673b44d
         uses: taiki-e/cache-cargo-install-action@v3
         with:
           tool: taplo-cli
