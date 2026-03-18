@@ -143,6 +143,6 @@ toolchain = "beta"
 # Run only at workspace level
 args = ["fmt"]
 command = "taplo"
-description = "Format and sort dependencies in Cargo.toml using taplo"
+description = "Format all TOML files in the repository using taplo"
 install_script = "set RUSTFLAGS= && cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force"
 workspace = false
