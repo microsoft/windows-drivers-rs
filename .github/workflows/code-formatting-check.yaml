@@ -43,6 +43,8 @@ jobs:
 
       - name: Install taplo-cli from main
         run: cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked
+        env:
+          RUSTFLAGS: ""
 
       - run: taplo fmt --check --diff
         name: Check TOML files formatting and dependency sorting
