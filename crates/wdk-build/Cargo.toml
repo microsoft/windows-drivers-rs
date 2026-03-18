@@ -24,27 +24,27 @@ bindgen.workspace = true
 camino.workspace = true
 cargo_metadata.workspace = true
 cfg-if.workspace = true
-clap = { workspace = true, features = ["derive"] }
+clap = { features = ["derive"], workspace = true }
 clap-cargo.workspace = true
 paste.workspace = true
-regex = { workspace = true, features = ["unicode-case"] }
+regex = { features = ["unicode-case"], workspace = true }
 rustversion.workspace = true
 semver.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde = { features = ["derive"], workspace = true }
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-windows = { workspace = true, features = [
+windows = { features = [
   "Win32_Foundation",
   "Win32_System_Registry",
-] }
+], workspace = true }
 
 [build-dependencies]
 rustversion.workspace = true
 
 [dev-dependencies]
 assert_fs.workspace = true
-windows = { workspace = true, features = ["Win32_UI_Shell"] }
+windows = { features = ["Win32_UI_Shell"], workspace = true }
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
 # [lints]

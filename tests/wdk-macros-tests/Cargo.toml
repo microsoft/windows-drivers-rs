@@ -9,7 +9,7 @@ version = "0.1.0"
 [lib]
 
 [dependencies]
-fs4 = { version = "0.13.1", features = ["sync"] }
+fs4 = { features = ["sync"], version = "0.13.1" }
 macrotest = "1.2.0"
 owo-colors = "4.2.0"
 paste = "1.0.15"

@@ -41,10 +41,8 @@ jobs:
       - name: Install Rust Toolchain (Stable)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install taplo-cli
-        uses: taiki-e/install-action@v2
-        with:
-          tool: taplo-cli
+      - name: Install taplo-cli from main
+        run: cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked
 
       - run: taplo fmt --check --diff
         name: Check TOML files formatting and dependency sorting

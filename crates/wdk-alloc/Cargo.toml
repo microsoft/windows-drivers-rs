@@ -14,11 +14,11 @@ wdk-sys.workspace = true
 
 [build-dependencies]
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-subscriber = { features = ["env-filter"], workspace = true }
 wdk-build.workspace = true
 
 [dev-dependencies]
-wdk-sys = { workspace = true, features = ["test-stubs"] }
+wdk-sys = { features = ["test-stubs"], workspace = true }
 
 [lints]
 workspace = true

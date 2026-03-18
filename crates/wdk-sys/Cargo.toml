@@ -42,7 +42,7 @@ cfg-if.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-subscriber = { features = ["env-filter"], workspace = true }
 wdk-build.workspace = true
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157

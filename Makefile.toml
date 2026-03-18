@@ -40,7 +40,7 @@ toolchain = "nightly"
 
 [tasks.package-driver-workspace-flow]
 # by forking, a new cargo make invocation starts and by default detects it is a workspace and runs the package-driver task for each member crate
-run_task = { name = "package-driver-flow", fork = true }
+run_task = { fork = true, name = "package-driver-flow" }
 
 [tasks.pre-test]
 # macrotest and trybuild tests will fail when switching between nightly and stable toolchains due to trybuild/macrotest caching artifacts built with the other toolchain. Deleting the tests directory is enough to purge all test artifacts created by trybuild/macrotest.
@@ -51,7 +51,7 @@ assert ${success} "Failed to delete tests directory"
 '''
 
 [tasks.test]
-install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
+install_crate = { binary = "cargo", crate_name = "cargo-expand", test_arg = [
   "expand",
   "--version",
 ], version = "1.0.85" }
@@ -144,5 +144,5 @@ toolchain = "beta"
 args = ["fmt"]
 command = "taplo"
 description = "Format and sort dependencies in Cargo.toml using taplo"
-install_crate = { crate_name = "taplo-cli", binary = "taplo", test_arg = "--version" }
+install_script = "cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked"
 workspace = false
