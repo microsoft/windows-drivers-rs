@@ -90,7 +90,7 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 * `cargo-audit`: `cargo install --locked cargo-audit`
 * `cargo-expand`: `cargo install --locked cargo-expand --version 1.0.85`
 * `cargo-machete`: `cargo install --locked cargo-machete`
-* `taplo-cli`: `cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked`
+* `taplo-cli`: `cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force`
 * `typos-cli`: `cargo install --locked typos-cli`
 
 **Note on arm64:** ARM64 support for ring is [not released yet](https://github.com/briansmith/ring/issues/1167), so TLS features must be disabled until arm64 is officially supported by ring (probably in 0.17.0 release)

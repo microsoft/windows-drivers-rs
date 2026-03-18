@@ -42,7 +42,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install taplo-cli from main
-        run: cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked
+        run: cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force
         env:
           RUSTFLAGS: ""
 
