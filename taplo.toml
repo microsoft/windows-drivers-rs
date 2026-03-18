@@ -9,7 +9,39 @@ reorder_inline_tables = true
 reorder_keys = true
 
 [[rule]]
-include = ["**/*akefile.toml"]
+keys = [
+  "tasks.audit",
+  "tasks.beta-clippy-flow",
+  "tasks.beta-test-flow",
+  "tasks.copy-certificate-to-package",
+  "tasks.copy-driver-binary-to-package",
+  "tasks.copy-inf-to-package",
+  "tasks.copy-inx-to-output",
+  "tasks.copy-map-to-package",
+  "tasks.copy-pdb-to-package",
+  "tasks.fmt-toml",
+  "tasks.generate-certificate",
+  "tasks.generate-driver-binary-file",
+  "tasks.help",
+  "tasks.inf2cat",
+  "tasks.infverif",
+  "tasks.nightly-clippy-flow",
+  "tasks.nightly-docs",
+  "tasks.nightly-test-flow",
+  "tasks.package-driver",
+  "tasks.package-driver-flow",
+  "tasks.setup-wdk-config-env-vars",
+  "tasks.sign-cat",
+  "tasks.sign-driver-binary",
+  "tasks.signtool-sign",
+  "tasks.signtool-verify",
+  "tasks.stampinf",
+  "tasks.test",
+  "tasks.unused-dependencies",
+  "tasks.verify-signature-cat",
+  "tasks.verify-signature-driver-binary",
+  "tasks.wdk-pre-commit-flow",
+]
 [rule.formatting]
-# Disable array re-ordering in Makefile.toml files since args and dependencies are order-dependent
+# Disable array re-ordering for cargo-make tasks with positional args or ordered dependencies
 reorder_arrays = false
