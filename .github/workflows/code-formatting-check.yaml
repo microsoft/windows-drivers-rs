@@ -41,8 +41,16 @@ jobs:
       - name: Install Rust Toolchain (Stable)
         uses: dtolnay/rust-toolchain@stable
 
+      # Using cache-cargo-install-action to cache the compiled binary.
+      # Once taplo ships a release with field-level `keys` matching, this can
+      # be simplified back to install-action with a normal version pin.
       - name: Install taplo-cli from main
-        run: cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force
+        uses: taiki-e/cache-cargo-install-action@v3
+        with:
+          tool: taplo-cli
+          git: https://github.com/tamasfe/taplo
+          rev: b673b44d
+          locked: true
         env:
           RUSTFLAGS: ""
 
