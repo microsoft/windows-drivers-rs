@@ -109,28 +109,63 @@ runs:
         $sdkVersion = $versionParts[0..2] -join '.'
 
         if ($versionParts.Length -eq 3) {
-            # No QFE specified, find the latest QFE for this base version
+            # No QFE specified, find the latest QFE for this base version.
+            # NuGet WDK packages only exist with 4-part versions (e.g. 10.0.26100.1882),
+            # so we must resolve a QFE — the bare 3-part version will never exist.
             Write-Host "No QFE specified, searching for latest QFE for version $inputVersion..."
-            try {
-                Write-Host "Trying NuGet API..."
-                $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
-                $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
-                $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
-                Write-Host "Found $(@($availableVersions).Count) versions using NuGet API"
+            $version = $null
+            $maxAttempts = 3
+            $retryDelaySec = 5
+            $lastError = $null
 
-                # Filter versions that match the base version and find the latest QFE
-                $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
-                if (@($matchingVersions).Count -eq 0) {
-                    Write-Warning "No QFE versions found for base version $inputVersion, using base version..."
-                    $version = $inputVersion
-                } else {
+            for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+                try {
+                    Write-Host "Querying NuGet API (attempt $attempt of $maxAttempts)..."
+                    $nugetApiUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/index.json"
+                    $response = Invoke-RestMethod -Uri $nugetApiUrl -TimeoutSec 30
+                    $availableVersions = @($response.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })
+                    Write-Host "Found $(@($availableVersions).Count) total versions on NuGet"
+
+                    # API call succeeded — filter for matching QFE versions
+                    $matchingVersions = @($availableVersions | Where-Object { $_.StartsWith("$inputVersion.") })
+                    if (@($matchingVersions).Count -eq 0) {
+                        # Not transient — the API responded but this base version has no packages. Fail immediately.
+                        throw "No QFE versions found on NuGet for base version $inputVersion. NuGet WDK packages require a 4-part version (e.g. $inputVersion.1882)."
+                    }
+
                     $version = $matchingVersions | Sort-Object { [System.Version]$_ } | Select-Object -Last 1
-                    Write-Host "Found latest QFE version: $version"
+                    Write-Host "Resolved latest QFE version: $version"
+                    break
+                } catch {
+                    $lastError = $_
+                    # Only retry transient errors (timeouts, network failures, server errors).
+                    # If the API responded successfully but had no matching versions, fail fast.
+                    $ex = $_.Exception
+                    $statusCode = if ($ex -is [Microsoft.PowerShell.Commands.HttpResponseException] -and $ex.Response) {
+                        try { [int]$ex.Response.StatusCode } catch { $null }
+                    }
+                    $isTransient = $ex -is [System.Net.Http.HttpRequestException] -or
+                                   $ex -is [System.Threading.Tasks.TaskCanceledException] -or
+                                   $ex -is [System.Net.WebException] -or
+                                   $ex -is [System.TimeoutException] -or
+                                   $ex.Message -match 'Timeout|timed out' -or
+                                   $statusCode -eq 429 -or
+                                   ($statusCode -ge 500 -and $statusCode -lt 600)
+                    if (-not $isTransient) {
+                        throw
+                    }
+                    Write-Warning "Attempt $attempt failed (transient): $($ex.Message)"
+                    if ($attempt -lt $maxAttempts) {
+                        Write-Host "Retrying in $retryDelaySec seconds..."
+                        Start-Sleep -Seconds $retryDelaySec
+                        $retryDelaySec *= 2
+                    }
                 }
-            } catch {
-                Write-Warning "Failed to query NuGet for latest QFE version: $_"
-                Write-Host "Using input version $inputVersion without QFE lookup"
-                $version = $inputVersion
+            }
+
+            if (-not $version) {
+                $lastErrorMsg = if ($lastError -and $lastError.Exception) { $lastError.Exception.Message } else { $lastError }
+                throw "Failed to resolve QFE version for $inputVersion after $maxAttempts attempts. NuGet WDK packages only exist with 4-part versions (e.g. $inputVersion.1882). Specify a full version or ensure the NuGet API (https://api.nuget.org) is reachable. Last error: $lastErrorMsg"
             }
         } else {
             $version = $inputVersion
