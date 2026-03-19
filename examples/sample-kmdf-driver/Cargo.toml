@@ -1,14 +1,14 @@
 [package]
-edition = "2021"
-name = "sample-kmdf-driver"
-version = "0.1.0"
-description = "A sample KMDF driver that demonstrates KMDF in RUST"
-repository = "https://github.com/microsoft/windows-drivers-rs"
-readme = "README.md"
-license = "MIT OR Apache-2.0"
-keywords = ["windows", "driver", "sample", "example", "wdf"]
 categories = ["hardware-support"]
+description = "A sample KMDF driver that demonstrates KMDF in RUST"
+edition = "2021"
+keywords = ["driver", "example", "sample", "wdf", "windows"]
+license = "MIT OR Apache-2.0"
+name = "sample-kmdf-driver"
 publish = false
+readme = "README.md"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+version = "0.1.0"
 
 [package.metadata.wdk.driver-model]
 driver-type = "KMDF"
@@ -37,15 +37,15 @@ spb = ["wdk-sys/spb"]
 storage = ["wdk-sys/storage"]
 usb = ["wdk-sys/usb"]
 
-nightly = ["wdk/nightly", "wdk-sys/nightly"]
+nightly = ["wdk-sys/nightly", "wdk/nightly"]
 
 [profile.dev]
-panic = "abort"
 lto = true
+panic = "abort"
 
 [profile.release]
-panic = "abort"
 lto = true
+panic = "abort"
 
 [lints.rust]
 missing_docs = "warn"
@@ -54,9 +54,9 @@ unsafe_op_in_unsafe_fn = "forbid"
 [lints.clippy]
 # Lint Groups
 all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 # Individual Lints
 multiple_unsafe_ops_per_block = "forbid"
 undocumented_unsafe_blocks = "forbid"
