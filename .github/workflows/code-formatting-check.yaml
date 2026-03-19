@@ -41,31 +41,18 @@ jobs:
       - name: Install Rust Toolchain (Stable)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install taplo-cli
-        uses: taiki-e/install-action@v2
+      # Using cache-cargo-install-action to cache the compiled binary.
+      # Once taplo ships a release with field-level `keys` matching, this can
+      # be simplified back to install-action with a normal version pin.
+      - name: Install taplo-cli from pinned revision b673b44d
+        uses: taiki-e/cache-cargo-install-action@v3
         with:
           tool: taplo-cli
+          git: https://github.com/tamasfe/taplo
+          rev: b673b44d
+          locked: true
+        env:
+          RUSTFLAGS: ""
 
       - run: taplo fmt --check --diff
-        name: Check TOML files formatting
-
-  cargo-sort:
-    name: Check Dependencies are sorted lexicographically
-    runs-on: windows-2025
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v6
-
-      - name: Install Rust Toolchain (Stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      # Installing cargo-sort from main branch since there is an unreleased fix
-      # Ref: https://github.com/DevinR528/cargo-sort/issues/67#issuecomment-2486868511
-      - name: Install cargo-sort binary from specific branch
-        run: cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --rev 4a1ecf093649b87fa610aec32a1bdaa4829d416b --locked --force
-
-      # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps,
-      # -n do not run formatting, --check to only check without modifying files
-      - run: cargo sort -g -w -n --check
-        name: Check if dependencies in Cargo.toml are sorted
+        name: Check TOML files formatting and dependency sorting

@@ -1,8 +1,8 @@
 [package]
-name = "driver_2"
-version = "0.0.0"
 edition = "2024"
+name = "driver_2"
 publish = false
+version = "0.0.0"
 
 [package.metadata.wdk]
 

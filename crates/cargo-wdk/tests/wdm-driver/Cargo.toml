@@ -1,7 +1,7 @@
 [package]
+edition = "2024"
 name = "wdm-driver"
 version = "0.1.0"
-edition = "2024"
 
 [package.metadata.wdk.driver-model]
 driver-type = "WDM"
@@ -24,7 +24,7 @@ default = []
 panic = "abort"
 
 [profile.release]
-panic = "abort"
 lto = true
+panic = "abort"
 
 [workspace]

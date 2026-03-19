@@ -1,8 +1,8 @@
 [package]
-name = "non_driver_crate"
-version = "0.0.0"
 edition = "2024"
+name = "non_driver_crate"
 publish = false
+version = "0.0.0"
 
 [lib]
 

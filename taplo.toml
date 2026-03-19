@@ -1,5 +1,21 @@
 exclude = ["target/**"]
 
 [formatting]
-# enable crlf endings since core.eol is CRLF by default on Windows
+# enable crlf endings since git's core.eol is CRLF by default on Windows
 crlf = true
+
+reorder_arrays = true
+reorder_inline_tables = true
+reorder_keys = true
+
+[[rule]]
+keys = [
+  "tasks.*.args",
+  "tasks.*.condition_script_runner_args",
+  "tasks.*.dependencies",
+  "tasks.*.install_crate.test_arg",
+  "tasks.*.script_runner_args",
+]
+[rule.formatting]
+# Disable array re-ordering for cargo-make tasks with positional args or ordered dependencies
+reorder_arrays = false
