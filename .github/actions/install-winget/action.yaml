@@ -140,5 +140,5 @@ runs:
           }
         }
 
-        $moduleVersion = (Get-Module -ListAvailable Microsoft.WinGet.Client | Select-Object -First 1).Version.ToString()
+        $moduleVersion = (Get-InstalledPSResource -Name Microsoft.WinGet.Client | Sort-Object Version -Descending | Select-Object -First 1).Version.ToString()
         Write-Host "Installed module version: $moduleVersion"
