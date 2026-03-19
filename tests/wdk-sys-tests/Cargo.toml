@@ -1,5 +1,5 @@
 [package]
-edition = "2021"
+edition = "2024"
 name = "wdk-sys-tests"
 version = "0.1.0"
 description = "Tests for wdk-sys that rely on there being a WDM, KMDF, or UMDF config enabled"

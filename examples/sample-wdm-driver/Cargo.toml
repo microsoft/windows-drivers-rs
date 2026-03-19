@@ -1,5 +1,5 @@
 [package]
-edition = "2021"
+edition = "2024"
 name = "sample-wdm-driver"
 version = "0.0.0"
 description = "A sample WDM driver that demonstrates WDM in RUST"

@@ -1,5 +1,5 @@
 [package]
-edition = "2021"
+edition = "2024"
 name = "sample-kmdf-driver"
 version = "0.1.0"
 description = "A sample KMDF driver that demonstrates KMDF in RUST"

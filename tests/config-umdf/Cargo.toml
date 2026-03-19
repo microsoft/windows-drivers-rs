@@ -1,5 +1,5 @@
 [package]
-edition = "2021"
+edition = "2024"
 name = "config-umdf"
 version = "0.1.0"
 description = "An empty package that sets the `package.metadata` required for wdk-build to generate UMDF bindings for Rust"

@@ -1,5 +1,5 @@
 [package]
-edition = "2021"
+edition = "2024"
 name = "wdk-macros-tests"
 version = "0.1.0"
 description = "Package to provides wdk configuration-specific tests for the wdk-macros crate."
