@@ -16,10 +16,10 @@ resolver = "3"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85.0"
-repository = "https://github.com/microsoft/windows-drivers-rs"
-readme = "README.md"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+rust-version = "1.85.0"
 
 [workspace.dependencies]
 # Workspace Crates
@@ -100,9 +100,9 @@ unsafe_op_in_unsafe_fn = "forbid"
 [workspace.lints.clippy]
 # Lint Groups
 all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 # Individual Lints
 multiple_unsafe_ops_per_block = "forbid"
 undocumented_unsafe_blocks = "forbid"

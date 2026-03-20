@@ -1,14 +1,14 @@
 [package]
-edition = "2021"
-name = "sample-wdm-driver"
-version = "0.0.0"
-description = "A sample WDM driver that demonstrates WDM in RUST"
-repository = "https://github.com/microsoft/windows-drivers-rs"
-readme = "README.md"
-license = "MIT OR Apache-2.0"
-keywords = ["windows", "driver", "sample", "example", "wdm"]
 categories = ["hardware-support"]
+description = "A sample WDM driver that demonstrates WDM in RUST"
+edition = "2024"
+keywords = ["driver", "example", "sample", "wdm", "windows"]
+license = "MIT OR Apache-2.0"
+name = "sample-wdm-driver"
 publish = false
+readme = "README.md"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+version = "0.0.0"
 
 [package.metadata.wdk.driver-model]
 driver-type = "WDM"
@@ -20,8 +20,8 @@ crate-type = ["cdylib"]
 wdk-build.path = "../../crates/wdk-build"
 
 [dependencies]
-wdk-alloc.path = "../../crates/wdk-alloc"
 wdk.path = "../../crates/wdk"
+wdk-alloc.path = "../../crates/wdk-alloc"
 wdk-panic.path = "../../crates/wdk-panic"
 wdk-sys.path = "../../crates/wdk-sys"
 
@@ -35,15 +35,15 @@ spb = ["wdk-sys/spb"]
 storage = ["wdk-sys/storage"]
 usb = ["wdk-sys/usb"]
 
-nightly = ["wdk/nightly", "wdk-sys/nightly"]
+nightly = ["wdk-sys/nightly", "wdk/nightly"]
 
 [profile.dev]
-panic = "abort"
 lto = true
+panic = "abort"
 
 [profile.release]
-panic = "abort"
 lto = true
+panic = "abort"
 
 [lints.rust]
 missing_docs = "warn"
@@ -52,9 +52,9 @@ unsafe_op_in_unsafe_fn = "forbid"
 [lints.clippy]
 # Lint Groups
 all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 # Individual Lints
 multiple_unsafe_ops_per_block = "forbid"
 undocumented_unsafe_blocks = "forbid"

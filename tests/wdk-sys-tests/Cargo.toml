@@ -1,10 +1,10 @@
 [package]
-edition = "2021"
-name = "wdk-sys-tests"
-version = "0.1.0"
 description = "Tests for wdk-sys that rely on there being a WDM, KMDF, or UMDF config enabled"
+edition = "2024"
 license = "MIT OR Apache-2.0"
+name = "wdk-sys-tests"
 publish = false
+version = "0.1.0"
 
 [package.metadata.wdk.driver-model]
 driver-type = "WDM"

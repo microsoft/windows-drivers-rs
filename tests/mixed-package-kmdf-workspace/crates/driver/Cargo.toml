@@ -1,8 +1,8 @@
 [package]
+edition = "2024"
 name = "driver"
-version = "0.0.0"
-edition = "2021"
 publish = false
+version = "0.0.0"
 
 # This driver package uses the metadata from the workspace, but still needs this tag to signal that its a driver crate that needs packaging
 [package.metadata.wdk]
