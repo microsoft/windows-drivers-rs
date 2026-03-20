@@ -11,14 +11,9 @@ use fs4::fs_std::FileExt;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use serde::{Deserialize, Serialize};
 use syn::{
-    parse::{Parse, ParseStream, Parser},
-    parse2,
-    parse_file,
-    parse_quote,
-    punctuated::Punctuated,
     AngleBracketedGenericArguments,
     Attribute,
     BareFnArg,
@@ -42,6 +37,11 @@ use syn::{
     Type,
     TypeBareFn,
     TypePath,
+    parse::{Parse, ParseStream, Parser},
+    parse_file,
+    parse_quote,
+    parse2,
+    punctuated::Punctuated,
 };
 
 /// Name of the `bindgen`-generated Rust module that contains the `TableIndex`
@@ -503,10 +503,10 @@ fn generate_wdf_function_info_file_cache(
         .items
         .iter()
         .find_map(|item| {
-            if let Item::Mod(mod_alias) = item {
-                if mod_alias.ident == WDF_FUNC_ENUM_MOD_NAME {
-                    return Some(mod_alias);
-                }
+            if let Item::Mod(mod_alias) = item
+                && mod_alias.ident == WDF_FUNC_ENUM_MOD_NAME
+            {
+                return Some(mod_alias);
             }
             None
         })
@@ -657,10 +657,10 @@ fn find_type_alias_definition<'a>(
         .items
         .iter()
         .find_map(|item| {
-            if let Item::Type(type_alias) = item {
-                if type_alias.ident == *function_pointer_type {
-                    return Some(type_alias);
-                }
+            if let Item::Type(type_alias) = item
+                && type_alias.ident == *function_pointer_type
+            {
+                return Some(type_alias);
             }
             None
         })
