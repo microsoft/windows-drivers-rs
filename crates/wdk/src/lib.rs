@@ -11,10 +11,8 @@
 )]
 
 #[cfg(any(
-    all(
-        feature = "alloc",
-        any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF")
-    ),
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF",
 ))]
 pub use print::_print;
@@ -28,13 +26,15 @@ pub use wdk_sys::NT_SUCCESS as nt_success;
 pub use wdk_sys::PAGED_CODE as paged_code;
 
 #[cfg(any(
-    all(
-        feature = "alloc",
-        any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF")
-    ),
+    driver_model__driver_type = "WDM",
+    driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF",
 ))]
 mod print;
+
+mod fmt;
+
+pub use fmt::{WdkFlushableFormatBuffer, WdkFormatBuffer};
 
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;

@@ -13,18 +13,12 @@ extern crate alloc;
 #[cfg(not(test))]
 extern crate wdk_panic;
 
-use alloc::{
-    ffi::CString,
-    slice,
-    string::String,
-};
+use alloc::{ffi::CString, slice, string::String};
 
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
 use wdk_sys::{
-    call_unsafe_wdf_function_binding,
-    ntddk::DbgPrint,
     DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
@@ -32,12 +26,14 @@ use wdk_sys::{
     ULONG,
     UNICODE_STRING,
     WCHAR,
-    WDFDEVICE,
-    WDFDEVICE_INIT,
-    WDFDRIVER,
     WDF_DRIVER_CONFIG,
     WDF_NO_HANDLE,
     WDF_NO_OBJECT_ATTRIBUTES,
+    WDFDEVICE,
+    WDFDEVICE_INIT,
+    WDFDRIVER,
+    call_unsafe_wdf_function_binding,
+    ntddk::DbgPrint,
 };
 
 #[cfg(not(test))]
@@ -141,10 +137,9 @@ pub unsafe extern "system" fn driver_entry(
         //            of the slice must be no larger than `isize::MAX`. This is proven by the below
         //            `debug_assert!`.
         unsafe {
-            debug_assert!(isize::try_from(
-                number_of_slice_elements * core::mem::size_of::<WCHAR>()
-            )
-            .is_ok());
+            debug_assert!(
+                isize::try_from(number_of_slice_elements * core::mem::size_of::<WCHAR>()).is_ok()
+            );
             slice::from_raw_parts(registry_path.Buffer, number_of_slice_elements)
         },
     );
