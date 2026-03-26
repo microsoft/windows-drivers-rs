@@ -17,25 +17,38 @@ pub mod wdk_build;
 pub mod error {
     use std::{io, path::PathBuf, process::Output};
 
+    use super::exec::CaptureStream;
+
     /// Error type for `std::process::command` execution failures
     #[derive(Debug, thiserror::Error)]
     pub enum CommandError {
-        #[error("Command '{command}' with args {args:?} failed \n STDOUT: {stdout}")]
+        #[error("Command '{command}' with args {args:?} failed \n {stream_label}: {output}")]
         CommandFailed {
             command: String,
             args: Vec<String>,
-            stdout: String,
+            stream_label: CaptureStream,
+            output: String,
         },
         #[error("Command '{0}' with args {1:?} IO error")]
         IoError(String, Vec<String>, #[source] io::Error),
     }
 
     impl CommandError {
-        pub fn from_output(command: &str, args: &[&str], output: &Output) -> Self {
+        pub fn from_output(
+            command: &str,
+            args: &[&str],
+            output: &Output,
+            capture_stream: CaptureStream,
+        ) -> Self {
+            let stream_content = match capture_stream {
+                CaptureStream::StdOut => &output.stdout,
+                CaptureStream::StdErr => &output.stderr,
+            };
             Self::CommandFailed {
                 command: command.to_string(),
                 args: args.iter().map(|&s| s.to_string()).collect(),
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                stream_label: capture_stream,
+                output: String::from_utf8_lossy(stream_content).to_string(),
             }
         }
 

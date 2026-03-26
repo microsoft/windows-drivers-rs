@@ -18,7 +18,7 @@ use tracing::{debug, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{actions::DriverType, trace};
+use crate::{actions::DriverType, providers::exec::CaptureStream, trace};
 
 /// Directory containing the templates to be bundled with the utility
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -117,7 +117,10 @@ impl<'a> NewAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        if let Err(e) = self.command_exec.run("cargo", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("cargo", &args, None, None, CaptureStream::StdErr)
+        {
             return Err(NewActionError::CargoNewCommand(e));
         }
         Ok(())
@@ -311,7 +314,7 @@ mod tests {
         },
         providers::{
             error::{CommandError, FileError},
-            exec::MockCommandExec,
+            exec::{CaptureStream, MockCommandExec},
             fs::MockFs,
         },
     };
@@ -673,25 +676,26 @@ mod tests {
             let expected_path = self.path.to_string_lossy().to_string();
             self.mock_exec
                 .expect_run()
-                .withf(move |cmd, args, _, _| {
+                .withf(move |cmd, args, _, _, stream| {
                     let matched = cmd == "cargo"
                         && args.len() >= 3
                         && args[0] == "new"
                         && args[1] == "--lib"
-                        && args[2] == expected_path;
+                        && args[2] == expected_path
+                        && matches!(stream, CaptureStream::StdErr);
 
                     expected_flag.as_ref().map_or(matched, |flag| {
                         matched && args.len() > 3 && args[3] == flag.as_str()
                     })
                 })
-                .returning(move |_, _, _, _| match override_output.clone() {
+                .returning(move |_, _, _, _, stream| match override_output.clone() {
                     Some(output) => match output.status.code() {
                         Some(0) => Ok(Output {
                             status: ExitStatus::from_raw(0),
                             stdout: vec![],
                             stderr: vec![],
                         }),
-                        _ => Err(CommandError::from_output("cargo", &[], &output)),
+                        _ => Err(CommandError::from_output("cargo", &[], &output, stream)),
                     },
                     None => Ok(Output {
                         status: ExitStatus::from_raw(0),

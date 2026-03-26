@@ -28,7 +28,10 @@ use windows::{
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
-use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
+use crate::{
+    actions::build::error::PackageTaskError,
+    providers::{error::FileError, exec::CaptureStream},
+};
 
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
 // flag is added to InfVerif CLI
@@ -343,7 +346,10 @@ impl<'a> PackageTask<'a> {
         if !wdf_version_flags.is_empty() {
             args.append(&mut wdf_version_flags.iter().map(String::as_str).collect());
         }
-        if let Err(e) = self.command_exec.run("stampinf", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("stampinf", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::StampinfCommand(e));
         }
         Ok(())
@@ -362,7 +368,10 @@ impl<'a> PackageTask<'a> {
             "/uselocaltime",
         ];
 
-        if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("inf2cat", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
 
@@ -404,7 +413,10 @@ impl<'a> PackageTask<'a> {
         debug!("Checking if self signed certificate exists in WDRTestCertStore store");
         let args = ["-s", WDR_TEST_CERT_STORE];
 
-        match self.command_exec.run("certmgr.exe", &args, None, None) {
+        match self
+            .command_exec
+            .run("certmgr.exe", &args, None, None, CaptureStream::StdOut)
+        {
             Ok(output) if output.status.success() => String::from_utf8(output.stdout).map_or_else(
                 |e| Err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e)),
                 |stdout| Ok(stdout.contains(WDR_LOCAL_TEST_CERT)),
@@ -430,7 +442,10 @@ impl<'a> PackageTask<'a> {
             &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("makecert", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("makecert", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::CertGenerationInStoreCommand(e));
         }
         Ok(())
@@ -448,7 +463,10 @@ impl<'a> PackageTask<'a> {
             WDR_LOCAL_TEST_CERT,
             &cert_path,
         ];
-        if let Err(e) = self.command_exec.run("certmgr.exe", &args, None, None) {
+        if let Err(e) =
+            self.command_exec
+                .run("certmgr.exe", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::CreateCertFileFromStoreCommand(e));
         }
         Ok(())
@@ -490,7 +508,10 @@ impl<'a> PackageTask<'a> {
             "SHA256",
             &driver_binary_file_path,
         ];
-        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("signtool", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
         Ok(())
@@ -508,7 +529,10 @@ impl<'a> PackageTask<'a> {
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
         // TODO: Differentiate between command exec failure and signature verification
         // failure
-        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("signtool", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
         Ok(())
@@ -547,7 +571,10 @@ impl<'a> PackageTask<'a> {
         }
         args.push(&inf_path);
 
-        if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
+        if let Err(e) = self
+            .command_exec
+            .run("infverif", &args, None, None, CaptureStream::StdOut)
+        {
             return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
@@ -768,7 +795,7 @@ mod tests {
 
                     command_exec
                         .expect_run()
-                        .withf(move |cmd: &str, args: &[&str], _, _| {
+                        .withf(move |cmd: &str, args: &[&str], _, _, _| {
                             if cmd != "stampinf" {
                                 return false;
                             }
@@ -780,7 +807,7 @@ mod tests {
                             }
                         })
                         .once()
-                        .return_once(|_, _, _, _| {
+                        .return_once(|_, _, _, _, _| {
                             Ok(Output {
                                 status: ExitStatus::default(),
                                 stdout: vec![],

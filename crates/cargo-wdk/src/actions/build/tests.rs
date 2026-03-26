@@ -32,7 +32,10 @@ use crate::{
         build::{BuildAction, BuildActionParams, error::BuildActionError},
         to_target_triple,
     },
-    providers::error::{CommandError, FileError},
+    providers::{
+        error::{CommandError, FileError},
+        exec::CaptureStream,
+    },
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1935,7 +1938,7 @@ impl TestBuildAction {
             .to_string();
         let mut expected_cargo_build_args: Vec<String> = vec![
             "build",
-            "--message-format=json",
+            "--message-format=json-render-diagnostics",
             "-p",
             &driver_name,
             "--manifest-path",
@@ -1966,13 +1969,14 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      _capture_stream: &CaptureStream|
                       -> bool {
                     command == expected_cargo_command && args == expected_cargo_build_args
                 },
             )
             .once()
-            .returning(move |_, _, _, _| Ok(expected_output.clone()));
+            .returning(move |_, _, _, _, _| Ok(expected_output.clone()));
         self
     }
 
@@ -1997,14 +2001,16 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      working_dir: &Option<&Path>| {
+                      working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream| {
                     command == "cargo"
                         && args == ["rustc", "--", "--print", "cfg"]
                         && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
+                        && matches!(capture_stream, CaptureStream::StdErr)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, stream| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2015,6 +2021,7 @@ impl TestBuildAction {
                         "cargo",
                         &["rustc", "--", "--print", "cfg"],
                         &output,
+                        stream,
                     )),
                 },
                 None => Ok(Output {
@@ -2305,25 +2312,33 @@ impl TestBuildAction {
                     move |command: &str,
                           args: &[&str],
                           _env_vars: &Option<&HashMap<&str, &str>>,
-                          _working_dir: &Option<&Path>|
+                          _working_dir: &Option<&Path>,
+                          capture_stream: &CaptureStream|
                           -> bool {
                         println!("command: {command}, args: {args:?}");
                         println!(
                             "expected_command: {expected_stampinf_command}, expected_args: \
                              {expected_stampinf_args:?}"
                         );
-                        command == expected_stampinf_command && args == expected_stampinf_args
+                        command == expected_stampinf_command
+                            && args == expected_stampinf_args
+                            && matches!(capture_stream, CaptureStream::StdOut)
                     },
                 )
                 .once()
-                .returning(move |_, _, _, _| match override_output.clone() {
+                .returning(move |_, _, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
                         Some(0) => Ok(Output {
                             status: ExitStatus::from_raw(0),
                             stdout: vec![],
                             stderr: vec![],
                         }),
-                        _ => Err(CommandError::from_output("stampinf", &[], &output)),
+                        _ => Err(CommandError::from_output(
+                            "stampinf",
+                            &[],
+                            &output,
+                            CaptureStream::StdOut,
+                        )),
                     },
                     None => Ok(Output {
                         status: ExitStatus::default(),
@@ -2369,25 +2384,33 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
                     println!("command: {command}, args: {args:?}");
                     println!(
                         "expected_command: {expected_inf2cat_command}, expected_args: \
                          {expected_inf2cat_args:?}"
                     );
-                    command == expected_inf2cat_command && args == expected_inf2cat_args
+                    command == expected_inf2cat_command
+                        && args == expected_inf2cat_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("inf2cat", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "inf2cat",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2409,19 +2432,27 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
+                    command == expected_certmgr_command
+                        && args == expected_certmgr_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: output.stdout,
                         stderr: output.stderr,
                     }),
-                    _ => Err(CommandError::from_output("certmgr", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "certmgr",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2459,20 +2490,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
+                    command == expected_certmgr_command
+                        && args == expected_certmgr_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("certmgr", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "certmgr",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2508,20 +2547,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_makecert_command && args == expected_makecert_args
+                    command == expected_makecert_command
+                        && args == expected_makecert_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("makecert", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "makecert",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2569,20 +2616,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("signtool", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "signtool",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2629,20 +2684,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("signtool", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "signtool",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2682,20 +2745,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_verify_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("signtool", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "signtool",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2735,20 +2806,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
+                    command == expected_signtool_command
+                        && args == expected_signtool_verify_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("stampinf", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "stampinf",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -2798,20 +2877,28 @@ impl TestBuildAction {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
+                      _working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
-                    command == expected_infverif_command && args == expected_infverif_args
+                    command == expected_infverif_command
+                        && args == expected_infverif_args
+                        && matches!(capture_stream, CaptureStream::StdOut)
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: vec![],
                         stderr: vec![],
                     }),
-                    _ => Err(CommandError::from_output("infverif", &[], &output)),
+                    _ => Err(CommandError::from_output(
+                        "infverif",
+                        &[],
+                        &output,
+                        CaptureStream::StdOut,
+                    )),
                 },
                 None => Ok(Output {
                     status: ExitStatus::default(),
@@ -3359,6 +3446,7 @@ mod get_target_arch_from_cargo_rustc {
     use wdk_build::CpuArchitecture;
 
     use super::{BuildActionError, TestBuildAction};
+    use crate::providers::exec::CaptureStream;
 
     fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
@@ -3464,15 +3552,17 @@ mod get_target_arch_from_cargo_rustc {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      working_dir: &Option<&Path>|
+                      working_dir: &Option<&Path>,
+                      capture_stream: &CaptureStream|
                       -> bool {
                     command == "cargo"
                         && args == ["rustc", "--", "--print", "cfg"]
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
+                        && *capture_stream == CaptureStream::StdErr
                 },
             )
             .once()
-            .returning(move |_, _, _, _| {
+            .returning(move |_, _, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
                     stdout: stdout.clone(),
