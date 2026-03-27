@@ -798,21 +798,27 @@ pub fn copy_to_driver_package_folder<P: AsRef<Path>>(path_to_copy: P) -> Result<
     Ok(())
 }
 
-/// Symlinks `rust-driver-makefile.toml` to the `target` folder where it can be
-/// extended from a `Makefile.toml`.
+/// Makes `rust-driver-makefile.toml` available in the `target` folder where it
+/// can be extended from a `Makefile.toml`.
 ///
-/// This is necessary so that paths in the `rust-driver-makefile.toml` can to be
-/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+/// This is necessary so that paths in the `rust-driver-makefile.toml` can be
+/// relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`.
+///
+/// When `wdk-build` is a registry dependency, the makefile is copied with its
+/// `wdk-build = { path = "." }` dependency rewritten to a versioned registry
+/// dependency. When it is a path or git dependency, it is symlinked instead.
 ///
 /// # Errors
 ///
 /// This function returns:
 /// - [`ConfigError::CargoMetadataError`] if there is an error executing or
 ///   parsing `cargo_metadata`
+/// - [`ConfigError::NoWdkBuildCrateDetected`] if `wdk-build` is not found in
+///   the dependency graph
 /// - [`ConfigError::MultipleWdkBuildCratesDetected`] if there are multiple
 ///   versions of the WDK build crate detected
-/// - [`ConfigError::IoError`] if there is an error creating or updating the
-///   symlink to `rust-driver-makefile.toml`
+/// - [`ConfigError::IoError`] if there is an error reading, writing, or
+///   symlinking the makefile
 ///
 /// # Panics
 ///
@@ -822,21 +828,27 @@ pub fn load_rust_driver_makefile() -> Result<(), ConfigError> {
     load_wdk_build_makefile(RUST_DRIVER_MAKEFILE_NAME)
 }
 
-/// Symlinks `rust-driver-sample-makefile.toml` to the `target` folder where it
-/// can be extended from a `Makefile.toml`.
+/// Makes `rust-driver-sample-makefile.toml` available in the `target` folder
+/// where it can be extended from a `Makefile.toml`.
 ///
 /// This is necessary so that paths in the `rust-driver-sample-makefile.toml`
-/// can to be relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`
+/// can be relative to `CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY`.
+///
+/// When `wdk-build` is a registry dependency, the makefile is copied with its
+/// `wdk-build = { path = "." }` dependency rewritten to a versioned registry
+/// dependency. When it is a path or git dependency, it is symlinked instead.
 ///
 /// # Errors
 ///
 /// This function returns:
 /// - [`ConfigError::CargoMetadataError`] if there is an error executing or
 ///   parsing `cargo_metadata`
+/// - [`ConfigError::NoWdkBuildCrateDetected`] if `wdk-build` is not found in
+///   the dependency graph
 /// - [`ConfigError::MultipleWdkBuildCratesDetected`] if there are multiple
 ///   versions of the WDK build crate detected
-/// - [`ConfigError::IoError`] if there is an error creating or updating the
-///   symlink to `rust-driver-sample-makefile.toml`
+/// - [`ConfigError::IoError`] if there is an error reading, writing, or
+///   symlinking the makefile
 ///
 /// # Panics
 ///
@@ -850,14 +862,25 @@ pub fn load_rust_driver_sample_makefile() -> Result<(), ConfigError> {
 /// folder where it can be extended from a downstream `Makefile.toml`.
 ///
 /// When `wdk-build` is a **registry dependency**, the makefile is copied and
-/// its embedded `rust-script` `path = "."` dependencies are rewritten to
-/// version-only dependencies. This ensures cargo applies `--cap-lints allow`
-/// to the published `wdk-build` crate, preventing the caller's `RUSTFLAGS`
-/// from leaking into its compilation.
+/// its embedded `rust-script` `wdk-build = { path = "." }` dependency is
+/// rewritten to a versioned registry dependency (`wdk-build = "X.Y.Z"`).
+/// This ensures cargo applies `--cap-lints allow` to the published `wdk-build`
+/// crate, preventing the caller's `RUSTFLAGS` from leaking into its
+/// compilation.
 ///
 /// When `wdk-build` is a **path or git dependency**, the makefile is symlinked
 /// so that `path = "."` resolves correctly via `--base-path`, preserving the
 /// user's intent to build against their local `wdk-build` source.
+///
+/// # Custom registries
+///
+/// The rewritten dependency uses a bare version requirement (e.g.
+/// `wdk-build = "0.5.1"`) which resolves from the default registry
+/// (crates.io). If `wdk-build` is consumed from a non-crates.io registry
+/// declared via `[registries]` in `.cargo/config.toml`, a warning is emitted.
+/// Users in this situation should prefer a `[source.crates-io] replace-with`
+/// configuration, which transparently redirects crates.io lookups to their
+/// custom registry without affecting dependency resolution.
 ///
 /// The version of `wdk-build` from which the file comes is determined by the
 /// working directory of the process that invokes this function. For example,
@@ -932,6 +955,25 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .is_some_and(|s| s.repr.starts_with("registry+") || s.repr.starts_with("sparse+"));
 
     if is_registry_source {
+        // Warn if the source is a non-crates.io registry (e.g. a private ADO
+        // Artifacts feed declared via [registries] without source replacement).
+        // The rewrite produces a bare version dep that resolves from crates.io,
+        // which may fail if the user can only reach their custom registry.
+        let src = wdk_build_package
+            .source
+            .as_ref()
+            .expect("source should be Some when is_registry_source is true");
+        if !src.is_crates_io() {
+            warn!(
+                "wdk-build was resolved from a non-crates.io registry ({repr}). The rust-script \
+                 dependency will be rewritten to a bare version requirement that resolves from \
+                 crates.io. If crates.io is not reachable or does not have this version, the \
+                 build will fail. Consider using a [source.crates-io] replace-with in \
+                 .cargo/config.toml instead of a custom registry.",
+                repr = src.repr,
+            );
+        }
+
         // wdk-build is a registry dependency. Rewrite path dependencies in the
         // makefile's rust-script embedded manifests to version-only dependencies
         // so that cargo treats wdk-build as a registry dep and applies
@@ -950,9 +992,14 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
             );
         }
 
-        // Only write if content changed or file doesn't exist, to avoid
-        // unnecessary rebuilds from rust-script cache invalidation
-        let should_write = if destination_path.exists() {
+        // Only write if content changed or destination doesn't exist, to
+        // avoid unnecessary rebuilds from rust-script cache invalidation.
+        // NOTE: symlink_metadata is used instead of exists() because
+        // exists() returns false for dangling symlinks left over from a
+        // previous path-dep run, which we need to detect and replace.
+        let path_occupied = destination_path.symlink_metadata().is_ok();
+
+        let should_write = if path_occupied && !destination_path.is_symlink() {
             let existing_content = std::fs::read_to_string(&destination_path)
                 .map_err(|source| IoError::with_path(&destination_path, source))?;
             existing_content != patched_content
@@ -961,7 +1008,7 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         };
 
         if should_write {
-            if destination_path.exists() {
+            if path_occupied {
                 std::fs::remove_file(&destination_path)
                     .map_err(|source| IoError::with_path(&destination_path, source))?;
             }
@@ -973,7 +1020,12 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         // Keep the symlink so that path = "." resolves correctly via
         // --base-path, preserving the user's intent to build against their
         // local wdk-build source.
-        if !destination_path.exists() {
+        // NOTE: symlink_metadata is used instead of exists() because
+        // exists() returns false for dangling symlinks left over from a
+        // previous registry-dep run, which we need to detect and replace.
+        let path_occupied = destination_path.symlink_metadata().is_ok();
+
+        if !path_occupied {
             std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
                 .map_err(|source| {
                     IoError::with_src_dest_paths(
@@ -1481,7 +1533,7 @@ mod tests {
         }
     }
 
-    mod rewrite_wdk_build_path_deps {
+    mod rewrite_wdk_build_path_deps_to_version {
         use semver::Version;
 
         use super::super::rewrite_wdk_build_path_deps_to_version;
@@ -1496,21 +1548,65 @@ mod tests {
 "#;
             let version = Version::new(0, 5, 1);
             let result = rewrite_wdk_build_path_deps_to_version(input, &version);
-            assert!(result.contains(r#"wdk-build = "0.5.1""#));
-            assert!(!result.contains(r#"path = ".""#));
+            let expected = r#"
+//! ```cargo
+//! [dependencies]
+//! wdk-build = "0.5.1"
+//! ```
+"#;
+            assert_eq!(result, expected);
         }
 
         #[test]
-        fn rewrites_multiple_occurrences() {
+        fn rewrites_across_multiple_rust_script_blocks() {
+            // The shipped makefiles contain many independent rust-script
+            // blocks, each with their own `[dependencies]` section. All
+            // occurrences must be rewritten.
             let input = r#"
+[tasks.first-task]
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
 //! wdk-build = { path = "." }
-some other content
+//! ```
+fn main() {}
+'''
+
+[tasks.second-task]
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
 //! wdk-build = { path = "." }
+//! ```
+fn main() {}
+'''
 "#;
             let version = Version::new(1, 2, 3);
             let result = rewrite_wdk_build_path_deps_to_version(input, &version);
-            assert_eq!(result.matches(r#"wdk-build = "1.2.3""#).count(), 2);
-            assert_eq!(result.matches(r#"path = ".""#).count(), 0);
+            let expected = r#"
+[tasks.first-task]
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = "1.2.3"
+//! ```
+fn main() {}
+'''
+
+[tasks.second-task]
+script_runner = "@rust"
+script = '''
+//! ```cargo
+//! [dependencies]
+//! wdk-build = "1.2.3"
+//! ```
+fn main() {}
+'''
+"#;
+            assert_eq!(result, expected);
         }
 
         #[test]
@@ -1525,14 +1621,318 @@ some other content
         }
 
         #[test]
-        fn does_not_rewrite_path_with_version() {
-            // If someone still has path + version (shouldn't happen after this
-            // PR but test the boundary)
+        fn does_not_rewrite_when_extra_keys_present() {
+            // Intentionally conservative: the literal string match only
+            // rewrites the exact `wdk-build = { path = "." }` pattern.
+            // A dep spec with extra keys (e.g. version) is left untouched
+            // to avoid silently dropping constraints. If this happens with
+            // shipped makefiles, load_wdk_build_makefile emits a warning.
             let input = r#"//! wdk-build = { path = ".", version = "0.5.1" }"#;
             let version = Version::new(0, 5, 1);
             let result = rewrite_wdk_build_path_deps_to_version(input, &version);
-            // The pattern doesn't match because version is still present
             assert_eq!(result, input);
+        }
+    }
+
+    /// Characterization tests for [`cargo_metadata::Source`] behavior that
+    /// the production registry-detection logic in
+    /// [`load_wdk_build_makefile`](super::super::load_wdk_build_makefile)
+    /// depends on. These validate our assumptions about `Source::repr`
+    /// prefixes and `Source::is_crates_io()`.
+    mod registry_source_detection {
+        use cargo_metadata::Source;
+
+        fn source(repr: &str) -> Source {
+            serde_json::from_value(serde_json::json!(repr)).unwrap()
+        }
+
+        fn is_non_crates_io_registry(repr: &str) -> bool {
+            let src = source(repr);
+            (repr.starts_with("registry+") || repr.starts_with("sparse+")) && !src.is_crates_io()
+        }
+
+        #[test]
+        fn crates_io_git_index_is_not_flagged() {
+            // NOTE: Cargo normalises crates.io to this canonical URL in cargo
+            // metadata output regardless of the fetch protocol (sparse or git).
+            // See `SourceId::crates_io()` and `RegistrySourceIds` in Cargo.
+            assert!(
+                !is_non_crates_io_registry("registry+https://github.com/rust-lang/crates.io-index"),
+                "crates.io canonical URL should not be flagged as custom registry"
+            );
+        }
+
+        #[test]
+        fn custom_sparse_registry_is_flagged() {
+            assert!(
+                is_non_crates_io_registry(
+                    "sparse+https://pkgs.dev.azure.com/MSFTDEVICES/_packaging/PublicRustPackages/Cargo/index/"
+                ),
+                "ADO Artifacts sparse registry should be flagged"
+            );
+        }
+
+        #[test]
+        fn custom_registry_is_flagged() {
+            assert!(
+                is_non_crates_io_registry("registry+https://my-corp-registry.example.com/index"),
+                "custom registry should be flagged"
+            );
+        }
+
+        #[test]
+        fn path_source_is_not_flagged() {
+            assert!(
+                !is_non_crates_io_registry("path+file:///home/user/wdk-build"),
+                "path source should not be flagged as registry"
+            );
+        }
+
+        #[test]
+        fn git_source_is_not_flagged() {
+            assert!(
+                !is_non_crates_io_registry("git+https://github.com/microsoft/windows-drivers-rs"),
+                "git source should not be flagged as registry"
+            );
+        }
+    }
+
+    mod shipped_makefile_integrity {
+        /// The exact pattern that [`rewrite_wdk_build_path_deps_to_version`]
+        /// replaces. If this string is absent from a shipped makefile, the
+        /// rewrite silently becomes a no-op and RUSTFLAGS isolation breaks.
+        const REWRITABLE_PATTERN: &str = r#"wdk-build = { path = "." }"#;
+
+        #[test]
+        fn rust_driver_makefile_contains_rewritable_pattern() {
+            let content = include_str!("../rust-driver-makefile.toml");
+            assert!(
+                content.contains(REWRITABLE_PATTERN),
+                "rust-driver-makefile.toml must contain the rewritable pattern \
+                 {REWRITABLE_PATTERN:?} for RUSTFLAGS isolation to work"
+            );
+        }
+
+        #[test]
+        fn rust_driver_sample_makefile_contains_rewritable_pattern() {
+            let content = include_str!("../rust-driver-sample-makefile.toml");
+            assert!(
+                content.contains(REWRITABLE_PATTERN),
+                "rust-driver-sample-makefile.toml must contain the rewritable pattern \
+                 {REWRITABLE_PATTERN:?} for RUSTFLAGS isolation to work"
+            );
+        }
+    }
+
+    /// Shared helpers for [`load_rust_driver_makefile`] and
+    /// [`load_rust_driver_sample_makefile`] tests. These tests run against
+    /// the real workspace (so `cargo metadata` resolves `wdk-build` as a
+    /// path dependency) but use a temporary directory for
+    /// `CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY` to isolate filesystem
+    /// side-effects.
+    fn create_temp_target_dir(temp: &assert_fs::TempDir) -> std::path::PathBuf {
+        let target_dir = temp.path().join("target");
+        std::fs::create_dir_all(&target_dir).unwrap();
+        target_dir
+    }
+
+    fn load_makefile_in_temp_dir(temp: &assert_fs::TempDir) -> std::path::PathBuf {
+        let target_dir = create_temp_target_dir(temp);
+
+        let ws_dir = temp.path().to_string_lossy().into_owned();
+        crate::tests::with_env(
+            &[(
+                super::CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR,
+                Some(&ws_dir),
+            )],
+            || {
+                super::load_rust_driver_makefile()
+                    .expect("load_rust_driver_makefile should succeed in the workspace");
+            },
+        );
+
+        target_dir.join(super::RUST_DRIVER_MAKEFILE_NAME)
+    }
+
+    mod load_rust_driver_makefile {
+        use assert_fs::TempDir;
+
+        use super::super::RUST_DRIVER_MAKEFILE_NAME;
+
+        #[test]
+        fn creates_symlink_for_path_dep() {
+            let temp = TempDir::new().unwrap();
+            let dest = super::load_makefile_in_temp_dir(&temp);
+
+            assert!(dest.exists(), "makefile should exist at {dest:?}");
+            assert!(
+                dest.is_symlink(),
+                "makefile should be a symlink for path deps"
+            );
+
+            let content = std::fs::read_to_string(&dest).unwrap();
+            assert!(
+                content.contains(r#"wdk-build = { path = "." }"#),
+                "symlinked makefile should still contain path dep"
+            );
+        }
+
+        #[test]
+        fn idempotent_on_second_call() {
+            let temp = TempDir::new().unwrap();
+            let dest = super::load_makefile_in_temp_dir(&temp);
+
+            let metadata_before = std::fs::symlink_metadata(&dest).unwrap();
+
+            let ws_dir = temp.path().to_string_lossy().into_owned();
+            crate::tests::with_env(
+                &[(
+                    super::super::CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR,
+                    Some(&ws_dir),
+                )],
+                || {
+                    super::super::load_rust_driver_makefile().expect("second call should succeed");
+                },
+            );
+
+            let metadata_after = std::fs::symlink_metadata(&dest).unwrap();
+            assert_eq!(
+                metadata_before.file_type(),
+                metadata_after.file_type(),
+                "file type should not change on idempotent call"
+            );
+        }
+
+        #[test]
+        fn replaces_dangling_symlink() {
+            let temp = TempDir::new().unwrap();
+            let target_dir = super::create_temp_target_dir(&temp);
+            let dest = target_dir.join(RUST_DRIVER_MAKEFILE_NAME);
+
+            let nonexistent = temp.path().join("does-not-exist.toml");
+            std::os::windows::fs::symlink_file(&nonexistent, &dest)
+                .expect("should be able to create symlink");
+            assert!(
+                dest.symlink_metadata().is_ok(),
+                "dangling symlink should be detectable via symlink_metadata"
+            );
+            assert!(!dest.exists(), "dangling symlink target should not exist");
+
+            let ws_dir = temp.path().to_string_lossy().into_owned();
+            crate::tests::with_env(
+                &[(
+                    super::super::CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR,
+                    Some(&ws_dir),
+                )],
+                || {
+                    super::super::load_rust_driver_makefile()
+                        .expect("should succeed even with dangling symlink");
+                },
+            );
+
+            assert!(dest.exists(), "makefile should now exist");
+            assert!(
+                dest.is_symlink(),
+                "should be a symlink (path dep in this workspace)"
+            );
+            let content = std::fs::read_to_string(&dest).unwrap();
+            assert!(
+                content.contains(r#"wdk-build = { path = "." }"#),
+                "symlinked makefile should contain path dep"
+            );
+        }
+
+        #[test]
+        fn replaces_stale_regular_file_with_symlink() {
+            let temp = TempDir::new().unwrap();
+            let target_dir = super::create_temp_target_dir(&temp);
+            let dest = target_dir.join(RUST_DRIVER_MAKEFILE_NAME);
+
+            std::fs::write(&dest, "stale content from a previous registry build").unwrap();
+            assert!(!dest.is_symlink(), "should start as a regular file");
+
+            let ws_dir = temp.path().to_string_lossy().into_owned();
+            crate::tests::with_env(
+                &[(
+                    super::super::CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR,
+                    Some(&ws_dir),
+                )],
+                || {
+                    super::super::load_rust_driver_makefile()
+                        .expect("should replace regular file with symlink");
+                },
+            );
+
+            assert!(dest.exists(), "makefile should exist");
+            assert!(
+                dest.is_symlink(),
+                "should now be a symlink (path dep in workspace)"
+            );
+        }
+
+        #[test]
+        fn replaces_symlink_to_wrong_target() {
+            let temp = TempDir::new().unwrap();
+            let target_dir = super::create_temp_target_dir(&temp);
+            let dest = target_dir.join(RUST_DRIVER_MAKEFILE_NAME);
+
+            let wrong_target = temp.path().join("wrong-makefile.toml");
+            std::fs::write(&wrong_target, "wrong content").unwrap();
+            std::os::windows::fs::symlink_file(&wrong_target, &dest)
+                .expect("should be able to create symlink");
+            assert!(dest.is_symlink());
+            assert_eq!(
+                std::fs::read_to_string(&dest).unwrap(),
+                "wrong content",
+                "symlink should initially point to wrong file"
+            );
+
+            let ws_dir = temp.path().to_string_lossy().into_owned();
+            crate::tests::with_env(
+                &[(
+                    super::super::CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR,
+                    Some(&ws_dir),
+                )],
+                || {
+                    super::super::load_rust_driver_makefile()
+                        .expect("should replace symlink to wrong target");
+                },
+            );
+
+            assert!(dest.is_symlink(), "should still be a symlink");
+            let content = std::fs::read_to_string(&dest).unwrap();
+            assert!(
+                content.contains(r#"wdk-build = { path = "." }"#),
+                "symlink should now point to the correct makefile"
+            );
+        }
+    }
+
+    mod load_rust_driver_sample_makefile {
+        use assert_fs::TempDir;
+
+        use super::super::RUST_DRIVER_SAMPLE_MAKEFILE_NAME;
+
+        #[test]
+        fn creates_symlink_for_path_dep() {
+            let temp = TempDir::new().unwrap();
+            let target_dir = super::create_temp_target_dir(&temp);
+
+            let ws_dir = temp.path().to_string_lossy().into_owned();
+            crate::tests::with_env(
+                &[(
+                    super::super::CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY_ENV_VAR,
+                    Some(&ws_dir),
+                )],
+                || {
+                    super::super::load_rust_driver_sample_makefile()
+                        .expect("load_rust_driver_sample_makefile should succeed");
+                },
+            );
+
+            let dest = target_dir.join(RUST_DRIVER_SAMPLE_MAKEFILE_NAME);
+            assert!(dest.exists(), "sample makefile should exist");
+            assert!(dest.is_symlink(), "should be a symlink for path deps");
         }
     }
 }

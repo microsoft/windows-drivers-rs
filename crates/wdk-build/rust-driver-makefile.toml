@@ -121,12 +121,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! # NOTE: When this makefile is loaded by downstream consumers via
-//! # `load_rust_driver_makefile()`, and `wdk-build` is resolved from a
-//! # registry source (not a local path), this path dependency is
-//! # automatically rewritten to a version-only registry dependency. This
-//! # ensures cargo applies `--cap-lints allow` to wdk-build, preventing the
-//! # caller's RUSTFLAGS from leaking into the published crate's compilation.
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -149,6 +144,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -189,6 +185,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -234,6 +231,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -259,6 +257,7 @@ script = '''
 
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -322,6 +321,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -346,6 +346,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -369,6 +370,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -392,6 +394,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -440,6 +443,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! anyhow = "1"
 //! ```
@@ -461,6 +465,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -547,6 +552,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_makefile() docs.
 //! wdk-build = { path = "." }
 //! anyhow = "1"
 //! ```

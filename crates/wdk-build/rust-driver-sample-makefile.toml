@@ -9,6 +9,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_sample_makefile() docs.
 //! wdk-build = { path = "." }
 //! ```
 #![allow(unused_doc_comments)]
@@ -32,6 +33,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
+//! # The wdk-build dep spec below may be rewritten from a path dep to a versioned registry dep at load time; see load_rust_driver_sample_makefile() docs.
 //! wdk-build = { path = "." }
 //! anyhow = "1"
 //! ```
