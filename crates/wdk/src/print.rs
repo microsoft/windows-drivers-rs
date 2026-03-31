@@ -155,18 +155,18 @@ macro_rules! dbg {
 /// by the print! and println! macro
 ///
 /// Interior NUL bytes in the formatted output are handled differently per
-/// driver model: WDM/KMDF truncates at the first NUL (via `as_cstr()`),
+/// driver model: WDM/KMDF truncates at the first NUL (via `as_c_str()`),
 /// while UMDF strips NUL bytes and prints the remaining content.
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
-            let mut writer = crate::WdkFlushableFormatBuffer::<_, 512>::new(|buf| {
-                let cstr = buf.as_cstr();
+            let mut writer = crate::fmt::FlushableFormatBuffer::<_, 512>::new(|buf| {
+                let cstr = buf.as_c_str();
 
                 // SAFETY:
                 // - `c"%s"` is a compile-time NUL-terminated format literal.
-                // - `cstr` is a valid NUL-terminated CStr from `WdkFormatBuffer::as_cstr`.
+                // - `cstr` is a valid NUL-terminated CStr from `FormatBuffer::as_c_str`.
                 // - Using `%s` prevents `DbgPrint` from interpreting format specifiers
                 //   in the buffer contents, which could cause UB.
                 // - IRQL requirements (must be <= DIRQL) are the caller's responsibility,

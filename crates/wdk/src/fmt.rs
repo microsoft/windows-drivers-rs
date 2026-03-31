@@ -10,31 +10,31 @@ const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 /// Intended for constrained driver environments where heap allocation is
 /// undesirable.
 ///
-/// Append with `write!`/`format_args!`; read via [`WdkFormatBuffer::as_str`]
-/// or [`WdkFormatBuffer::as_cstr`].
+/// Append with `write!`/`format_args!`; read via [`FormatBuffer::as_str`]
+/// or [`FormatBuffer::as_c_str`].
 ///
 /// # Examples
 /// ```
 /// use core::fmt::Write;
 ///
-/// use wdk::WdkFormatBuffer;
+/// use wdk::fmt::FormatBuffer;
 ///
-/// let mut buf = WdkFormatBuffer::<16>::new();
+/// let mut buf = FormatBuffer::<16>::new();
 /// write!(&mut buf, "hello {}", 42).unwrap();
 ///
 /// let s = buf.as_str();
 /// assert_eq!(s, "hello 42");
 ///
-/// let c = buf.as_cstr();
+/// let c = buf.as_c_str();
 /// assert_eq!(c.to_bytes(), b"hello 42");
 /// ```
 #[derive(Debug)]
-pub struct WdkFormatBuffer<const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE> {
+pub struct FormatBuffer<const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE> {
     buffer: [u8; N],
     used: usize,
 }
 
-impl<const N: usize> WdkFormatBuffer<N> {
+impl<const N: usize> FormatBuffer<N> {
     /// Creates a zeroed formatting buffer with capacity `N`.
     ///
     /// The buffer starts empty (`used == 0`) and is ready for `fmt::Write`.
@@ -42,8 +42,8 @@ impl<const N: usize> WdkFormatBuffer<N> {
     /// `N` must be at least 2 (one byte of content plus the NUL terminator).
     /// Smaller values will not compile:
     /// ```compile_fail
-    /// use wdk::WdkFormatBuffer;
-    /// let _ = WdkFormatBuffer::<1>::new();
+    /// use wdk::fmt::FormatBuffer;
+    /// let _ = FormatBuffer::<1>::new();
     /// ```
     #[must_use]
     pub const fn new() -> Self {
@@ -51,7 +51,7 @@ impl<const N: usize> WdkFormatBuffer<N> {
             assert!(
                 N >= 2,
                 "N must be at least 2 (one byte of content plus the NUL terminator)"
-            )
+            );
         }
         Self {
             buffer: [0; N],
@@ -60,8 +60,9 @@ impl<const N: usize> WdkFormatBuffer<N> {
     }
 
     /// Clears the buffer, resetting it to its initial empty state.
-    pub fn clear(&mut self) {
+    pub const fn clear(&mut self) {
         self.used = 0;
+        self.buffer[0] = 0;
     }
 
     /// Returns a UTF-8 view over the written bytes.
@@ -80,8 +81,13 @@ impl<const N: usize> WdkFormatBuffer<N> {
     ///
     /// The buffer always contains a NUL terminator because `write_str`
     /// reserves the last byte.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the buffer contains no NUL byte. This should never happen
+    /// in practice — the NUL invariant is maintained by all mutation methods.
     #[must_use]
-    pub const fn as_cstr(&self) -> &CStr {
+    pub const fn as_c_str(&self) -> &CStr {
         match CStr::from_bytes_until_nul(&self.buffer) {
             Ok(cstr) => cstr,
             // `unreachable!()` with a message uses `format_args!`, which is
@@ -93,13 +99,13 @@ impl<const N: usize> WdkFormatBuffer<N> {
     }
 }
 
-impl<const N: usize> Default for WdkFormatBuffer<N> {
+impl<const N: usize> Default for FormatBuffer<N> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const N: usize> fmt::Write for WdkFormatBuffer<N> {
+impl<const N: usize> fmt::Write for FormatBuffer<N> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // The last byte (buffer[N-1]) is reserved for the NUL terminator
         // so that the buffer always contains a valid `CStr`.
@@ -109,43 +115,45 @@ impl<const N: usize> fmt::Write for WdkFormatBuffer<N> {
         // Overflow: copy what fits at a char boundary and signal error.
         if s.len() > remaining {
             let fit = s.floor_char_boundary(remaining);
-            self.buffer[self.used..self.used + fit].copy_from_slice(s[..fit].as_bytes());
+            self.buffer[self.used..self.used + fit].copy_from_slice(&s.as_bytes()[..fit]);
             self.used += fit;
+            self.buffer[self.used] = 0;
             return Err(fmt::Error);
         }
 
         // Normal write: append the full string.
         self.buffer[self.used..self.used + s.len()].copy_from_slice(s.as_bytes());
         self.used += s.len();
+        self.buffer[self.used] = 0;
         Ok(())
     }
 }
 
-/// A [`WdkFormatBuffer`] wrapper that auto-flushes on overflow.
+/// A [`FormatBuffer`] wrapper that auto-flushes on overflow.
 ///
 /// When a `write_str` call would exceed the buffer capacity, the current
 /// contents are flushed via the provided closure, the buffer is cleared, and
 /// writing continues with the remainder. This allows arbitrarily long
 /// formatted output to be processed in fixed-size chunks.
-/// `N` must be at least 2 (enforced by [`WdkFormatBuffer::new`]).
+/// `N` must be at least 2 (enforced by [`FormatBuffer::new`]).
 ///
 /// After all writes are complete, any remaining buffered content is
 /// automatically flushed when the writer is dropped. The caller may also
 /// call [`flush`](Self::flush) explicitly to drain the buffer early.
-pub struct WdkFlushableFormatBuffer<
-    F: FnMut(&WdkFormatBuffer<N>),
+pub struct FlushableFormatBuffer<
+    F: FnMut(&FormatBuffer<N>),
     const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE,
 > {
-    format_buffer: WdkFormatBuffer<N>,
+    format_buffer: FormatBuffer<N>,
     flush_fn: F,
 }
 
-impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> WdkFlushableFormatBuffer<F, N> {
+impl<F: FnMut(&FormatBuffer<N>), const N: usize> FlushableFormatBuffer<F, N> {
     /// Creates a new flushable writer with the given flush closure.
     #[must_use]
-    pub fn new(flush_fn: F) -> Self {
+    pub const fn new(flush_fn: F) -> Self {
         Self {
-            format_buffer: WdkFormatBuffer::new(),
+            format_buffer: FormatBuffer::new(),
             flush_fn,
         }
     }
@@ -162,13 +170,13 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> WdkFlushableFormatBuffer<F, 
     }
 }
 
-impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> Drop for WdkFlushableFormatBuffer<F, N> {
+impl<F: FnMut(&FormatBuffer<N>), const N: usize> Drop for FlushableFormatBuffer<F, N> {
     fn drop(&mut self) {
         self.flush();
     }
 }
 
-impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableFormatBuffer<F, N> {
+impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatBuffer<F, N> {
     /// Appends `s` to the buffer, flushing via the closure whenever the
     /// buffer fills. Returns [`fmt::Error`] only when a single UTF-8 code
     /// point is larger than the usable buffer capacity (`N - 1` bytes).
@@ -193,8 +201,9 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableF
             }
 
             self.format_buffer.buffer[self.format_buffer.used..self.format_buffer.used + split]
-                .copy_from_slice(remaining[..split].as_bytes());
+                .copy_from_slice(&remaining.as_bytes()[..split]);
             self.format_buffer.used += split;
+            self.format_buffer.buffer[self.format_buffer.used] = 0;
 
             (self.flush_fn)(&self.format_buffer);
             self.format_buffer.clear();
@@ -207,6 +216,7 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableF
             [self.format_buffer.used..self.format_buffer.used + remaining.len()]
             .copy_from_slice(remaining.as_bytes());
         self.format_buffer.used += remaining.len();
+        self.format_buffer.buffer[self.format_buffer.used] = 0;
         Ok(())
     }
 }
@@ -215,10 +225,10 @@ impl<F: FnMut(&WdkFormatBuffer<N>), const N: usize> fmt::Write for WdkFlushableF
 mod wdk_format_buffer_tests {
     use core::fmt::Write;
 
-    use super::WdkFormatBuffer;
+    use super::FormatBuffer;
     #[test]
     fn initialize() {
-        let fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
+        let fmt_buffer: FormatBuffer = FormatBuffer::new();
         assert_eq!(fmt_buffer.used, 0);
         assert_eq!(fmt_buffer.buffer.len(), 512);
         assert!(fmt_buffer.buffer.iter().all(|&b| b == 0));
@@ -226,13 +236,13 @@ mod wdk_format_buffer_tests {
 
     #[test]
     fn change_len() {
-        let fmt_buffer: WdkFormatBuffer<2> = WdkFormatBuffer::new();
+        let fmt_buffer: FormatBuffer<2> = FormatBuffer::new();
         assert_eq!(fmt_buffer.buffer.len(), 2);
     }
 
     #[test]
     fn minimum_buffer_write() {
-        let mut fmt_buffer = WdkFormatBuffer::<2>::new();
+        let mut fmt_buffer = FormatBuffer::<2>::new();
         assert!(write!(&mut fmt_buffer, "a").is_ok());
         assert_eq!(fmt_buffer.as_str(), "a");
         assert!(write!(&mut fmt_buffer, "b").is_err());
@@ -240,7 +250,7 @@ mod wdk_format_buffer_tests {
 
     #[test]
     fn write() {
-        let mut fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
         let world: &str = "world";
         assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
 
@@ -253,7 +263,7 @@ mod wdk_format_buffer_tests {
 
     #[test]
     fn as_str() {
-        let mut fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
         let world: &str = "world";
         assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
         assert_eq!(fmt_buffer.as_str(), "Hello world!");
@@ -261,7 +271,7 @@ mod wdk_format_buffer_tests {
 
     #[test]
     fn ref_sanity_check() {
-        let mut fmt_buffer: WdkFormatBuffer = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
         let world: &str = "world";
         assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
 
@@ -274,10 +284,10 @@ mod wdk_format_buffer_tests {
         assert!(write!(&mut fmt_buffer, " Second sentence!").is_ok());
         assert_eq!(fmt_buffer.as_str(), "Hello world! Second sentence!");
 
-        // as_cstr now borrows immutably
+        // as_c_str now borrows immutably
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"Hello world! Second sentence!\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
 
         // mutable borrow ends here so we can edit the backing buffer.
@@ -290,7 +300,7 @@ mod wdk_format_buffer_tests {
 
     #[test]
     fn overflow_buffer() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         assert!(write!(&mut fmt_buffer, "0123456789").is_err());
 
         // Usable capacity is N-1 = 7; last byte reserved for NUL
@@ -299,13 +309,13 @@ mod wdk_format_buffer_tests {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn exact_buffer_size() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         // Writing exactly N bytes overflows (capacity is N-1)
         assert!(write!(&mut fmt_buffer, "01234567").is_err());
 
@@ -314,13 +324,13 @@ mod wdk_format_buffer_tests {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn exact_capacity_fit() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         // Writing exactly N-1 bytes succeeds
         assert!(write!(&mut fmt_buffer, "0123456").is_ok());
 
@@ -329,13 +339,13 @@ mod wdk_format_buffer_tests {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn overflow_buffer_after_multiple_writes() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         assert!(write!(&mut fmt_buffer, "01234").is_ok());
         assert!(write!(&mut fmt_buffer, "56789").is_err());
 
@@ -344,13 +354,13 @@ mod wdk_format_buffer_tests {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn overflow_buffer_then_multiple_writes() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         assert!(write!(&mut fmt_buffer, "01234").is_ok());
         assert!(write!(&mut fmt_buffer, "56789").is_err());
         assert!(write!(&mut fmt_buffer, "overflow!").is_err());
@@ -361,13 +371,13 @@ mod wdk_format_buffer_tests {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn exact_buffer_size_multiple_writes() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         assert!(write!(&mut fmt_buffer, "01234").is_ok());
         // "56" fits in remaining capacity (2 bytes), but "567" overflows
         assert!(write!(&mut fmt_buffer, "567").is_err());
@@ -377,25 +387,25 @@ mod wdk_format_buffer_tests {
 
         let cmp_c_str: &core::ffi::CStr =
             core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn empty_buffer_strs() {
-        let fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
 
         let buf_str = fmt_buffer.as_str();
         assert_eq!(buf_str, "");
 
         let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn write_empty_strings() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         assert!(write!(&mut fmt_buffer, "").is_ok());
         assert!(write!(&mut fmt_buffer, "").is_ok());
 
@@ -405,13 +415,13 @@ mod wdk_format_buffer_tests {
         assert_eq!(fmt_buffer.as_str(), "");
 
         let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_c_str = fmt_buffer.as_cstr();
+        let buf_c_str = fmt_buffer.as_c_str();
         assert_eq!(buf_c_str, cmp_c_str);
     }
 
     #[test]
     fn overflow_truncates_at_char_boundary() {
-        let mut fmt_buffer: WdkFormatBuffer<8> = WdkFormatBuffer::new();
+        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
         // Capacity is 7. "❤️🧡💛💚💙💜" is 26 bytes.
         // ❤️ is 6 bytes, 🧡 starts at byte 6 but needs 4 bytes (total 10).
         // floor_char_boundary(7) = 6, so only ❤️ fits.
@@ -421,20 +431,30 @@ mod wdk_format_buffer_tests {
 
     #[test]
     fn interior_nul_truncates_cstr() {
-        let mut fmt_buffer = WdkFormatBuffer::<16>::new();
+        let mut fmt_buffer = FormatBuffer::<16>::new();
         assert!(write!(&mut fmt_buffer, "hello\0world").is_ok());
         assert_eq!(fmt_buffer.as_str(), "hello\0world");
-        assert_eq!(fmt_buffer.as_cstr(), c"hello");
+        assert_eq!(fmt_buffer.as_c_str(), c"hello");
     }
 
     #[test]
     fn clear_empties_buffer() {
-        let mut fmt_buffer = WdkFormatBuffer::<8>::new();
+        let mut fmt_buffer = FormatBuffer::<8>::new();
         assert!(write!(&mut fmt_buffer, "hello").is_ok());
         fmt_buffer.clear();
         assert_eq!(fmt_buffer.used, 0);
         assert_eq!(fmt_buffer.as_str(), "");
-        assert_eq!(fmt_buffer.as_cstr(), c"");
+        assert_eq!(fmt_buffer.as_c_str(), c"");
+    }
+
+    #[test]
+    fn clear_then_shorter_write_produces_correct_cstr() {
+        let mut fmt_buffer = FormatBuffer::<8>::new();
+        assert!(write!(&mut fmt_buffer, "hello").is_ok());
+        fmt_buffer.clear();
+        assert!(write!(&mut fmt_buffer, "hi").is_ok());
+        assert_eq!(fmt_buffer.as_str(), "hi");
+        assert_eq!(fmt_buffer.as_c_str(), c"hi");
     }
 }
 
@@ -445,16 +465,16 @@ mod wdk_flushable_format_buffer_tests {
     use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
     use core::fmt::Write;
 
-    use super::WdkFlushableFormatBuffer;
+    use super::FlushableFormatBuffer;
 
     #[test]
     fn write_fits_in_buffer() {
         let mut flushed: Vec<String> = Vec::new();
-        let mut writer = WdkFlushableFormatBuffer::<_, 16>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 16>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         assert!(write!(&mut writer, "hello").is_ok());
-        writer.flush();
+        drop(writer);
         assert_eq!(flushed, vec!["hello"]);
     }
 
@@ -462,14 +482,14 @@ mod wdk_flushable_format_buffer_tests {
     fn overflow_triggers_flush() {
         let mut flushed: Vec<String> = Vec::new();
         // Capacity is N-1 = 7 usable bytes
-        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         // "0123456789" is 10 bytes — exceeds 7-byte capacity.
         // First 7 bytes fill the buffer, triggering a flush.
         // Remaining "789" goes into the cleared buffer.
         assert!(write!(&mut writer, "0123456789").is_ok());
-        writer.flush();
+        drop(writer);
         assert_eq!(flushed, vec!["0123456", "789"]);
     }
 
@@ -477,34 +497,34 @@ mod wdk_flushable_format_buffer_tests {
     fn multi_flush() {
         let mut flushed: Vec<String> = Vec::new();
         // Capacity is N-1 = 3 usable bytes
-        let mut writer = WdkFlushableFormatBuffer::<_, 4>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 4>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         // "0123456789" is 10 bytes — triggers 3 flushes (3+3+3), leaves "9" in buffer.
         assert!(write!(&mut writer, "0123456789").is_ok());
-        writer.flush();
+        drop(writer);
         assert_eq!(flushed, vec!["012", "345", "678", "9"]);
     }
 
     #[test]
     fn empty_write_does_not_flush() {
         let mut flushed: Vec<String> = Vec::new();
-        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         assert!(write!(&mut writer, "").is_ok());
         assert!(write!(&mut writer, "").is_ok());
-        writer.flush();
+        drop(writer);
         assert!(flushed.is_empty());
     }
 
     #[test]
     fn flush_empty_buffer_is_noop() {
         let mut flushed: Vec<String> = Vec::new();
-        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+        let writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
-        writer.flush();
+        drop(writer);
         assert!(flushed.is_empty());
     }
 
@@ -512,12 +532,12 @@ mod wdk_flushable_format_buffer_tests {
     fn exact_capacity_fit() {
         let mut flushed: Vec<String> = Vec::new();
         // Capacity is N-1 = 7 usable bytes
-        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         // Exactly 7 bytes — fits perfectly, no flush triggered.
         assert!(write!(&mut writer, "0123456").is_ok());
-        writer.flush();
+        drop(writer);
         assert_eq!(flushed, vec!["0123456"]);
     }
 
@@ -525,7 +545,7 @@ mod wdk_flushable_format_buffer_tests {
     fn multiple_writes_with_intermittent_overflow() {
         let mut flushed: Vec<String> = Vec::new();
         // Capacity is N-1 = 7 usable bytes
-        let mut writer = WdkFlushableFormatBuffer::<_, 8>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         assert!(write!(&mut writer, "abc").is_ok());
@@ -533,7 +553,7 @@ mod wdk_flushable_format_buffer_tests {
         assert!(write!(&mut writer, "ghi").is_ok());
         assert!(write!(&mut writer, "jkl").is_ok());
         assert!(write!(&mut writer, "mno").is_ok());
-        writer.flush();
+        drop(writer);
         // Flush order proves overflow happened at the right boundaries:
         // "abcdefg" (7), "hijklmn" (7), "o" (remainder)
         assert_eq!(flushed, vec!["abcdefg", "hijklmn", "o"]);
@@ -545,11 +565,11 @@ mod wdk_flushable_format_buffer_tests {
         // Capacity is N-1 = 6 usable bytes.
         // ❤️ is 6 bytes (U+2764 + U+FE0F), each other heart is 4 bytes.
         // "❤️🧡💛💚💙💜" is 26 bytes total — each heart gets its own chunk.
-        let mut writer = WdkFlushableFormatBuffer::<_, 7>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_ok());
-        writer.flush();
+        drop(writer);
         assert_eq!(flushed, vec!["❤️", "🧡", "💛", "💚", "💙", "💜"]);
     }
 
@@ -559,12 +579,12 @@ mod wdk_flushable_format_buffer_tests {
         // Capacity is N-1 = 6 usable bytes.
         // "abcd" (4 bytes) leaves 2 bytes of space — not enough for ❤️ (6 bytes).
         // Flushes "abcd", then chunks the hearts as in the previous test.
-        let mut writer = WdkFlushableFormatBuffer::<_, 7>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         assert!(write!(&mut writer, "abcd").is_ok());
         assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_ok());
-        writer.flush();
+        drop(writer);
         assert_eq!(flushed, vec!["abcd", "❤️", "🧡", "💛", "💚", "💙", "💜"]);
     }
 
@@ -573,10 +593,11 @@ mod wdk_flushable_format_buffer_tests {
         let mut flushed: Vec<String> = Vec::new();
         // Capacity is N-1 = 2 usable bytes.
         // ❤️🧡💛💚💙💜 starts with ❤ (3 bytes) — can never fit.
-        let mut writer = WdkFlushableFormatBuffer::<_, 3>::new(|buf| {
+        let mut writer = FlushableFormatBuffer::<_, 3>::new(|buf| {
             flushed.push(buf.as_str().to_owned());
         });
         assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_err());
+        drop(writer);
         assert!(flushed.is_empty());
     }
 }
