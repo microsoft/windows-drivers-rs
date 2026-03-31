@@ -17,8 +17,6 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
-alloc = []
-default = ["alloc"]
 nightly = ["wdk-sys/nightly"]
 
 [dependencies]

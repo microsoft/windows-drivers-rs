@@ -28,7 +28,6 @@ const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 /// let c = buf.as_c_str();
 /// assert_eq!(c.to_bytes(), b"hello 42");
 /// ```
-#[derive(Debug)]
 pub struct FormatBuffer<const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE> {
     buffer: [u8; N],
     used: usize,
@@ -71,9 +70,9 @@ impl<const N: usize> FormatBuffer<N> {
     /// slice.
     #[must_use]
     pub fn as_str(&self) -> &str {
-        // SAFETY: `fmt::Write::write_str` only accepts `&str` (valid UTF-8),
-        // and `buffer`/`used` are private — no code path writes invalid UTF-8
-        // into the buffer.
+        // SAFETY: All writes come from `&str` sources (valid UTF-8) — both
+        // `FormatBuffer::write_str` and `FlushableFormatBuffer::write_str`
+        // copy only from `&str::as_bytes()`. Fields are module-private.
         unsafe { core::str::from_utf8_unchecked(&self.buffer[..self.used]) }
     }
 
@@ -97,11 +96,32 @@ impl<const N: usize> FormatBuffer<N> {
             }
         }
     }
+
+    /// Appends `bytes` to the buffer and NUL-terminates.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bytes.len()` exceeds the remaining capacity (`N - 1 - used`).
+    fn append_bytes(&mut self, bytes: &[u8]) {
+        self.buffer[self.used..self.used + bytes.len()].copy_from_slice(bytes);
+        self.used += bytes.len();
+        self.buffer[self.used] = 0;
+    }
 }
 
 impl<const N: usize> Default for FormatBuffer<N> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<const N: usize> fmt::Debug for FormatBuffer<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FormatBuffer")
+            .field("used", &self.used)
+            .field("capacity", &(N - 1))
+            .field("content", &self.as_str())
+            .finish_non_exhaustive()
     }
 }
 
@@ -115,16 +135,12 @@ impl<const N: usize> fmt::Write for FormatBuffer<N> {
         // Overflow: copy what fits at a char boundary and signal error.
         if s.len() > remaining {
             let fit = s.floor_char_boundary(remaining);
-            self.buffer[self.used..self.used + fit].copy_from_slice(&s.as_bytes()[..fit]);
-            self.used += fit;
-            self.buffer[self.used] = 0;
+            self.append_bytes(&s.as_bytes()[..fit]);
             return Err(fmt::Error);
         }
 
         // Normal write: append the full string.
-        self.buffer[self.used..self.used + s.len()].copy_from_slice(s.as_bytes());
-        self.used += s.len();
-        self.buffer[self.used] = 0;
+        self.append_bytes(s.as_bytes());
         Ok(())
     }
 }
@@ -200,10 +216,8 @@ impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatB
                 continue;
             }
 
-            self.format_buffer.buffer[self.format_buffer.used..self.format_buffer.used + split]
-                .copy_from_slice(&remaining.as_bytes()[..split]);
-            self.format_buffer.used += split;
-            self.format_buffer.buffer[self.format_buffer.used] = 0;
+            self.format_buffer
+                .append_bytes(&remaining.as_bytes()[..split]);
 
             (self.flush_fn)(&self.format_buffer);
             self.format_buffer.clear();
@@ -212,11 +226,7 @@ impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatB
         }
 
         // Remaining bytes fit in the buffer.
-        self.format_buffer.buffer
-            [self.format_buffer.used..self.format_buffer.used + remaining.len()]
-            .copy_from_slice(remaining.as_bytes());
-        self.format_buffer.used += remaining.len();
-        self.format_buffer.buffer[self.format_buffer.used] = 0;
+        self.format_buffer.append_bytes(remaining.as_bytes());
         Ok(())
     }
 }
@@ -476,6 +486,19 @@ mod wdk_flushable_format_buffer_tests {
         assert!(write!(&mut writer, "hello").is_ok());
         drop(writer);
         assert_eq!(flushed, vec!["hello"]);
+    }
+
+    #[test]
+    fn explicit_flush_then_continue() {
+        let mut flushed: Vec<String> = Vec::new();
+        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+            flushed.push(buf.as_str().to_owned());
+        });
+        assert!(write!(&mut writer, "abc").is_ok());
+        writer.flush();
+        assert!(write!(&mut writer, "def").is_ok());
+        drop(writer);
+        assert_eq!(flushed, vec!["abc", "def"]);
     }
 
     #[test]
