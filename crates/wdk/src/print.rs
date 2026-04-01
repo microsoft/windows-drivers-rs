@@ -179,10 +179,11 @@ pub fn _print(args: fmt::Arguments) {
                 }
             });
 
-            // For N=512, write_str cannot fail: the largest UTF-8 code point
-            // is 4 bytes, which always fits in the 511-byte capacity. Overflow
-            // is handled by flushing. Errors from Display impls are silently
-            // dropped — partial output is acceptable for debug printing.
+            // For N=512, FlushableFormatBuffer::write_str cannot fail: it only
+            // returns Err when a single UTF-8 code point exceeds the usable
+            // capacity (N-1 = 511 bytes), which is impossible (max 4 bytes).
+            // Overflow is handled by flushing. Errors from Display impls are
+            // silently dropped — partial output is acceptable for debug printing.
             let _ = fmt::write(&mut writer, args);
             writer.flush();
 

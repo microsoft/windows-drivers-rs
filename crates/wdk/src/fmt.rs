@@ -87,7 +87,8 @@ impl<const N: usize> FormatBuffer<N> {
     /// in practice — the NUL invariant is maintained by all mutation methods.
     #[must_use]
     pub const fn as_c_str(&self) -> &CStr {
-        match CStr::from_bytes_until_nul(&self.buffer) {
+        // Only scan up to `used + 1` — the NUL is guaranteed at `buffer[used]`.
+        match CStr::from_bytes_until_nul(self.buffer.split_at(self.used + 1).0) {
             Ok(cstr) => cstr,
             // `unreachable!()` with a message uses `format_args!`, which is
             // not const-compatible. Use `panic!` with a string literal instead.
@@ -233,7 +234,7 @@ impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatB
 
 #[cfg(test)]
 mod tests {
-    use super::{FlushableFormatBuffer, FormatBuffer};
+    use super::{DEFAULT_WDK_FORMAT_BUFFER_SIZE, FlushableFormatBuffer, FormatBuffer};
 
     mod format_buffer {
         use core::fmt::Write;
@@ -244,7 +245,7 @@ mod tests {
         fn initialize() {
             let fmt_buffer: FormatBuffer = FormatBuffer::new();
             assert_eq!(fmt_buffer.used, 0);
-            assert_eq!(fmt_buffer.buffer.len(), 512);
+            assert_eq!(fmt_buffer.buffer.len(), DEFAULT_WDK_FORMAT_BUFFER_SIZE);
             assert!(fmt_buffer.buffer.iter().all(|&b| b == 0));
         }
 
