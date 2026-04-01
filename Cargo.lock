@@ -1183,6 +1183,10 @@ name = "wdk-panic"
 version = "0.4.1"
 
 [[package]]
+name = "wdk-python"
+version = "0.0.1"
+
+[[package]]
 name = "wdk-sys"
 version = "0.5.1"
 dependencies = [

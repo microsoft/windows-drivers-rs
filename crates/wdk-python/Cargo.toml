@@ -1,0 +1,13 @@
+[package]
+categories = ["hardware-support"]
+description = "Python support for the Windows Driver Kit (WDK). Closes #635."
+edition.workspace = true
+keywords = ["python", "wdk", "windows", "drivers"]
+license.workspace = true
+name = "wdk-python"
+readme.workspace = true
+repository.workspace = true
+version = "0.0.1"
+
+[lints]
+workspace = true
