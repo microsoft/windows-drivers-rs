@@ -108,7 +108,7 @@ jobs:
 
       - name: Upload Coverage to Codecov
         if: matrix.runner.arch != 'arm64' && github.repository == 'microsoft/windows-drivers-rs' # Skip for forks because they may not have CODECOV_TOKEN
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: target/codecov.info
           token: ${{ secrets.CODECOV_TOKEN }}
