@@ -232,395 +232,399 @@ impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatB
 }
 
 #[cfg(test)]
-mod wdk_format_buffer_tests {
-    use core::fmt::Write;
+mod tests {
+    use super::{FlushableFormatBuffer, FormatBuffer};
 
-    use super::FormatBuffer;
-    #[test]
-    fn initialize() {
-        let fmt_buffer: FormatBuffer = FormatBuffer::new();
-        assert_eq!(fmt_buffer.used, 0);
-        assert_eq!(fmt_buffer.buffer.len(), 512);
-        assert!(fmt_buffer.buffer.iter().all(|&b| b == 0));
+    mod format_buffer {
+        use core::fmt::Write;
+
+        use super::*;
+
+        #[test]
+        fn initialize() {
+            let fmt_buffer: FormatBuffer = FormatBuffer::new();
+            assert_eq!(fmt_buffer.used, 0);
+            assert_eq!(fmt_buffer.buffer.len(), 512);
+            assert!(fmt_buffer.buffer.iter().all(|&b| b == 0));
+        }
+
+        #[test]
+        fn change_len() {
+            let fmt_buffer: FormatBuffer<2> = FormatBuffer::new();
+            assert_eq!(fmt_buffer.buffer.len(), 2);
+        }
+
+        #[test]
+        fn minimum_buffer_write() {
+            let mut fmt_buffer = FormatBuffer::<2>::new();
+            assert!(write!(&mut fmt_buffer, "a").is_ok());
+            assert_eq!(fmt_buffer.as_str(), "a");
+            assert!(write!(&mut fmt_buffer, "b").is_err());
+        }
+
+        #[test]
+        fn write() {
+            let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
+            let world: &str = "world";
+            assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
+
+            let mut cmp_buffer: [u8; 512] = [0; 512];
+            let cmp_str: &str = "Hello world!";
+            cmp_buffer[..cmp_str.len()].copy_from_slice(cmp_str.as_bytes());
+
+            assert_eq!(fmt_buffer.buffer, cmp_buffer);
+        }
+
+        #[test]
+        fn as_str() {
+            let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
+            let world: &str = "world";
+            assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
+            assert_eq!(fmt_buffer.as_str(), "Hello world!");
+        }
+
+        #[test]
+        fn ref_sanity_check() {
+            let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
+            let world: &str = "world";
+            assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
+
+            // borrow fmt_buffer -- while this is in scope we cannot edit fmt_buffer
+            let buf_str = fmt_buffer.as_str();
+            // buf_str borrows fmt_buffer, so we cannot write to it here.
+            assert_eq!(buf_str, "Hello world!");
+
+            // buf_str cannot be used after this. The backing buffer stays in scope.
+            assert!(write!(&mut fmt_buffer, " Second sentence!").is_ok());
+            assert_eq!(fmt_buffer.as_str(), "Hello world! Second sentence!");
+
+            // as_c_str now borrows immutably
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"Hello world! Second sentence!\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+
+            // mutable borrow ends here so we can edit the backing buffer.
+            assert!(write!(&mut fmt_buffer, " A third sentence!").is_ok());
+            assert_eq!(
+                fmt_buffer.as_str(),
+                "Hello world! Second sentence! A third sentence!"
+            );
+        }
+
+        #[test]
+        fn overflow_buffer() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            assert!(write!(&mut fmt_buffer, "0123456789").is_err());
+
+            // Usable capacity is N-1 = 7; last byte reserved for NUL
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "0123456");
+
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn exact_buffer_size() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            // Writing exactly N bytes overflows (capacity is N-1)
+            assert!(write!(&mut fmt_buffer, "01234567").is_err());
+
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "0123456");
+
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn exact_capacity_fit() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            // Writing exactly N-1 bytes succeeds
+            assert!(write!(&mut fmt_buffer, "0123456").is_ok());
+
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "0123456");
+
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn overflow_buffer_after_multiple_writes() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            assert!(write!(&mut fmt_buffer, "01234").is_ok());
+            assert!(write!(&mut fmt_buffer, "56789").is_err());
+
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "0123456");
+
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn overflow_buffer_then_multiple_writes() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            assert!(write!(&mut fmt_buffer, "01234").is_ok());
+            assert!(write!(&mut fmt_buffer, "56789").is_err());
+            assert!(write!(&mut fmt_buffer, "overflow!").is_err());
+            assert!(write!(&mut fmt_buffer, "overflow!").is_err());
+
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "0123456");
+
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn exact_buffer_size_multiple_writes() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            assert!(write!(&mut fmt_buffer, "01234").is_ok());
+            // "56" fits in remaining capacity (2 bytes), but "567" overflows
+            assert!(write!(&mut fmt_buffer, "567").is_err());
+
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "0123456");
+
+            let cmp_c_str: &core::ffi::CStr =
+                core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn empty_buffer_strs() {
+            let fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+
+            let buf_str = fmt_buffer.as_str();
+            assert_eq!(buf_str, "");
+
+            let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn write_empty_strings() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            assert!(write!(&mut fmt_buffer, "").is_ok());
+            assert!(write!(&mut fmt_buffer, "").is_ok());
+
+            assert_eq!(fmt_buffer.used, 0);
+            assert!(fmt_buffer.buffer.iter().all(|&b| b == 0));
+
+            assert_eq!(fmt_buffer.as_str(), "");
+
+            let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
+            let buf_c_str = fmt_buffer.as_c_str();
+            assert_eq!(buf_c_str, cmp_c_str);
+        }
+
+        #[test]
+        fn overflow_truncates_at_char_boundary() {
+            let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
+            // Capacity is 7. "❤️🧡💛💚💙💜" is 26 bytes.
+            // ❤️ is 6 bytes, 🧡 starts at byte 6 but needs 4 bytes (total 10).
+            // floor_char_boundary(7) = 6, so only ❤️ fits.
+            assert!(write!(&mut fmt_buffer, "❤️🧡💛💚💙💜").is_err());
+            assert_eq!(fmt_buffer.as_str(), "❤️");
+        }
+
+        #[test]
+        fn interior_nul_truncates_cstr() {
+            let mut fmt_buffer = FormatBuffer::<16>::new();
+            assert!(write!(&mut fmt_buffer, "hello\0world").is_ok());
+            assert_eq!(fmt_buffer.as_str(), "hello\0world");
+            assert_eq!(fmt_buffer.as_c_str(), c"hello");
+        }
+
+        #[test]
+        fn clear_empties_buffer() {
+            let mut fmt_buffer = FormatBuffer::<8>::new();
+            assert!(write!(&mut fmt_buffer, "hello").is_ok());
+            fmt_buffer.clear();
+            assert_eq!(fmt_buffer.used, 0);
+            assert_eq!(fmt_buffer.as_str(), "");
+            assert_eq!(fmt_buffer.as_c_str(), c"");
+        }
+
+        #[test]
+        fn clear_then_shorter_write_produces_correct_cstr() {
+            let mut fmt_buffer = FormatBuffer::<8>::new();
+            assert!(write!(&mut fmt_buffer, "hello").is_ok());
+            fmt_buffer.clear();
+            assert!(write!(&mut fmt_buffer, "hi").is_ok());
+            assert_eq!(fmt_buffer.as_str(), "hi");
+            assert_eq!(fmt_buffer.as_c_str(), c"hi");
+        }
     }
 
-    #[test]
-    fn change_len() {
-        let fmt_buffer: FormatBuffer<2> = FormatBuffer::new();
-        assert_eq!(fmt_buffer.buffer.len(), 2);
-    }
+    mod flushable_format_buffer {
+        extern crate alloc;
 
-    #[test]
-    fn minimum_buffer_write() {
-        let mut fmt_buffer = FormatBuffer::<2>::new();
-        assert!(write!(&mut fmt_buffer, "a").is_ok());
-        assert_eq!(fmt_buffer.as_str(), "a");
-        assert!(write!(&mut fmt_buffer, "b").is_err());
-    }
+        use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
+        use core::fmt::Write;
 
-    #[test]
-    fn write() {
-        let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
-        let world: &str = "world";
-        assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
+        use super::*;
 
-        let mut cmp_buffer: [u8; 512] = [0; 512];
-        let cmp_str: &str = "Hello world!";
-        cmp_buffer[..cmp_str.len()].copy_from_slice(cmp_str.as_bytes());
+        #[test]
+        fn write_fits_in_buffer() {
+            let mut flushed: Vec<String> = Vec::new();
+            let mut writer = FlushableFormatBuffer::<_, 16>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "hello").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["hello"]);
+        }
 
-        assert_eq!(fmt_buffer.buffer, cmp_buffer);
-    }
+        #[test]
+        fn explicit_flush_then_continue() {
+            let mut flushed: Vec<String> = Vec::new();
+            let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "abc").is_ok());
+            writer.flush();
+            assert!(write!(&mut writer, "def").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["abc", "def"]);
+        }
 
-    #[test]
-    fn as_str() {
-        let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
-        let world: &str = "world";
-        assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
-        assert_eq!(fmt_buffer.as_str(), "Hello world!");
-    }
+        #[test]
+        fn overflow_triggers_flush() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 7 usable bytes
+            let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            // "0123456789" is 10 bytes — exceeds 7-byte capacity.
+            // First 7 bytes fill the buffer, triggering a flush.
+            // Remaining "789" goes into the cleared buffer.
+            assert!(write!(&mut writer, "0123456789").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["0123456", "789"]);
+        }
 
-    #[test]
-    fn ref_sanity_check() {
-        let mut fmt_buffer: FormatBuffer = FormatBuffer::new();
-        let world: &str = "world";
-        assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
+        #[test]
+        fn multi_flush() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 3 usable bytes
+            let mut writer = FlushableFormatBuffer::<_, 4>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            // "0123456789" is 10 bytes — triggers 3 flushes (3+3+3), leaves "9" in buffer.
+            assert!(write!(&mut writer, "0123456789").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["012", "345", "678", "9"]);
+        }
 
-        // borrow fmt_buffer -- while this is in scope we cannot edit fmt_buffer
-        let buf_str = fmt_buffer.as_str();
-        // buf_str borrows fmt_buffer, so we cannot write to it here.
-        assert_eq!(buf_str, "Hello world!");
+        #[test]
+        fn empty_write_does_not_flush() {
+            let mut flushed: Vec<String> = Vec::new();
+            let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "").is_ok());
+            assert!(write!(&mut writer, "").is_ok());
+            drop(writer);
+            assert!(flushed.is_empty());
+        }
 
-        // buf_str cannot be used after this. The backing buffer stays in scope.
-        assert!(write!(&mut fmt_buffer, " Second sentence!").is_ok());
-        assert_eq!(fmt_buffer.as_str(), "Hello world! Second sentence!");
+        #[test]
+        fn flush_empty_buffer_is_noop() {
+            let mut flushed: Vec<String> = Vec::new();
+            let writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            drop(writer);
+            assert!(flushed.is_empty());
+        }
 
-        // as_c_str now borrows immutably
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"Hello world! Second sentence!\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
+        #[test]
+        fn exact_capacity_fit() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 7 usable bytes
+            let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            // Exactly 7 bytes — fits perfectly, no flush triggered.
+            assert!(write!(&mut writer, "0123456").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["0123456"]);
+        }
 
-        // mutable borrow ends here so we can edit the backing buffer.
-        assert!(write!(&mut fmt_buffer, " A third sentence!").is_ok());
-        assert_eq!(
-            fmt_buffer.as_str(),
-            "Hello world! Second sentence! A third sentence!"
-        );
-    }
+        #[test]
+        fn multiple_writes_with_intermittent_overflow() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 7 usable bytes
+            let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "abc").is_ok());
+            assert!(write!(&mut writer, "def").is_ok());
+            assert!(write!(&mut writer, "ghi").is_ok());
+            assert!(write!(&mut writer, "jkl").is_ok());
+            assert!(write!(&mut writer, "mno").is_ok());
+            drop(writer);
+            // Flush order proves overflow happened at the right boundaries:
+            // "abcdefg" (7), "hijklmn" (7), "o" (remainder)
+            assert_eq!(flushed, vec!["abcdefg", "hijklmn", "o"]);
+        }
 
-    #[test]
-    fn overflow_buffer() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "0123456789").is_err());
+        #[test]
+        fn multi_byte_chars_split_at_char_boundary() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 6 usable bytes.
+            // ❤️ is 6 bytes (U+2764 + U+FE0F), each other heart is 4 bytes.
+            // "❤️🧡💛💚💙💜" is 26 bytes total — each heart gets its own chunk.
+            let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["❤️", "🧡", "💛", "💚", "💙", "💜"]);
+        }
 
-        // Usable capacity is N-1 = 7; last byte reserved for NUL
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "0123456");
+        #[test]
+        fn multi_byte_char_triggers_early_flush() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 6 usable bytes.
+            // "abcd" (4 bytes) leaves 2 bytes of space — not enough for ❤️ (6 bytes).
+            // Flushes "abcd", then chunks the hearts as in the previous test.
+            let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "abcd").is_ok());
+            assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_ok());
+            drop(writer);
+            assert_eq!(flushed, vec!["abcd", "❤️", "🧡", "💛", "💚", "💙", "💜"]);
+        }
 
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn exact_buffer_size() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        // Writing exactly N bytes overflows (capacity is N-1)
-        assert!(write!(&mut fmt_buffer, "01234567").is_err());
-
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "0123456");
-
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn exact_capacity_fit() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        // Writing exactly N-1 bytes succeeds
-        assert!(write!(&mut fmt_buffer, "0123456").is_ok());
-
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "0123456");
-
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn overflow_buffer_after_multiple_writes() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "01234").is_ok());
-        assert!(write!(&mut fmt_buffer, "56789").is_err());
-
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "0123456");
-
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn overflow_buffer_then_multiple_writes() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "01234").is_ok());
-        assert!(write!(&mut fmt_buffer, "56789").is_err());
-        assert!(write!(&mut fmt_buffer, "overflow!").is_err());
-        assert!(write!(&mut fmt_buffer, "overflow!").is_err());
-
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "0123456");
-
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn exact_buffer_size_multiple_writes() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "01234").is_ok());
-        // "56" fits in remaining capacity (2 bytes), but "567" overflows
-        assert!(write!(&mut fmt_buffer, "567").is_err());
-
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "0123456");
-
-        let cmp_c_str: &core::ffi::CStr =
-            core::ffi::CStr::from_bytes_until_nul(b"0123456\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn empty_buffer_strs() {
-        let fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-
-        let buf_str = fmt_buffer.as_str();
-        assert_eq!(buf_str, "");
-
-        let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn write_empty_strings() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        assert!(write!(&mut fmt_buffer, "").is_ok());
-        assert!(write!(&mut fmt_buffer, "").is_ok());
-
-        assert_eq!(fmt_buffer.used, 0);
-        assert!(fmt_buffer.buffer.iter().all(|&b| b == 0));
-
-        assert_eq!(fmt_buffer.as_str(), "");
-
-        let cmp_c_str: &core::ffi::CStr = core::ffi::CStr::from_bytes_until_nul(b"\0").unwrap();
-        let buf_c_str = fmt_buffer.as_c_str();
-        assert_eq!(buf_c_str, cmp_c_str);
-    }
-
-    #[test]
-    fn overflow_truncates_at_char_boundary() {
-        let mut fmt_buffer: FormatBuffer<8> = FormatBuffer::new();
-        // Capacity is 7. "❤️🧡💛💚💙💜" is 26 bytes.
-        // ❤️ is 6 bytes, 🧡 starts at byte 6 but needs 4 bytes (total 10).
-        // floor_char_boundary(7) = 6, so only ❤️ fits.
-        assert!(write!(&mut fmt_buffer, "❤️🧡💛💚💙💜").is_err());
-        assert_eq!(fmt_buffer.as_str(), "❤️");
-    }
-
-    #[test]
-    fn interior_nul_truncates_cstr() {
-        let mut fmt_buffer = FormatBuffer::<16>::new();
-        assert!(write!(&mut fmt_buffer, "hello\0world").is_ok());
-        assert_eq!(fmt_buffer.as_str(), "hello\0world");
-        assert_eq!(fmt_buffer.as_c_str(), c"hello");
-    }
-
-    #[test]
-    fn clear_empties_buffer() {
-        let mut fmt_buffer = FormatBuffer::<8>::new();
-        assert!(write!(&mut fmt_buffer, "hello").is_ok());
-        fmt_buffer.clear();
-        assert_eq!(fmt_buffer.used, 0);
-        assert_eq!(fmt_buffer.as_str(), "");
-        assert_eq!(fmt_buffer.as_c_str(), c"");
-    }
-
-    #[test]
-    fn clear_then_shorter_write_produces_correct_cstr() {
-        let mut fmt_buffer = FormatBuffer::<8>::new();
-        assert!(write!(&mut fmt_buffer, "hello").is_ok());
-        fmt_buffer.clear();
-        assert!(write!(&mut fmt_buffer, "hi").is_ok());
-        assert_eq!(fmt_buffer.as_str(), "hi");
-        assert_eq!(fmt_buffer.as_c_str(), c"hi");
-    }
-}
-
-#[cfg(test)]
-mod wdk_flushable_format_buffer_tests {
-    extern crate alloc;
-
-    use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
-    use core::fmt::Write;
-
-    use super::FlushableFormatBuffer;
-
-    #[test]
-    fn write_fits_in_buffer() {
-        let mut flushed: Vec<String> = Vec::new();
-        let mut writer = FlushableFormatBuffer::<_, 16>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "hello").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["hello"]);
-    }
-
-    #[test]
-    fn explicit_flush_then_continue() {
-        let mut flushed: Vec<String> = Vec::new();
-        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "abc").is_ok());
-        writer.flush();
-        assert!(write!(&mut writer, "def").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["abc", "def"]);
-    }
-
-    #[test]
-    fn overflow_triggers_flush() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 7 usable bytes
-        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        // "0123456789" is 10 bytes — exceeds 7-byte capacity.
-        // First 7 bytes fill the buffer, triggering a flush.
-        // Remaining "789" goes into the cleared buffer.
-        assert!(write!(&mut writer, "0123456789").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["0123456", "789"]);
-    }
-
-    #[test]
-    fn multi_flush() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 3 usable bytes
-        let mut writer = FlushableFormatBuffer::<_, 4>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        // "0123456789" is 10 bytes — triggers 3 flushes (3+3+3), leaves "9" in buffer.
-        assert!(write!(&mut writer, "0123456789").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["012", "345", "678", "9"]);
-    }
-
-    #[test]
-    fn empty_write_does_not_flush() {
-        let mut flushed: Vec<String> = Vec::new();
-        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "").is_ok());
-        assert!(write!(&mut writer, "").is_ok());
-        drop(writer);
-        assert!(flushed.is_empty());
-    }
-
-    #[test]
-    fn flush_empty_buffer_is_noop() {
-        let mut flushed: Vec<String> = Vec::new();
-        let writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        drop(writer);
-        assert!(flushed.is_empty());
-    }
-
-    #[test]
-    fn exact_capacity_fit() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 7 usable bytes
-        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        // Exactly 7 bytes — fits perfectly, no flush triggered.
-        assert!(write!(&mut writer, "0123456").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["0123456"]);
-    }
-
-    #[test]
-    fn multiple_writes_with_intermittent_overflow() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 7 usable bytes
-        let mut writer = FlushableFormatBuffer::<_, 8>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "abc").is_ok());
-        assert!(write!(&mut writer, "def").is_ok());
-        assert!(write!(&mut writer, "ghi").is_ok());
-        assert!(write!(&mut writer, "jkl").is_ok());
-        assert!(write!(&mut writer, "mno").is_ok());
-        drop(writer);
-        // Flush order proves overflow happened at the right boundaries:
-        // "abcdefg" (7), "hijklmn" (7), "o" (remainder)
-        assert_eq!(flushed, vec!["abcdefg", "hijklmn", "o"]);
-    }
-
-    #[test]
-    fn multi_byte_chars_split_at_char_boundary() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 6 usable bytes.
-        // ❤️ is 6 bytes (U+2764 + U+FE0F), each other heart is 4 bytes.
-        // "❤️🧡💛💚💙💜" is 26 bytes total — each heart gets its own chunk.
-        let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["❤️", "🧡", "💛", "💚", "💙", "💜"]);
-    }
-
-    #[test]
-    fn multi_byte_char_triggers_early_flush() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 6 usable bytes.
-        // "abcd" (4 bytes) leaves 2 bytes of space — not enough for ❤️ (6 bytes).
-        // Flushes "abcd", then chunks the hearts as in the previous test.
-        let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "abcd").is_ok());
-        assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_ok());
-        drop(writer);
-        assert_eq!(flushed, vec!["abcd", "❤️", "🧡", "💛", "💚", "💙", "💜"]);
-    }
-
-    #[test]
-    fn multi_byte_char_too_big_for_buffer() {
-        let mut flushed: Vec<String> = Vec::new();
-        // Capacity is N-1 = 2 usable bytes.
-        // ❤️🧡💛💚💙💜 starts with ❤ (3 bytes) — can never fit.
-        let mut writer = FlushableFormatBuffer::<_, 3>::new(|buf| {
-            flushed.push(buf.as_str().to_owned());
-        });
-        assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_err());
-        drop(writer);
-        assert!(flushed.is_empty());
+        #[test]
+        fn multi_byte_char_too_big_for_buffer() {
+            let mut flushed: Vec<String> = Vec::new();
+            // Capacity is N-1 = 2 usable bytes.
+            // ❤️🧡💛💚💙💜 starts with ❤ (3 bytes) — can never fit.
+            let mut writer = FlushableFormatBuffer::<_, 3>::new(|buf| {
+                flushed.push(buf.as_str().to_owned());
+            });
+            assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_err());
+            drop(writer);
+            assert!(flushed.is_empty());
+        }
     }
 }
