@@ -1,6 +1,6 @@
 [package]
 description = "An empty package that sets the `package.metadata` required for wdk-build to generate WDM bindings for Rust"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 name = "config-wdm"
 publish = false

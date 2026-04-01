@@ -1,7 +1,7 @@
 [package]
 categories = ["hardware-support"]
 description = "A sample WDM driver that demonstrates WDM in RUST"
-edition = "2021"
+edition = "2024"
 keywords = ["driver", "example", "sample", "wdm", "windows"]
 license = "MIT OR Apache-2.0"
 name = "sample-wdm-driver"

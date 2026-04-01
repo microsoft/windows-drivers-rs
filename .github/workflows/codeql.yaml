@@ -56,9 +56,8 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
 
-    - name: Install Winget PowerShell Module
-      shell: pwsh
-      run: Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+    - name: Install Winget
+      uses: ./.github/actions/install-winget
 
     - name: Install LLVM ${{ matrix.llvm }}
       uses: ./.github/actions/install-llvm
@@ -81,7 +80,7 @@ jobs:
         targets: ${{ matrix.target_triple.name }}
     
     - name: Install Cargo Make
-      uses: taiki-e/install-action@v2
+      uses: ./.github/actions/install-cargo-tool
       with:
         tool: cargo-make
 

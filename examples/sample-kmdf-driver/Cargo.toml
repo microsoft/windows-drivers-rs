@@ -1,7 +1,7 @@
 [package]
 categories = ["hardware-support"]
 description = "A sample KMDF driver that demonstrates KMDF in RUST"
-edition = "2021"
+edition = "2024"
 keywords = ["driver", "example", "sample", "wdf", "windows"]
 license = "MIT OR Apache-2.0"
 name = "sample-kmdf-driver"
