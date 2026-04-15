@@ -33,6 +33,15 @@ pub struct FormatBuffer<const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE> {
     used: usize,
 }
 
+impl<const N: usize> Clone for FormatBuffer<N> {
+    fn clone(&self) -> Self {
+        Self {
+            buffer: self.buffer,
+            used: self.used,
+        }
+    }
+}
+
 impl<const N: usize> FormatBuffer<N> {
     /// Creates a zeroed formatting buffer with capacity `N`.
     ///
@@ -62,6 +71,25 @@ impl<const N: usize> FormatBuffer<N> {
     pub const fn clear(&mut self) {
         self.used = 0;
         self.buffer[0] = 0;
+    }
+
+    /// Returns the number of bytes currently written.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.used
+    }
+
+    /// Returns the usable capacity in bytes (`N - 1`, excluding the reserved
+    /// NUL terminator).
+    #[must_use]
+    pub const fn capacity(&self) -> usize {
+        N - 1
+    }
+
+    /// Returns `true` if no bytes have been written.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.used == 0
     }
 
     /// Returns a UTF-8 view over the written bytes.
@@ -127,6 +155,10 @@ impl<const N: usize> fmt::Debug for FormatBuffer<N> {
 }
 
 impl<const N: usize> fmt::Write for FormatBuffer<N> {
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] if `s` exceeds the remaining capacity. UTF-8
+    /// chars that fit are written to the buffer before the error is returned.
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // The last byte (buffer[N-1]) is reserved for the NUL terminator
         // so that the buffer always contains a valid `CStr`.
@@ -157,6 +189,12 @@ impl<const N: usize> fmt::Write for FormatBuffer<N> {
 /// After all writes are complete, any remaining buffered content is
 /// automatically flushed when the writer is dropped. The caller may also
 /// call [`flush`](Self::flush) explicitly to drain the buffer early.
+///
+/// # Panics
+///
+/// If `flush_fn` panics, the panic propagates from [`flush`](Self::flush).
+/// If `flush_fn` panics during [`drop`](Drop::drop), the drop will also
+/// panic.
 pub struct FlushableFormatBuffer<
     F: FnMut(&FormatBuffer<N>),
     const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE,
