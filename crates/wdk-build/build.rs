@@ -15,8 +15,8 @@ fn main() {
 // are required for `rustversion` conditional compilation: https://github.com/rust-lang/rust/issues/15701
 // TODO: Remove the `setup_assert_matches_stabilized_cfg` feature and related
 // code once the minimum supported Rust version includes stable
-// `assert_matches`. Stabilization was reverted from 1.95.0 beta:
-// https://github.com/rust-lang/rust/pull/154999
+// `assert_matches`. Tracking issue:
+// https://github.com/rust-lang/rust/issues/82775
 #[rustversion::since(1.96.0)]
 fn setup_assert_matches_stabilized_cfg() {
     println!("cargo::rustc-cfg=assert_matches_stabilized");
