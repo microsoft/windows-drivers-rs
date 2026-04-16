@@ -28,18 +28,10 @@ const DEFAULT_WDK_FORMAT_BUFFER_SIZE: usize = 512;
 /// let c = buf.as_c_str();
 /// assert_eq!(c.to_bytes(), b"hello 42");
 /// ```
+#[derive(Clone)]
 pub struct FormatBuffer<const N: usize = DEFAULT_WDK_FORMAT_BUFFER_SIZE> {
     buffer: [u8; N],
     used: usize,
-}
-
-impl<const N: usize> Clone for FormatBuffer<N> {
-    fn clone(&self) -> Self {
-        Self {
-            buffer: self.buffer,
-            used: self.used,
-        }
-    }
 }
 
 impl<const N: usize> FormatBuffer<N> {
