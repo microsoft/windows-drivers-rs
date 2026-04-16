@@ -250,16 +250,14 @@ impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatB
                     return Err(fmt::Error);
                 }
                 // Buffer has content but no room for the next char — flush and retry.
-                (self.flush_fn)(&self.format_buffer);
-                self.format_buffer.clear();
+                self.flush();
                 continue;
             }
 
             self.format_buffer
                 .append_bytes(&remaining.as_bytes()[..split]);
 
-            (self.flush_fn)(&self.format_buffer);
-            self.format_buffer.clear();
+            self.flush();
 
             remaining = &remaining[split..];
         }
