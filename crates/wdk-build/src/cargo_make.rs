@@ -337,14 +337,14 @@ impl ParseCargoArgs for CompilationOptions {
         {
             "release" => {
                 // cargo-make release profile sets the `--profile release` flag
-                if let Some(profile) = &profile {
-                    if profile != "release" {
-                        eprintln!(
-                            "Specifying `--profile release` for cargo-make conflicts with the \
-                             setting `--profile {profile}` to forward to tasks"
-                        );
-                        std::process::exit(CLAP_USAGE_EXIT_CODE);
-                    }
+                if let Some(profile) = &profile
+                    && profile != "release"
+                {
+                    eprintln!(
+                        "Specifying `--profile release` for cargo-make conflicts with the setting \
+                         `--profile {profile}` to forward to tasks"
+                    );
+                    std::process::exit(CLAP_USAGE_EXIT_CODE);
                 }
 
                 append_to_space_delimited_env_var(

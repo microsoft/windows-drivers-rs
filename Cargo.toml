@@ -19,7 +19,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/microsoft/windows-drivers-rs"
-rust-version = "1.85.0"
+rust-version = "1.91.0"
 
 [workspace.dependencies]
 # Workspace Crates

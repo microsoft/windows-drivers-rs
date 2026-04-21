@@ -17,8 +17,8 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
+# Deprecated: no longer required. Kept as a no-op for backward compatibility.
 alloc = []
-default = ["alloc"]
 nightly = ["wdk-sys/nightly"]
 
 [dependencies]
