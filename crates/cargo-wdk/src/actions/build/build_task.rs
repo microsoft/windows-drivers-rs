@@ -91,7 +91,7 @@ impl<'a> BuildTask<'a> {
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
-        args.push("--message-format=json".to_string());
+        args.push("--message-format=json-render-diagnostics".to_string());
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
         if let Some(path) = self.manifest_path.to_str() {
@@ -120,7 +120,10 @@ impl<'a> BuildTask<'a> {
         // is respected
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(self.working_dir))?;
+            .run("cargo", &args, None, Some(self.working_dir))
+            .map_err(|_| {
+                BuildTaskError::CargoBuild("Compilation failed. See compiler errors above.".into())
+            })?;
 
         debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
@@ -205,7 +208,7 @@ mod tests {
         let verbosity = clap_verbosity_flag::Verbosity::default();
         let expected_args = vec![
             "build".to_string(),
-            "--message-format=json".to_string(),
+            "--message-format=json-render-diagnostics".to_string(),
             "-p".to_string(),
             "my-driver".to_string(),
             "--manifest-path".to_string(),
@@ -292,22 +295,9 @@ mod tests {
         );
 
         let err = task.run().err().expect("expected cargo failure");
-        let BuildTaskError::CargoBuild(command_error) = err else {
+        let BuildTaskError::CargoBuild(msg) = err else {
             panic!("expected cargo build error");
         };
-        match command_error {
-            CommandError::CommandFailed {
-                command,
-                args,
-                stdout,
-            } => {
-                assert_eq!(command, "cargo");
-                assert_eq!(args, vec!["build".to_string()]);
-                assert_eq!(stdout, "error");
-            }
-            CommandError::IoError(_, _, err) => {
-                panic!("expected CommandFailed, got IoError: {err}")
-            }
-        }
+        assert_eq!(msg, "Compilation failed. See compiler errors above.");
     }
 }
