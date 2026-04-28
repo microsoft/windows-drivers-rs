@@ -21,6 +21,7 @@ nightly = []
 [dependencies]
 anyhow.workspace = true
 bindgen.workspace = true
+bitflags.workspace = true
 camino.workspace = true
 cargo_metadata.workspace = true
 cfg-if.workspace = true
@@ -32,6 +33,7 @@ rustversion.workspace = true
 semver.workspace = true
 serde = { features = ["derive"], workspace = true }
 serde_json.workspace = true
+syn = { features = ["parsing"], workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
 windows = { features = [

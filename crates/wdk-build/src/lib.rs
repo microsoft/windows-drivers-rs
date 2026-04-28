@@ -28,6 +28,8 @@ pub mod metadata;
 mod utils;
 
 mod bindgen;
+#[doc(hidden)]
+pub mod derives;
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
