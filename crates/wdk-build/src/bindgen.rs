@@ -138,6 +138,9 @@ impl BuilderExt for Builder {
             // Defaults enums to generate as a set of constants contained in a module (default value
             // is EnumVariation::Consts which generates enums as global constants)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
+            // `size_t`/`ssize_t` are pointer-width on every supported Windows
+            // driver target (x64, ARM64, x86), matching Rust's `usize`/`isize`.
+            .size_t_is_usize(true)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease)
