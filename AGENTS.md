@@ -87,7 +87,7 @@ cargo make wdk-pre-commit-flow
 - **FFI naming:** Bindings in `wdk-sys` retain their original C names and style (e.g., PascalCase functions). Safe Rust wrappers in `wdk` follow [Rust naming conventions (RFC 430)](https://rust-lang.github.io/api-guidelines/naming.html).
 - **Formatting:** `rustfmt` uses nightly-only unstable options (see `rustfmt.toml`). Import grouping is `StdExternalCrate`, granularity is `Crate`.
 - **Lints:** Clippy `all` is deny, `pedantic`/`nursery`/`cargo` are warn. Most workspace members inherit `[lints] workspace = true`; `wdk-sys`, `wdk-build`, `wdk-macros`, and `cargo-wdk` define their own `[lints]` tables instead (Cargo currently does not support both inheriting workspace lints and selectively overriding them per crate).
-- **Edition:** 2024, MSRV 1.85.0, resolver v3.
+- **Edition:** 2024, MSRV 1.91.0, resolver v3.
 - **Static CRT:** Enabled globally via `.cargo/config.toml` (`-C target-feature=+crt-static`).
 - **Spelling:** `typos` is configured in `.typos.toml`; Windows API identifiers are allowlisted rather than using file-level excludes.
 - **TOML:** `taplo` uses CRLF line endings (see `taplo.toml`).
