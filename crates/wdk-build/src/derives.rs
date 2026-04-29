@@ -524,9 +524,32 @@ mod tests {
         DerivesMap::from_source(src).expect("parses")
     }
 
+    const ALL_TRAITS: &[DeriveTrait] = &[
+        DeriveTrait::Copy,
+        DeriveTrait::Debug,
+        DeriveTrait::Default,
+        DeriveTrait::Hash,
+        DeriveTrait::PartialEqOrPartialOrd,
+    ];
+
+    /// Assert that `map` reports `satisfies(name, t) == true` for exactly the
+    /// traits in `expected`, and `false` for every other trait in
+    /// [`ALL_TRAITS`].
+    fn assert_derives(map: &DerivesMap, name: &str, expected: &[DeriveTrait]) {
+        for &t in ALL_TRAITS {
+            let want = expected.contains(&t);
+            let got = map.satisfies(name, t);
+            assert_eq!(
+                got, want,
+                "{name}: satisfies({t:?}) = {got}, expected {want}"
+            );
+        }
+    }
+
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn parses_representative_bindgen_output() {
+        use DeriveTrait::{Copy, Debug, Default, Hash, PartialEqOrPartialOrd};
+
         // Shapes observed in real bindgen output for wdk-sys:
         //   - POD struct with the common four-trait derive
         //   - Union with only Copy/Clone (Rust unions can't auto-derive Debug/Default)
@@ -569,71 +592,40 @@ mod tests {
         "#;
         let map = parse(src);
 
-        assert!(map.satisfies("Pod", DeriveTrait::Debug));
-        assert!(map.satisfies("Pod", DeriveTrait::Default));
-        assert!(map.satisfies("Pod", DeriveTrait::Copy));
-        assert!(!map.satisfies("Pod", DeriveTrait::Hash));
-        assert!(!map.satisfies("Pod", DeriveTrait::PartialEqOrPartialOrd));
-
-        assert!(map.satisfies("Uni", DeriveTrait::Copy));
-        assert!(!map.satisfies("Uni", DeriveTrait::Debug));
-        assert!(!map.satisfies("Uni", DeriveTrait::Default));
-
-        // PartialEq alone now satisfies the grouped bindgen query.
-        assert!(map.satisfies("UnionField", DeriveTrait::PartialEqOrPartialOrd));
-        assert!(map.satisfies("UnionField", DeriveTrait::Hash));
-
-        assert!(map.satisfies("ArrayField", DeriveTrait::PartialEqOrPartialOrd));
-        assert!(map.satisfies("ArrayField", DeriveTrait::Hash));
+        assert_derives(&map, "Pod", &[Copy, Debug, Default]);
+        assert_derives(&map, "Uni", &[Copy]);
+        assert_derives(
+            &map,
+            "UnionField",
+            &[Copy, Debug, Hash, PartialEqOrPartialOrd],
+        );
+        assert_derives(
+            &map,
+            "ArrayField",
+            &[Copy, Debug, Default, Hash, PartialEqOrPartialOrd],
+        );
 
         // Alias chain resolves through to Pod's derives.
-        assert!(map.satisfies("PodAlias", DeriveTrait::Debug));
-        assert!(map.satisfies("PodAlias", DeriveTrait::Default));
-        assert!(map.satisfies("PodAliasChain", DeriveTrait::Debug));
-        assert!(map.satisfies("PodAliasChain", DeriveTrait::Default));
+        assert_derives(&map, "PodAlias", &[Copy, Debug, Default]);
+        assert_derives(&map, "PodAliasChain", &[Copy, Debug, Default]);
 
-        // Primitive-target aliases: terminal shapes get the full standard derive set
-        // directly, without chain resolution.
-        for trait_ in [
-            DeriveTrait::Copy,
-            DeriveTrait::Debug,
-            DeriveTrait::Default,
-            DeriveTrait::Hash,
-            DeriveTrait::PartialEqOrPartialOrd,
-        ] {
-            assert!(map.satisfies("UCHAR", trait_));
-            assert!(map.satisfies("ULONG", trait_));
-            assert!(map.satisfies("PVOID", trait_));
-            assert!(map.satisfies("PULONG", trait_));
+        // Primitive-target aliases: terminal shapes get the full standard derive
+        // set directly, without chain resolution.
+        for name in ["UCHAR", "ULONG", "PVOID", "PULONG"] {
+            assert_derives(&map, name, ALL_TRAITS);
         }
 
-        // Unknown type name: returns false, does not panic.
-        assert!(!map.satisfies("Nonexistent", DeriveTrait::Debug));
+        // Unknown type name: returns false for every trait, does not panic.
+        assert_derives(&map, "Nonexistent", &[]);
 
         // Option<fn> — fn gives 4, Option adds Default → all 5.
-        for trait_ in [
-            DeriveTrait::Copy,
-            DeriveTrait::Debug,
-            DeriveTrait::Default,
-            DeriveTrait::Hash,
-            DeriveTrait::PartialEqOrPartialOrd,
-        ] {
-            assert!(map.satisfies("OptFn", trait_));
-        }
+        assert_derives(&map, "OptFn", ALL_TRAITS);
 
-        // Module-enum pattern — both the compound key (`_INTERFACE_TYPE::Type`) and the
-        // re-exported friendly name (`INTERFACE_TYPE`) inherit the primitive's full
-        // derive set.
-        for trait_ in [
-            DeriveTrait::Copy,
-            DeriveTrait::Debug,
-            DeriveTrait::Default,
-            DeriveTrait::Hash,
-            DeriveTrait::PartialEqOrPartialOrd,
-        ] {
-            assert!(map.satisfies("_INTERFACE_TYPE::Type", trait_));
-            assert!(map.satisfies("INTERFACE_TYPE", trait_));
-        }
+        // Module-enum pattern — both the compound key (`_INTERFACE_TYPE::Type`) and
+        // the re-exported friendly name (`INTERFACE_TYPE`) inherit the primitive's
+        // full derive set.
+        assert_derives(&map, "_INTERFACE_TYPE::Type", ALL_TRAITS);
+        assert_derives(&map, "INTERFACE_TYPE", ALL_TRAITS);
     }
 
     /// Every seeded stdint name derives the full standard set. Guards the
@@ -643,18 +635,7 @@ mod tests {
     fn stdint_names_all_derive_standard_set() {
         let map = parse("");
         for name in STDINT_NAMES {
-            for trait_ in [
-                DeriveTrait::Copy,
-                DeriveTrait::Debug,
-                DeriveTrait::Default,
-                DeriveTrait::Hash,
-                DeriveTrait::PartialEqOrPartialOrd,
-            ] {
-                assert!(
-                    map.satisfies(name, trait_),
-                    "stdint {name} missing {trait_:?}"
-                );
-            }
+            assert_derives(&map, name, ALL_TRAITS);
         }
     }
 
