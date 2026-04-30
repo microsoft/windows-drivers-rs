@@ -46,27 +46,53 @@ const STDINT_NAMES: &[&str] = &[
 /// [`DerivesMap`].
 #[derive(Debug, Error)]
 pub enum DerivesError {
+    /// Reading the bindgen-emitted source file from disk failed.
     #[error("failed to read {path}", path = path.display())]
     Io {
+        /// Path to the file that could not be read.
         path: PathBuf,
+        /// Underlying I/O error from the filesystem operation.
         #[source]
         source: std::io::Error,
     },
 
+    /// `syn` failed to parse the source as Rust.
     #[error("failed to parse source as Rust")]
     Parse(#[source] syn::Error),
 
+    /// Encountered a top-level [`syn::Item`] variant this parser does not
+    /// handle.
     #[error("unhandled syn node: {node}")]
-    UnhandledSynCase { node: String },
+    UnhandledSynCase {
+        /// Debug-formatted representation of the unhandled node.
+        node: String,
+    },
 
+    /// A recognized item kind whose internal shape did not match what the
+    /// parser expects from bindgen output.
     #[error("malformed shape: {reason}: {node}")]
-    MalformedShape { reason: String, node: String },
+    MalformedShape {
+        /// Why the node shape is considered malformed.
+        reason: String,
+        /// Debug-formatted representation of the malformed node.
+        node: String,
+    },
 
+    /// Alias chain visited the same name twice while walking aliases to
+    /// their target type.
     #[error("alias cycle among: {names:?}")]
-    AliasCycle { names: Vec<String> },
+    AliasCycle {
+        /// Names participating in the detected cycle, in walk order.
+        names: Vec<String>,
+    },
 
-    #[error("alias targets not found: {names:?}")]
-    UnresolvedAlias { names: Vec<String> },
+    /// Alias chain terminated at a name that is neither a recorded type nor
+    /// another pending alias.
+    #[error("alias target not found: {target}")]
+    UnresolvedAlias {
+        /// The unresolved target name.
+        target: String,
+    },
 }
 
 bitflags::bitflags! {
@@ -111,6 +137,7 @@ impl From<Vec<String>> for DerivesSet {
     }
 }
 
+#[derive(Debug)]
 enum DerivesSource {
     Direct(DerivesSet),
     Alias(String),
@@ -124,6 +151,7 @@ pub struct BaseDerivesCallback {
 }
 
 impl BaseDerivesCallback {
+    /// Wrap a shared [`DerivesMap`] for use as a `bindgen` [`ParseCallbacks`].
     #[must_use]
     pub const fn new(map: Arc<DerivesMap>) -> Self {
         Self { map }
@@ -242,7 +270,7 @@ impl DerivesMap {
             while !self.types.contains_key(curr) {
                 let Some(next) = aliases.get(curr) else {
                     return Err(DerivesError::UnresolvedAlias {
-                        names: walked.into_iter().cloned().collect(),
+                        target: curr.clone(),
                     });
                 };
                 if walked.contains(&next) {
@@ -520,200 +548,408 @@ fn path_is_core_ffi_type(path: &Path) -> bool {
 mod tests {
     use super::*;
 
-    fn parse(src: &str) -> DerivesMap {
-        DerivesMap::from_source(src).expect("parses")
-    }
-
-    const ALL_TRAITS: &[DeriveTrait] = &[
-        DeriveTrait::Copy,
-        DeriveTrait::Debug,
-        DeriveTrait::Default,
-        DeriveTrait::Hash,
-        DeriveTrait::PartialEqOrPartialOrd,
-    ];
-
-    /// Assert that `map` reports `satisfies(name, t) == true` for exactly the
-    /// traits in `expected`, and `false` for every other trait in
-    /// [`ALL_TRAITS`].
-    fn assert_derives(map: &DerivesMap, name: &str, expected: &[DeriveTrait]) {
-        for &t in ALL_TRAITS {
-            let want = expected.contains(&t);
-            let got = map.satisfies(name, t);
-            assert_eq!(
-                got, want,
-                "{name}: satisfies({t:?}) = {got}, expected {want}"
-            );
+    #[track_caller]
+    fn assert_direct_full(source: DerivesSource) {
+        match source {
+            DerivesSource::Direct(set) => assert_eq!(set, DerivesSet::all()),
+            DerivesSource::Alias(name) => panic!("expected Direct(all), got Alias({name:?})"),
         }
     }
 
-    #[test]
-    fn parses_representative_bindgen_output() {
-        use DeriveTrait::{Copy, Debug, Default, Hash, PartialEqOrPartialOrd};
-
-        // Shapes observed in real bindgen output for wdk-sys:
-        //   - POD struct with the common four-trait derive
-        //   - Union with only Copy/Clone (Rust unions can't auto-derive Debug/Default)
-        //   - Bindgen's `__BindgenUnionField` wrapper — PartialEq without PartialOrd
-        //   - Bindgen's `__IncompleteArrayField` wrapper — the full nine-trait derive
-        //   - Type alias chain: `PodAliasChain = PodAlias = Pod` should inherit Pod's
-        //     derives.
-        let src = r#"
-            #[repr(C)]
-            #[derive(Debug, Default, Copy, Clone)]
-            pub struct Pod { pub x: u32 }
-
-            #[repr(C)]
-            #[derive(Copy, Clone)]
-            pub union Uni { pub a: u32, pub b: u64 }
-
-            #[derive(PartialEq, Copy, Clone, Debug, Hash)]
-            pub struct UnionField;
-
-            #[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-            pub struct ArrayField;
-
-            pub type PodAlias = Pod;
-            pub type PodAliasChain = PodAlias;
-
-            pub type UCHAR = ::core::ffi::c_uchar;
-            pub type ULONG = ::core::ffi::c_ulong;
-            pub type PVOID = *mut ::core::ffi::c_void;
-            pub type PULONG = *mut ULONG;
-
-            // Option<fn>: fn contributes all-except-Default, Option adds Default back — ends up with all 5.
-            pub type OptFn = ::core::option::Option<unsafe extern "C" fn(x: u32) -> u32>;
-
-            // Bindgen module-enum pattern: inner `Type` aliases a primitive, and a use-rename re-exports it under a friendly name. The re-export must resolve to the inner `Type`'s derive set.
-            pub mod _INTERFACE_TYPE {
-                pub type Type = ::core::ffi::c_int;
-                pub const Isa: Type = 1;
+    #[track_caller]
+    fn assert_alias(source: DerivesSource, expected: &str) {
+        match source {
+            DerivesSource::Alias(s) => assert_eq!(s, expected),
+            DerivesSource::Direct(set) => {
+                panic!("expected Alias({expected:?}), got Direct({set:?})")
             }
-            pub use self::_INTERFACE_TYPE::Type as INTERFACE_TYPE;
-        "#;
-        let map = parse(src);
-
-        assert_derives(&map, "Pod", &[Copy, Debug, Default]);
-        assert_derives(&map, "Uni", &[Copy]);
-        assert_derives(
-            &map,
-            "UnionField",
-            &[Copy, Debug, Hash, PartialEqOrPartialOrd],
-        );
-        assert_derives(
-            &map,
-            "ArrayField",
-            &[Copy, Debug, Default, Hash, PartialEqOrPartialOrd],
-        );
-
-        // Alias chain resolves through to Pod's derives.
-        assert_derives(&map, "PodAlias", &[Copy, Debug, Default]);
-        assert_derives(&map, "PodAliasChain", &[Copy, Debug, Default]);
-
-        // Primitive-target aliases: terminal shapes get the full standard derive
-        // set directly, without chain resolution.
-        for name in ["UCHAR", "ULONG", "PVOID", "PULONG"] {
-            assert_derives(&map, name, ALL_TRAITS);
-        }
-
-        // Unknown type name: returns false for every trait, does not panic.
-        assert_derives(&map, "Nonexistent", &[]);
-
-        // Option<fn> — fn gives 4, Option adds Default → all 5.
-        assert_derives(&map, "OptFn", ALL_TRAITS);
-
-        // Module-enum pattern — both the compound key (`_INTERFACE_TYPE::Type`) and
-        // the re-exported friendly name (`INTERFACE_TYPE`) inherit the primitive's
-        // full derive set.
-        assert_derives(&map, "_INTERFACE_TYPE::Type", ALL_TRAITS);
-        assert_derives(&map, "INTERFACE_TYPE", ALL_TRAITS);
-    }
-
-    /// Every seeded stdint name derives the full standard set. Guards the
-    /// hand-maintained `STDINT_NAMES` list against accidental deletion and
-    /// keeps the `satisfies` result shape in sync with the seed.
-    #[test]
-    fn stdint_names_all_derive_standard_set() {
-        let map = parse("");
-        for name in STDINT_NAMES {
-            assert_derives(&map, name, ALL_TRAITS);
         }
     }
 
-    /// A cyclic alias pair (`A = B; B = A;`) must surface as `AliasCycle` —
-    /// the chain-walking loop detects it when a step revisits a name already
-    /// in the walked set.
-    #[test]
-    fn alias_cycle_terminates() {
-        let src = r"
-            pub type A = B;
-            pub type B = A;
-        ";
-        let err = DerivesMap::from_source(src).expect_err("cycle must error");
-        match err {
-            DerivesError::AliasCycle { mut names } => {
-                names.sort();
-                assert_eq!(names, vec!["A".to_owned(), "B".to_owned()]);
+    mod path_checks {
+        use syn::parse_str;
+
+        use super::*;
+
+        #[test]
+        fn path_is_option_recognizes_full_path() {
+            let p: Path = parse_str("::core::option::Option").unwrap();
+            assert!(path_is_option(&p));
+            let p: Path = parse_str("core::option::Option").unwrap();
+            assert!(path_is_option(&p));
+        }
+
+        #[test]
+        fn path_is_option_rejects_short_or_wrong_paths() {
+            let p: Path = parse_str("Option").unwrap();
+            assert!(!path_is_option(&p));
+            let p: Path = parse_str("std::option::Option").unwrap();
+            assert!(!path_is_option(&p));
+            let p: Path = parse_str("core::ffi::c_void").unwrap();
+            assert!(!path_is_option(&p));
+        }
+
+        #[test]
+        fn path_is_core_ffi_type_recognizes() {
+            let p: Path = parse_str("::core::ffi::c_void").unwrap();
+            assert!(path_is_core_ffi_type(&p));
+            let p: Path = parse_str("core::ffi::c_int").unwrap();
+            assert!(path_is_core_ffi_type(&p));
+        }
+
+        #[test]
+        fn path_is_core_ffi_type_rejects_non_ffi() {
+            let p: Path = parse_str("core::option::Option").unwrap();
+            assert!(!path_is_core_ffi_type(&p));
+            let p: Path = parse_str("std::ffi::CStr").unwrap();
+            assert!(!path_is_core_ffi_type(&p));
+            let p: Path = parse_str("c_int").unwrap();
+            assert!(!path_is_core_ffi_type(&p));
+        }
+
+        #[test]
+        fn inner_is_bare_fn_true_for_option_fn() {
+            let p: Path =
+                parse_str("::core::option::Option<unsafe extern \"C\" fn() -> u32>").unwrap();
+            assert!(inner_is_bare_fn(&p));
+        }
+
+        #[test]
+        fn inner_is_bare_fn_false_for_other_generics() {
+            let p: Path = parse_str("Option<u32>").unwrap();
+            assert!(!inner_is_bare_fn(&p));
+            let p: Path = parse_str("Vec<u8>").unwrap();
+            assert!(!inner_is_bare_fn(&p));
+        }
+
+        #[test]
+        fn inner_is_bare_fn_false_for_no_generics() {
+            let p: Path = parse_str("u32").unwrap();
+            assert!(!inner_is_bare_fn(&p));
+        }
+    }
+
+    mod classifiers {
+        use syn::parse_str;
+
+        use super::*;
+
+        #[test]
+        fn derives_from_attrs_extracts_idents() {
+            let item: syn::ItemStruct =
+                parse_str("#[derive(Copy, Clone, Debug)] pub struct S;").unwrap();
+            let derives = derives_from_attrs(&item.attrs);
+            assert_eq!(derives, vec!["Copy", "Clone", "Debug"]);
+        }
+
+        #[test]
+        fn derives_from_attrs_ignores_non_derive_attrs() {
+            let item: syn::ItemStruct =
+                parse_str("#[repr(C)] #[derive(Copy)] #[allow(dead_code)] pub struct S;").unwrap();
+            let derives = derives_from_attrs(&item.attrs);
+            assert_eq!(derives, vec!["Copy"]);
+        }
+
+        #[test]
+        fn derives_from_attrs_uses_last_path_segment() {
+            let item: syn::ItemStruct =
+                parse_str("#[derive(::core::marker::Copy)] pub struct S;").unwrap();
+            let derives = derives_from_attrs(&item.attrs);
+            assert_eq!(derives, vec!["Copy"]);
+        }
+
+        #[test]
+        fn derives_from_attrs_no_derives_returns_empty() {
+            let item: syn::ItemStruct = parse_str("#[repr(C)] pub struct S;").unwrap();
+            assert!(derives_from_attrs(&item.attrs).is_empty());
+        }
+
+        #[test]
+        fn derives_for_type_pointer_gets_all() {
+            let ty: Type = parse_str("*mut u32").unwrap();
+            assert_direct_full(derives_for_type(&ty).unwrap());
+            let ty: Type = parse_str("*const ::core::ffi::c_void").unwrap();
+            assert_direct_full(derives_for_type(&ty).unwrap());
+        }
+
+        #[test]
+        fn derives_for_type_array_recurses_into_element() {
+            let ty: Type = parse_str("[u32; 4]").unwrap();
+            assert_direct_full(derives_for_type(&ty).unwrap());
+
+            let ty: Type = parse_str("[SomeAlias; 8]").unwrap();
+            assert_alias(derives_for_type(&ty).unwrap(), "SomeAlias");
+        }
+
+        #[test]
+        fn derives_for_type_primitive_path_gets_all() {
+            let ty: Type = parse_str("u32").unwrap();
+            assert_direct_full(derives_for_type(&ty).unwrap());
+        }
+
+        #[test]
+        fn derives_for_type_core_ffi_path_gets_all() {
+            let ty: Type = parse_str("::core::ffi::c_int").unwrap();
+            assert_direct_full(derives_for_type(&ty).unwrap());
+        }
+
+        #[test]
+        fn derives_for_type_option_fn_gets_all() {
+            let ty: Type =
+                parse_str("::core::option::Option<unsafe extern \"C\" fn() -> u32>").unwrap();
+            assert_direct_full(derives_for_type(&ty).unwrap());
+        }
+
+        #[test]
+        fn derives_for_type_named_alias_returns_alias_source() {
+            let ty: Type = parse_str("SomeAlias").unwrap();
+            assert_alias(derives_for_type(&ty).unwrap(), "SomeAlias");
+        }
+
+        #[test]
+        fn derives_for_type_path_with_unsupported_generics_is_unhandled() {
+            // Vec<u8> is not the Option<fn> shape, so the `PathArguments::None`
+            // check fires and surfaces UnhandledSynCase.
+            let ty: Type = parse_str("Vec<u8>").unwrap();
+            match derives_for_type(&ty).unwrap_err() {
+                DerivesError::UnhandledSynCase { .. } => {}
+                other => panic!("expected UnhandledSynCase, got {other:?}"),
             }
-            other => panic!("expected AliasCycle, got {other:?}"),
+        }
+
+        #[test]
+        fn derives_for_type_unsupported_variant_is_unhandled() {
+            let ty: Type = parse_str("(u32, u64)").unwrap();
+            assert!(matches!(
+                derives_for_type(&ty),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
+
+            let ty: Type = parse_str("&u32").unwrap();
+            assert!(matches!(
+                derives_for_type(&ty),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
+
+            let ty: Type = parse_str("dyn Send").unwrap();
+            assert!(matches!(
+                derives_for_type(&ty),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
+        }
+
+        #[test]
+        fn ident_and_derives_for_use_self_path_rename() {
+            let item: ItemUse = parse_str("pub use self::_FOO::Type as FOO;").unwrap();
+            let (key, source) = ident_and_derives_for_use(&item).unwrap();
+            assert_eq!(key, "FOO");
+            assert_alias(source, "_FOO::Type");
+        }
+
+        #[test]
+        fn ident_and_derives_for_use_no_self_segment() {
+            let item: ItemUse = parse_str("pub use _FOO::Type as FOO;").unwrap();
+            let (key, source) = ident_and_derives_for_use(&item).unwrap();
+            assert_eq!(key, "FOO");
+            assert_alias(source, "_FOO::Type");
+        }
+
+        #[test]
+        fn ident_and_derives_for_use_glob_is_unhandled() {
+            let item: ItemUse = parse_str("pub use foo::*;").unwrap();
+            assert!(matches!(
+                ident_and_derives_for_use(&item),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
+        }
+
+        #[test]
+        fn ident_and_derives_for_use_no_rename_is_unhandled() {
+            let item: ItemUse = parse_str("pub use foo::Bar;").unwrap();
+            assert!(matches!(
+                ident_and_derives_for_use(&item),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
+        }
+
+        #[test]
+        fn ident_and_derives_for_use_group_is_unhandled() {
+            let item: ItemUse = parse_str("pub use foo::{Bar, Baz};").unwrap();
+            assert!(matches!(
+                ident_and_derives_for_use(&item),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
+        }
+
+        #[test]
+        fn idents_and_derives_for_mod_prefixes_inner_idents() {
+            let m: syn::ItemMod =
+                parse_str("pub mod _OUTER { pub type Type = ::core::ffi::c_int; }").unwrap();
+            let mut result = idents_and_derives_for_mod(&m).unwrap();
+            assert_eq!(result.len(), 1);
+            let (key, source) = result.remove(0);
+            assert_eq!(key, "_OUTER::Type");
+            assert_direct_full(source);
+        }
+
+        #[test]
+        fn idents_and_derives_for_mod_empty_content_returns_empty() {
+            // External mod declaration (no inline body) — `m.content` is `None`.
+            let m: syn::ItemMod = parse_str("pub mod foo;").unwrap();
+            assert!(idents_and_derives_for_mod(&m).unwrap().is_empty());
+        }
+
+        #[test]
+        fn unsupported_item_kind_surfaces_unhandled_syn_case() {
+            // Item::Trait is not part of the supported Struct/Union/Enum/Type/Mod/
+            // Use/Impl/Const set, so the catch-all arm fires.
+            assert!(matches!(
+                DerivesMap::from_source("pub trait T {}"),
+                Err(DerivesError::UnhandledSynCase { .. })
+            ));
         }
     }
 
-    /// An alias whose target is neither a recorded type nor another pending
-    /// alias must surface as `UnresolvedAlias`.
-    #[test]
-    fn unresolvable_alias_errors() {
-        let src = r"
-            pub type UnknownAlias = SomeUnparsedType;
-        ";
-        let err = DerivesMap::from_source(src).expect_err("unresolvable must error");
-        match err {
-            DerivesError::UnresolvedAlias { names } => {
-                assert_eq!(
-                    names,
-                    vec!["UnknownAlias".to_owned(), "SomeUnparsedType".to_owned()]
-                );
+    mod alias_resolution {
+        use super::*;
+
+        #[test]
+        fn resolve_aliases_chain_of_three_inherits_target_set() {
+            // A → B → C, where C is the only recorded type.
+            let mut map = DerivesMap::with_std_types();
+            map.types.insert("C".into(), DerivesSet::all());
+            let mut aliases = HashMap::new();
+            aliases.insert("A".into(), "B".into());
+            aliases.insert("B".into(), "C".into());
+            map.resolve_aliases(&aliases).unwrap();
+            assert_eq!(map.types.get("A"), Some(&DerivesSet::all()));
+            assert_eq!(map.types.get("B"), Some(&DerivesSet::all()));
+        }
+
+        #[test]
+        fn resolve_aliases_skips_already_recorded_keys() {
+            let mut map = DerivesMap::with_std_types();
+            map.types.insert("A".into(), DerivesSet::COPY);
+            let mut aliases = HashMap::new();
+            // A is already recorded; the alias entry must be skipped (no overwrite).
+            aliases.insert("A".into(), "NeverResolved".into());
+            map.resolve_aliases(&aliases).unwrap();
+            assert_eq!(map.types.get("A"), Some(&DerivesSet::COPY));
+        }
+
+        #[test]
+        fn resolve_aliases_empty_input_is_noop() {
+            let mut map = DerivesMap::with_std_types();
+            let snapshot = map.types.clone();
+            map.resolve_aliases(&HashMap::new()).unwrap();
+            assert_eq!(map.types, snapshot);
+        }
+
+        /// Every seeded stdint name derives the full standard set. Guards the
+        /// hand-maintained `STDINT_NAMES` list against accidental deletion and
+        /// keeps the `satisfies` result shape in sync with the seed.
+        #[test]
+        fn stdint_names_all_derive_standard_set() {
+            let map = DerivesMap::from_source("").expect("parses");
+            for name in STDINT_NAMES {
+                for trait_ in [
+                    DeriveTrait::Copy,
+                    DeriveTrait::Debug,
+                    DeriveTrait::Default,
+                    DeriveTrait::Hash,
+                    DeriveTrait::PartialEqOrPartialOrd,
+                ] {
+                    assert!(
+                        map.satisfies(name, trait_),
+                        "stdint {name} missing {trait_:?}"
+                    );
+                }
             }
-            other => panic!("expected UnresolvedAlias, got {other:?}"),
+        }
+
+        /// A cyclic alias pair (`A = B; B = A;`) must surface as `AliasCycle` —
+        /// the chain-walking loop detects it when a step revisits a name
+        /// already in the walked set.
+        #[test]
+        fn alias_cycle_terminates() {
+            let src = r"
+                pub type A = B;
+                pub type B = A;
+            ";
+            let err = DerivesMap::from_source(src).expect_err("cycle must error");
+            match err {
+                DerivesError::AliasCycle { mut names } => {
+                    names.sort();
+                    assert_eq!(names, vec!["A".to_owned(), "B".to_owned()]);
+                }
+                other => panic!("expected AliasCycle, got {other:?}"),
+            }
+        }
+
+        /// An alias whose target is neither a recorded type nor another pending
+        /// alias must surface as `UnresolvedAlias`.
+        #[test]
+        fn unresolvable_alias_errors() {
+            let src = r"
+                pub type UnknownAlias = SomeUnparsedType;
+            ";
+            let err = DerivesMap::from_source(src).expect_err("unresolvable must error");
+            match err {
+                DerivesError::UnresolvedAlias { target } => {
+                    assert_eq!(target, "SomeUnparsedType");
+                }
+                other => panic!("expected UnresolvedAlias, got {other:?}"),
+            }
         }
     }
 
-    /// `BaseDerivesCallback` must translate `bool` into the bindgen
-    /// `Some(Yes)` / `Some(No)` answers expected for blocklisted types.
-    #[test]
-    fn base_callback_known_positive_returns_yes() {
-        let src = r"
-            #[derive(Copy, Clone, Debug)]
-            pub struct Pod;
-        ";
-        let map = Arc::new(parse(src));
-        let cb = BaseDerivesCallback::new(map);
-        assert!(matches!(
-            cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
-            Some(ImplementsTrait::Yes)
-        ));
-    }
+    mod base_callback {
+        use super::*;
 
-    #[test]
-    fn base_callback_known_negative_returns_no() {
-        let src = r"
-            #[derive(Copy, Clone)]
-            pub struct Pod;
-        ";
-        let map = Arc::new(parse(src));
-        let cb = BaseDerivesCallback::new(map);
-        assert!(matches!(
-            cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
-            Some(ImplementsTrait::No)
-        ));
-    }
+        /// `BaseDerivesCallback` must translate `bool` into the bindgen
+        /// `Some(Yes)` / `Some(No)` answers expected for blocklisted types.
+        #[test]
+        fn base_callback_known_positive_returns_yes() {
+            let src = r"
+                #[derive(Copy, Clone, Debug)]
+                pub struct Pod;
+            ";
+            let map = Arc::new(DerivesMap::from_source(src).expect("parses"));
+            let cb = BaseDerivesCallback::new(map);
 
-    #[test]
-    fn base_callback_unknown_returns_no() {
-        let map = Arc::new(parse(""));
-        let cb = BaseDerivesCallback::new(map);
-        assert!(matches!(
-            cb.blocklisted_type_implements_trait("Nonexistent", DeriveTrait::Debug),
-            Some(ImplementsTrait::No)
-        ));
+            assert!(matches!(
+                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Copy),
+                Some(ImplementsTrait::Yes)
+            ));
+
+            assert!(matches!(
+                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
+                Some(ImplementsTrait::Yes)
+            ));
+        }
+
+        #[test]
+        fn base_callback_known_negative_returns_no() {
+            let src = r"
+                #[derive(Copy, Clone)]
+                pub struct Pod;
+            ";
+            let map = Arc::new(DerivesMap::from_source(src).expect("parses"));
+            let cb = BaseDerivesCallback::new(map);
+            assert!(matches!(
+                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
+                Some(ImplementsTrait::No)
+            ));
+        }
+
+        #[test]
+        fn base_callback_unknown_returns_no() {
+            let map = Arc::new(DerivesMap::from_source("").expect("parses"));
+            let cb = BaseDerivesCallback::new(map);
+            assert!(matches!(
+                cb.blocklisted_type_implements_trait("Nonexistent", DeriveTrait::Debug),
+                Some(ImplementsTrait::No)
+            ));
+        }
     }
 }
