@@ -33,7 +33,7 @@ rustversion.workspace = true
 semver.workspace = true
 serde = { features = ["derive"], workspace = true }
 serde_json.workspace = true
-syn = { features = ["parsing"], workspace = true }
+syn = { features = ["extra-traits", "full", "parsing"], workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
 windows = { features = [
