@@ -122,17 +122,14 @@ impl<'a> BuildTask<'a> {
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(self.working_dir))
-            .map_err(|err| match err {
-                CommandError::CommandFailed {
-                    command,
-                    args,
-                    stdout: _,
-                } => BuildTaskError::CargoBuild(CommandError::CommandFailed {
-                    command,
-                    args,
-                    stdout: String::new(), // omit stdout to avoid printing potentially large output
-                }),
-                err @ CommandError::IoError(..) => BuildTaskError::CargoBuild(err),
+            .map_err(|mut err| {
+                // Drop stdout from CommandFailed so the noisy
+                // --message-format=json-render-diagnostics output isn't bubbled up
+                // in the wrapped error.
+                if let CommandError::CommandFailed { stdout, .. } = &mut err {
+                    stdout.clear();
+                }
+                BuildTaskError::CargoBuild(err)
             })?;
 
         debug!("cargo build done");
