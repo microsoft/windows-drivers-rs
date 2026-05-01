@@ -146,7 +146,7 @@ const BASE_API_SUBSETS: &[ApiSubset] = &[ApiSubset::Base, ApiSubset::Wdf];
 const FUNCTIONS_CODEGEN: CodegenConfig =
     (CodegenConfig::TYPES.union(CodegenConfig::VARS)).complement();
 
-const SUBSYSTEM_CONFIGS: &[(&str, ApiSubset)] = &[
+const API_SUBSET_CONFIGS: &[(&str, ApiSubset)] = &[
     #[cfg(feature = "gpio")]
     ("gpio", ApiSubset::Gpio),
     #[cfg(feature = "hid")]
@@ -185,37 +185,37 @@ impl callbacks::ParseCallbacks for IncludeTracker {
 }
 
 #[derive(Debug, Default, Clone)]
-struct SubsystemCallbacks {
+struct ApiSubsetCallbacks {
     discovered_type_names: Arc<Mutex<Vec<String>>>,
 }
 
-/// Scoped join handle for a subsystem's types-pass thread. Each one
-/// returns the subsystem name paired with the type names that pass
+/// Scoped join handle for an API subset's types-pass thread. Each one
+/// returns the API subset name paired with the type names that pass
 /// emitted, for the aggregator to re-export.
 type TypesPassHandle<'scope> =
     thread::ScopedJoinHandle<'scope, Result<(String, Vec<String>), ConfigError>>;
 
-/// Each subsystem produces three independent bindgen passes — types,
-/// constants, and functions — that emit `{subsystem}_types.rs`,
-/// `{subsystem}_constants.rs`, and `{subsystem}.rs` respectively. The
-/// variants differ in codegen config, callbacks installed, and allowlist
+/// Each API subset produces three independent bindgen passes — types,
+/// constants, and functions — that emit `{api_subset_name}_types.rs`,
+/// `{api_subset_name}_constants.rs`, and `{api_subset_name}.rs` respectively.
+/// The variants differ in codegen config, callbacks installed, and allowlist
 /// behavior; encoding them as an enum makes the per-pass differences
 /// explicit at the call site.
-enum SubsystemPass {
+enum ApiSubsetPass {
     /// Emits type definitions only. Collects the discovered type names for
-    /// the aggregator and consults `derive_map` so subsystem structs can
+    /// the aggregator and consults `derive_map` so API-subset structs can
     /// derive traits even when their fields reference blocklisted base
     /// types.
     Types { derive_map: Arc<DerivesMap> },
     /// Emits `pub const` items only.
     Constants,
     /// Emits extern function bindings only. Restricts the allowlist to
-    /// subsystem-owned header files so unrelated transitively-included
-    /// functions don't leak into the subsystem module.
+    /// API-subset-owned header files so unrelated transitively-included
+    /// functions don't leak into the API subset's module.
     Functions,
 }
 
-impl callbacks::ParseCallbacks for SubsystemCallbacks {
+impl callbacks::ParseCallbacks for ApiSubsetCallbacks {
     fn new_item_found(&self, _id: callbacks::DiscoveredItemId, item: callbacks::DiscoveredItem) {
         let name = match &item {
             DiscoveredItem::Struct { final_name, .. }
@@ -318,10 +318,10 @@ where
 /// Generates `base_types.rs` and harvests the include set visited along the
 /// way.
 ///
-/// The returned path feeds `DeriveMap::from_file` so subsystem passes can
+/// The returned path feeds `DeriveMap::from_file` so API-subset passes can
 /// answer bindgen's `blocklisted_type_implements_trait` queries. The returned
 /// `HashSet` is the set of headers bindgen actually visited while emitting
-/// base types, used by subsystem passes to `blocklist_file` items already
+/// base types, used by API-subset passes to `blocklist_file` items already
 /// emitted under `crate::types::*`.
 fn generate_base_types(
     out_path: &Path,
@@ -433,29 +433,29 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// Generates bindings for a subsystem by blocklisting base header files. This
+/// Generates bindings for an API subset by blocklisting base header files. This
 /// prevents base items from being re-emitted while allowing bindgen to
 /// recursively follow type references through sub-headers. Base items are
 /// resolved via `use crate::types::*;` in the generated output.
 ///
-/// When `pass` is `SubsystemPass::Types`, installs a `ParseCallbacks` that
+/// When `pass` is `ApiSubsetPass::Types`, installs a `ParseCallbacks` that
 /// records every type bindgen emits and returns them as `Some(names)`. The
 /// aggregator uses this list to emit targeted `pub use` statements instead
-/// of a wildcard. 
-/// 
-/// When `pass` is not `SubsystemPass::Types`, returns `None`.
-fn generate_subsystem_bindings(
+/// of a wildcard.
+///
+/// When `pass` is not `ApiSubsetPass::Types`, returns `None`.
+fn generate_api_subset_bindings(
     out_path: &Path,
     config: &Config,
-    subsystem: &str,
-    subsystem_api_subset: ApiSubset,
+    api_subset_name: &str,
+    api_subset: ApiSubset,
     base_files: &HashSet<String>,
-    pass: &SubsystemPass,
+    pass: &ApiSubsetPass,
 ) -> Result<Vec<String>, ConfigError> {
     let (stem, codegen) = match pass {
-        SubsystemPass::Types { .. } => (format!("{subsystem}_types"), CodegenConfig::TYPES),
-        SubsystemPass::Constants => (format!("{subsystem}_constants"), CodegenConfig::VARS),
-        SubsystemPass::Functions => (subsystem.to_string(), FUNCTIONS_CODEGEN),
+        ApiSubsetPass::Types { .. } => (format!("{api_subset_name}_types"), CodegenConfig::TYPES),
+        ApiSubsetPass::Constants => (format!("{api_subset_name}_constants"), CodegenConfig::VARS),
+        ApiSubsetPass::Functions => (api_subset_name.to_string(), FUNCTIONS_CODEGEN),
     };
     let filename = format!("{stem}.rs");
     info!("Generating bindings to WDK: {filename}");
@@ -464,32 +464,32 @@ fn generate_subsystem_bindings(
         BASE_API_SUBSETS
             .iter()
             .copied()
-            .chain(std::iter::once(subsystem_api_subset)),
+            .chain(std::iter::once(api_subset)),
     )?;
     trace!(header_contents = ?header_contents);
 
-    let subsystem_callbacks =
-        matches!(pass, SubsystemPass::Types { .. }).then(SubsystemCallbacks::default);
+    let api_subset_callbacks =
+        matches!(pass, ApiSubsetPass::Types { .. }).then(ApiSubsetCallbacks::default);
     let mut builder = bindgen::Builder::wdk_default(config)?
         .with_codegen_config(codegen)
         .header_contents(&format!("{stem}-input.h"), &header_contents)
-        // Per-subsystem prefix on anonymous fields prevents `_bindgen_ty_N`
-        // collisions across subsystems.
-        .anon_fields_prefix(format!("__{subsystem}_bindgen_anon_"))
+        // Per-API-subset prefix on anonymous fields prevents `_bindgen_ty_N`
+        // collisions across API subsets.
+        .anon_fields_prefix(format!("__{api_subset_name}_bindgen_anon_"))
         .raw_line(
             r#"#[allow(clippy::wildcard_imports, reason = "the underlying c code relies on all type definitions being in scope, which results in the bindgen generated code relying on the generated types being in scope as well")]"#,
         )
         .raw_line("#[allow(unused_imports)]")
         .raw_line("use crate::types::*;");
-    if let Some(callbacks) = &subsystem_callbacks {
+    if let Some(callbacks) = &api_subset_callbacks {
         builder = builder.parse_callbacks(Box::new(callbacks.clone()));
     }
-    // Answers `blocklisted_type_implements_trait` for subsystem type passes by
-    // consulting the derive set parsed from the base-types source. Without
+    // Answers `blocklisted_type_implements_trait` for API-subset type passes
+    // by consulting the derive set parsed from the base-types source. Without
     // this, bindgen treats every blocklisted base type as "unknown" and
-    // suppresses derives on any subsystem struct that transitively contains
+    // suppresses derives on any API-subset struct that transitively contains
     // one — a regression of ~1,674 types vs. the single-TU build.
-    if let SubsystemPass::Types { derive_map } = pass {
+    if let ApiSubsetPass::Types { derive_map } = pass {
         builder =
             builder.parse_callbacks(Box::new(BaseDerivesCallback::new(Arc::clone(derive_map))));
     }
@@ -503,7 +503,7 @@ fn generate_subsystem_bindings(
         builder = builder.blocklist_file(format!("(?i){}", regex::escape(file)));
     }
 
-    // Only restrict to subsystem-owned header files for the functions pass.
+    // Only restrict to API-subset-owned header files for the functions pass.
     // Types and constants are allowed to include transitively-pulled items
     // (e.g. types from poclass.h reached via ufxproprietarycharger.h) that
     // would otherwise be filtered out by an explicit allowlist.
@@ -512,12 +512,12 @@ fn generate_subsystem_bindings(
     // blocklist above suppresses every base-emitted item. The allowlist
     // pre-dates the blocklist mechanism (carried over from the pre-multi-pass
     // implementation) and may be redundant for any function declared in a
-    // base file. It still guards against a non-base, non-subsystem-owned
-    // header being transitively reached by two subsystems and producing
+    // base file. It still guards against a non-base, non-API-subset-owned
+    // header being transitively reached by two API subsets and producing
     // duplicate `extern` declarations — verify experimentally before
     // removing.
-    if matches!(pass, SubsystemPass::Functions) {
-        for header_file in config.headers(subsystem_api_subset)? {
+    if matches!(pass, ApiSubsetPass::Functions) {
+        for header_file in config.headers(api_subset)? {
             builder = builder.allowlist_file(format!("(?i).*{}.*", regex::escape(&header_file)));
         }
     }
@@ -526,14 +526,14 @@ fn generate_subsystem_bindings(
     let output_file_path = out_path.join(&filename);
     builder
         .generate()
-        .expect("Subsystem bindings should succeed to generate")
+        .expect("API subset bindings should succeed to generate")
         .write_to_file(&output_file_path)
         .map_err(|source| IoError::with_path(output_file_path, source))?;
 
     // Same as the `IncludeTracker` callback above: clone under the lock rather
     // than trying to take ownership of the `Arc`, since bindgen may retain
     // internal references to the callback.
-    Ok(subsystem_callbacks
+    Ok(api_subset_callbacks
         .map(|callbacks| {
             callbacks
                 .discovered_type_names
@@ -550,7 +550,7 @@ fn generate_subsystem_bindings(
 /// Bindgen assigns these to anonymous C compounds (e.g. ntdef.h's
 /// `TYPE_ALIGNMENT` macro expanding to `struct { char x; t test; }`) using a
 /// per-invocation counter. The same name from different bindgen runs
-/// therefore refers to unrelated types, so re-exporting one from a subsystem
+/// therefore refers to unrelated types, so re-exporting one from an API subset
 /// would silently shadow the base pass's name with a same-named-but-different
 /// type. Skipping is safe because user code never references these by name.
 fn is_bare_anonymous_type(name: &str) -> bool {
@@ -558,16 +558,16 @@ fn is_bare_anonymous_type(name: &str) -> bool {
         .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
 }
 
-/// Writes the aggregated `types.rs`, by composing base and subsystem type
+/// Writes the aggregated `types.rs`, by composing base and API-subset type
 /// bindings into a unified namespace. Base types are re-exported via a
-/// wildcard, and subsystem types are re-exported individually so duplicates
-/// across subsystems are dropped instead of colliding. Collisions between
-/// base and subsystem types are resolved because Rust's named `pub use`
+/// wildcard, and API-subset types are re-exported individually so duplicates
+/// across API subsets are dropped instead of colliding. Collisions between
+/// base and API-subset types are resolved because Rust's named `pub use`
 /// re-exports take precedence over `pub use *` glob re-exports in the same
-/// scope, so the per-name subsystem entry wins over the base wildcard.
+/// scope, so the per-name API-subset entry wins over the base wildcard.
 fn write_aggregated_types(
     out_path: &Path,
-    subsystem_types: &[(String, Vec<String>)],
+    api_subset_types: &[(String, Vec<String>)],
 ) -> Result<(), IoError> {
     let mut types_aggregator = String::from(
         r#"#[allow(unused)]
@@ -579,27 +579,30 @@ pub use base_types::*;
     );
 
     let mut exported_types = HashSet::<String>::new();
-    for (subsystem, type_names) in subsystem_types {
+    for (api_subset_name, type_names) in api_subset_types {
         writeln!(
             types_aggregator,
             r#"#[allow(unused)]
-mod {subsystem}_types {{ include!("{subsystem}_types.rs"); }}"#
+mod {api_subset_name}_types {{ include!("{api_subset_name}_types.rs"); }}"#
         )
         .expect("writing to String is infallible");
         for type_name in type_names {
             if is_bare_anonymous_type(type_name) {
                 warn!(
-                    "Skipping bare anonymous type {type_name} from {subsystem}_types to avoid \
-                     shadowing a base anon type with the same generated name"
+                    "Skipping bare anonymous type {type_name} from {api_subset_name}_types to \
+                     avoid shadowing a base anon type with the same generated name"
                 );
                 continue;
             }
             if exported_types.insert(type_name.clone()) {
-                writeln!(types_aggregator, "pub use {subsystem}_types::{type_name};")
-                    .expect("writing to String is infallible");
+                writeln!(
+                    types_aggregator,
+                    "pub use {api_subset_name}_types::{type_name};"
+                )
+                .expect("writing to String is infallible");
             } else {
                 trace!(
-                    "Skipping duplicate type {type_name} from {subsystem}_types (already \
+                    "Skipping duplicate type {type_name} from {api_subset_name}_types (already \
                      re-exported)"
                 );
             }
@@ -613,10 +616,10 @@ mod {subsystem}_types {{ include!("{subsystem}_types.rs"); }}"#
     Ok(())
 }
 
-/// Writes the aggregated `constants.rs`, which composes base and subsystem
+/// Writes the aggregated `constants.rs`, which composes base and API-subset
 /// constant bindings into a unified namespace. All constants are re-exported
 /// via wildcards.
-fn write_aggregated_constants(out_path: &Path, subsystems: &[String]) -> Result<(), IoError> {
+fn write_aggregated_constants(out_path: &Path, api_subset_names: &[String]) -> Result<(), IoError> {
     let mut constants_aggregator = String::from(
         r#"#[allow(unused, clippy::wildcard_imports)]
 mod base_constants {
@@ -629,13 +632,13 @@ pub use base_constants::*;
 "#,
     );
 
-    for subsystem in subsystems {
+    for api_subset_name in api_subset_names {
         writeln!(
             constants_aggregator,
             r#"#[allow(unused)]
-mod {subsystem}_constants {{ include!("{subsystem}_constants.rs"); }}
+mod {api_subset_name}_constants {{ include!("{api_subset_name}_constants.rs"); }}
 #[allow(clippy::wildcard_imports)]
-pub use {subsystem}_constants::*;
+pub use {api_subset_name}_constants::*;
 "#
         )
         .expect("writing to String is infallible");
@@ -648,9 +651,9 @@ pub use {subsystem}_constants::*;
 }
 
 /// Runs the full bindgen pipeline: `generate_base_types` runs first
-/// sequentially because subsystem type passes need its derive information
+/// sequentially because API-subset type passes need its derive information
 /// (via `BaseDerivesCallback`) and its include set (for `blocklist_file`),
-/// then base + subsystem generators run in parallel, then aggregation.
+/// then base + API-subset generators run in parallel, then aggregation.
 fn bindgen_pipeline(out_path: &Path, config: &Config) -> anyhow::Result<()> {
     let (base_types_path, base_files) =
         info_span!("generate base_types.rs").in_scope(|| generate_base_types(out_path, config))?;
@@ -658,7 +661,7 @@ fn bindgen_pipeline(out_path: &Path, config: &Config) -> anyhow::Result<()> {
     let derive_map = Arc::new(DerivesMap::from_file(&base_types_path)?);
     let base_files = &base_files;
 
-    let mut subsystem_types: Vec<(String, Vec<String>)> = Vec::new();
+    let mut api_subset_types: Vec<(String, Vec<String>)> = Vec::new();
     thread::scope(|scope| -> anyhow::Result<()> {
         let mut types_handles: Vec<TypesPassHandle> = Vec::new();
         let mut non_types_handles = Vec::new();
@@ -677,26 +680,26 @@ fn bindgen_pipeline(out_path: &Path, config: &Config) -> anyhow::Result<()> {
             );
         }
 
-        // Subsystem passes — three per subsystem. Types passes return their
+        // API-subset passes — three per API subset. Types passes return their
         // discovered type names through the join handle so the aggregator
         // can emit selective `pub use` re-exports.
-        for (subsystem, api_subset) in SUBSYSTEM_CONFIGS {
-            let subsystem_api_subset = *api_subset;
+        for (api_subset_name, api_subset) in API_SUBSET_CONFIGS {
+            let api_subset = *api_subset;
 
             // Types pass
             let current_span = Span::current();
             let derive_map = Arc::clone(&derive_map);
             types_handles.push(
                 thread::Builder::new()
-                    .name(format!("bindgen {subsystem} types"))
+                    .name(format!("bindgen {api_subset_name} types"))
                     .spawn_scoped(scope, move || {
-                        info_span!(parent: &current_span, "worker thread", generated_file_name = format!("{subsystem}_types.rs"))
+                        info_span!(parent: &current_span, "worker thread", generated_file_name = format!("{api_subset_name}_types.rs"))
                             .in_scope(|| {
-                                let discovered_type_names = generate_subsystem_bindings(
-                                    out_path, config, subsystem, subsystem_api_subset,
-                                    base_files, &SubsystemPass::Types { derive_map },
+                                let discovered_type_names = generate_api_subset_bindings(
+                                    out_path, config, api_subset_name, api_subset,
+                                    base_files, &ApiSubsetPass::Types { derive_map },
                                 )?;
-                                Ok((subsystem.to_string(), discovered_type_names))
+                                Ok((api_subset_name.to_string(), discovered_type_names))
                             })
                     })
                     .expect("Scoped Thread should spawn successfully"),
@@ -706,13 +709,13 @@ fn bindgen_pipeline(out_path: &Path, config: &Config) -> anyhow::Result<()> {
             let current_span = Span::current();
             non_types_handles.push(
                 thread::Builder::new()
-                    .name(format!("bindgen {subsystem} constants"))
+                    .name(format!("bindgen {api_subset_name} constants"))
                     .spawn_scoped(scope, move || {
-                        info_span!(parent: &current_span, "worker thread", generated_file_name = format!("{subsystem}_constants.rs"))
+                        info_span!(parent: &current_span, "worker thread", generated_file_name = format!("{api_subset_name}_constants.rs"))
                             .in_scope(|| {
-                                generate_subsystem_bindings(
-                                    out_path, config, subsystem, subsystem_api_subset,
-                                    base_files, &SubsystemPass::Constants,
+                                generate_api_subset_bindings(
+                                    out_path, config, api_subset_name, api_subset,
+                                    base_files, &ApiSubsetPass::Constants,
                                 )?;
                                 Ok(())
                             })
@@ -724,13 +727,13 @@ fn bindgen_pipeline(out_path: &Path, config: &Config) -> anyhow::Result<()> {
             let current_span = Span::current();
             non_types_handles.push(
                 thread::Builder::new()
-                    .name(format!("bindgen {subsystem} functions"))
+                    .name(format!("bindgen {api_subset_name} functions"))
                     .spawn_scoped(scope, move || {
-                        info_span!(parent: &current_span, "worker thread", generated_file_name = format!("{subsystem}.rs"))
+                        info_span!(parent: &current_span, "worker thread", generated_file_name = format!("{api_subset_name}.rs"))
                             .in_scope(|| {
-                                generate_subsystem_bindings(
-                                    out_path, config, subsystem, subsystem_api_subset,
-                                    base_files, &SubsystemPass::Functions,
+                                generate_api_subset_bindings(
+                                    out_path, config, api_subset_name, api_subset,
+                                    base_files, &ApiSubsetPass::Functions,
                                 )?;
                                 Ok(())
                             })
@@ -740,15 +743,15 @@ fn bindgen_pipeline(out_path: &Path, config: &Config) -> anyhow::Result<()> {
         }
 
         join_worker_threads(non_types_handles)?;
-        subsystem_types = join_worker_threads(types_handles)?;
+        api_subset_types = join_worker_threads(types_handles)?;
         Ok(())
     })?;
-    subsystem_types.sort_by(|(a, _), (b, _)| a.cmp(b));
+    api_subset_types.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-    write_aggregated_types(out_path, &subsystem_types)?;
+    write_aggregated_types(out_path, &api_subset_types)?;
 
-    let subsystem_names: Vec<String> = subsystem_types.into_iter().map(|(s, _)| s).collect();
-    write_aggregated_constants(out_path, &subsystem_names)?;
+    let api_subset_names: Vec<String> = api_subset_types.into_iter().map(|(s, _)| s).collect();
+    write_aggregated_constants(out_path, &api_subset_names)?;
     Ok(())
 }
 
