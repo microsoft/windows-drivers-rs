@@ -469,7 +469,7 @@ impl Config {
                 || {
                     tracing::warn!(
                         "Could not detect wdk-sys features from cargo metadata resolve. \
-                        Feature-dependent libraries will not be linked automatically."
+                         Feature-dependent libraries will not be linked automatically."
                     );
                     Vec::new()
                 },
@@ -1191,7 +1191,7 @@ impl Config {
                 // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self.enabled.contains(&"hid".to_string()) {
+                if self.enabled.iter().any(|f| f == "hid") {
                     println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
                 }
             }
@@ -1227,7 +1227,7 @@ impl Config {
                 // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self.enabled.contains(&"hid".to_string()) {
+                if self.enabled.iter().any(|f| f == "hid") {
                     println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
                 }
             }
@@ -1248,7 +1248,7 @@ impl Config {
                 // Link against VhfUm.lib (Virtual HID Framework, user-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self.enabled.contains(&"hid".to_string()) {
+                if self.enabled.iter().any(|f| f == "hid") {
                     println!("cargo::rustc-cdylib-link-arg=VhfUm.lib");
                 }
             }
