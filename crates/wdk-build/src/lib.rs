@@ -31,6 +31,7 @@ mod bindgen;
 
 use cargo_metadata::MetadataCommand;
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, from_value};
 use thiserror::Error;
 
 use crate::utils::detect_windows_sdk_version;
@@ -46,7 +47,7 @@ pub struct Config {
     /// Build configuration of driver
     pub driver_config: DriverConfig,
     /// List of features enabled for `wdk-sys` in resolved dependency graph
-    enabled: Vec<String>,
+    enabled_api_subsets: Vec<ApiSubset>,
 }
 
 /// The driver type with its associated configuration parameters
@@ -318,7 +319,8 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
 }
 
 /// Subset of APIs in the Windows Driver Kit
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum ApiSubset {
     /// API subset typically required for all Windows drivers
     Base,
@@ -399,7 +401,7 @@ impl Default for Config {
             ),
             driver_config: DriverConfig::Wdm,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
-            enabled: Vec::new(),
+            enabled_api_subsets: Vec::new(),
         }
     }
 }
@@ -473,7 +475,12 @@ impl Config {
                     );
                     Vec::new()
                 },
-                |node| node.features.clone(),
+                |node| {
+                    node.features
+                        .iter()
+                        .filter_map(|f| from_value::<ApiSubset>(Value::String(f.clone())).ok())
+                        .collect()
+                },
             );
 
         // Force rebuilds if any of the manifest files change (ex. if wdk metadata
@@ -491,7 +498,7 @@ impl Config {
 
         Ok(Self {
             driver_config: wdk_metadata.driver_model,
-            enabled: wdk_sys_enabled_features,
+            enabled_api_subsets: wdk_sys_enabled_features,
             ..Default::default()
         })
     }
@@ -1191,7 +1198,11 @@ impl Config {
                 // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self.enabled.iter().any(|f| f == "hid") {
+                if self
+                    .enabled_api_subsets
+                    .iter()
+                    .any(|f| f == &ApiSubset::Hid)
+                {
                     println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
                 }
             }
@@ -1227,7 +1238,11 @@ impl Config {
                 // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self.enabled.iter().any(|f| f == "hid") {
+                if self
+                    .enabled_api_subsets
+                    .iter()
+                    .any(|f| f == &ApiSubset::Hid)
+                {
                     println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
                 }
             }
@@ -1248,7 +1263,11 @@ impl Config {
                 // Link against VhfUm.lib (Virtual HID Framework, user-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self.enabled.iter().any(|f| f == "hid") {
+                if self
+                    .enabled_api_subsets
+                    .iter()
+                    .any(|f| f == &ApiSubset::Hid)
+                {
                     println!("cargo::rustc-cdylib-link-arg=VhfUm.lib");
                 }
             }
