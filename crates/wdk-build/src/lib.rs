@@ -47,6 +47,7 @@ pub struct Config {
     /// Build configuration of driver
     pub driver_config: DriverConfig,
     /// List of features enabled for `wdk-sys` in resolved dependency graph
+    #[serde(default)]
     enabled_api_subsets: Vec<ApiSubset>,
 }
 
