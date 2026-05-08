@@ -1897,18 +1897,32 @@ mod tests {
         #[cfg(assert_matches_stabilized)]
         assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
+        assert!(config.enabled_api_subsets.is_empty());
     }
 
     #[test]
     fn wdm_config() {
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Wdm,
+            enabled_api_subsets: vec![ApiSubset::Hid],
             ..Config::default()
         });
 
         #[cfg(assert_matches_stabilized)]
         assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
+        assert!(
+            config
+                .enabled_api_subsets
+                .iter()
+                .any(|f| f == &ApiSubset::Hid)
+        );
+        assert!(
+            !config
+                .enabled_api_subsets
+                .iter()
+                .any(|f| f == &ApiSubset::Gpio)
+        );
     }
 
     #[test]
@@ -1938,6 +1952,7 @@ mod tests {
                 target_kmdf_version_minor: 15,
                 minimum_kmdf_version_minor: None,
             }),
+            enabled_api_subsets: vec![ApiSubset::Hid, ApiSubset::Gpio],
             ..Config::default()
         });
 
@@ -1951,6 +1966,18 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
+        assert!(
+            config
+                .enabled_api_subsets
+                .iter()
+                .any(|f| f == &ApiSubset::Hid)
+        );
+        assert!(
+            config
+                .enabled_api_subsets
+                .iter()
+                .any(|f| f == &ApiSubset::Gpio)
+        );
     }
 
     #[test]
@@ -1980,6 +2007,7 @@ mod tests {
                 target_umdf_version_minor: 15,
                 minimum_umdf_version_minor: None,
             }),
+            enabled_api_subsets: vec![ApiSubset::Usb],
             ..Config::default()
         });
 
@@ -1993,6 +2021,18 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
+        assert!(
+            !config
+                .enabled_api_subsets
+                .iter()
+                .any(|f| f == &ApiSubset::Hid)
+        );
+        assert!(
+            config
+                .enabled_api_subsets
+                .iter()
+                .any(|f| f == &ApiSubset::Usb)
+        );
     }
 
     #[test]
