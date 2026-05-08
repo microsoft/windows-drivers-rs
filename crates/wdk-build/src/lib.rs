@@ -461,28 +461,32 @@ impl Config {
             .map(|pkg| &pkg.id);
         // Extract the features enabled for `wdk-sys`
         // Produces an empty Vec if `wdk-sys` is not found in the dependency graph
-        let wdk_sys_enabled_features = wdk_sys_package_id
-            .and_then(|id| {
-                cargo_metadata
-                    .resolve
-                    .as_ref()
-                    .and_then(|resolve| resolve.nodes.iter().find(|node| node.id == *id))
-            })
-            .map_or_else(
-                || {
-                    tracing::warn!(
-                        "Could not detect wdk-sys features from cargo metadata resolve. \
-                         Feature-dependent libraries will not be linked automatically."
-                    );
-                    Vec::new()
-                },
-                |node| {
-                    node.features
-                        .iter()
-                        .filter_map(|f| from_value::<ApiSubset>(Value::String(f.clone())).ok())
-                        .collect()
-                },
-            );
+        let wdk_sys_enabled_features = match wdk_sys_package_id {
+            None => {
+                // wdk-sys not in dependency graph
+                Vec::new()
+            }
+            Some(id) => cargo_metadata
+                .resolve
+                .as_ref()
+                .and_then(|resolve| resolve.nodes.iter().find(|node| node.id == *id))
+                .map_or_else(
+                    || {
+                        tracing::warn!(
+                            "wdk-sys was found in packages but its features could not be \
+                             determined from cargo metadata resolve. Feature-dependent libraries \
+                             will not be linked automatically."
+                        );
+                        Vec::new()
+                    },
+                    |node| {
+                        node.features
+                            .iter()
+                            .filter_map(|f| from_value::<ApiSubset>(Value::String(f.clone())).ok())
+                            .collect()
+                    },
+                ),
+        };
 
         // Force rebuilds if any of the manifest files change (ex. if wdk metadata
         // section is modified)
@@ -1199,11 +1203,7 @@ impl Config {
                 // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self
-                    .enabled_api_subsets
-                    .iter()
-                    .any(|f| f == &ApiSubset::Hid)
-                {
+                if self.enabled_api_subsets.contains(&ApiSubset::Hid) {
                     println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
                 }
             }
@@ -1239,11 +1239,7 @@ impl Config {
                 // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self
-                    .enabled_api_subsets
-                    .iter()
-                    .any(|f| f == &ApiSubset::Hid)
-                {
+                if self.enabled_api_subsets.contains(&ApiSubset::Hid) {
                     println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
                 }
             }
@@ -1264,11 +1260,7 @@ impl Config {
                 // Link against VhfUm.lib (Virtual HID Framework, user-mode) when
                 // the "hid" feature is enabled in wdk-sys. Required by drivers that
                 // create virtual HID devices.
-                if self
-                    .enabled_api_subsets
-                    .iter()
-                    .any(|f| f == &ApiSubset::Hid)
-                {
+                if self.enabled_api_subsets.contains(&ApiSubset::Hid) {
                     println!("cargo::rustc-cdylib-link-arg=VhfUm.lib");
                 }
             }
@@ -1911,18 +1903,8 @@ mod tests {
         #[cfg(assert_matches_stabilized)]
         assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
-        assert!(
-            config
-                .enabled_api_subsets
-                .iter()
-                .any(|f| f == &ApiSubset::Hid)
-        );
-        assert!(
-            !config
-                .enabled_api_subsets
-                .iter()
-                .any(|f| f == &ApiSubset::Gpio)
-        );
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Hid));
+        assert!(!config.enabled_api_subsets.contains(&ApiSubset::Gpio));
     }
 
     #[test]
@@ -1966,18 +1948,8 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
-        assert!(
-            config
-                .enabled_api_subsets
-                .iter()
-                .any(|f| f == &ApiSubset::Hid)
-        );
-        assert!(
-            config
-                .enabled_api_subsets
-                .iter()
-                .any(|f| f == &ApiSubset::Gpio)
-        );
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Hid));
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Gpio));
     }
 
     #[test]
@@ -2021,18 +1993,8 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
-        assert!(
-            !config
-                .enabled_api_subsets
-                .iter()
-                .any(|f| f == &ApiSubset::Hid)
-        );
-        assert!(
-            config
-                .enabled_api_subsets
-                .iter()
-                .any(|f| f == &ApiSubset::Usb)
-        );
+        assert!(!config.enabled_api_subsets.contains(&ApiSubset::Hid));
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Usb));
     }
 
     #[test]
