@@ -492,12 +492,12 @@ impl Config {
                         feature.as_str()
                     )) {
                         Ok(subset) => api_subsets.push(subset),
-                        Err(_) => {
+                        Err(err) => {
                             panic!(
                                 "Unknown wdk-sys feature '{feature}' is not a recognized \
-                                 ApiSubset and not in the known non-API-subset feature list. If \
-                                 this is a new API subset, add a variant to ApiSubset. If it is \
-                                 not an API subset, add it to NON_API_SUBSET_FEATURES in \
+                                 ApiSubset and not in the known non-API-subset feature list: \
+                                 {err}. If this is a new API subset, add a variant to ApiSubset. \
+                                 If it is not an API subset, add it to NON_API_SUBSET_FEATURES in \
                                  wdk-build."
                             );
                         }
