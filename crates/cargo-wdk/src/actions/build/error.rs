@@ -49,7 +49,7 @@ pub enum BuildTaskError {
     #[error("Empty manifest path found error")]
     EmptyManifestPath,
     #[error("Error running cargo build command")]
-    CargoBuild(#[from] CommandError),
+    CargoBuild(#[source] CommandError),
     #[error(transparent)]
     FileIo(#[from] FileError),
 }
