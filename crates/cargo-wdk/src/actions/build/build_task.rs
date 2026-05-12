@@ -16,7 +16,7 @@ use wdk_build::CpuArchitecture;
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{Profile, build::error::BuildTaskError, to_target_triple},
+    actions::{ManifestOptions, Profile, build::error::BuildTaskError, to_target_triple},
     providers::error::CommandError,
     trace,
 };
@@ -27,6 +27,7 @@ pub struct BuildTask<'a> {
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
     verbosity_level: clap_verbosity_flag::Verbosity,
+    manifest_options: ManifestOptions,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
     working_dir: &'a Path,
@@ -41,6 +42,8 @@ impl<'a> BuildTask<'a> {
     /// * `profile` - An optional profile for the build
     /// * `target_arch` - The target architecture for the build
     /// * `verbosity_level` - The verbosity level for logging
+    /// * `manifest_options` - Cargo manifest options (`--locked`, `--frozen`,
+    ///   `--offline`) to forward to the underlying `cargo build` invocation
     /// * `command_exec` - The command execution provider
     ///
     /// # Returns
@@ -54,6 +57,7 @@ impl<'a> BuildTask<'a> {
         profile: Option<&'a Profile>,
         target_arch: Option<CpuArchitecture>,
         verbosity_level: clap_verbosity_flag::Verbosity,
+        manifest_options: ManifestOptions,
         command_exec: &'a CommandExec,
     ) -> Self {
         assert!(
@@ -66,6 +70,7 @@ impl<'a> BuildTask<'a> {
             profile,
             target_arch,
             verbosity_level,
+            manifest_options,
             manifest_path: working_dir.join("Cargo.toml"),
             command_exec,
             working_dir,
@@ -109,6 +114,7 @@ impl<'a> BuildTask<'a> {
             args.push("--target".to_string());
             args.push(to_target_triple(target_arch));
         }
+        args.extend(self.manifest_options.cargo_args().map(String::from));
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
         }
@@ -149,7 +155,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        actions::Profile,
+        actions::{ManifestOptions, Profile},
         providers::{error::CommandError, exec::MockCommandExec},
     };
 
@@ -168,6 +174,7 @@ mod tests {
             Some(&profile),
             target_arch,
             verbosity_level,
+            ManifestOptions::default(),
             &command_exec,
         );
 
@@ -201,6 +208,7 @@ mod tests {
             profile.as_ref(),
             target_arch,
             verbosity_level,
+            ManifestOptions::default(),
             &command_exec,
         );
     }
@@ -257,6 +265,7 @@ mod tests {
             Some(&profile),
             Some(target_arch),
             verbosity,
+            ManifestOptions::default(),
             &mock,
         );
 
@@ -298,6 +307,7 @@ mod tests {
             None,
             None,
             clap_verbosity_flag::Verbosity::default(),
+            ManifestOptions::default(),
             &mock,
         );
 
@@ -339,6 +349,7 @@ mod tests {
             None,
             None,
             clap_verbosity_flag::Verbosity::default(),
+            ManifestOptions::default(),
             &mock,
         );
 
@@ -355,5 +366,99 @@ mod tests {
             "expected args to contain 'build', got: {args:?}"
         );
         assert_eq!(io_err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn run_forwards_manifest_options_to_cargo_invocations_in_build_task() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let manifest_options = ManifestOptions {
+            frozen: true,
+            locked: true,
+            offline: true,
+        };
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_stdout_for_mock = expected_stdout.clone();
+
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(|command, args, _env, _wd| {
+                command == "cargo"
+                    && args.contains(&"--frozen")
+                    && args.contains(&"--locked")
+                    && args.contains(&"--offline")
+                    && {
+                        // Confirm fixed ordering: locked before offline before frozen
+                        let locked_idx = args.iter().position(|a| *a == "--locked").unwrap();
+                        let offline_idx = args.iter().position(|a| *a == "--offline").unwrap();
+                        let frozen_idx = args.iter().position(|a| *a == "--frozen").unwrap();
+                        locked_idx < offline_idx && offline_idx < frozen_idx
+                    }
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout_for_mock,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(
+            "my-driver",
+            &working_dir,
+            None,
+            None,
+            clap_verbosity_flag::Verbosity::default(),
+            manifest_options,
+            &mock,
+        );
+
+        task.run()
+            .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+    }
+
+    #[test]
+    fn run_forwards_locked_only_when_only_locked_is_set() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let manifest_options = ManifestOptions {
+            locked: true,
+            ..ManifestOptions::default()
+        };
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_stdout_for_mock = expected_stdout.clone();
+
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(|command, args, _env, _wd| {
+                command == "cargo"
+                    && args.contains(&"--locked")
+                    && !args.contains(&"--frozen")
+                    && !args.contains(&"--offline")
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout_for_mock,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(
+            "my-driver",
+            &working_dir,
+            None,
+            None,
+            clap_verbosity_flag::Verbosity::default(),
+            manifest_options,
+            &mock,
+        );
+
+        task.run()
+            .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
     }
 }

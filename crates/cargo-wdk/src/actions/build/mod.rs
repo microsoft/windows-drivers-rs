@@ -29,7 +29,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::Profile;
+use crate::actions::{ManifestOptions, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -40,6 +40,7 @@ pub struct BuildActionParams<'a> {
     pub verify_signature: bool,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
+    pub manifest_options: ManifestOptions,
 }
 
 /// Action that orchestrates the build and package of a driver project. Build is
@@ -51,6 +52,7 @@ pub struct BuildAction<'a> {
     verify_signature: bool,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
+    manifest_options: ManifestOptions,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -92,6 +94,7 @@ impl<'a> BuildAction<'a> {
             verify_signature: params.verify_signature,
             is_sample_class: params.is_sample_class,
             verbosity_level: params.verbosity_level,
+            manifest_options: params.manifest_options,
             wdk_build,
             command_exec,
             fs,
@@ -336,6 +339,7 @@ impl<'a> BuildAction<'a> {
             self.profile,
             self.target_arch,
             self.verbosity_level,
+            self.manifest_options,
             self.command_exec,
         );
         let output_message_iter = build_task.run()?;
@@ -502,7 +506,9 @@ impl<'a> BuildAction<'a> {
         &self,
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {
-        let args = ["rustc", "--", "--print", "cfg"];
+        let mut args: Vec<&str> = vec!["rustc"];
+        args.extend(self.manifest_options.cargo_args());
+        args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;

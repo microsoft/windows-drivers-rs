@@ -90,3 +90,32 @@ impl Display for DriverType {
         write!(f, "{s}")
     }
 }
+
+/// Cargo manifest options
+#[derive(clap::Args, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[command(next_help_heading = "Manifest Options")]
+pub struct ManifestOptions {
+    /// Require Cargo.lock is up to date
+    #[arg(long)]
+    pub locked: bool,
+    /// Run without accessing the network
+    #[arg(long)]
+    pub offline: bool,
+    /// Require Cargo.lock and cache are up to date
+    #[arg(long)]
+    pub frozen: bool,
+}
+
+impl ManifestOptions {
+    /// Returns an iterator over the cargo CLI flags equivalent to this set of
+    /// options.
+    pub fn cargo_args(&self) -> impl Iterator<Item = &'static str> {
+        [
+            self.locked.then_some("--locked"),
+            self.offline.then_some("--offline"),
+            self.frozen.then_some("--frozen"),
+        ]
+        .into_iter()
+        .flatten()
+    }
+}

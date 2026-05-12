@@ -14,6 +14,7 @@ use wdk_build::CpuArchitecture;
 use crate::actions::{
     DriverType,
     KMDF_STR,
+    ManifestOptions,
     Profile,
     UMDF_STR,
     WDM_STR,
@@ -92,6 +93,9 @@ pub struct BuildArgs {
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
+
+    #[command(flatten)]
+    pub manifest_options: ManifestOptions,
 }
 
 /// Subcommands
@@ -169,6 +173,7 @@ impl Cli {
                         verify_signature: cli_args.verify_signature,
                         is_sample_class: cli_args.sample,
                         verbosity_level: self.verbose,
+                        manifest_options: cli_args.manifest_options,
                     },
                     &wdk_build,
                     &command_exec,
