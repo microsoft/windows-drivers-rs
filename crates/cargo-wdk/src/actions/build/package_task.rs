@@ -106,6 +106,8 @@ impl<'a> PackageTask<'a> {
     /// # Panics
     /// * If `params.working_dir` is not absolute
     /// * If `params.target_dir` is not absolute
+    /// * If `params.verify_signature` is `true` while `params.sign_mode` is
+    ///   `SignMode::Off`
     pub fn new(
         params: PackageTaskParams<'a>,
         wdk_build: &'a WdkBuild,
@@ -122,6 +124,10 @@ impl<'a> PackageTask<'a> {
             params.target_dir.is_absolute(),
             "Target directory path must be absolute. Input path: {}",
             params.target_dir.display()
+        );
+        assert!(
+            !(params.sign_mode == SignMode::Off && params.verify_signature),
+            "verify_signature must be false when sign_mode is 'off'"
         );
         let package_name = params.package_name.replace('-', "_");
         // src paths
@@ -242,6 +248,7 @@ impl<'a> PackageTask<'a> {
         self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
+        self.run_infverif()?;
         match self.sign_mode {
             SignMode::Test => {
                 self.generate_certificate()?;
@@ -256,21 +263,17 @@ impl<'a> PackageTask<'a> {
                     WDR_TEST_CERT_STORE,
                     WDR_LOCAL_TEST_CERT,
                 )?;
+                if self.verify_signature {
+                    info!("Verifying signatures for driver binary and cat file using signtool");
+                    self.run_signtool_verify(&self.dest_driver_binary_path)?;
+                    self.run_signtool_verify(&self.dest_cat_file_path)?;
+                }
             }
             SignMode::Off => {
-                info!("Sign mode is 'off'; skipping certificate generation and signing");
-            }
-        }
-        self.run_infverif()?;
-        // Verify signatures only when --verify-signature flag = true is passed
-        // and signing was done (sign mode is not 'off').
-        if self.verify_signature {
-            if matches!(self.sign_mode, SignMode::Off) {
-                warn!("Skipping signature verification because sign mode is 'off'");
-            } else {
-                info!("Verifying signatures for driver binary and cat file using signtool");
-                self.run_signtool_verify(&self.dest_driver_binary_path)?;
-                self.run_signtool_verify(&self.dest_cat_file_path)?;
+                info!(
+                    "Sign mode is 'off'; skipping certificate generation, signing, and \
+                     verification"
+                );
             }
         }
         Ok(())
@@ -746,6 +749,32 @@ mod tests {
             sample_class: false,
             verify_signature: false,
             sign_mode: SignMode::Test,
+        };
+
+        let command_exec = CommandExec::default();
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+
+        PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
+    }
+
+    #[test]
+    #[should_panic(expected = "verify_signature must be false when sign_mode is 'off'")]
+    fn new_panics_when_verify_signature_is_true_and_sign_mode_is_off() {
+        let package_name = "test_package";
+        let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
+        let target_dir = PathBuf::from("C:/absolute/path/to/target/dir");
+        let arch = CpuArchitecture::Amd64;
+
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            verify_signature: true,
+            sign_mode: SignMode::Off,
         };
 
         let command_exec = CommandExec::default();

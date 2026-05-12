@@ -304,81 +304,6 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
 }
 
 #[test]
-pub fn given_a_sample_class_driver_project_when_sign_mode_is_off_then_signing_is_skipped_and_sample_infverif_still_runs()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = true;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .with_sign_mode(SignMode::Off)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch)
-        .expect_detect_wdk_build_number(25100u32);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_sign_mode_is_off_and_verify_signature_is_true_then_verification_is_skipped()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .with_sign_mode(SignMode::Off)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
 pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -770,6 +695,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
+        .expect_infverif(driver_name, &cwd, driver_type, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_output));
 
@@ -829,6 +755,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
+        .expect_infverif(driver_name, &cwd, driver_type, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, Some(expected_output));
@@ -889,6 +816,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
+        .expect_infverif(driver_name, &cwd, driver_type, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, None)
@@ -951,13 +879,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(None)
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", Some(expected_output));
+        .expect_infverif(driver_name, &cwd, driver_type, Some(expected_output));
 
     let build_action = initialize_build_action(
         &cwd,
