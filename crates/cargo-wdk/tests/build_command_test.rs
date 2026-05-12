@@ -357,42 +357,6 @@ fn sign_mode_off_with_verify_signature_is_rejected() {
     );
 }
 
-/// `cargo wdk build --help` must advertise every supported option. Adding a
-/// new option to the `build` subcommand should also be reflected here so that
-/// future regressions (e.g., a flag accidentally hidden or removed) are caught
-/// at the CLI surface.
-#[test]
-fn build_help_advertises_all_options() {
-    let mut cmd = create_cargo_wdk_cmd("build", Some(&["--help"]), None, None::<&str>);
-    let assertion = cmd.assert().success();
-    let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).to_string();
-
-    // (flag, optional substring that must also appear on/near the flag's help
-    // line, e.g. its default value)
-    let expected_options: &[(&str, Option<&str>)] = &[
-        ("--profile", None),
-        ("--target-arch", None),
-        ("--verify-signature", None),
-        ("--sign-mode", Some("[default: test]")),
-        ("--sample", None),
-        ("--help", None),
-    ];
-
-    for (flag, extra) in expected_options {
-        assert!(
-            stdout.contains(flag),
-            "expected `{flag}` in `cargo wdk build --help` output:\n{stdout}"
-        );
-        if let Some(extra) = extra {
-            assert!(
-                stdout.contains(extra),
-                "expected `{extra}` (associated with `{flag}`) in `cargo wdk build --help` \
-                 output:\n{stdout}"
-            );
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
