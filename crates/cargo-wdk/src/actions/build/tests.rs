@@ -1762,10 +1762,19 @@ impl TestBuildAction {
             serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = self
+            .manifest_options
+            .cargo_args()
+            .map(String::from)
+            .collect();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir: &Path, other_options: &[&str]| {
+                let actual: Vec<String> = other_options.iter().map(|s| (*s).to_string()).collect();
+                actual == expected_options
+            })
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1791,10 +1800,19 @@ impl TestBuildAction {
         )
         .expect("Failed to parse cargo metadata in set_up_workspace_with_multiple_driver_projects");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = self
+            .manifest_options
+            .cargo_args()
+            .map(String::from)
+            .collect();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir: &Path, other_options: &[&str]| {
+                let actual: Vec<String> = other_options.iter().map(|s| (*s).to_string()).collect();
+                actual == expected_options
+            })
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1804,10 +1822,19 @@ impl TestBuildAction {
             serde_json::from_str::<cargo_metadata::Metadata>(cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = self
+            .manifest_options
+            .cargo_args()
+            .map(String::from)
+            .collect();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir: &Path, other_options: &[&str]| {
+                let actual: Vec<String> = other_options.iter().map(|s| (*s).to_string()).collect();
+                actual == expected_options
+            })
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }

@@ -317,9 +317,10 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .into();
+        let other_options: Vec<&str> = self.manifest_options.cargo_args().collect();
         let cargo_metadata = self
             .metadata
-            .get_cargo_metadata_at_path(&working_dir_path_trimmed)?;
+            .get_cargo_metadata_at_path(&working_dir_path_trimmed, &other_options)?;
         Ok(cargo_metadata)
     }
 
