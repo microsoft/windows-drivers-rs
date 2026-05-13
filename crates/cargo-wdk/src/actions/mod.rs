@@ -6,7 +6,9 @@
 //! business logic of the cargo-wdk utility are:
 //! * `new` - New action module
 //! * `build` - Build action module
+//! * `clean` - Clean action module
 pub mod build;
+pub mod clean;
 pub mod new;
 
 use std::{

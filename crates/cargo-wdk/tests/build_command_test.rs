@@ -173,12 +173,15 @@ fn emulated_workspace_builds_successfully() {
     let emulated_workspace_path = "tests/emulated-workspace";
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
     with_mutex(emulated_workspace_path, || {
-        run_cargo_clean(&umdf_driver_workspace_path);
-        run_cargo_clean(&format!("{emulated_workspace_path}/rust-project"));
+        run_clean_cmd(emulated_workspace_path);
+        assert_target_dir_does_not_exist(&umdf_driver_workspace_path);
+        assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
+
         let stderr = run_build_cmd(emulated_workspace_path, None, None);
         assert!(stderr.contains("Building package driver_1"));
         assert!(stderr.contains("Building package driver_2"));
         assert!(stderr.contains("Build completed successfully"));
+
         verify_driver_package_files(
             &umdf_driver_workspace_path,
             "driver_1",
@@ -195,6 +198,12 @@ fn emulated_workspace_builds_successfully() {
             None,
             None,
         );
+
+        run_clean_cmd(emulated_workspace_path);
+        assert_target_dir_does_not_exist(&umdf_driver_workspace_path);
+        assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
+        assert_package_dir_does_not_exist(&umdf_driver_workspace_path, "driver_1", None, "debug");
+        assert_package_dir_does_not_exist(&umdf_driver_workspace_path, "driver_2", None, "debug");
     });
 }
 
@@ -372,7 +381,8 @@ fn clean_build_and_verify_project(
         project_path.map_or_else(|| format!("tests/{driver_name}"), ToString::to_string);
     let mutex_name = project_path.clone();
     with_mutex(&mutex_name, || {
-        run_cargo_clean(&project_path);
+        run_clean_cmd(&project_path);
+        assert_target_dir_does_not_exist(&project_path);
 
         let mut args: Vec<&str> = Vec::new();
         if let Some(target_arch) = input_target_arch {
@@ -409,6 +419,15 @@ fn clean_build_and_verify_project(
             target_triple,
             profile,
         );
+
+        run_clean_cmd(&project_path);
+        assert_target_dir_does_not_exist(&project_path);
+        assert_package_dir_does_not_exist(
+            &project_path,
+            driver_name,
+            target_triple,
+            profile.unwrap_or("debug"),
+        );
     });
 }
 
@@ -420,10 +439,37 @@ fn to_target_triple(target_arch: &str) -> Option<&'static str> {
     }
 }
 
-fn run_cargo_clean(driver_path: &str) {
-    let mut cmd = Command::new("cargo");
-    cmd.args(["clean"]).current_dir(driver_path);
+fn run_clean_cmd(path: &str) {
+    let mut cmd = create_cargo_wdk_cmd("clean", None, None, Some(path));
     cmd.assert().success();
+}
+
+fn assert_target_dir_does_not_exist(project_path: &str) {
+    let target_dir = Path::new(project_path).join("target");
+    assert!(
+        !target_dir.exists(),
+        "Expected target directory to not exist after clean: {}",
+        target_dir.display()
+    );
+}
+
+fn assert_package_dir_does_not_exist(
+    project_path: &str,
+    driver_name: &str,
+    target_triple: Option<&str>,
+    profile: &str,
+) {
+    let driver_name = driver_name.replace('-', "_");
+    let target_folder_path = target_triple.map_or_else(
+        || format!("{project_path}/target/{profile}"),
+        |triple| format!("{project_path}/target/{triple}/{profile}"),
+    );
+    let package_dir = PathBuf::from(&target_folder_path).join(format!("{driver_name}_package"));
+    assert!(
+        !package_dir.exists(),
+        "Expected package directory to not exist after clean: {}",
+        package_dir.display()
+    );
 }
 
 fn run_build_cmd(

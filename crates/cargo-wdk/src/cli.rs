@@ -19,6 +19,7 @@ use crate::actions::{
     UMDF_STR,
     WDM_STR,
     build::{BuildAction, BuildActionParams},
+    clean::CleanAction,
     new::NewAction,
 };
 #[double]
@@ -105,6 +106,11 @@ pub enum Subcmd {
     New(NewArgs),
     #[clap(name = "build", about = "Build the Windows Driver Kit project")]
     Build(BuildArgs),
+    #[clap(
+        name = "clean",
+        about = "Clean build artifacts of the Windows Driver Kit project"
+    )]
+    Clean,
 }
 
 /// Top level command line interface for cargo wdk
@@ -186,6 +192,10 @@ impl Cli {
                     &metadata,
                 )?
                 .run()?;
+                Ok(())
+            }
+            Subcmd::Clean => {
+                CleanAction::new(Path::new("."), self.verbose, &command_exec, &fs)?.run()?;
                 Ok(())
             }
         }
