@@ -1193,6 +1193,7 @@ dependencies = [
  "cargo_metadata",
  "cc",
  "cfg-if",
+ "regex",
  "rustversion",
  "serde_json",
  "thiserror",
