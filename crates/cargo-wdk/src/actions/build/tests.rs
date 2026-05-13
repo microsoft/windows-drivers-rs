@@ -1935,7 +1935,7 @@ impl TestBuildAction {
             .to_string();
         let mut expected_cargo_build_args: Vec<String> = vec![
             "build",
-            "--message-format=json",
+            "--message-format=json-render-diagnostics",
             "-p",
             &driver_name,
             "--manifest-path",

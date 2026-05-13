@@ -759,10 +759,7 @@ pub fn get_wdk_build_output_directory() -> PathBuf {
 #[must_use]
 pub fn get_current_package_name() -> String {
     env::var(CARGO_MAKE_CRATE_FS_NAME_ENV_VAR).unwrap_or_else(|_| {
-        panic!(
-            "{} should be set by cargo-make",
-            &CARGO_MAKE_CRATE_FS_NAME_ENV_VAR
-        )
+        panic!("{CARGO_MAKE_CRATE_FS_NAME_ENV_VAR} should be set by cargo-make")
     })
 }
 
@@ -1032,10 +1029,7 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
         // `CARGO_MAKE_CRATE_FS_NAME_ENV_VAR`, since `cargo_metadata` output uses the
         // non-preprocessed name (ie. - instead of _)
         let current_package_name = env::var(CARGO_MAKE_CRATE_NAME_ENV_VAR).unwrap_or_else(|_| {
-            panic!(
-                "{} should be set by cargo-make",
-                &CARGO_MAKE_CRATE_NAME_ENV_VAR
-            )
+            panic!("{CARGO_MAKE_CRATE_NAME_ENV_VAR} should be set by cargo-make")
         });
         let cargo_metadata = get_cargo_metadata()?;
 

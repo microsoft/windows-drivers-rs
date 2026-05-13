@@ -17,6 +17,7 @@ use wdk_build::CpuArchitecture;
 use crate::providers::exec::CommandExec;
 use crate::{
     actions::{Profile, build::error::BuildTaskError, to_target_triple},
+    providers::error::CommandError,
     trace,
 };
 
@@ -91,7 +92,7 @@ impl<'a> BuildTask<'a> {
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
-        args.push("--message-format=json".to_string());
+        args.push("--message-format=json-render-diagnostics".to_string());
         args.push("-p".to_string());
         args.push(self.package_name.to_string());
         if let Some(path) = self.manifest_path.to_str() {
@@ -120,7 +121,16 @@ impl<'a> BuildTask<'a> {
         // is respected
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(self.working_dir))?;
+            .run("cargo", &args, None, Some(self.working_dir))
+            .map_err(|mut err| {
+                // Drop stdout from CommandFailed so the noisy
+                // --message-format=json-render-diagnostics output isn't bubbled up
+                // in the wrapped error.
+                if let CommandError::CommandFailed { stdout, .. } = &mut err {
+                    stdout.clear();
+                }
+                BuildTaskError::CargoBuild(err)
+            })?;
 
         debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
@@ -205,7 +215,7 @@ mod tests {
         let verbosity = clap_verbosity_flag::Verbosity::default();
         let expected_args = vec![
             "build".to_string(),
-            "--message-format=json".to_string(),
+            "--message-format=json-render-diagnostics".to_string(),
             "-p".to_string(),
             "my-driver".to_string(),
             "--manifest-path".to_string(),
@@ -266,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn run_returns_error_when_cargo_command_fails() {
+    fn run_returns_command_failed_error_with_empty_stdout_when_cargo_build_exits_nonzero() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let mut mock = MockCommandExec::new();
         mock.expect_run().return_once(|_, _, _, _| {
@@ -292,22 +302,58 @@ mod tests {
         );
 
         let err = task.run().err().expect("expected cargo failure");
-        let BuildTaskError::CargoBuild(command_error) = err else {
-            panic!("expected cargo build error");
+        let BuildTaskError::CargoBuild(CommandError::CommandFailed {
+            command,
+            args,
+            stdout,
+        }) = err
+        else {
+            panic!("expected CargoBuild(CommandFailed) error, got: {err:?}");
         };
-        match command_error {
-            CommandError::CommandFailed {
-                command,
-                args,
-                stdout,
-            } => {
-                assert_eq!(command, "cargo");
-                assert_eq!(args, vec!["build".to_string()]);
-                assert_eq!(stdout, "error");
-            }
-            CommandError::IoError(_, _, err) => {
-                panic!("expected CommandFailed, got IoError: {err}")
-            }
-        }
+        assert_eq!(command, "cargo");
+        assert!(
+            args.contains(&"build".to_string()),
+            "expected args to contain 'build', got: {args:?}"
+        );
+        assert!(
+            stdout.is_empty(),
+            "expected stdout to be omitted, got: {stdout}"
+        );
+    }
+
+    #[test]
+    fn run_returns_io_error_when_cargo_build_command_invocation_fails() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let mut mock = MockCommandExec::new();
+        mock.expect_run().return_once(|_, _, _, _| {
+            Err(CommandError::from_io_error(
+                "cargo",
+                &["build"],
+                std::io::Error::new(std::io::ErrorKind::NotFound, "program not found"),
+            ))
+        });
+
+        let task = BuildTask::new(
+            "my-driver",
+            &working_dir,
+            None,
+            None,
+            clap_verbosity_flag::Verbosity::default(),
+            &mock,
+        );
+
+        let err = task
+            .run()
+            .err()
+            .expect("expected command invocation failure");
+        let BuildTaskError::CargoBuild(CommandError::IoError(command, args, io_err)) = err else {
+            panic!("expected CargoBuild(IoError) error, got: {err:?}");
+        };
+        assert_eq!(command, "cargo");
+        assert!(
+            args.contains(&"build".to_string()),
+            "expected args to contain 'build', got: {args:?}"
+        );
+        assert_eq!(io_err.kind(), std::io::ErrorKind::NotFound);
     }
 }
