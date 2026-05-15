@@ -235,7 +235,8 @@ impl Drop for NamedMutex {
 ///
 /// # Arguments
 ///
-/// * `cmd_name` - Name of the cargo-wdk command. Can be only "new" or "build"
+/// * `cmd_name` - Name of the cargo-wdk command. Can be "build", "new", or
+///   "clean"
 /// * `cmd_args` - Optional args for the command
 /// * `env_vars` - Optional environment variables to overlay for the command
 /// * `curr_working_dir` - Optional current working directory for the command
@@ -246,8 +247,8 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
     curr_working_dir: Option<P>,
 ) -> Command {
     assert!(
-        cmd_name == "build" || cmd_name == "new",
-        "Only 'build' and 'new' commands are supported"
+        cmd_name == "build" || cmd_name == "new" || cmd_name == "clean",
+        "Only 'build', 'new', and 'clean' commands are supported"
     );
 
     let mut cmd = Command::cargo_bin("cargo-wdk").expect("unable to find cargo-wdk binary");
