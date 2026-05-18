@@ -22,6 +22,7 @@ use build_task::BuildTask;
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
+pub use package_task::SignConfig;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
@@ -29,7 +30,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::{Profile, SignMode};
+use crate::actions::Profile;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -37,8 +38,7 @@ pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
     pub target_arch: Option<CpuArchitecture>,
-    pub verify_signature: bool,
-    pub sign_mode: SignMode,
+    pub sign_config: SignConfig,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
@@ -49,8 +49,7 @@ pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
-    sign_mode: SignMode,
+    sign_config: SignConfig,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
@@ -95,8 +94,7 @@ impl<'a> BuildAction<'a> {
             working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
-            verify_signature: params.verify_signature,
-            sign_mode: params.sign_mode,
+            sign_config: params.sign_config,
             is_sample_class: params.is_sample_class,
             verbosity_level: params.verbosity_level,
             wdk_build,
@@ -389,8 +387,7 @@ impl<'a> BuildAction<'a> {
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
-                verify_signature: self.verify_signature,
-                sign_mode: self.sign_mode,
+                sign_config: self.sign_config,
                 sample_class: self.is_sample_class,
                 driver_model,
             },

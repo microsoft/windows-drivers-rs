@@ -301,7 +301,7 @@ fn kmdf_driver_builds_successfully_with_sign_mode_off() {
     let driver = "kmdf-driver";
     let project_path = format!("tests/{driver}");
     with_mutex(&project_path, || {
-        run_cargo_clean(&project_path);
+        run_clean_cmd(&project_path);
 
         let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
         assert!(stderr.contains(&format!("Building package {driver}")));
@@ -332,7 +332,7 @@ fn sign_mode_off_does_not_produce_cert_file_in_target_dir() {
     let driver = "kmdf-driver";
     let project_path = format!("tests/{driver}");
     with_mutex(&project_path, || {
-        run_cargo_clean(&project_path);
+        run_clean_cmd(&project_path);
 
         let _ = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
 

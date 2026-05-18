@@ -52,27 +52,6 @@ impl Display for Profile {
     }
 }
 
-/// Driver signing mode used during the package phase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
-#[value(rename_all = "lower")]
-pub enum SignMode {
-    /// Skip signing entirely.
-    Off,
-    /// Use test-signing with an auto-generated self-signed certificate.
-    #[default]
-    Test,
-}
-
-impl Display for SignMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Off => "off",
-            Self::Test => "test",
-        };
-        write!(f, "{s}")
-    }
-}
-
 /// Converts `CpuArchitecture` to its corresponding target triple name.
 #[must_use]
 pub fn to_target_triple(cpu_arch: CpuArchitecture) -> String {

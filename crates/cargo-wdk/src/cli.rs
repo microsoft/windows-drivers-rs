@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, Result};
-use clap::{ArgGroup, Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use clap_verbosity_flag::Verbosity;
 use mockall_double::double;
 use wdk_build::CpuArchitecture;
@@ -15,10 +15,9 @@ use crate::actions::{
     DriverType,
     KMDF_STR,
     Profile,
-    SignMode,
     UMDF_STR,
     WDM_STR,
-    build::{BuildAction, BuildActionParams},
+    build::{BuildAction, BuildActionParams, SignConfig},
     clean::CleanAction,
     new::NewAction,
 };
@@ -28,6 +27,17 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to create and build \
                             Windows Rust driver projects.";
 const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
+
+/// Driver signing mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+#[value(rename_all = "lower")]
+pub enum SignMode {
+    /// Skip signing.
+    Off,
+    /// Use test-signing with an auto-generated self-signed certificate.
+    #[default]
+    Test,
+}
 
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
@@ -97,6 +107,25 @@ pub struct BuildArgs {
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
+}
+
+impl BuildArgs {
+    /// Maps the `--sign-mode` and `--verify-signature` combination to the
+    /// respective [`SignConfig`] variant, or returns an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `--verify-signature` is used together with
+    /// `--sign-mode=off`.
+    fn sign_config(&self) -> Result<SignConfig> {
+        match (self.sign_mode, self.verify_signature) {
+            (SignMode::Off, true) => Err(anyhow::anyhow!(
+                "`--verify-signature` cannot be used with `--sign-mode=off`."
+            )),
+            (SignMode::Off, false) => Ok(SignConfig::Off),
+            (SignMode::Test, verify_signature) => Ok(SignConfig::Test { verify_signature }),
+        }
+    }
 }
 
 /// Subcommands
@@ -171,18 +200,13 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
-                if cli_args.sign_mode == SignMode::Off && cli_args.verify_signature {
-                    return Err(anyhow::anyhow!(
-                        "`--verify-signature` cannot be used with `--sign-mode=off`."
-                    ));
-                }
+                let sign_config = cli_args.sign_config()?;
                 BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
                         target_arch: cli_args.target_arch,
-                        verify_signature: cli_args.verify_signature,
-                        sign_mode: cli_args.sign_mode,
+                        sign_config,
                         is_sample_class: cli_args.sample,
                         verbosity_level: self.verbose,
                     },
@@ -267,10 +291,7 @@ mod tests {
 
     #[test]
     fn build_rejects_verify_signature_when_sign_mode_is_off() {
-        use crate::{
-            actions::SignMode,
-            cli::{BuildArgs, Subcmd},
-        };
+        use crate::cli::{BuildArgs, SignMode, Subcmd};
 
         let cli = Cli {
             cargo_command: "wdk".to_string(),
