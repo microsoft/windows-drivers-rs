@@ -34,7 +34,7 @@ const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
 pub enum SignMode {
     /// Skip signing.
     Off,
-    /// Use test-signing with an auto-generated self-signed certificate.
+    /// Sign with an auto-generated self-signed certificate.
     #[default]
     Test,
 }

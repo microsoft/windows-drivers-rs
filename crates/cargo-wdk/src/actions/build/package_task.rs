@@ -36,7 +36,7 @@ pub enum SignConfig {
     /// Skip certificate generation, signing, and signature verification
     /// entirely.
     Off,
-    /// Test-sign with an auto-generated self-signed certificate.
+    /// Sign with an auto-generated self-signed certificate.
     Test {
         /// When `true`, run `signtool verify` on the signed driver binary and
         /// catalog file after signing.
