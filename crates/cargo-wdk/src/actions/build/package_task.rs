@@ -256,12 +256,8 @@ impl<'a> PackageTask<'a> {
     }
 
     /// Signs the driver binary and catalog file according to `self.sign_config`
-    /// and optionally verifies the resulting signatures.
-    ///
-    /// Returns early (no-op, logged at `info`) when signing is disabled. When
-    /// new signing variants are added, the `let ... else` should become a
-    /// `match` that yields `verify_signature` from each variant; the shared
-    /// verification block below is reused unchanged.
+    /// and optionally verifies the resulting signatures. Returns a variant of
+    /// `PackageTaskError` if any step of the process fails.
     fn sign_and_verify(&self) -> Result<(), PackageTaskError> {
         let SignConfig::Test { verify_signature } = self.sign_config else {
             info!("Sign mode is 'off'; skipping certificate generation, signing, and verification");
