@@ -65,16 +65,17 @@ Usage: cargo wdk build [OPTIONS]
 Options:
       --profile <PROFILE>          Build artifacts with the specified profile
       --target-arch <TARGET_ARCH>  Build for the target architecture
+      --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
       --verify-signature           Verify the signature
       --sample                     Build sample class driver project
-  -h, --help                       Print help
+  -h, --help                       Print help (see more with '--help')
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity
   -q, --quiet...    Decrease logging verbosity
 ```
 
-`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
+`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
 When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
 
@@ -90,9 +91,14 @@ If you have a workspace with a mix of sample and non-sample driver projects, the
 
 #### Signing and Verification
 
-To sign driver artifacts `build` looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. Make sure you place your signing certificate there with that name. If no certificate is found, `build` will automatically generate a new self-signed one and add it for you.
+The `--sign-mode` flag controls how driver artifacts are signed. It accepts the following values:
 
-If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually. 
+- `test` (default): Sign with an auto-generated self-signed certificate. `build` looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. Make sure you place your signing certificate there with that name. If no certificate is found, `build` will automatically generate a new self-signed one and add it for you.
+- `off`: Skip signing entirely. No signing or signature verification steps are performed. This is useful when you intend to sign the driver later with your own toolchain (for example, HLK certification). Note that an unsigned driver cannot be installed on Windows without first enabling [test signing](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option) or otherwise loading it through a signed mechanism.
+
+If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually.
+
+`--verify-signature` cannot be combined with `--sign-mode=off` because there is no signature to verify. Passing both will cause `build` to fail with an error.
 
 #### Examples
 
@@ -112,4 +118,10 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
     ```pwsh
     cargo wdk build --target-arch amd64
+    ```
+
+- To build a driver project and skip signing (for example, to sign later with a production certificate), run:
+
+    ```pwsh
+    cargo wdk build --sign-mode off
     ```
