@@ -29,7 +29,7 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{BuildAction, BuildActionParams, SignConfig, error::BuildActionError},
+        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -286,7 +286,7 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .with_sign_config(SignConfig::Off)
+        .with_sign_mode(SignMode::Off)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
@@ -1628,16 +1628,16 @@ fn initialize_build_action<'a>(
     sample_class: bool,
     test_build_action: &'a TestBuildAction,
 ) -> Result<BuildAction<'a>, anyhow::Error> {
-    let sign_config = match test_build_action.sign_config {
-        SignConfig::Off => SignConfig::Off,
-        SignConfig::Test { .. } => SignConfig::Test { verify_signature },
+    let sign_mode = match test_build_action.sign_mode {
+        SignMode::Off => SignMode::Off,
+        SignMode::Test { .. } => SignMode::Test { verify_signature },
     };
     BuildAction::new(
         &BuildActionParams {
             working_dir: cwd,
             profile,
             target_arch,
-            sign_config,
+            sign_mode,
             is_sample_class: sample_class,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
@@ -1700,7 +1700,7 @@ struct TestBuildAction {
     profile: Option<Profile>,
     target_arch: Option<CpuArchitecture>,
     sample_class: bool,
-    sign_config: SignConfig,
+    sign_mode: SignMode,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1727,7 +1727,7 @@ impl TestBuildAction {
             profile,
             target_arch,
             sample_class,
-            sign_config: SignConfig::Test {
+            sign_mode: SignMode::Test {
                 verify_signature: false,
             },
             mock_run_command,
@@ -1738,8 +1738,8 @@ impl TestBuildAction {
         }
     }
 
-    fn with_sign_config(mut self, sign_config: SignConfig) -> Self {
-        self.sign_config = sign_config;
+    fn with_sign_mode(mut self, sign_mode: SignMode) -> Self {
+        self.sign_mode = sign_mode;
         self
     }
 
@@ -1873,7 +1873,7 @@ impl TestBuildAction {
             .expect_signtool_verify_cat_file(driver_name, &cwd, None)
     }
 
-    /// Sets up package-task expectations for `SignConfig::Off`: stampinf,
+    /// Sets up package-task expectations for `SignMode::Off`: stampinf,
     /// inf2cat, and infverif are still expected, but all certificate
     /// generation, signing, and signature-verification steps are skipped.
     fn expect_package_task_steps_with_sign_mode_off(
