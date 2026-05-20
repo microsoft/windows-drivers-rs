@@ -24,6 +24,7 @@ use tracing::debug;
 
 pub mod cargo_make;
 pub mod metadata;
+pub mod resource_compile;
 
 mod utils;
 
@@ -313,6 +314,10 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
+
+    /// Error returned when version resource compilation fails
+    #[error(transparent)]
+    ResourceCompileError(#[from] resource_compile::ResourceCompileError),
 }
 
 /// Subset of APIs in the Windows Driver Kit
