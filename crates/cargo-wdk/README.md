@@ -91,14 +91,14 @@ If you have a workspace with a mix of sample and non-sample driver projects, the
 
 #### Signing and Verification
 
-The `--sign-mode` flag controls how driver artifacts are signed. It accepts the following values:
+The `build` command has a `--sign-mode` flag that controls how driver artifacts are signed. It accepts the following values:
 
-- `test` (default): Sign with an auto-generated self-signed certificate. `build` looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. Make sure you place your signing certificate there with that name. If no certificate is found, `build` will automatically generate a new self-signed one and add it for you.
-- `off`: Skip signing entirely. No signing or signature verification steps are performed. This is useful when you intend to sign the driver later with your own toolchain (for example, HLK certification). Note that an unsigned driver cannot be installed on Windows without first enabling [test signing](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option) or otherwise loading it through a signed mechanism.
+- `test` (default): Sign with a test certificate. The command looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. If you wish to use your own certificate, add it to the same store with the same name. Otherwise a self-signed certificate will be automatically generated, added, and used for signing.
+- `off`: Skip signing entirely. This is useful when you intend to sign the artifacts later with your own toolchain.
 
 If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually.
 
-`--verify-signature` cannot be combined with `--sign-mode=off` because there is no signature to verify. Passing both will cause `build` to fail with an error.
+`--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
 
 #### Examples
 
@@ -120,8 +120,8 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
     cargo wdk build --target-arch amd64
     ```
 
-- To build a driver project and skip signing (for example, to sign later with a production certificate), run:
+- To build a driver project with test signing, navigate to the root of the project and run:
 
     ```pwsh
-    cargo wdk build --sign-mode off
+    cargo wdk build --sign-mode test
     ```
