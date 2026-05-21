@@ -3,12 +3,10 @@
 
 //! Default Panic Handler for programs built with the WDK (Windows Driver Kit)
 //!
-//! **WDM and KMDF** drivers trigger a bugcheck (`0x80504E43`) via
-//! `KeBugCheckEx`. The code is deliberately placed in the high (`0x80000000`+)
-//! range to avoid collision with OS-defined bugcheck identifiers, and encodes
-//! the ASCII bytes `PNC` (panic) in its lower 24 bits for recognizability in
-//! crash dumps. The panic source location is recorded in the bugcheck
-//! parameters for post-mortem analysis.
+//! **WDM and KMDF** drivers trigger a bugcheck via `KeBugCheckEx` with the
+//! ASCII tag `"RPNC"` (Rust panic) for recognizability in crash dumps. The
+//! panic source location is recorded in the bugcheck parameters for
+//! post-mortem analysis.
 //!
 //! **UMDF** drivers print panic information to the system debugger.
 //! Call `install_panic_hook` early in `DriverEntry`.
@@ -39,9 +37,9 @@ mod kernel_panic_handler {
         ) -> !;
     }
 
-    // High, uncommon bugcheck code to avoid collision with OS-defined identifiers.
-    // Lower 24 bits spell `PNC` (0x50 'P', 0x4E 'N', 0x43 'C') for recognizability.
-    const BUGCHECK_RUST_CODE: u32 = 0x8050_4E43;
+    // Bugcheck code spelling the ASCII tag "RPNC" (Rust panic) for
+    // recognizability in crash dumps.
+    const RUST_PANIC_BUGCHECK_CODE: u32 = u32::from_be_bytes(*b"RPNC");
 
     #[cold]
     #[panic_handler]
@@ -63,19 +61,11 @@ mod kernel_panic_handler {
                 )
             });
 
-        // SAFETY: `KeBugCheckEx` is a Windows kernel API exported by `ntoskrnl.exe`
-        // that is callable at any IRQL and never returns (it halts the system with a
-        // bugcheck). The parameters are scalar `usize` values recorded in the crash
-        // dump; `KeBugCheckEx` does not dereference `panic_filename_ptr` — it is stored
-        // as an opaque value for post-mortem analysis. The FFI signature matches the
-        // WDK declaration in `wdm.h`. This call is sound because:
-        // 1. The function is always available in kernel mode (linked via ntoskrnl.lib).
-        // 2. The calling convention is correct (`extern "system"` maps to the
-        //    appropriate Windows calling convention for the target architecture).
-        // 3. The `-> !` return type is upheld — `KeBugCheckEx` never returns.
+        // SAFETY: `KeBugCheckEx` has no preconditions on its arguments and is
+        // callable at any IRQL.
         unsafe {
             KeBugCheckEx(
-                BUGCHECK_RUST_CODE,
+                RUST_PANIC_BUGCHECK_CODE,
                 panic_filename_ptr,
                 panic_filename_len,
                 panic_line,
@@ -88,7 +78,7 @@ mod kernel_panic_handler {
 /// Registers a panic hook for UMDF drivers that prints panic information via
 /// [`wdk::println!`] and then aborts the host process.
 ///
-/// Output is routed through [`OutputDebugStringA`], which is received by any
+/// Output is routed through `OutputDebugStringA`, which is received by any
 /// user-mode debugger attached to `WUDFHost.exe`, or by the kernel debugger
 /// when no user-mode debugger is attached.
 ///
