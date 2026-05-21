@@ -69,12 +69,17 @@ Options:
       --sample                     Build sample class driver project
   -h, --help                       Print help
 
+Manifest Options:
+      --locked   Require Cargo.lock is up to date
+      --offline  Run without accessing the network
+      --frozen   Require Cargo.lock and cache are up to date
+
 Verbosity:
   -v, --verbose...  Increase logging verbosity
   -q, --quiet...    Decrease logging verbosity
 ```
 
-`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
+`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags. It also accepts the cargo manifest flags `--locked`, `--offline` and `--frozen`, which are forwarded to the underlying `cargo` invocations (e.g. `cargo build`, `cargo metadata`).
 
 When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
 
@@ -112,4 +117,10 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
     ```pwsh
     cargo wdk build --target-arch amd64
+    ```
+
+- To build a driver project with a strict, reproducible dependency lockfile (e.g. for CI), navigate to the root of the project and run:
+
+    ```pwsh
+    cargo wdk build --locked
     ```
