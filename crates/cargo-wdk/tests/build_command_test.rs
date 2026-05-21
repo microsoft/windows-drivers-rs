@@ -322,6 +322,7 @@ mod kmdf_driver_with_target_override {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
     driver_name: &str,
