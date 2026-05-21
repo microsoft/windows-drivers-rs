@@ -33,8 +33,7 @@ use crate::{actions::build::error::PackageTaskError, providers::error::FileError
 /// Signing mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SignMode {
-    /// Skip certificate generation, signing, and signature verification
-    /// entirely.
+    /// Skip signing entirely.
     Off,
     /// Sign with an auto-generated self-signed certificate.
     Test {
@@ -260,7 +259,7 @@ impl<'a> PackageTask<'a> {
     /// `PackageTaskError` if any step of the process fails.
     fn sign_and_verify(&self) -> Result<(), PackageTaskError> {
         let SignMode::Test { verify_signature } = self.sign_mode else {
-            info!("Sign mode is 'off'; skipping certificate generation, signing, and verification");
+            info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
 
