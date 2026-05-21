@@ -10,7 +10,9 @@
 //!
 //! # Usage
 //!
-//! Add version resource metadata to your driver's `Cargo.toml`:
+//! [`Config::configure_binary_build`][crate::Config::configure_binary_build]
+//! automatically compiles and links a version resource. Add optional metadata
+//! to your driver's `Cargo.toml` to override the Cargo-derived defaults:
 //!
 //! ```toml
 //! [package.metadata.wdk.version-resource]
@@ -18,14 +20,6 @@
 //! copyright = "Copyright (C) Microsoft Corporation. All rights reserved"
 //! product-name = "Surface"
 //! file-description = "My Driver"
-//! ```
-//!
-//! Then call [`compile_version_resource`] from your `build.rs`:
-//!
-//! ```rust,ignore
-//! let config = wdk_build::Config::from_env_auto()?;
-//! config.configure_binary_build()?;
-//! wdk_build::resource_compile::compile_version_resource(&config)?;
 //! ```
 //!
 //! # Version Sourcing
@@ -42,7 +36,7 @@ use std::{
     env,
     fmt::Write as _,
     fs,
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf, absolute},
     process::Command,
 };
 
@@ -53,7 +47,7 @@ use crate::{Config, ConfigError, DriverConfig};
 /// When set, this takes priority over `CARGO_PKG_VERSION`. The value should
 /// be in the format `MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH.REVISION`.
 /// A prerelease suffix (e.g. `-preview`) is stripped automatically.
-const VERSION_ENV_VAR: &str = "WDK_BUILD_VERSION";
+const VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 /// A parsed 4-part Windows version number.
 ///
@@ -95,8 +89,8 @@ impl DriverVersion {
     }
 }
 
-/// Metadata for the version resource, sourced from
-/// `[package.metadata.wdk.version-resource]` in `Cargo.toml`.
+/// Metadata for the version resource, sourced from Cargo defaults and optional
+/// `[package.metadata.wdk.version-resource]` overrides in `Cargo.toml`.
 #[derive(Debug, Clone)]
 pub struct VersionResourceMetadata {
     /// Company name (e.g. "Microsoft Corporation")
@@ -134,7 +128,7 @@ pub enum ResourceCompileError {
         stderr: String,
     },
 
-    /// Required metadata is missing from `Cargo.toml`.
+    /// Metadata is missing or invalid.
     #[error("version resource metadata error: {detail}")]
     MetadataError {
         /// Description of the metadata problem
@@ -225,8 +219,8 @@ fn resolve_version() -> Result<DriverVersion, ResourceCompileError> {
         ci_version
     } else {
         env::var("CARGO_PKG_VERSION").map_err(|_| ResourceCompileError::MetadataError {
-            detail: "CARGO_PKG_VERSION environment variable not set. This function must be \
-                     called from a Cargo build script."
+            detail: "CARGO_PKG_VERSION environment variable not set. This function must be called \
+                     from a Cargo build script."
                 .to_string(),
         })?
     };
@@ -248,17 +242,18 @@ fn resolve_driver_filename(config: &Config) -> String {
     format!("{artifact_name}.{extension}")
 }
 
-/// Read version resource metadata from `Cargo.toml`
-/// `[package.metadata.wdk.version-resource]` section.
+/// Read version resource metadata from Cargo defaults and optional
+/// `[package.metadata.wdk.version-resource]` overrides.
 ///
-/// This reads the current package's `CARGO_MANIFEST_DIR/Cargo.toml` and
-/// extracts the version-resource metadata using `cargo_metadata`.
+/// This reads the current package's `CARGO_MANIFEST_DIR/Cargo.toml`, extracts
+/// version-resource metadata using `cargo_metadata`, and fills absent fields
+/// from Cargo package environment variables.
 ///
 /// # Errors
 ///
-/// Returns [`ResourceCompileError::MetadataError`] if required fields are
-/// missing.
-pub fn read_version_resource_metadata() -> Result<VersionResourceMetadata, ResourceCompileError> {
+/// Returns [`ResourceCompileError::MetadataError`] if metadata exists but is
+/// invalid.
+fn read_version_resource_metadata() -> Result<VersionResourceMetadata, ResourceCompileError> {
     let manifest_dir =
         env::var("CARGO_MANIFEST_DIR").map_err(|_| ResourceCompileError::MetadataError {
             detail: "CARGO_MANIFEST_DIR not set. Must be called from a build script.".to_string(),
@@ -290,55 +285,32 @@ pub fn read_version_resource_metadata() -> Result<VersionResourceMetadata, Resou
     let version_resource = package
         .metadata
         .get("wdk")
-        .and_then(|w| w.get("version-resource"))
-        .ok_or_else(|| ResourceCompileError::MetadataError {
-            detail: "[package.metadata.wdk.version-resource] section not found in Cargo.toml"
-                .to_string(),
-        })?;
+        .and_then(|w| w.get("version-resource"));
+    if let Some(version_resource) = version_resource {
+        if !version_resource.is_object() {
+            return Err(ResourceCompileError::MetadataError {
+                detail: "[package.metadata.wdk.version-resource] must be a table".to_string(),
+            });
+        }
+    }
 
-    let company_name = version_resource
-        .get("company-name")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| ResourceCompileError::MetadataError {
-            detail: "company-name is required in [package.metadata.wdk.version-resource]"
-                .to_string(),
-        })?
-        .to_string();
+    let company_name = version_resource_string(version_resource, "company-name")?
+        .or_else(|| env_var_non_empty("CARGO_PKG_AUTHORS"))
+        .unwrap_or_default();
 
-    let copyright = version_resource
-        .get("copyright")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| ResourceCompileError::MetadataError {
-            detail: "copyright is required in [package.metadata.wdk.version-resource]".to_string(),
-        })?
-        .to_string();
+    let copyright = version_resource_string(version_resource, "copyright")?.unwrap_or_default();
 
-    let product_name = version_resource
-        .get("product-name")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| ResourceCompileError::MetadataError {
-            detail: "product-name is required in [package.metadata.wdk.version-resource]"
-                .to_string(),
-        })?
-        .to_string();
+    let product_name = version_resource_string(version_resource, "product-name")?
+        .unwrap_or_else(|| pkg_name.clone());
 
-    // file-description defaults to CARGO_PKG_DESCRIPTION
-    let file_description = version_resource
-        .get("file-description")
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string)
+    let file_description = version_resource_string(version_resource, "file-description")?
         .or_else(|| env::var("CARGO_PKG_DESCRIPTION").ok())
-        .unwrap_or_else(|| company_name.clone());
+        .filter(|description| !description.is_empty())
+        .unwrap_or_else(|| product_name.clone());
 
-    let internal_name = version_resource
-        .get("internal-name")
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string);
+    let internal_name = version_resource_string(version_resource, "internal-name")?;
 
-    let original_filename = version_resource
-        .get("original-filename")
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string);
+    let original_filename = version_resource_string(version_resource, "original-filename")?;
 
     Ok(VersionResourceMetadata {
         company_name,
@@ -348,6 +320,27 @@ pub fn read_version_resource_metadata() -> Result<VersionResourceMetadata, Resou
         internal_name,
         original_filename,
     })
+}
+
+fn version_resource_string(
+    version_resource: Option<&serde_json::Value>,
+    key: &str,
+) -> Result<Option<String>, ResourceCompileError> {
+    let Some(value) = version_resource.and_then(|metadata| metadata.get(key)) else {
+        return Ok(None);
+    };
+
+    value
+        .as_str()
+        .map(ToString::to_string)
+        .map(Some)
+        .ok_or_else(|| ResourceCompileError::MetadataError {
+            detail: format!("[package.metadata.wdk.version-resource].{key} must be a string"),
+        })
+}
+
+fn env_var_non_empty(key: &str) -> Option<String> {
+    env::var(key).ok().filter(|value| !value.is_empty())
 }
 
 /// Generate the contents of a WDK-style `.rc` file.
@@ -476,7 +469,8 @@ fn resource_include_paths(config: &Config) -> Result<Vec<PathBuf>, ResourceCompi
 ///
 /// This is the main entry point for version resource compilation. It:
 /// 1. Reads version from `WDK_BUILD_VERSION` or `CARGO_PKG_VERSION`
-/// 2. Reads metadata from `[package.metadata.wdk.version-resource]`
+/// 2. Reads metadata from Cargo defaults and optional
+///    `[package.metadata.wdk.version-resource]` overrides
 /// 3. Generates a WDK-style `.rc` file in `OUT_DIR`
 /// 4. Compiles it with `rc.exe`
 /// 5. Emits `cargo::rustc-cdylib-link-arg` to link the `.res` into the binary
@@ -484,14 +478,14 @@ fn resource_include_paths(config: &Config) -> Result<Vec<PathBuf>, ResourceCompi
 /// # Errors
 ///
 /// Returns [`ConfigError`] (wrapping [`ResourceCompileError`]) if:
-/// - Version metadata is missing or invalid
+/// - Version metadata is invalid
 /// - `rc.exe` cannot be found
 /// - Resource compilation fails
 ///
 /// # Panics
 ///
 /// Panics if `OUT_DIR` is not set (i.e., not called from a build script).
-pub fn compile_version_resource(config: &Config) -> Result<(), ConfigError> {
+pub(crate) fn compile_version_resource(config: &Config) -> Result<(), ConfigError> {
     Ok(compile_version_resource_inner(config)?)
 }
 
@@ -545,7 +539,6 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::CpuArchitecture;
 
     // ── Version parsing tests ──────────────────────────────────────────

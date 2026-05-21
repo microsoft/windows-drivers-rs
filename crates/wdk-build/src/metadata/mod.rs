@@ -120,23 +120,21 @@ fn parse_packages_wdk_metadata(
 ) -> std::result::Result<HashSet<Wdk>, TryFromCargoMetadataError> {
     let wdk_metadata_configurations = packages
         .iter()
-        .filter_map(|package| match &package.metadata["wdk"] {
-            serde_json::Value::Null => None,
-            // When wdk section is empty, treat it as if it wasn't there. This is to allow for using
-            // empty wdk metadata sections to mark the package as a driver (ex. for detection in
-            // `package_driver_flow_condition_script`)
-            serde_json::Value::Object(map) if map.is_empty() => None,
-            wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
-                TryFromCargoMetadataError::WdkMetadataDeserialization {
-                    metadata_source: format!(
-                        "{} for {} package",
-                        stringify!(package.metadata["wdk"]),
-                        package.name
-                    ),
-                    error_source: err,
-                }
-            })),
-        })
+        .filter_map(
+            |package| match wdk_driver_model_metadata(&package.metadata["wdk"]) {
+                None => None,
+                Some(wdk_metadata) => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
+                    TryFromCargoMetadataError::WdkMetadataDeserialization {
+                        metadata_source: format!(
+                            "{} for {} package",
+                            stringify!(package.metadata["wdk"]),
+                            package.name
+                        ),
+                        error_source: err,
+                    }
+                })),
+            },
+        )
         .collect::<std::result::Result<HashSet<_>, _>>()?;
     Ok(wdk_metadata_configurations)
 }
@@ -144,15 +142,36 @@ fn parse_packages_wdk_metadata(
 fn parse_workspace_wdk_metadata(
     workspace_metadata: &serde_json::Value,
 ) -> std::result::Result<Option<Wdk>, TryFromCargoMetadataError> {
-    Ok(match &workspace_metadata["wdk"] {
+    Ok(
+        match wdk_driver_model_metadata(&workspace_metadata["wdk"]) {
+            None => None,
+            Some(wdk_metadata) => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
+                TryFromCargoMetadataError::WdkMetadataDeserialization {
+                    metadata_source: stringify!(workspace_metadata["wdk"]).to_string(),
+                    error_source: err,
+                }
+            })?),
+        },
+    )
+}
+
+fn wdk_driver_model_metadata(wdk_metadata: &serde_json::Value) -> Option<serde_json::Value> {
+    match wdk_metadata {
         serde_json::Value::Null => None,
-        wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
-            TryFromCargoMetadataError::WdkMetadataDeserialization {
-                metadata_source: stringify!(workspace_metadata["wdk"]).to_string(),
-                error_source: err,
-            }
-        })?),
-    })
+        // When wdk section is empty, treat it as if it wasn't there. This is to allow for using
+        // empty wdk metadata sections to mark the package as a driver (ex. for detection in
+        // `package_driver_flow_condition_script`)
+        serde_json::Value::Object(map) if map.is_empty() => None,
+        // Only `metadata.wdk.driver-model` is part of the WDK driver configuration.
+        // Other `metadata.wdk.*` sections are allowed to coexist and are parsed by
+        // their owning features.
+        serde_json::Value::Object(map) => map.get("driver-model").map(|driver_model| {
+            let mut driver_model_metadata = serde_json::Map::new();
+            driver_model_metadata.insert("driver-model".to_string(), driver_model.clone());
+            serde_json::Value::Object(driver_model_metadata)
+        }),
+        wdk_metadata => Some(wdk_metadata.clone()),
+    }
 }
 
 pub(crate) fn iter_manifest_paths(metadata: Metadata) -> impl IntoIterator<Item = Utf8PathBuf> {
@@ -196,6 +215,82 @@ mod tests {
                 })
             ));
         });
+    }
+
+    #[test]
+    fn version_resource_metadata_is_not_part_of_wdk_configuration() {
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
+        let package_metadata = TestWdkMetadata(
+            r#"
+                {
+                    "wdk": {
+                        "driver-model": {
+                            "driver-type": "KMDF",
+                            "kmdf-version-major": 1,
+                            "target-kmdf-version-minor": 33
+                        },
+                        "version-resource": {
+                            "company-name": "Microsoft Corporation",
+                            "copyright": "Copyright",
+                            "product-name": "Surface"
+                        }
+                    }
+                }
+            "#
+            .to_string(),
+        );
+        let (member_id, package) =
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(package_metadata));
+
+        set_up_and_assert(&cwd, &[package], &[member_id], None, |wdk| {
+            assert!(matches!(
+                wdk.unwrap().driver_model,
+                DriverConfig::Kmdf(KmdfConfig {
+                    kmdf_version_major: 1,
+                    target_kmdf_version_minor: 33,
+                    minimum_kmdf_version_minor: None
+                })
+            ));
+        });
+    }
+
+    #[test]
+    fn package_version_resource_metadata_can_use_workspace_wdk_configuration() {
+        let cwd = PathBuf::from(TEST_ROOT_DIR);
+        let package_metadata = TestWdkMetadata(
+            r#"
+                {
+                    "wdk": {
+                        "version-resource": {
+                            "company-name": "Microsoft Corporation",
+                            "copyright": "Copyright",
+                            "product-name": "Surface"
+                        }
+                    }
+                }
+            "#
+            .to_string(),
+        );
+        let (member_id, package) =
+            create_cargo_metadata_package(&cwd, "sample-kmdf", "0.0.1", Some(package_metadata));
+        let workspace_metadata = create_cargo_metadata_wdk_metadata("KMDF", 1, 33);
+
+        set_up_and_assert(
+            &cwd,
+            &[package],
+            &[member_id],
+            Some(workspace_metadata),
+            |wdk| {
+                assert!(matches!(
+                    wdk.unwrap().driver_model,
+                    DriverConfig::Kmdf(KmdfConfig {
+                        kmdf_version_major: 1,
+                        target_kmdf_version_minor: 33,
+                        minimum_kmdf_version_minor: None
+                    })
+                ));
+            },
+        );
     }
 
     #[test]

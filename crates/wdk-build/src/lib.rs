@@ -1229,6 +1229,8 @@ impl Config {
             println!("cargo::rustc-cdylib-link-arg=/MANIFEST:NO");
         }
 
+        resource_compile::compile_version_resource(self)?;
+
         self.emit_cfg_settings()
     }
 
