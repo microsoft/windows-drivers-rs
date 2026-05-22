@@ -311,36 +311,23 @@ fn kmdf_driver_builds_successfully_with_sign_mode_off() {
         let target_dir = format!("{project_path}/target/debug");
         let package_dir = format!("{target_dir}/{driver_name}_package");
 
-        // Standard package contents are still produced.
         assert_dir_exists(&package_dir);
         for ext in ["cat", "inf", "map", "pdb", "sys"] {
             assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
         }
 
-        // No certificate is copied into the package folder.
         let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
         assert!(
             !cert_in_package.exists(),
-            "Expected no cert file in package folder when --sign-mode=off, but found {}",
+            "Cert file must not be present in the final package folder when --sign-mode=off, but \
+             found {}",
             cert_in_package.display()
         );
-    });
-}
 
-#[test]
-fn sign_mode_off_does_not_produce_cert_file_in_target_dir() {
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    with_mutex(&project_path, || {
-        run_clean_cmd(&project_path);
-
-        let _ = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-
-        let staged_cert =
-            PathBuf::from(format!("{project_path}/target/debug/WDRLocalTestCert.cer"));
+        let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
         assert!(
             !staged_cert.exists(),
-            "Expected no staged cert file under target dir when --sign-mode=off, but found {}",
+            "Cert file must not be present in the `target` dir when --sign-mode=off, but found {}",
             staged_cert.display()
         );
     });
@@ -361,7 +348,7 @@ fn sign_mode_off_with_verify_signature_is_rejected() {
     let assertion = cmd.assert().failure();
     let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
     assert!(
-        stderr.contains("--verify-signature") && stderr.contains("--sign-mode=off"),
+        stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
         "expected validation error mentioning both flags, got: {stderr}"
     );
 }

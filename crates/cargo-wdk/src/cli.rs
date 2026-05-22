@@ -307,10 +307,9 @@ mod tests {
 
         let result = cli.run();
         assert!(result.is_err());
-        let err = result.err().unwrap().to_string();
-        assert!(
-            err.contains("--verify-signature") && err.contains("--sign-mode=off"),
-            "unexpected error: {err}"
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "`--verify-signature` cannot be used with `--sign-mode=off`."
         );
     }
 }

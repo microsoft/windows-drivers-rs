@@ -68,7 +68,7 @@ Options:
       --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
       --verify-signature           Verify the signature
       --sample                     Build sample class driver project
-  -h, --help                       Print help (see more with '--help')
+  -h, --help                       Print help
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity

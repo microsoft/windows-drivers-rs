@@ -22,9 +22,9 @@ mod test_utils;
 
 /// Main function for the [`cargo-wdk`][crate] CLI application.
 ///
-/// Parses the CLI input, initializes tracing, and runs the chosen subcommand.
-/// On failure, the error is logged through `tracing::error!`, and the process
-/// exits with a non-zero status.
+/// The main function parses the CLI input, sets up tracing and executes the
+/// command. If an error occurs during execution, it logs the error and exits
+/// with a non-zero status code.
 ///
 /// # Returns
 ///
