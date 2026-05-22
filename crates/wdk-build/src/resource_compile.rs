@@ -24,8 +24,9 @@
 //!
 //! # Version Sourcing
 //!
-//! The version is determined by (in priority order):
-//! 1. `WDK_BUILD_VERSION` environment variable (for CI pipelines)
+//! The version is determined by CI pipeline env var with
+//! cargo package version fallback:
+//! 1. `STAMPINF_VERSION` environment variable (for CI pipelines)
 //! 2. `CARGO_PKG_VERSION` (from `Cargo.toml` `[package]` version)
 //!
 //! Semver versions are mapped to 4-part Windows versions by appending `.0`
@@ -213,17 +214,19 @@ fn parse_version_component(
 /// Determine the driver version to embed in the binary.
 ///
 /// Checks pipeline env var first, then falls back to
-/// `CARGO_PKG_VERSION` env var (emitted by cargo).
+/// `CARGO_PKG_VERSION` env var (emitted by cargo)
+/// if env var is not present or empty.
 fn resolve_version() -> Result<DriverVersion, ResourceCompileError> {
-    let version_str = if let Ok(ci_version) = env::var(VERSION_ENV_VAR) {
-        ci_version
-    } else {
-        env::var("CARGO_PKG_VERSION").map_err(|_| ResourceCompileError::MetadataError {
-            detail: "CARGO_PKG_VERSION environment variable not set. This function must be called \
-                     from a Cargo build script."
-                .to_string(),
-        })?
-    };
+    let version_str = env_var_non_empty(VERSION_ENV_VAR).map_or_else(
+        || {
+            env::var("CARGO_PKG_VERSION").map_err(|_| ResourceCompileError::MetadataError {
+                detail: "CARGO_PKG_VERSION environment variable not set. This function must be \
+                         called from a Cargo build script."
+                    .to_string(),
+            })
+        },
+        Ok,
+    )?;
 
     parse_version(&version_str)
 }
@@ -468,7 +471,7 @@ fn resource_include_paths(config: &Config) -> Result<Vec<PathBuf>, ResourceCompi
 /// linker directive to embed it in the driver binary.
 ///
 /// This is the main entry point for version resource compilation. It:
-/// 1. Reads version from `WDK_BUILD_VERSION` or `CARGO_PKG_VERSION`
+/// 1. Reads version from `STAMPINF_VERSION` or `CARGO_PKG_VERSION`
 /// 2. Reads metadata from Cargo defaults and optional
 ///    `[package.metadata.wdk.version-resource]` overrides
 /// 3. Generates a WDK-style `.rc` file in `OUT_DIR`
@@ -538,203 +541,525 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
+    use assert_fs::prelude::*;
+
     use super::*;
-    use crate::CpuArchitecture;
+    use crate::{
+        CpuArchitecture,
+        utils::{remove_var, set_var},
+    };
 
-    // ── Version parsing tests ──────────────────────────────────────────
+    struct EnvVarGuard {
+        original_values: Vec<(&'static str, Option<String>)>,
+    }
 
-    #[test]
-    fn parse_version_three_part() {
-        let v = parse_version("1.2.3").unwrap();
-        assert_eq!(
-            v,
-            DriverVersion {
-                major: 1,
-                minor: 2,
-                patch: 3,
-                revision: 0
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (key, value) in &self.original_values {
+                match value {
+                    Some(value) => set_var(key, value),
+                    None => remove_var(key),
+                }
             }
-        );
-    }
-
-    #[test]
-    fn parse_version_four_part() {
-        let v = parse_version("1.2.3.4").unwrap();
-        assert_eq!(
-            v,
-            DriverVersion {
-                major: 1,
-                minor: 2,
-                patch: 3,
-                revision: 4
-            }
-        );
-    }
-
-    #[test]
-    fn parse_version_strips_prerelease() {
-        let v = parse_version("3.0.433-preview").unwrap();
-        assert_eq!(
-            v,
-            DriverVersion {
-                major: 3,
-                minor: 0,
-                patch: 433,
-                revision: 0
-            }
-        );
-    }
-
-    #[test]
-    fn parse_version_max_values() {
-        let v = parse_version("65535.65535.65535.65535").unwrap();
-        assert_eq!(
-            v,
-            DriverVersion {
-                major: 65535,
-                minor: 65535,
-                patch: 65535,
-                revision: 65535
-            }
-        );
-    }
-
-    #[test]
-    fn parse_version_overflow_rejected() {
-        let result = parse_version("65536.0.0");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            ResourceCompileError::VersionParseError { .. }
-        ));
-    }
-
-    #[test]
-    fn parse_version_too_few_parts() {
-        assert!(parse_version("1.2").is_err());
-    }
-
-    #[test]
-    fn parse_version_too_many_parts() {
-        assert!(parse_version("1.2.3.4.5").is_err());
-    }
-
-    #[test]
-    fn parse_version_empty_string() {
-        assert!(parse_version("").is_err());
-    }
-
-    #[test]
-    fn parse_version_non_numeric() {
-        assert!(parse_version("1.2.abc").is_err());
-    }
-
-    #[test]
-    fn parse_version_zero() {
-        let v = parse_version("0.0.0").unwrap();
-        assert_eq!(
-            v,
-            DriverVersion {
-                major: 0,
-                minor: 0,
-                patch: 0,
-                revision: 0
-            }
-        );
-    }
-
-    // ── DriverVersion formatting tests ────────────────────────────────
-
-    #[test]
-    fn windows_version_rc_numeric() {
-        let v = DriverVersion {
-            major: 1,
-            minor: 2,
-            patch: 3,
-            revision: 4,
-        };
-        assert_eq!(v.as_rc_numeric(), "1,2,3,4");
-    }
-
-    #[test]
-    fn windows_version_rc_string() {
-        let v = DriverVersion {
-            major: 1,
-            minor: 2,
-            patch: 3,
-            revision: 4,
-        };
-        assert_eq!(v.as_rc_string(), "1.2.3.4");
-    }
-
-    // ── RC template generation tests ───────────────────────────────────
-
-    /// Create a test `Config` without relying on `Config::default()` which
-    /// requires build-script env vars like `CARGO_CFG_TARGET_ARCH`.
-    fn test_config(driver_config: DriverConfig) -> Config {
-        Config {
-            wdk_content_root: PathBuf::from("C:\\fake\\wdk"),
-            cpu_architecture: CpuArchitecture::Amd64,
-            driver_config,
         }
     }
 
-    #[test]
-    fn generate_rc_content_contains_expected_fields() {
-        let version = DriverVersion {
-            major: 1,
-            minor: 0,
-            patch: 0,
-            revision: 0,
-        };
-        let metadata = VersionResourceMetadata {
-            company_name: "Test Corp".to_string(),
-            copyright: "Copyright Test".to_string(),
-            product_name: "Test Product".to_string(),
-            file_description: "Test Driver".to_string(),
-            internal_name: Some("test.sys".to_string()),
-            original_filename: Some("test.sys".to_string()),
-        };
-        let config = test_config(DriverConfig::Kmdf(crate::KmdfConfig::default()));
+    fn with_env<F, R>(env_vars: &[(&'static str, Option<&str>)], f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
-        let rc = generate_rc_content(&version, &metadata, &config);
+        let _mutex_guard = ENV_MUTEX.lock().unwrap();
+        let original_values = env_vars
+            .iter()
+            .map(|(key, _)| (*key, env::var(key).ok()))
+            .collect();
+        let _env_var_guard = EnvVarGuard { original_values };
 
-        assert!(rc.contains("#include <windows.h>"));
-        assert!(rc.contains("#include <ntverp.h>"));
-        assert!(rc.contains("#include \"common.ver\""));
-        assert!(rc.contains("VFT_DRV"));
-        assert!(rc.contains("VFT2_DRV_SYSTEM"));
-        assert!(rc.contains("\"test.sys\""));
-        assert!(rc.contains("\"Test Driver\""));
-        assert!(rc.contains("\"Test Product\""));
-        assert!(rc.contains("\"Test Corp\""));
-        assert!(rc.contains("\"Copyright Test\""));
-        assert!(rc.contains("1,0,0,0"));
-        assert!(rc.contains("\"1.0.0.0\""));
+        for (key, value) in env_vars {
+            match value {
+                Some(value) => set_var(key, value),
+                None => remove_var(key),
+            }
+        }
+
+        f()
     }
 
-    #[test]
-    fn generate_rc_content_umdf_uses_dll_type() {
-        let version = DriverVersion {
-            major: 1,
-            minor: 0,
-            patch: 0,
-            revision: 0,
-        };
-        let metadata = VersionResourceMetadata {
-            company_name: "Test".to_string(),
-            copyright: "Copyright".to_string(),
-            product_name: "Product".to_string(),
-            file_description: "Driver".to_string(),
-            internal_name: None,
-            original_filename: None,
-        };
-        let config = test_config(DriverConfig::Umdf(crate::UmdfConfig::default()));
+    fn create_test_crate(cargo_toml: &str) -> assert_fs::TempDir {
+        let temp_dir = assert_fs::TempDir::new().unwrap();
+        temp_dir.child("Cargo.toml").write_str(cargo_toml).unwrap();
+        temp_dir.child("src").create_dir_all().unwrap();
+        temp_dir.child("src").child("lib.rs").write_str("").unwrap();
+        temp_dir
+    }
 
-        let rc = generate_rc_content(&version, &metadata, &config);
+    mod version_parsing {
+        use super::*;
 
-        assert!(rc.contains("VFT_DLL"));
-        assert!(rc.contains("VFT2_UNKNOWN"));
+        #[test]
+        fn parse_version_three_part() {
+            let v = parse_version("1.2.3").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 1,
+                    minor: 2,
+                    patch: 3,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn parse_version_four_part() {
+            let v = parse_version("1.2.3.4").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 1,
+                    minor: 2,
+                    patch: 3,
+                    revision: 4
+                }
+            );
+        }
+
+        #[test]
+        fn parse_version_strips_prerelease() {
+            let v = parse_version("3.0.433-preview").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 3,
+                    minor: 0,
+                    patch: 433,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn parse_version_max_values() {
+            let v = parse_version("65535.65535.65535.65535").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 65535,
+                    minor: 65535,
+                    patch: 65535,
+                    revision: 65535
+                }
+            );
+        }
+
+        #[test]
+        fn parse_version_overflow_rejected() {
+            let result = parse_version("65536.0.0");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(matches!(
+                err,
+                ResourceCompileError::VersionParseError { .. }
+            ));
+        }
+
+        #[test]
+        fn parse_version_too_few_parts() {
+            assert!(parse_version("1.2").is_err());
+        }
+
+        #[test]
+        fn parse_version_too_many_parts() {
+            assert!(parse_version("1.2.3.4.5").is_err());
+        }
+
+        #[test]
+        fn parse_version_empty_string() {
+            assert!(parse_version("").is_err());
+        }
+
+        #[test]
+        fn parse_version_non_numeric() {
+            assert!(parse_version("1.2.abc").is_err());
+        }
+
+        #[test]
+        fn parse_version_zero() {
+            let v = parse_version("0.0.0").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 0,
+                    minor: 0,
+                    patch: 0,
+                    revision: 0
+                }
+            );
+        }
+    }
+
+    mod version_resolution {
+        use super::*;
+
+        #[test]
+        fn resolve_version_prefers_stampinf_version() {
+            let version = with_env(
+                &[
+                    (VERSION_ENV_VAR, Some("5.1.0")),
+                    ("CARGO_PKG_VERSION", Some("1.2.3")),
+                ],
+                resolve_version,
+            )
+            .unwrap();
+
+            assert_eq!(
+                version,
+                DriverVersion {
+                    major: 5,
+                    minor: 1,
+                    patch: 0,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn resolve_version_falls_back_to_cargo_pkg_version() {
+            let version = with_env(
+                &[
+                    (VERSION_ENV_VAR, None),
+                    ("CARGO_PKG_VERSION", Some("1.2.3")),
+                ],
+                resolve_version,
+            )
+            .unwrap();
+
+            assert_eq!(
+                version,
+                DriverVersion {
+                    major: 1,
+                    minor: 2,
+                    patch: 3,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn resolve_version_falls_back_to_cargo_pkg_version_when_stampinf_version_is_empty() {
+            let version = with_env(
+                &[
+                    (VERSION_ENV_VAR, Some("")),
+                    ("CARGO_PKG_VERSION", Some("1.2.3")),
+                ],
+                resolve_version,
+            )
+            .unwrap();
+
+            assert_eq!(
+                version,
+                DriverVersion {
+                    major: 1,
+                    minor: 2,
+                    patch: 3,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn resolve_version_errors_without_version_sources() {
+            let result = with_env(
+                &[(VERSION_ENV_VAR, None), ("CARGO_PKG_VERSION", None)],
+                resolve_version,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { .. })
+            ));
+        }
+    }
+
+    mod driver_version_formatting {
+        use super::*;
+
+        #[test]
+        fn windows_version_rc_numeric() {
+            let v = DriverVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                revision: 4,
+            };
+            assert_eq!(v.as_rc_numeric(), "1,2,3,4");
+        }
+
+        #[test]
+        fn windows_version_rc_string() {
+            let v = DriverVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                revision: 4,
+            };
+            assert_eq!(v.as_rc_string(), "1.2.3.4");
+        }
+    }
+
+    mod metadata_resolution {
+        use super::*;
+
+        #[test]
+        fn read_version_resource_metadata_uses_cargo_defaults_without_overrides() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let metadata = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                    ("CARGO_PKG_AUTHORS", Some("Test Authors")),
+                    ("CARGO_PKG_DESCRIPTION", Some("Default driver description")),
+                ],
+                read_version_resource_metadata,
+            )
+            .unwrap();
+
+            assert_eq!(metadata.company_name, "Test Authors");
+            assert_eq!(metadata.copyright, "");
+            assert_eq!(metadata.product_name, "test-driver");
+            assert_eq!(metadata.file_description, "Default driver description");
+            assert_eq!(metadata.internal_name, None);
+            assert_eq!(metadata.original_filename, None);
+        }
+
+        #[test]
+        fn read_version_resource_metadata_defaults_file_description_to_product_name() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let metadata = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                    ("CARGO_PKG_AUTHORS", Some("")),
+                    ("CARGO_PKG_DESCRIPTION", Some("")),
+                ],
+                read_version_resource_metadata,
+            )
+            .unwrap();
+
+            assert_eq!(metadata.company_name, "");
+            assert_eq!(metadata.product_name, "test-driver");
+            assert_eq!(metadata.file_description, "test-driver");
+        }
+
+        #[test]
+        fn read_version_resource_metadata_applies_cargo_toml_overrides() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+
+                [package.metadata.wdk.version-resource]
+                company-name = "Override Company"
+                copyright = "Override Copyright"
+                product-name = "Override Product"
+                file-description = "Override Driver"
+                internal-name = "override.sys"
+                original-filename = "original.sys"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let metadata = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                    ("CARGO_PKG_AUTHORS", Some("Default Authors")),
+                    ("CARGO_PKG_DESCRIPTION", Some("Default Description")),
+                ],
+                read_version_resource_metadata,
+            )
+            .unwrap();
+
+            assert_eq!(metadata.company_name, "Override Company");
+            assert_eq!(metadata.copyright, "Override Copyright");
+            assert_eq!(metadata.product_name, "Override Product");
+            assert_eq!(metadata.file_description, "Override Driver");
+            assert_eq!(metadata.internal_name, Some("override.sys".to_string()));
+            assert_eq!(metadata.original_filename, Some("original.sys".to_string()));
+        }
+
+        #[test]
+        fn read_version_resource_metadata_rejects_non_table_metadata() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+
+                [package.metadata.wdk]
+                version-resource = "invalid"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let result = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                ],
+                read_version_resource_metadata,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("[package.metadata.wdk.version-resource] must be a table")
+            ));
+        }
+
+        #[test]
+        fn read_version_resource_metadata_rejects_non_string_fields() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+
+                [package.metadata.wdk.version-resource]
+                company-name = 42
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let result = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                ],
+                read_version_resource_metadata,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("[package.metadata.wdk.version-resource].company-name must be a string")
+            ));
+        }
+    }
+
+    mod rc_generation {
+        use super::*;
+
+        /// Create a test `Config` without relying on `Config::default()` which
+        /// requires build-script env vars like `CARGO_CFG_TARGET_ARCH`.
+        fn test_config(driver_config: DriverConfig) -> Config {
+            Config {
+                wdk_content_root: PathBuf::from("C:\\fake\\wdk"),
+                cpu_architecture: CpuArchitecture::Amd64,
+                driver_config,
+            }
+        }
+
+        #[test]
+        fn resolve_driver_filename_uses_crate_artifact_name_and_driver_extension() {
+            let (kmdf_filename, umdf_filename) =
+                with_env(&[("CARGO_PKG_NAME", Some("surface-button"))], || {
+                    (
+                        resolve_driver_filename(&test_config(DriverConfig::Kmdf(
+                            crate::KmdfConfig::default(),
+                        ))),
+                        resolve_driver_filename(&test_config(DriverConfig::Umdf(
+                            crate::UmdfConfig::default(),
+                        ))),
+                    )
+                });
+
+            assert_eq!(kmdf_filename, "surface_button.sys");
+            assert_eq!(umdf_filename, "surface_button.dll");
+        }
+
+        #[test]
+        fn generate_rc_content_contains_expected_fields() {
+            let version = DriverVersion {
+                major: 1,
+                minor: 0,
+                patch: 0,
+                revision: 0,
+            };
+            let metadata = VersionResourceMetadata {
+                company_name: "Test Corp".to_string(),
+                copyright: "Copyright Test".to_string(),
+                product_name: "Test Product".to_string(),
+                file_description: "Test Driver".to_string(),
+                internal_name: Some("test.sys".to_string()),
+                original_filename: Some("test.sys".to_string()),
+            };
+            let config = test_config(DriverConfig::Kmdf(crate::KmdfConfig::default()));
+
+            let rc = generate_rc_content(&version, &metadata, &config);
+
+            assert!(rc.contains("#include <windows.h>"));
+            assert!(rc.contains("#include <ntverp.h>"));
+            assert!(rc.contains("#include \"common.ver\""));
+            assert!(rc.contains("VFT_DRV"));
+            assert!(rc.contains("VFT2_DRV_SYSTEM"));
+            assert!(rc.contains("\"test.sys\""));
+            assert!(rc.contains("\"Test Driver\""));
+            assert!(rc.contains("\"Test Product\""));
+            assert!(rc.contains("\"Test Corp\""));
+            assert!(rc.contains("\"Copyright Test\""));
+            assert!(rc.contains("1,0,0,0"));
+            assert!(rc.contains("\"1.0.0.0\""));
+        }
+
+        #[test]
+        fn generate_rc_content_umdf_uses_dll_type() {
+            let version = DriverVersion {
+                major: 1,
+                minor: 0,
+                patch: 0,
+                revision: 0,
+            };
+            let metadata = VersionResourceMetadata {
+                company_name: "Test".to_string(),
+                copyright: "Copyright".to_string(),
+                product_name: "Product".to_string(),
+                file_description: "Driver".to_string(),
+                internal_name: None,
+                original_filename: None,
+            };
+            let config = test_config(DriverConfig::Umdf(crate::UmdfConfig::default()));
+
+            let rc = generate_rc_content(&version, &metadata, &config);
+
+            assert!(rc.contains("VFT_DLL"));
+            assert!(rc.contains("VFT2_UNKNOWN"));
+        }
     }
 }
