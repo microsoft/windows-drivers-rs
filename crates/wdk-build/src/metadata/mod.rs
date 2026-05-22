@@ -120,10 +120,9 @@ fn parse_packages_wdk_metadata(
 ) -> std::result::Result<HashSet<Wdk>, TryFromCargoMetadataError> {
     let wdk_metadata_configurations = packages
         .iter()
-        .filter_map(
-            |package| match wdk_driver_model_metadata(&package.metadata["wdk"]) {
-                None => None,
-                Some(wdk_metadata) => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
+        .filter_map(|package| {
+            wdk_driver_model_metadata(&package.metadata["wdk"]).map(|wdk_metadata| {
+                Wdk::deserialize(wdk_metadata).map_err(|err| {
                     TryFromCargoMetadataError::WdkMetadataDeserialization {
                         metadata_source: format!(
                             "{} for {} package",
@@ -132,9 +131,9 @@ fn parse_packages_wdk_metadata(
                         ),
                         error_source: err,
                     }
-                })),
-            },
-        )
+                })
+            })
+        })
         .collect::<std::result::Result<HashSet<_>, _>>()?;
     Ok(wdk_metadata_configurations)
 }

@@ -182,10 +182,7 @@ pub fn parse_version(version_str: &str) -> Result<DriverVersion, ResourceCompile
         _ => {
             return Err(ResourceCompileError::VersionParseError {
                 value: version_str.to_string(),
-                reason: format!(
-                    "expected 3 or 4 dot-separated components, found {}",
-                    version_str.to_string()
-                ),
+                reason: format!("expected 3 or 4 dot-separated components, found {version_str}"),
             });
         }
     };
@@ -289,12 +286,12 @@ fn read_version_resource_metadata() -> Result<VersionResourceMetadata, ResourceC
         .metadata
         .get("wdk")
         .and_then(|w| w.get("version-resource"));
-    if let Some(version_resource) = version_resource {
-        if !version_resource.is_object() {
-            return Err(ResourceCompileError::MetadataError {
-                detail: "[package.metadata.wdk.version-resource] must be a table".to_string(),
-            });
-        }
+    if let Some(version_resource) = version_resource
+        && !version_resource.is_object()
+    {
+        return Err(ResourceCompileError::MetadataError {
+            detail: "[package.metadata.wdk.version-resource] must be a table".to_string(),
+        });
     }
 
     let company_name = version_resource_string(version_resource, "company-name")?
