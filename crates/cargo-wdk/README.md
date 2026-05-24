@@ -120,8 +120,8 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
     cargo wdk build --target-arch amd64
     ```
 
-- To build a driver project with test signing, navigate to the root of the project and run:
+- To build a driver project with signing off, navigate to the root of the project and run:
 
     ```pwsh
-    cargo wdk build --sign-mode test
+    cargo wdk build --sign-mode off
     ```
