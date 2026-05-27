@@ -182,7 +182,11 @@ pub fn parse_version(version_str: &str) -> Result<DriverVersion, ResourceCompile
         _ => {
             return Err(ResourceCompileError::VersionParseError {
                 value: version_str.to_string(),
-                reason: format!("expected 3 or 4 dot-separated components, found {version_str}"),
+                reason: format!(
+                    "expected 3 or 4 dot-separated components, found {} in cleaned version `{}`",
+                    parts.len(),
+                    version_clean
+                ),
             });
         }
     };
