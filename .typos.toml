@@ -1,6 +1,11 @@
 [files]
 extend-exclude = ["**/Cargo.lock", "**/target/**"]
 
+# Allowlist short words that collide with the typos dictionary but are
+# legitimate in WDK/rc.exe contexts.
+[default.extend-words]
+fo = "fo"  # rc.exe /fo (output file) switch
+
 # Allow specific identifiers in code derived from WDK
 [default.extend-identifiers]
 STATUS_FVE_MOR_FAILED = "STATUS_FVE_MOR_FAILED"

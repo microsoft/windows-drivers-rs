@@ -121,12 +121,12 @@ pub enum ResourceCompileError {
     },
 
     /// The resource compiler (`rc.exe`) exited with a non-zero status.
-    #[error("rc.exe failed with {status}:\n{stderr}")]
+    #[error("rc.exe failed with {status}:\n{output}")]
     CompilerFailed {
         /// The exit status of `rc.exe`
         status: std::process::ExitStatus,
         /// The stdout and stderr output from `rc.exe`
-        stderr: String,
+        output: String,
     },
 
     /// Metadata is missing or invalid.
@@ -636,7 +636,7 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(ResourceCompileError::CompilerFailed {
             status: output.status,
-            stderr: format!("stdout:\n{stdout}\nstderr:\n{stderr}"),
+            output: format!("stdout:\n{stdout}\nstderr:\n{stderr}"),
         });
     }
 
