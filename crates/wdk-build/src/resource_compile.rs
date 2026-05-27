@@ -125,7 +125,7 @@ pub enum ResourceCompileError {
     CompilerFailed {
         /// The exit status of `rc.exe`
         status: std::process::ExitStatus,
-        /// The stderr output from `rc.exe`
+        /// The stdout and stderr output from `rc.exe`
         stderr: String,
     },
 
@@ -339,6 +339,9 @@ fn version_resource_string(
         })
 }
 
+/// Reads an environment variable, returning `None` for both unset and empty
+/// values. eWDK/vcvars occasionally export variables with empty defaults that
+/// should be treated as unset.
 fn env_var_non_empty(key: &str) -> Option<String> {
     env::var(key).ok().filter(|value| !value.is_empty())
 }
@@ -424,44 +427,145 @@ pub fn generate_rc_content(
     rc
 }
 
-/// Compute the include paths needed for resource compilation.
+/// Builds the `/I` include-path list passed to `rc.exe` when compiling the
+/// driver's `VERSIONINFO` resource.
 ///
-/// Unlike [`Config::include_paths`] (which provides paths for C/bindgen
-/// compilation), resource compilation needs:
-/// - `Include/<sdk>/um` (for `windows.h`)
-/// - `Include/<sdk>/shared` (for shared headers)
-/// - `Include/<sdk>/km` (for `ntverp.h`, kernel-mode drivers only)
+/// Paths are collected from two roots so both combined WDK installs (SDK
+/// headers nested under the WDK content root) and split eWDK layouts (SDK
+/// headers in a separate Windows Kit referenced by `WindowsSdkDir` /
+/// `WindowsSdkBinPath`) are supported:
+///
+/// 1. SDK include root, if locatable from env vars: `um`, `shared`, `ucrt`
+/// 2. WDK include root: `um`, `shared`, `ucrt`
+/// 3. WDK kernel-mode headers (`km\crt`, `km`) for [`DriverConfig::Wdm`] and
+///    [`DriverConfig::Kmdf`]; omitted for [`DriverConfig::Umdf`].
+///
+/// Missing subdirectories are silently skipped, and duplicates (e.g. when
+/// the SDK and WDK roots coincide) are removed.
+///
+/// # Errors
+///
+/// Returns [`ResourceCompileError::MetadataError`] if no `um` directory is
+/// found in either root (rc.exe would otherwise fail with a cryptic
+/// `windows.h: No such file or directory`).
 fn resource_include_paths(config: &Config) -> Result<Vec<PathBuf>, ResourceCompileError> {
     let sdk_version = crate::utils::detect_windows_sdk_version(&config.wdk_content_root)
         .map_err(|e| ResourceCompileError::ConfigError(Box::new(e)))?;
-    let include_directory = config.wdk_content_root.join("Include").join(&sdk_version);
+    let wdk_include_directory = config.wdk_content_root.join("Include").join(&sdk_version);
 
     let mut paths = vec![];
 
-    // um directory contains windows.h
-    let um_path = include_directory.join("um");
-    if um_path.is_dir() {
-        paths.push(absolute(&um_path)?);
+    if let Some(sdk_include_directory) = windows_sdk_include_directory(&sdk_version) {
+        add_resource_include_paths(&mut paths, &sdk_include_directory)?;
     }
 
-    // shared directory contains shared headers
-    let shared_path = include_directory.join("shared");
-    if shared_path.is_dir() {
-        paths.push(absolute(&shared_path)?);
-    }
+    add_resource_include_paths(&mut paths, &wdk_include_directory)?;
 
-    // km directory contains ntverp.h (for kernel-mode drivers)
     match config.driver_config {
         DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-            let km_path = include_directory.join("km");
-            if km_path.is_dir() {
-                paths.push(absolute(&km_path)?);
-            }
+            push_existing_absolute_path(&mut paths, &wdk_include_directory.join("km").join("crt"))?;
+            push_existing_absolute_path(&mut paths, &wdk_include_directory.join("km"))?;
         }
         DriverConfig::Umdf(_) => {}
     }
 
+    if !paths.iter().any(|p| p.ends_with("um")) {
+        return Err(ResourceCompileError::MetadataError {
+            detail: format!(
+                "Could not locate the Windows SDK 'um' include directory for SDK version \
+                 '{sdk_version}'. Looked under '{}' and the directories referenced by the \
+                 WindowsSdkDir / WindowsSdkBinPath environment variables. Build from an eWDK \
+                 developer prompt, or set WindowsSdkDir to a Windows Kit root that contains \
+                 'Include\\{sdk_version}\\um'.",
+                wdk_include_directory.display(),
+            ),
+        });
+    }
+
     Ok(paths)
+}
+
+/// Appends the standard user-mode include subdirectories (`um`, `shared`,
+/// `ucrt`) of `include_directory` to `paths`. Subdirectories that do not
+/// exist on disk are silently skipped.
+fn add_resource_include_paths(
+    paths: &mut Vec<PathBuf>,
+    include_directory: &Path,
+) -> Result<(), ResourceCompileError> {
+    for include_subdirectory in ["um", "shared", "ucrt"] {
+        push_existing_absolute_path(paths, &include_directory.join(include_subdirectory))?;
+    }
+
+    Ok(())
+}
+
+/// Pushes `path` onto `paths` as an absolute path, but only when it points to
+/// an existing directory and is not already present. Uses
+/// [`std::path::absolute`] (no filesystem walk) to avoid the `\\?\` UNC
+/// prefixes that [`std::fs::canonicalize`] produces, which `rc.exe` mishandles.
+fn push_existing_absolute_path(
+    paths: &mut Vec<PathBuf>,
+    path: &Path,
+) -> Result<(), ResourceCompileError> {
+    if path.is_dir() {
+        let absolute_path = absolute(path)?;
+        if !paths.contains(&absolute_path) {
+            paths.push(absolute_path);
+        }
+    }
+
+    Ok(())
+}
+
+/// Resolves the Windows SDK include directory for `sdk_version` from
+/// environment variables exported by the eWDK developer prompt / vcvars:
+///
+/// 1. `WindowsSdkDir` — the Windows Kit root (preferred).
+/// 2. `WindowsSdkBinPath` — a Kit `bin` subdirectory; the SDK root is found by
+///    walking its ancestors.
+///
+/// Returns `None` if neither variable points to a directory containing
+/// `Include\<sdk_version>`.
+fn windows_sdk_include_directory(sdk_version: &str) -> Option<PathBuf> {
+    env_var_non_empty("WindowsSdkDir")
+        .and_then(|windows_sdk_dir| {
+            include_directory_from_windows_sdk_root(Path::new(&windows_sdk_dir), sdk_version)
+        })
+        .or_else(|| {
+            env_var_non_empty("WindowsSdkBinPath")
+                .and_then(|windows_sdk_bin_path| {
+                    find_windows_sdk_root_from_bin_path(
+                        Path::new(&windows_sdk_bin_path),
+                        sdk_version,
+                    )
+                })
+                .and_then(|windows_sdk_root| {
+                    include_directory_from_windows_sdk_root(&windows_sdk_root, sdk_version)
+                })
+        })
+}
+
+/// Returns `<windows_sdk_root>\Include\<sdk_version>` if it exists, else
+/// `None`.
+fn include_directory_from_windows_sdk_root(
+    windows_sdk_root: &Path,
+    sdk_version: &str,
+) -> Option<PathBuf> {
+    let include_directory = windows_sdk_root.join("Include").join(sdk_version);
+    include_directory.is_dir().then_some(include_directory)
+}
+
+/// Walks the ancestors of `windows_sdk_bin_path` (typically
+/// `<root>\bin\<sdk_version>\<arch>`) and returns the first ancestor that
+/// contains an `Include\<sdk_version>` directory, i.e. the Windows Kit root.
+fn find_windows_sdk_root_from_bin_path(
+    windows_sdk_bin_path: &Path,
+    sdk_version: &str,
+) -> Option<PathBuf> {
+    windows_sdk_bin_path
+        .ancestors()
+        .find(|path| include_directory_from_windows_sdk_root(path, sdk_version).is_some())
+        .map(Path::to_path_buf)
 }
 
 /// Generate and compile a Windows `VERSIONINFO` resource, then emit a
@@ -524,9 +628,11 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
     let output = cmd.output()?;
 
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(ResourceCompileError::CompilerFailed {
             status: output.status,
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            stderr: format!("stdout:\n{stdout}\nstderr:\n{stderr}"),
         });
     }
 
@@ -538,7 +644,7 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::{fs, sync::Mutex};
 
     use assert_fs::prelude::*;
 
@@ -973,6 +1079,8 @@ mod tests {
     mod rc_generation {
         use super::*;
 
+        const SDK_VERSION: &str = "10.0.26100.0";
+
         /// Create a test `Config` without relying on `Config::default()` which
         /// requires build-script env vars like `CARGO_CFG_TARGET_ARCH`.
         fn test_config(driver_config: DriverConfig) -> Config {
@@ -981,6 +1089,31 @@ mod tests {
                 cpu_architecture: CpuArchitecture::Amd64,
                 driver_config,
             }
+        }
+
+        fn test_config_with_wdk_root(
+            driver_config: DriverConfig,
+            wdk_content_root: PathBuf,
+        ) -> Config {
+            Config {
+                wdk_content_root,
+                cpu_architecture: CpuArchitecture::Amd64,
+                driver_config,
+            }
+        }
+
+        fn create_include_subdirectories(include_directory: &Path, subdirectories: &[&str]) {
+            for subdirectory in subdirectories {
+                fs::create_dir_all(include_directory.join(subdirectory)).unwrap();
+            }
+        }
+
+        fn path_string(path: &Path) -> String {
+            path.to_string_lossy().to_string()
+        }
+
+        fn absolute_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+            paths.iter().map(|path| absolute(path).unwrap()).collect()
         }
 
         #[test]
@@ -999,6 +1132,114 @@ mod tests {
 
             assert_eq!(kmdf_filename, "surface_button.sys");
             assert_eq!(umdf_filename, "surface_button.dll");
+        }
+
+        #[test]
+        fn resource_include_paths_support_split_sdk_and_wdk_layout_for_kmdf() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let sdk_root = temp_dir.path().join("sdk").join("c");
+            let sdk_bin_path = sdk_root.join("bin");
+            let sdk_include_directory = sdk_root.join("Include").join(SDK_VERSION);
+            let wdk_root = temp_dir.path().join("wdk").join("c");
+            let wdk_include_directory = wdk_root.join("Include").join(SDK_VERSION);
+
+            fs::create_dir_all(&sdk_bin_path).unwrap();
+            create_include_subdirectories(&sdk_include_directory, &["um", "shared", "ucrt"]);
+            create_include_subdirectories(&wdk_include_directory, &["shared", "km\\crt", "km"]);
+
+            let config = test_config_with_wdk_root(
+                DriverConfig::Kmdf(crate::KmdfConfig::default()),
+                wdk_root,
+            );
+            let sdk_bin_path = path_string(&sdk_bin_path);
+            let include_paths = with_env(
+                &[
+                    ("Version_Number", Some(SDK_VERSION)),
+                    ("WindowsSdkDir", None),
+                    ("WindowsSdkBinPath", Some(&sdk_bin_path)),
+                ],
+                || resource_include_paths(&config),
+            )
+            .unwrap();
+
+            assert_eq!(
+                include_paths,
+                absolute_paths(&[
+                    sdk_include_directory.join("um"),
+                    sdk_include_directory.join("shared"),
+                    sdk_include_directory.join("ucrt"),
+                    wdk_include_directory.join("shared"),
+                    wdk_include_directory.join("km").join("crt"),
+                    wdk_include_directory.join("km"),
+                ])
+            );
+        }
+
+        #[test]
+        fn resource_include_paths_omits_kernel_paths_for_umdf() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let sdk_root = temp_dir.path().join("sdk").join("c");
+            let sdk_bin_path = sdk_root.join("bin");
+            let sdk_include_directory = sdk_root.join("Include").join(SDK_VERSION);
+            let wdk_root = temp_dir.path().join("wdk").join("c");
+            let wdk_include_directory = wdk_root.join("Include").join(SDK_VERSION);
+
+            fs::create_dir_all(&sdk_bin_path).unwrap();
+            create_include_subdirectories(&sdk_include_directory, &["um", "shared", "ucrt"]);
+            create_include_subdirectories(&wdk_include_directory, &["shared", "km\\crt", "km"]);
+
+            let config = test_config_with_wdk_root(
+                DriverConfig::Umdf(crate::UmdfConfig::default()),
+                wdk_root,
+            );
+            let sdk_bin_path = path_string(&sdk_bin_path);
+            let include_paths = with_env(
+                &[
+                    ("Version_Number", Some(SDK_VERSION)),
+                    ("WindowsSdkDir", None),
+                    ("WindowsSdkBinPath", Some(&sdk_bin_path)),
+                ],
+                || resource_include_paths(&config),
+            )
+            .unwrap();
+
+            assert_eq!(
+                include_paths,
+                absolute_paths(&[
+                    sdk_include_directory.join("um"),
+                    sdk_include_directory.join("shared"),
+                    sdk_include_directory.join("ucrt"),
+                    wdk_include_directory.join("shared"),
+                ])
+            );
+        }
+
+        #[test]
+        fn resource_include_paths_errors_when_um_directory_missing() {
+            let temp_dir = assert_fs::TempDir::new().unwrap();
+            let wdk_root = temp_dir.path().join("wdk").join("c");
+            let wdk_include_directory = wdk_root.join("Include").join(SDK_VERSION);
+            create_include_subdirectories(&wdk_include_directory, &["shared", "km\\crt", "km"]);
+
+            let config = test_config_with_wdk_root(
+                DriverConfig::Kmdf(crate::KmdfConfig::default()),
+                wdk_root,
+            );
+
+            let result = with_env(
+                &[
+                    ("Version_Number", Some(SDK_VERSION)),
+                    ("WindowsSdkDir", None),
+                    ("WindowsSdkBinPath", None),
+                ],
+                || resource_include_paths(&config),
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("'um'") && detail.contains("WindowsSdkDir")
+            ));
         }
 
         #[test]
