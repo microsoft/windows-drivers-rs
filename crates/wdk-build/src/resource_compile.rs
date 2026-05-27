@@ -55,23 +55,22 @@ const VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 /// Windows `VERSIONINFO` resources use four 16-bit components:
 /// `MAJOR.MINOR.PATCH.REVISION`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DriverVersion {
+pub(crate) struct DriverVersion {
     /// Major version number
-    pub major: u16,
+    pub(crate) major: u16,
     /// Minor version number
-    pub minor: u16,
+    pub(crate) minor: u16,
     /// Patch/build version number
-    pub patch: u16,
+    pub(crate) patch: u16,
     /// Revision number
-    pub revision: u16,
+    pub(crate) revision: u16,
 }
 
 impl DriverVersion {
     /// Format as a comma-separated string for the `VER_FILEVERSION` RC macro.
     ///
     /// Example: `1,2,3,0`
-    #[must_use]
-    pub fn as_rc_numeric(&self) -> String {
+    pub(crate) fn as_rc_numeric(self) -> String {
         format!(
             "{},{},{},{}",
             self.major, self.minor, self.patch, self.revision
@@ -81,8 +80,7 @@ impl DriverVersion {
     /// Format as a dot-separated string for the `VER_FILEVERSION_STR` RC macro.
     ///
     /// Example: `"1.2.3.0"`
-    #[must_use]
-    pub fn as_rc_string(&self) -> String {
+    pub(crate) fn as_rc_string(self) -> String {
         format!(
             "{}.{}.{}.{}",
             self.major, self.minor, self.patch, self.revision
@@ -93,19 +91,19 @@ impl DriverVersion {
 /// Metadata for the version resource, sourced from Cargo defaults and optional
 /// `[package.metadata.wdk.version-resource]` overrides in `Cargo.toml`.
 #[derive(Debug, Clone)]
-pub struct VersionResourceMetadata {
+pub(crate) struct VersionResourceMetadata {
     /// Company name (e.g. "Microsoft Corporation")
-    pub company_name: String,
+    pub(crate) company_name: String,
     /// Copyright string
-    pub copyright: String,
+    pub(crate) copyright: String,
     /// Product name (e.g. "Surface")
-    pub product_name: String,
+    pub(crate) product_name: String,
     /// File description shown in Explorer properties
-    pub file_description: String,
+    pub(crate) file_description: String,
     /// Internal name of the binary (e.g. "MyDriver.sys")
-    pub internal_name: Option<String>,
+    pub(crate) internal_name: Option<String>,
     /// Original filename of the binary
-    pub original_filename: Option<String>,
+    pub(crate) original_filename: Option<String>,
 }
 
 /// Errors specific to version resource compilation.
@@ -158,7 +156,7 @@ pub enum ResourceCompileError {
 ///
 /// Returns [`ResourceCompileError::VersionParseError`] if the string cannot
 /// be parsed or any component exceeds the 16-bit limit.
-pub fn parse_version(version_str: &str) -> Result<DriverVersion, ResourceCompileError> {
+fn parse_version(version_str: &str) -> Result<DriverVersion, ResourceCompileError> {
     // Strip semver prerelease suffix (everything after first `-`) if present.
     // e.g. "3.0.433-preview" → "3.0.433"
     let version_clean = version_str.split('-').next().unwrap_or(version_str);
@@ -360,9 +358,8 @@ fn env_var_non_empty(key: &str) -> Option<String> {
 /// * `version` - The 4-part driver version to embed
 /// * `metadata` - Version resource metadata (company, product, etc.)
 /// * `config` - WDK build configuration (used to determine file type)
-#[must_use]
-pub fn generate_rc_content(
-    version: &DriverVersion,
+fn generate_rc_content(
+    version: DriverVersion,
     metadata: &VersionResourceMetadata,
     config: &Config,
 ) -> String {
@@ -614,7 +611,7 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
     let res_path = out_dir.join("version.res");
 
     // Generate RC file content
-    let rc_content = generate_rc_content(&version, &metadata, config);
+    let rc_content = generate_rc_content(version, &metadata, config);
     fs::write(&rc_path, &rc_content)?;
 
     // Invoke rc.exe (expected to be on PATH via eWDK prompt or cargo-wdk setup)
@@ -1264,7 +1261,7 @@ mod tests {
             };
             let config = test_config(DriverConfig::Kmdf(crate::KmdfConfig::default()));
 
-            let rc = generate_rc_content(&version, &metadata, &config);
+            let rc = generate_rc_content(version, &metadata, &config);
 
             assert!(rc.contains("#include <windows.h>"));
             assert!(rc.contains("#include <ntverp.h>"));
@@ -1298,7 +1295,7 @@ mod tests {
             };
             let config = test_config(DriverConfig::Umdf(crate::UmdfConfig::default()));
 
-            let rc = generate_rc_content(&version, &metadata, &config);
+            let rc = generate_rc_content(version, &metadata, &config);
 
             assert!(rc.contains("VFT_DLL"));
             assert!(rc.contains("VFT2_UNKNOWN"));
