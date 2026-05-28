@@ -55,22 +55,22 @@ const VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 /// Windows `VERSIONINFO` resources use four 16-bit components:
 /// `MAJOR.MINOR.PATCH.REVISION`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DriverVersion {
+struct DriverVersion {
     /// Major version number
-    pub(crate) major: u16,
+    major: u16,
     /// Minor version number
-    pub(crate) minor: u16,
+    minor: u16,
     /// Patch/build version number
-    pub(crate) patch: u16,
+    patch: u16,
     /// Revision number
-    pub(crate) revision: u16,
+    revision: u16,
 }
 
 impl DriverVersion {
     /// Format as a comma-separated string for the `VER_FILEVERSION` RC macro.
     ///
     /// Example: `1,2,3,0`
-    pub(crate) fn as_rc_numeric(self) -> String {
+    fn as_rc_numeric(self) -> String {
         format!(
             "{},{},{},{}",
             self.major, self.minor, self.patch, self.revision
@@ -80,7 +80,7 @@ impl DriverVersion {
     /// Format as a dot-separated string for the `VER_FILEVERSION_STR` RC macro.
     ///
     /// Example: `"1.2.3.0"`
-    pub(crate) fn as_rc_string(self) -> String {
+    fn as_rc_string(self) -> String {
         format!(
             "{}.{}.{}.{}",
             self.major, self.minor, self.patch, self.revision
@@ -91,19 +91,19 @@ impl DriverVersion {
 /// Metadata for the version resource, sourced from Cargo defaults and optional
 /// `[package.metadata.wdk.version-resource]` overrides in `Cargo.toml`.
 #[derive(Debug, Clone)]
-pub(crate) struct VersionResourceMetadata {
+struct VersionResourceMetadata {
     /// Company name (e.g. "Microsoft Corporation")
-    pub(crate) company_name: String,
+    company_name: String,
     /// Copyright string
-    pub(crate) copyright: String,
+    copyright: String,
     /// Product name (e.g. "Surface")
-    pub(crate) product_name: String,
+    product_name: String,
     /// File description shown in Explorer properties
-    pub(crate) file_description: String,
+    file_description: String,
     /// Internal name of the binary (e.g. "MyDriver.sys")
-    pub(crate) internal_name: Option<String>,
+    internal_name: Option<String>,
     /// Original filename of the binary
-    pub(crate) original_filename: Option<String>,
+    original_filename: Option<String>,
 }
 
 /// Errors specific to version resource compilation.
@@ -590,15 +590,21 @@ fn find_windows_sdk_root_from_bin_path(
 /// # Panics
 ///
 /// Panics if `OUT_DIR` is not set (i.e., not called from a build script).
-pub(crate) fn compile_version_resource(config: &Config) -> Result<(), ConfigError> {
+// `pub(super)` is the minimum visibility needed for `lib.rs` to invoke this
+// from `Config::configure_binary_build`. Clippy's `redundant_pub_crate` flags
+// it as redundant because the module is private, but removing the visibility
+// breaks the call site (E0603), so the lint is a false positive here.
+#[allow(
+    clippy::redundant_pub_crate,
+    reason = "Needed for call from Config::configure_binary_build in lib.rs, flagged because \
+              module is private."
+)]
+pub(super) fn compile_version_resource(config: &Config) -> Result<(), ConfigError> {
     Ok(compile_version_resource_inner(config)?)
 }
 
 /// Inner implementation that uses [`ResourceCompileError`] directly.
 fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompileError> {
-    // Emit rerun-if-env-changed for version-affecting variables
-    println!("cargo::rerun-if-env-changed={VERSION_ENV_VAR}");
-
     let version = resolve_version()?;
     let metadata = read_version_resource_metadata()?;
 

@@ -20,12 +20,13 @@ use std::{
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
+pub use resource_compile::ResourceCompileError;
 use tracing::debug;
 
 pub mod cargo_make;
 pub mod metadata;
-pub mod resource_compile;
 
+mod resource_compile;
 mod utils;
 
 mod bindgen;
