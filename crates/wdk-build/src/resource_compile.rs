@@ -314,6 +314,18 @@ fn read_version_resource_metadata() -> Result<VersionResourceMetadata, ResourceC
 
     let original_filename = version_resource_string(version_resource, "original-filename")?;
 
+    // Check both provided and fallback metadata values for invalid characters
+    validate_rc_metadata_string("company-name", &company_name)?;
+    validate_rc_metadata_string("copyright", &copyright)?;
+    validate_rc_metadata_string("product-name", &product_name)?;
+    validate_rc_metadata_string("file-description", &file_description)?;
+    if let Some(name) = internal_name.as_deref() {
+        validate_rc_metadata_string("internal-name", name)?;
+    }
+    if let Some(name) = original_filename.as_deref() {
+        validate_rc_metadata_string("original-filename", name)?;
+    }
+
     Ok(VersionResourceMetadata {
         company_name,
         copyright,
@@ -339,6 +351,50 @@ fn version_resource_string(
         .ok_or_else(|| ResourceCompileError::MetadataError {
             detail: format!("[package.metadata.wdk.version-resource].{key} must be a string"),
         })
+}
+
+/// Validates that a metadata string is safe to interpolate into an RC string
+/// literal.
+///
+/// Rejects characters that could break the generated `.rc` syntax or allow
+/// injection of additional RC directives:
+/// - `"` — would terminate the RC string literal early.
+/// - `\` — could escape the closing quote or alter RC escape sequences.
+/// - Any Unicode control character (newlines, tabs, NUL, etc.) — would break
+///   the single-line RC string or be silently re-encoded.
+///
+/// # Errors
+///
+/// Returns [`ResourceCompileError::MetadataError`] identifying the field and
+/// the first offending character (by Unicode code point and byte offset).
+fn validate_rc_metadata_string(field: &str, value: &str) -> Result<(), ResourceCompileError> {
+    for (offset, ch) in value.char_indices() {
+        let reason = if ch == '"' {
+            Some("contains a double-quote ('\"') which would terminate the RC string literal")
+        } else if ch == '\\' {
+            Some(
+                "contains a backslash ('\\') which could alter RC escape sequences; use ASCII \
+                 forward slashes or omit",
+            )
+        } else if ch.is_control() {
+            Some(
+                "contains a control character which cannot be safely embedded in an RC string \
+                 literal",
+            )
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            return Err(ResourceCompileError::MetadataError {
+                detail: format!(
+                    "version-resource field '{field}' {reason} (offending character U+{:04X} at \
+                     byte offset {offset})",
+                    ch as u32,
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Reads an environment variable, returning `None` for both unset and empty
@@ -1079,6 +1135,124 @@ mod tests {
                 result,
                 Err(ResourceCompileError::MetadataError { detail })
                     if detail.contains("[package.metadata.wdk.version-resource].company-name must be a string")
+            ));
+        }
+
+        #[test]
+        fn read_version_resource_metadata_rejects_double_quote_injection() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+
+                [package.metadata.wdk.version-resource]
+                company-name = '"; #include "evil.rc"; "'
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let result = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                ],
+                read_version_resource_metadata,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("company-name") && detail.contains("double-quote")
+            ));
+        }
+
+        #[test]
+        fn read_version_resource_metadata_rejects_control_character() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+
+                [package.metadata.wdk.version-resource]
+                copyright = "line1\nline2"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let result = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                ],
+                read_version_resource_metadata,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("copyright") && detail.contains("control character")
+            ));
+        }
+
+        #[test]
+        fn read_version_resource_metadata_rejects_backslash() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+
+                [package.metadata.wdk.version-resource]
+                file-description = "Driver for C:\\Windows"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let result = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                ],
+                read_version_resource_metadata,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("file-description") && detail.contains("backslash")
+            ));
+        }
+
+        #[test]
+        fn read_version_resource_metadata_validates_env_var_fallback() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let result = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                    ("CARGO_PKG_DESCRIPTION", Some("Driver with \" injection")),
+                ],
+                read_version_resource_metadata,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::MetadataError { detail })
+                    if detail.contains("file-description") && detail.contains("double-quote")
             ));
         }
     }
