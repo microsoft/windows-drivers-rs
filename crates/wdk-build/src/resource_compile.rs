@@ -30,8 +30,9 @@
 //! 2. `CARGO_PKG_VERSION` (from `Cargo.toml` `[package]` version)
 //!
 //! Semver versions are mapped to 4-part Windows versions by appending `.0`
-//! for the revision component. Prerelease suffixes (e.g. `-preview`) are
-//! stripped. Each component must fit in a 16-bit word (0–65535).
+//! for the revision component. Prerelease suffixes (e.g. `-preview`) and
+//! build metadata suffixes (e.g. `+ci.42`) are stripped. Each component must
+//! fit in a 16-bit word (0–65535).
 
 use std::{
     env,
@@ -41,13 +42,14 @@ use std::{
     process::Command,
 };
 
-use crate::{Config, ConfigError, DriverConfig};
+use crate::{Config, ConfigError, DriverConfig, IoError};
 
 /// Environment variable for overriding the driver version in CI pipelines.
 ///
 /// When set, this takes priority over `CARGO_PKG_VERSION`. The value should
 /// be in the format `MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH.REVISION`.
-/// A prerelease suffix (e.g. `-preview`) is stripped automatically.
+/// A prerelease suffix (e.g. `-preview`) or build metadata suffix
+/// (e.g. `+ci.42`) is stripped automatically.
 const VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 /// A parsed 4-part Windows version number.
@@ -134,9 +136,10 @@ pub enum ResourceCompileError {
         detail: String,
     },
 
-    /// An I/O error occurred during resource compilation.
-    #[error("I/O error during resource compilation")]
-    IoError(#[from] std::io::Error),
+    /// An I/O error (with path context) that occurred during resource
+    /// compilation.
+    #[error(transparent)]
+    IoError(#[from] IoError),
 
     /// An error from the WDK build configuration.
     #[error("WDK build configuration error during resource compilation")]
@@ -149,6 +152,7 @@ pub enum ResourceCompileError {
 /// - `MAJOR.MINOR.PATCH` (revision defaults to 0)
 /// - `MAJOR.MINOR.PATCH.REVISION`
 /// - Semver with prerelease tag: `1.2.3-alpha` (prerelease suffix is stripped)
+/// - Semver with build metadata: `1.2.3+ci.42` (build metadata is stripped)
 ///
 /// Each component must be in the range `0..=65535`.
 ///
@@ -157,9 +161,10 @@ pub enum ResourceCompileError {
 /// Returns [`ResourceCompileError::VersionParseError`] if the string cannot
 /// be parsed or any component exceeds the 16-bit limit.
 fn parse_version(version_str: &str) -> Result<DriverVersion, ResourceCompileError> {
-    // Strip semver prerelease suffix (everything after first `-`) if present.
-    // e.g. "3.0.433-preview" → "3.0.433"
-    let version_clean = version_str.split('-').next().unwrap_or(version_str);
+    // Strip semver prerelease suffix (after first `-`) and/or build metadata
+    // suffix (after first `+`) if present.
+    // e.g. "3.0.433-preview" → "3.0.433", "1.2.3+ci.42" → "1.2.3"
+    let version_clean = version_str.split(['-', '+']).next().unwrap_or(version_str);
 
     let parts: Vec<&str> = version_clean.split('.').collect();
 
@@ -565,7 +570,7 @@ fn push_existing_absolute_path(
     path: &Path,
 ) -> Result<(), ResourceCompileError> {
     if path.is_dir() {
-        let absolute_path = absolute(path)?;
+        let absolute_path = absolute(path).map_err(|source| IoError::with_path(path, source))?;
         if !paths.contains(&absolute_path) {
             paths.push(absolute_path);
         }
@@ -674,7 +679,7 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
 
     // Generate RC file content
     let rc_content = generate_rc_content(version, &metadata, config);
-    fs::write(&rc_path, &rc_content)?;
+    fs::write(&rc_path, &rc_content).map_err(|source| IoError::with_path(&rc_path, source))?;
 
     // Invoke rc.exe (expected to be on PATH via eWDK prompt or cargo-wdk setup)
     let include_paths = resource_include_paths(config)?;
@@ -688,7 +693,9 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
     cmd.arg(&res_path);
     cmd.arg(&rc_path);
 
-    let output = cmd.output()?;
+    let output = cmd
+        .output()
+        .map_err(|source| IoError::with_path("rc.exe", source))?;
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -803,6 +810,34 @@ mod tests {
                     major: 3,
                     minor: 0,
                     patch: 433,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn parse_version_strips_build_metadata() {
+            let v = parse_version("1.2.3+ci.42").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 1,
+                    minor: 2,
+                    patch: 3,
+                    revision: 0
+                }
+            );
+        }
+
+        #[test]
+        fn parse_version_strips_prerelease_and_build_metadata() {
+            let v = parse_version("1.2.3-rc.1+git.abc1234").unwrap();
+            assert_eq!(
+                v,
+                DriverVersion {
+                    major: 1,
+                    minor: 2,
+                    patch: 3,
                     revision: 0
                 }
             );
