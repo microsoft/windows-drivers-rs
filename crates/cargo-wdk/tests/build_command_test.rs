@@ -173,12 +173,15 @@ fn emulated_workspace_builds_successfully() {
     let emulated_workspace_path = "tests/emulated-workspace";
     let umdf_driver_workspace_path = format!("{emulated_workspace_path}/umdf-driver-workspace");
     with_mutex(emulated_workspace_path, || {
-        run_cargo_clean(&umdf_driver_workspace_path);
-        run_cargo_clean(&format!("{emulated_workspace_path}/rust-project"));
+        run_clean_cmd(emulated_workspace_path);
+        assert_target_dir_does_not_exist(&umdf_driver_workspace_path);
+        assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
+
         let stderr = run_build_cmd(emulated_workspace_path, None, None);
         assert!(stderr.contains("Building package driver_1"));
         assert!(stderr.contains("Building package driver_2"));
         assert!(stderr.contains("Build completed successfully"));
+
         verify_driver_package_files(
             &umdf_driver_workspace_path,
             "driver_1",
@@ -195,6 +198,12 @@ fn emulated_workspace_builds_successfully() {
             None,
             None,
         );
+
+        run_clean_cmd(emulated_workspace_path);
+        assert_target_dir_does_not_exist(&umdf_driver_workspace_path);
+        assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
+        assert_package_dir_does_not_exist(&umdf_driver_workspace_path, "driver_1", None, "debug");
+        assert_package_dir_does_not_exist(&umdf_driver_workspace_path, "driver_2", None, "debug");
     });
 }
 
@@ -287,6 +296,63 @@ mod kmdf_driver_with_target_override {
     }
 }
 
+#[test]
+fn kmdf_driver_builds_successfully_with_sign_mode_off() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        run_clean_cmd(&project_path);
+
+        let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+        assert!(stderr.contains(&format!("Building package {driver}")));
+        assert!(stderr.contains(&format!("Finished building {driver}")));
+
+        let driver_name = driver.replace('-', "_");
+        let target_dir = format!("{project_path}/target/debug");
+        let package_dir = format!("{target_dir}/{driver_name}_package");
+
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "map", "pdb", "sys"] {
+            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+        }
+
+        let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+        assert!(
+            !cert_in_package.exists(),
+            "Cert file must not be present in the final package folder when --sign-mode=off, but \
+             found {}",
+            cert_in_package.display()
+        );
+
+        let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
+        assert!(
+            !staged_cert.exists(),
+            "Cert file must not be present in the `target` dir when --sign-mode=off, but found {}",
+            staged_cert.display()
+        );
+    });
+}
+
+/// `--sign-mode=off` together with `--verify-signature` is rejected at the CLI
+/// layer
+#[test]
+fn sign_mode_off_with_verify_signature_is_rejected() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    let mut cmd = create_cargo_wdk_cmd(
+        "build",
+        Some(&["--sign-mode", "off", "--verify-signature"]),
+        None,
+        Some(&project_path),
+    );
+    let assertion = cmd.assert().failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+    assert!(
+        stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
+        "expected validation error mentioning both flags, got: {stderr}"
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
@@ -302,7 +368,8 @@ fn clean_build_and_verify_project(
         project_path.map_or_else(|| format!("tests/{driver_name}"), ToString::to_string);
     let mutex_name = project_path.clone();
     with_mutex(&mutex_name, || {
-        run_cargo_clean(&project_path);
+        run_clean_cmd(&project_path);
+        assert_target_dir_does_not_exist(&project_path);
 
         let mut args: Vec<&str> = Vec::new();
         if let Some(target_arch) = input_target_arch {
@@ -339,6 +406,15 @@ fn clean_build_and_verify_project(
             target_triple,
             profile,
         );
+
+        run_clean_cmd(&project_path);
+        assert_target_dir_does_not_exist(&project_path);
+        assert_package_dir_does_not_exist(
+            &project_path,
+            driver_name,
+            target_triple,
+            profile.unwrap_or("debug"),
+        );
     });
 }
 
@@ -350,10 +426,37 @@ fn to_target_triple(target_arch: &str) -> Option<&'static str> {
     }
 }
 
-fn run_cargo_clean(driver_path: &str) {
-    let mut cmd = Command::new("cargo");
-    cmd.args(["clean"]).current_dir(driver_path);
+fn run_clean_cmd(path: &str) {
+    let mut cmd = create_cargo_wdk_cmd("clean", None, None, Some(path));
     cmd.assert().success();
+}
+
+fn assert_target_dir_does_not_exist(project_path: &str) {
+    let target_dir = Path::new(project_path).join("target");
+    assert!(
+        !target_dir.exists(),
+        "Expected target directory to not exist after clean: {}",
+        target_dir.display()
+    );
+}
+
+fn assert_package_dir_does_not_exist(
+    project_path: &str,
+    driver_name: &str,
+    target_triple: Option<&str>,
+    profile: &str,
+) {
+    let driver_name = driver_name.replace('-', "_");
+    let target_folder_path = target_triple.map_or_else(
+        || format!("{project_path}/target/{profile}"),
+        |triple| format!("{project_path}/target/{triple}/{profile}"),
+    );
+    let package_dir = PathBuf::from(&target_folder_path).join(format!("{driver_name}_package"));
+    assert!(
+        !package_dir.exists(),
+        "Expected package directory to not exist after clean: {}",
+        package_dir.display()
+    );
 }
 
 fn run_build_cmd(
