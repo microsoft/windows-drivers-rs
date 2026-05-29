@@ -22,6 +22,7 @@ use build_task::BuildTask;
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
+pub use package_task::SignMode;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
@@ -37,7 +38,7 @@ pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
     pub target_arch: Option<CpuArchitecture>,
-    pub verify_signature: bool,
+    pub sign_mode: SignMode,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
@@ -48,7 +49,7 @@ pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
+    sign_mode: SignMode,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
@@ -85,11 +86,15 @@ impl<'a> BuildAction<'a> {
         metadata: &'a Metadata,
     ) -> Result<Self> {
         // TODO: validate params
+        anyhow::ensure!(
+            !params.working_dir.as_os_str().is_empty(),
+            "working_dir must not be empty"
+        );
         Ok(Self {
             working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
-            verify_signature: params.verify_signature,
+            sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
             verbosity_level: params.verbosity_level,
             wdk_build,
@@ -151,14 +156,13 @@ impl<'a> BuildAction<'a> {
         );
 
         let mut is_valid_dir_with_rust_projects = false;
-        for dir in &dirs {
-            if self.fs.dir_file_type(dir)?.is_dir()
-                && self.fs.exists(&dir.path().join("Cargo.toml"))
-            {
+        for entry in &dirs {
+            if entry.is_dir && self.fs.exists(&entry.path.join("Cargo.toml")) {
                 debug!(
-                    "Found atleast one valid Rust project directory: {}, continuing with the \
+                    "Found at least one valid Rust project directory: {}, continuing with the \
                      build flow",
-                    dir.path()
+                    entry
+                        .path
                         .file_name()
                         .expect(
                             "package sub directory name ended with \"..\" which is not expected"
@@ -179,26 +183,24 @@ impl<'a> BuildAction<'a> {
         info!("Building packages in {}", self.working_dir.display());
 
         let mut failed_atleast_one_project = false;
-        for dir in dirs {
-            debug!("Checking dir entry: {}", dir.path().display());
-            if !self.fs.dir_file_type(&dir)?.is_dir()
-                || !self.fs.exists(&dir.path().join("Cargo.toml"))
-            {
+        for entry in dirs {
+            debug!("Checking dir entry: {}", entry.path.display());
+            if !entry.is_dir || !self.fs.exists(&entry.path.join("Cargo.toml")) {
                 debug!("Dir entry is not a valid Rust package");
                 continue;
             }
 
-            let working_dir_path = dir.path(); // Avoids a short-lived temporary
-            let sub_dir = working_dir_path
+            let cargo_package_path = entry.path;
+            let package_dir_name = cargo_package_path
                 .file_name()
                 .expect("package sub directory name ended with \"..\" which is not expected")
                 .to_string_lossy();
 
-            debug!("Building package(s) in dir {sub_dir}");
-            if let Err(e) = self.run_from_workspace_root(&dir.path()) {
+            debug!("Building package(s) in dir {package_dir_name}");
+            if let Err(e) = self.run_from_workspace_root(&cargo_package_path) {
                 failed_atleast_one_project = true;
                 err!(
-                    "Error building project: {sub_dir}, error: {:?}",
+                    "Error building project: {package_dir_name}, error: {:?}",
                     anyhow::Error::new(e)
                 );
             }
@@ -385,7 +387,7 @@ impl<'a> BuildAction<'a> {
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
-                verify_signature: self.verify_signature,
+                sign_mode: self.sign_mode,
                 sample_class: self.is_sample_class,
                 driver_model,
             },

@@ -30,6 +30,19 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
+/// Signing mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignMode {
+    /// Skip signing entirely.
+    Off,
+    /// Sign with an auto-generated self-signed certificate.
+    Test {
+        /// When `true`, run `signtool verify` on the signed driver binary and
+        /// catalog file after signing.
+        verify_signature: bool,
+    },
+}
+
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
 // flag is added to InfVerif CLI
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
@@ -43,7 +56,7 @@ pub struct PackageTaskParams<'a> {
     pub working_dir: &'a Path,
     pub target_dir: &'a Path,
     pub target_arch: &'a CpuArchitecture,
-    pub verify_signature: bool,
+    pub sign_mode: SignMode,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
 }
@@ -51,7 +64,7 @@ pub struct PackageTaskParams<'a> {
 /// Supports low level driver packaging operations
 pub struct PackageTask<'a> {
     package_name: String,
-    verify_signature: bool,
+    sign_mode: SignMode,
     sample_class: bool,
 
     // src paths
@@ -161,7 +174,7 @@ impl<'a> PackageTask<'a> {
 
         Self {
             package_name,
-            verify_signature: params.verify_signature,
+            sign_mode: params.sign_mode,
             sample_class: params.sample_class,
             src_inx_file_path,
             src_driver_binary_file_path,
@@ -236,6 +249,20 @@ impl<'a> PackageTask<'a> {
         self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
+        self.run_infverif()?;
+        self.sign_and_verify()?;
+        Ok(())
+    }
+
+    /// Signs the driver binary and catalog file according to `self.sign_mode`
+    /// and optionally verifies the resulting signatures. Returns a variant of
+    /// `PackageTaskError` if any step of the process fails.
+    fn sign_and_verify(&self) -> Result<(), PackageTaskError> {
+        let SignMode::Test { verify_signature } = self.sign_mode else {
+            info!("Sign mode is 'off'; skipping signing");
+            return Ok(());
+        };
+
         self.generate_certificate()?;
         self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
         self.run_signtool_sign(
@@ -248,13 +275,13 @@ impl<'a> PackageTask<'a> {
             WDR_TEST_CERT_STORE,
             WDR_LOCAL_TEST_CERT,
         )?;
-        self.run_infverif()?;
-        // Verify signatures only when --verify-signature flag = true is passed
-        if self.verify_signature {
+
+        if verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
             self.run_signtool_verify(&self.dest_driver_binary_path)?;
             self.run_signtool_verify(&self.dest_cat_file_path)?;
         }
+
         Ok(())
     }
 
@@ -635,7 +662,9 @@ mod tests {
             target_arch: &arch,
             driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
-            verify_signature: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+            },
         };
         let dest_root = target_dir.join(format!("{package_name}_package"));
 
@@ -644,7 +673,12 @@ mod tests {
         let fs = Fs::default();
         let task = PackageTask::new(package_task_params, &wdk_build, &command_exec, &fs);
         assert_eq!(task.package_name, package_name.replace('-', "_"));
-        assert!(!task.verify_signature);
+        assert_eq!(
+            task.sign_mode,
+            SignMode::Test {
+                verify_signature: false,
+            }
+        );
         assert!(!task.sample_class);
         assert_eq!(task.src_inx_file_path, working_dir.join("test_package.inx"));
         assert_eq!(
@@ -698,7 +732,9 @@ mod tests {
             target_arch: &arch,
             driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
-            verify_signature: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+            },
         };
 
         let command_exec = CommandExec::default();
@@ -724,7 +760,9 @@ mod tests {
             target_arch: &arch,
             driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
-            verify_signature: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+            },
         };
 
         let command_exec = CommandExec::default();
@@ -759,7 +797,9 @@ mod tests {
                         target_arch: &arch,
                         driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
                         sample_class: false,
-                        verify_signature: false,
+                        sign_mode: SignMode::Test {
+                            verify_signature: false,
+                        },
                     };
 
                     let wdk_build = WdkBuild::default();
