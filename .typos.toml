@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["**/target/**", "**/Cargo.lock"]
+extend-exclude = ["**/Cargo.lock", "**/target/**"]
 
 # Allow specific identifiers in code derived from WDK
 [default.extend-identifiers]
