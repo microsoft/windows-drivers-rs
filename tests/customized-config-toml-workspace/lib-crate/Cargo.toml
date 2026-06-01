@@ -1,7 +1,7 @@
 [package]
+edition = "2024"
 name = "lib-crate"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
 # This crate name does not exist on crates.io and must be provided by the config.toml patch table

@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, Result};
-use clap::{ArgGroup, Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use clap_verbosity_flag::Verbosity;
 use mockall_double::double;
 use wdk_build::CpuArchitecture;
@@ -15,10 +15,10 @@ use crate::actions::{
     DriverType,
     KMDF_STR,
     Profile,
-    TargetArch,
     UMDF_STR,
     WDM_STR,
-    build::{BuildAction, BuildActionParams},
+    build::{BuildAction, BuildActionParams, SignMode},
+    clean::CleanAction,
     new::NewAction,
 };
 #[double]
@@ -27,6 +27,17 @@ use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build:
 const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to create and build \
                             Windows Rust driver projects.";
 const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
+
+/// Driver signing mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+#[value(rename_all = "lower")]
+pub enum SignModeArg {
+    /// Skip signing.
+    Off,
+    /// Sign with an auto-generated self-signed certificate.
+    #[default]
+    Test,
+}
 
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
@@ -86,13 +97,35 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
+    /// Driver signing mode.
+    #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
+    pub sign_mode: SignModeArg,
+
     /// Verify the signature
     #[arg(long)]
     pub verify_signature: bool,
-
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
+}
+
+impl BuildArgs {
+    /// Maps the `--sign-mode` and `--verify-signature` combination to the
+    /// respective [`SignMode`] variant, or returns an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `--verify-signature` is used together with
+    /// `--sign-mode=off`.
+    fn sign_mode(&self) -> Result<SignMode> {
+        match (self.sign_mode, self.verify_signature) {
+            (SignModeArg::Off, true) => Err(anyhow::anyhow!(
+                "`--verify-signature` cannot be used with `--sign-mode=off`."
+            )),
+            (SignModeArg::Off, false) => Ok(SignMode::Off),
+            (SignModeArg::Test, verify_signature) => Ok(SignMode::Test { verify_signature }),
+        }
+    }
 }
 
 /// Subcommands
@@ -102,6 +135,11 @@ pub enum Subcmd {
     New(NewArgs),
     #[clap(name = "build", about = "Build the Windows Driver Kit project")]
     Build(BuildArgs),
+    #[clap(
+        name = "clean",
+        about = "Clean build artifacts of the Windows Driver Kit project"
+    )]
+    Clean,
 }
 
 /// Top level command line interface for cargo wdk
@@ -162,20 +200,13 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
-                let target_arch = if let Some(arch) = cli_args.target_arch {
-                    TargetArch::Selected(arch)
-                } else {
-                    // Detect the default target architecture using rustc
-                    let detected_arch =
-                        Self::detect_default_target_arch_using_rustc(&command_exec)?;
-                    TargetArch::Default(detected_arch)
-                };
+                let sign_mode = cli_args.sign_mode()?;
                 BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
-                        target_arch,
-                        verify_signature: cli_args.verify_signature,
+                        target_arch: cli_args.target_arch,
+                        sign_mode,
                         is_sample_class: cli_args.sample,
                         verbosity_level: self.verbose,
                     },
@@ -187,153 +218,20 @@ impl Cli {
                 .run()?;
                 Ok(())
             }
+            Subcmd::Clean => {
+                CleanAction::new(Path::new("."), self.verbose, &command_exec, &fs)?.run()?;
+                Ok(())
+            }
         }
-    }
-
-    /// Returns the default architecture of the host machine by running `rustc
-    /// --print host-tuple` command.
-    ///
-    /// # Arguments
-    /// * `command_exec` - A reference to the `CommandExec` struct that provides
-    ///   methods for executing commands.
-    /// # Returns
-    /// * `CpuArchitecture`
-    /// * `anyhow::Error` if the command fails to execute or the output is not
-    ///   in the expected format.
-    fn detect_default_target_arch_using_rustc(
-        command_exec: &CommandExec,
-    ) -> Result<CpuArchitecture> {
-        command_exec
-            .run("rustc", &["--print", "host-tuple"], None, None)
-            .map_or_else(
-                |e| Err(anyhow::anyhow!("Unable to read rustc host tuple: {e}")),
-                |output| {
-                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                    match stdout.trim() {
-                        "x86_64-pc-windows-msvc" => Ok(CpuArchitecture::Amd64),
-                        "aarch64-pc-windows-msvc" => Ok(CpuArchitecture::Arm64),
-                        _ => Err(anyhow::anyhow!(
-                            "Unsupported default target: {}. Only x86_64-pc-windows-msvc and \
-                             aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows \
-                             and switch the default target to one of the above two using \
-                             `rustup.exe`. You can also use the --target-arch option to \
-                             explicitly specify a CPU architecture instead of relying on the \
-                             default target.",
-                            stdout
-                        )),
-                    }
-                },
-            )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
-    use std::{
-        collections::HashMap,
-        process::{ExitStatus, Output},
-    };
-
-    use mockall_double::double;
-    use wdk_build::CpuArchitecture;
-
-    #[double]
-    use crate::providers::exec::CommandExec;
     use crate::{
         actions::DriverType,
         cli::{Cli, NewArgs},
     };
-
-    #[test]
-    pub fn arch_detection_works_for_supported_toolchains() {
-        fn run_test(toolchain: &str, arch: CpuArchitecture) {
-            let result = run_arch_detection(Ok(Output {
-                status: ExitStatus::default(),
-                stdout: toolchain.bytes().collect::<Vec<_>>(),
-                stderr: vec![],
-            }));
-
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), arch);
-        }
-
-        run_test("x86_64-pc-windows-msvc", CpuArchitecture::Amd64);
-        run_test("aarch64-pc-windows-msvc", CpuArchitecture::Arm64);
-    }
-
-    #[test]
-    pub fn arch_detection_fails_for_unsupported_toolchains() {
-        fn run_test(toolchain: &str) {
-            let result = run_arch_detection(Ok(Output {
-                status: ExitStatus::default(),
-                stdout: toolchain.bytes().collect::<Vec<_>>(),
-                stderr: vec![],
-            }));
-
-            assert!(result.is_err());
-            assert_eq!(
-                result.err().unwrap().to_string(),
-                format!(
-                    "Unsupported default target: {toolchain}. Only x86_64-pc-windows-msvc and \
-                     aarch64-pc-windows-msvc are supported.\n Make sure you're on Windows and \
-                     switch the default target to one of the above two using `rustup.exe`. You \
-                     can also use the --target-arch option to explicitly specify a CPU \
-                     architecture instead of relying on the default target."
-                )
-            );
-        }
-
-        run_test("i686-pc-windows-msvc");
-        run_test("x86_64-win7-windows-msvc");
-    }
-
-    #[test]
-    pub fn arch_detection_fails_if_rustc_fails() {
-        let result =
-            run_arch_detection(Err(crate::providers::error::CommandError::CommandFailed {
-                command: "rustc".to_string(),
-                args: vec!["--print".to_string(), "host-tuple".to_string()],
-                stdout: "command error".to_string(),
-            }));
-
-        assert!(result.is_err());
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Unable to read rustc host tuple: Command 'rustc' with args [\"--print\", \
-             \"host-tuple\"] failed \n STDOUT: command error",
-        );
-    }
-
-    pub fn run_arch_detection(
-        expected_cli_result: Result<Output, crate::providers::error::CommandError>,
-    ) -> core::result::Result<CpuArchitecture, anyhow::Error> {
-        let mut mock_command_exec = CommandExec::default();
-
-        let expected_rustc_command = "rustc";
-        let expected_rustc_args = vec!["--print", "host-tuple"];
-
-        mock_command_exec
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&std::path::Path>|
-                      -> bool {
-                    println!("command: {command}, args: {args:?}");
-                    println!(
-                        "expected_command: {expected_rustc_command}, expected_args: \
-                         {expected_rustc_args:?}"
-                    );
-                    command == expected_rustc_command && args == expected_rustc_args
-                },
-            )
-            .once()
-            .return_once(|_, _, _, _| expected_cli_result);
-
-        Cli::detect_default_target_arch_using_rustc(&mock_command_exec)
-    }
 
     #[test]
     fn new_args_driver_type_kmdf() {
@@ -388,6 +286,30 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             "Extended/Verbatim paths (i.e. paths starting with '\\?') are not currently supported"
+        );
+    }
+
+    #[test]
+    fn build_rejects_verify_signature_when_sign_mode_is_off() {
+        use crate::cli::{BuildArgs, SignModeArg, Subcmd};
+
+        let cli = Cli {
+            cargo_command: "wdk".to_string(),
+            sub_cmd: Subcmd::Build(BuildArgs {
+                profile: None,
+                target_arch: None,
+                verify_signature: true,
+                sign_mode: SignModeArg::Off,
+                sample: false,
+            }),
+            verbose: clap_verbosity_flag::Verbosity::default(),
+        };
+
+        let result = cli.run();
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "`--verify-signature` cannot be used with `--sign-mode=off`."
         );
     }
 }
