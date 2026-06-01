@@ -19,7 +19,7 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # We explicitly install typos instead the typos GitHub Action due to:
       # https://github.com/crate-ci/typos/issues/1191

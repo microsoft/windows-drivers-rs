@@ -3,10 +3,9 @@
 # extend = [ { path =  "target/rust-driver-makefile.toml" }, { path = "target/rust-driver-sample-makefile.toml" } ]
 
 [tasks.wdk-samples-setup]
-private = true
 install_crate = { crate_name = "rust-script", min_version = "0.30.0" }
 plugin = "rust-env-update"
-script_runner = "@rust"
+private = true
 script = '''
 //! ```cargo
 //! [dependencies]
@@ -25,13 +24,9 @@ wdk_build::cargo_make::forward_printed_env_vars(
     samples_infverif_env_vars,
 );
 '''
+script_runner = "@rust"
 
 [tasks.infverif]
-dependencies = ["wdk-samples-setup", "stampinf"]
-condition_script_runner_args = [
-  "--base-path",
-  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
-]
 condition_script = '''
 #!@rust
 
@@ -46,3 +41,8 @@ fn main() -> anyhow::Result<()> {
     wdk_build::cargo_make::driver_sample_infverif_condition_script()
 }
 '''
+condition_script_runner_args = [
+  "--base-path",
+  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
+]
+dependencies = ["wdk-samples-setup", "stampinf"]

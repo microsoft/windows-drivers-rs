@@ -11,14 +11,27 @@
 #![allow(clippy::unused_self)]
 
 use std::{
-    fs::{DirEntry, File, FileType, OpenOptions, copy, create_dir, read_dir, rename},
+    fs::{File, OpenOptions, copy, create_dir, create_dir_all, read_dir, rename},
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use mockall::automock;
 
 use super::error::FileError;
+
+/// Owned snapshot of a single directory entry returned by
+/// [`Fs::read_dir_entries`] to avoid using `std::fs::DirEntry` directly
+///
+/// This struct captures the necessary information about a directory entry -
+/// its path and whether it's a directory - at the time of enumeration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirEntryInfo {
+    /// Full path of the entry.
+    pub path: PathBuf,
+    /// Whether the entry is a directory, as observed at enumeration time.
+    pub is_dir: bool,
+}
 
 /// Provides limited access to `std::fs` methods
 #[derive(Default)]
@@ -38,16 +51,27 @@ impl Fs {
         create_dir(path).map_err(|e| FileError::CreateDirError(path.to_owned(), e))
     }
 
-    pub fn dir_file_type(&self, dir: &DirEntry) -> Result<FileType, FileError> {
-        dir.file_type()
-            .map_err(|e| FileError::DirFileTypeError(dir.path(), e))
+    pub fn create_dir_all(&self, path: &Path) -> Result<(), FileError> {
+        create_dir_all(path).map_err(|e| FileError::CreateDirError(path.to_owned(), e))
     }
 
-    pub fn read_dir_entries(&self, path: &Path) -> Result<Vec<DirEntry>, FileError> {
+    pub fn read_dir_entries(&self, path: &Path) -> Result<Vec<DirEntryInfo>, FileError> {
         read_dir(path)
             .map_err(|e| FileError::ReadDirError(path.to_owned(), e))?
-            .collect::<Result<Vec<DirEntry>, std::io::Error>>()
-            .map_err(|e| FileError::ReadDirEntriesError(path.to_owned(), e))
+            .map(|entry_res| {
+                let entry =
+                    entry_res.map_err(|e| FileError::ReadDirEntriesError(path.to_owned(), e))?;
+                let entry_path = entry.path();
+                let is_dir = entry
+                    .file_type()
+                    .map_err(|e| FileError::DirFileTypeError(entry_path.clone(), e))?
+                    .is_dir();
+                Ok(DirEntryInfo {
+                    path: entry_path,
+                    is_dir,
+                })
+            })
+            .collect()
     }
 
     pub fn rename(&self, src: &Path, dest: &Path) -> Result<(), FileError> {
