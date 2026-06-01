@@ -22,6 +22,7 @@ use build_task::BuildTask;
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
+pub use package_task::SignMode;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
@@ -37,7 +38,7 @@ pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
     pub target_arch: Option<CpuArchitecture>,
-    pub verify_signature: bool,
+    pub sign_mode: SignMode,
     pub is_sample_class: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
     pub manifest_options: ManifestOptions,
@@ -49,7 +50,7 @@ pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
+    sign_mode: SignMode,
     is_sample_class: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_options: ManifestOptions,
@@ -95,7 +96,7 @@ impl<'a> BuildAction<'a> {
             working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
-            verify_signature: params.verify_signature,
+            sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
             verbosity_level: params.verbosity_level,
             manifest_options: params.manifest_options,
@@ -391,7 +392,7 @@ impl<'a> BuildAction<'a> {
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
-                verify_signature: self.verify_signature,
+                sign_mode: self.sign_mode,
                 sample_class: self.is_sample_class,
                 driver_model,
             },

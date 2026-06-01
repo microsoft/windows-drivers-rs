@@ -322,6 +322,63 @@ mod kmdf_driver_with_target_override {
     }
 }
 
+#[test]
+fn kmdf_driver_builds_successfully_with_sign_mode_off() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        run_clean_cmd(&project_path);
+
+        let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+        assert!(stderr.contains(&format!("Building package {driver}")));
+        assert!(stderr.contains(&format!("Finished building {driver}")));
+
+        let driver_name = driver.replace('-', "_");
+        let target_dir = format!("{project_path}/target/debug");
+        let package_dir = format!("{target_dir}/{driver_name}_package");
+
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "map", "pdb", "sys"] {
+            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+        }
+
+        let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+        assert!(
+            !cert_in_package.exists(),
+            "Cert file must not be present in the final package folder when --sign-mode=off, but \
+             found {}",
+            cert_in_package.display()
+        );
+
+        let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
+        assert!(
+            !staged_cert.exists(),
+            "Cert file must not be present in the `target` dir when --sign-mode=off, but found {}",
+            staged_cert.display()
+        );
+    });
+}
+
+/// `--sign-mode=off` together with `--verify-signature` is rejected at the CLI
+/// layer
+#[test]
+fn sign_mode_off_with_verify_signature_is_rejected() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    let mut cmd = create_cargo_wdk_cmd(
+        "build",
+        Some(&["--sign-mode", "off", "--verify-signature"]),
+        None,
+        Some(&project_path),
+    );
+    let assertion = cmd.assert().failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+    assert!(
+        stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
+        "expected validation error mentioning both flags, got: {stderr}"
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
