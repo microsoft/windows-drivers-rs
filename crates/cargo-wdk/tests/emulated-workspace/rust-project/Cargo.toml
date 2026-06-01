@@ -1,7 +1,7 @@
 [package]
+edition = "2024"
 name = "rust-project"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
 

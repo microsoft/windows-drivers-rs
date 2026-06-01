@@ -1,4 +1,4 @@
 [package]
+edition = "2024"
 name = "config-toml-patched-dep"
 version = "0.0.1"
-edition = "2024"
