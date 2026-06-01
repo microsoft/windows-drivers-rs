@@ -456,7 +456,7 @@ mod tests {
             }
         }
 
-        assert!(env::var(key).ok() == original);
+        assert_eq!(env::var(key).ok(), original);
     }
 
     mod read_registry_key_string_value {
