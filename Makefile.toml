@@ -1,23 +1,21 @@
 extend = "./crates/wdk-build/rust-driver-makefile.toml"
 
 [config]
-min_version = "0.37.16"
 additional_profiles = ["all-default-tasks"]
+min_version = "0.37.16"
 
 [env]
-CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "${CARGO_MAKE_CARGO_ALL_FEATURES}"
 CARGO_MAKE_CLIPPY_ARGS = "--all-targets --all-features"
 CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "stable"
-RUSTFLAGS = "-D warnings"
+CARGO_MAKE_SKIP_SLOW_SECONDARY_FLOWS = false
 RUSTDOCFLAGS = "-D warnings"
+RUSTFLAGS = "-D warnings"
 
 [tasks.wdk-pre-commit-flow]
-description = "Run pre-commit tasks and checks"
 category = "Development"
-workspace = false
 dependencies = [
-  "sort-deps",
+  "fmt-toml",
   "format-flow",
   "format-toml-conditioned-flow",
   "build",
@@ -34,13 +32,15 @@ dependencies = [
   "beta-clippy-flow",
   "beta-docs",
 ]
+description = "Run pre-commit tasks and checks"
+workspace = false
 
 [tasks.format]
 toolchain = "nightly"
 
 [tasks.package-driver-workspace-flow]
 # by forking, a new cargo make invocation starts and by default detects it is a workspace and runs the package-driver task for each member crate
-run_task = { name = "package-driver-flow", fork = true }
+run_task = { fork = true, name = "package-driver-flow" }
 
 [tasks.pre-test]
 # macrotest and trybuild tests will fail when switching between nightly and stable toolchains due to trybuild/macrotest caching artifacts built with the other toolchain. Deleting the tests directory is enough to purge all test artifacts created by trybuild/macrotest.
@@ -51,7 +51,7 @@ assert ${success} "Failed to delete tests directory"
 '''
 
 [tasks.test]
-install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
+install_crate = { binary = "cargo", crate_name = "cargo-expand", test_arg = [
   "expand",
   "--version",
 ], version = "1.0.85" }
@@ -60,13 +60,13 @@ install_crate = { crate_name = "cargo-expand", binary = "cargo", test_arg = [
 args = ["audit", "--deny", "warnings"]
 
 [tasks.unused-dependencies]
-workspace = false
-condition = { env_true = ["CARGO_MAKE_CRATE_HAS_DEPENDENCIES"] }
 args = ["machete", "--skip-target-dir"]
+condition = { env_true = ["CARGO_MAKE_CRATE_HAS_DEPENDENCIES"] }
+workspace = false
 
 [tasks.nightly-test-flow]
-extend = "test-flow"
 dependencies = ["pre-nightly-test", "nightly-test", "post-nightly-test"]
+extend = "test-flow"
 
 [tasks.pre-nightly-test]
 alias = "pre-test"
@@ -79,12 +79,12 @@ toolchain = "nightly"
 extend = "post-test"
 
 [tasks.nightly-clippy-flow]
-extend = "clippy-flow"
 dependencies = [
   "pre-nightly-clippy",
   "nightly-clippy-router",
   "post-nightly-clippy",
 ]
+extend = "clippy-flow"
 
 [tasks.pre-nightly-clippy]
 extend = "pre-clippy"
@@ -92,21 +92,21 @@ extend = "pre-clippy"
 run_task = "clean"
 
 [tasks.nightly-clippy-router]
-extend = "clippy-router"
 env = { CARGO_MAKE_CLIPPY_ARGS = "--features nightly ${CARGO_MAKE_CLIPPY_ARGS}", CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "nightly" }
+extend = "clippy-router"
 
 [tasks.post-nightly-clippy]
-extend = "post-clippy"
 env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "${CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN}" }
+extend = "post-clippy"
 
 [tasks.nightly-docs]
+args = ["doc", "--no-deps", "--features", "nightly"]
 extend = "docs"
 toolchain = "nightly"
-args = ["doc", "--no-deps", "--features", "nightly"]
 
 [tasks.beta-test-flow]
-extend = "test-flow"
 dependencies = ["pre-beta-test", "beta-test", "post-beta-test"]
+extend = "test-flow"
 
 [tasks.pre-beta-test]
 alias = "pre-test"
@@ -119,8 +119,8 @@ toolchain = "beta"
 alias = "post-test"
 
 [tasks.beta-clippy-flow]
-extend = "clippy-flow"
 dependencies = ["pre-beta-clippy", "beta-clippy-router", "post-beta-clippy"]
+extend = "clippy-flow"
 
 [tasks.pre-beta-clippy]
 extend = "pre-clippy"
@@ -128,28 +128,21 @@ extend = "pre-clippy"
 run_task = "clean"
 
 [tasks.beta-clippy-router]
-extend = "clippy-router"
 env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "beta" }
+extend = "clippy-router"
 
 [tasks.post-beta-clippy]
-extend = "post-clippy"
 env = { CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN = "${CARGO_MAKE_RUST_DEFAULT_TOOLCHAIN}" }
+extend = "post-clippy"
 
 [tasks.beta-docs]
 extend = "docs"
 toolchain = "beta"
 
-[tasks.sort-deps]
-workspace = false # Run only at workspace level
-# Installing cargo-sort from main branch since there is an unreleased fix
-# Ref: https://github.com/DevinR528/cargo-sort/issues/67#issuecomment-2486868511
-# Locking down to a specific commit (20th May 2025) until a new stable release is cut out on cargo-sort
-install_script = "cargo install --git=https://github.com/DevinR528/cargo-sort cargo-sort --branch main --rev 4a1ecf093649b87fa610aec32a1bdaa4829d416b --locked --force"
-description = "Sort dependencies in Cargo.toml using cargo-sort"
-command = "cargo"
-args = [
-  "sort",
-  "-w",
-  "-g",
-  "-n",
-] # -w for every crate in workspace, -g for keeping blank lines when sorting groups of deps, -n do not run formatting
+[tasks.fmt-toml]
+# Run only at workspace level
+args = ["fmt"]
+command = "taplo"
+description = "Format all TOML files in the repository using taplo"
+install_script = "set RUSTFLAGS= && cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force"
+workspace = false
