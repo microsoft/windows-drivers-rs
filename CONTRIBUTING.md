@@ -90,8 +90,7 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 * `cargo-audit`: `cargo install --locked cargo-audit`
 * `cargo-expand`: `cargo install --locked cargo-expand --version 1.0.85`
 * `cargo-machete`: `cargo install --locked cargo-machete`
-* `cargo-sort`: `cargo install --locked cargo-sort`
-* `taplo-cli`: `cargo install --locked taplo-cli`
+* `taplo-cli`: `cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force`
 * `typos-cli`: `cargo install --locked typos-cli`
 
 **Note on arm64:** ARM64 support for ring is [not released yet](https://github.com/briansmith/ring/issues/1167), so TLS features must be disabled until arm64 is officially supported by ring (probably in 0.17.0 release)
@@ -107,10 +106,6 @@ The following tools should be installed as a part of the `windows-drivers-rs` de
 #### In `lib` and `bin` targets
 
 The crates in this repository are designed to work with `stable` rust. Some of the crates expose a `nightly` feature that adds additional functionality that requires unstable rust features in the `nightly` toolchains.
-
-#### In `test` targets and unit tests
-
-`test` targets and unit tests in other targets will automatically enable nightly features when a nightly toolchain is detected. This is done via the `nightly_toolchain` `cfg` value. This allows us to take advantage of unstable features (ex. [`assert_matches`](https://doc.rust-lang.org/std/assert_matches/macro.assert_matches.html)) in tests.
 
 ### Build and Test
 
@@ -137,10 +132,8 @@ To maintain the quality of code, tests and tools are required to pass before con
 * Check for consistent `.rs` file formatting: `cargo +nightly fmt --all -- --check`
   * Running `cargo +nightly fmt --all` resolves these formatting inconsistencies usually
   * `+nightly` is required to use some `nightly` configuration features in [the `rustfmt.toml` config](./rustfmt.toml)
-* Check for consistent `.toml` file formatting: `taplo fmt --check --diff`
+* Check for consistent `.toml` file formatting and sorted dependencies: `taplo fmt --check --diff`
   * Running `taplo fmt` resolves these formatting inconsistencies usually
-* Check for sorted sections and dependencies listed in the `Cargo.toml` files: `cargo sort -w -g -n --check`
-  * Running `cargo sort -w -g -n` resolves any formatting inconsistencies.
 
 **_Spelling (typos-cli):_**
 

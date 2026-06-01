@@ -3,18 +3,18 @@ edition.workspace = true
 name = "wdk-sys"
 version = "0.5.1"
 # Since the WDK links against many different dlls (that vary based off configuration), this crate sets the system library name to be "wdk". This name is only used by downstream build.rs scripts to consume metadata
-links = "wdk"
-description = "Direct bindings to APIs available in the Windows Development Kit (WDK)"
-repository.workspace = true
-readme.workspace = true
-license.workspace = true
-keywords = ["wdk", "windows", "wdf", "wdm", "ffi"]
 categories = [
-  "external-ffi-bindings",
   "development-tools::ffi",
-  "os::windows-apis",
+  "external-ffi-bindings",
   "os",
+  "os::windows-apis",
 ]
+description = "Direct bindings to APIs available in the Windows Development Kit (WDK)"
+keywords = ["ffi", "wdf", "wdk", "wdm", "windows"]
+license.workspace = true
+links = "wdk"
+readme.workspace = true
+repository.workspace = true
 
 [features]
 default = []
@@ -26,7 +26,7 @@ spb = []
 storage = []
 usb = []
 
-nightly = ["wdk-macros/nightly", "wdk-build/nightly"]
+nightly = ["wdk-build/nightly", "wdk-macros/nightly"]
 test-stubs = []
 
 [dependencies]
@@ -42,7 +42,7 @@ cfg-if.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-subscriber = { features = ["env-filter"], workspace = true }
 wdk-build.workspace = true
 
 # Cannot inherit workspace lints since overriding them is not supported yet: https://github.com/rust-lang/cargo/issues/13157
@@ -59,9 +59,9 @@ unsafe_op_in_unsafe_fn = "deny" # This is lowered to deny so that we can opt out
 [lints.clippy]
 # Lint Groups
 all = "deny"
-pedantic = "warn"
-nursery = "warn"
 cargo = "warn"
+nursery = "warn"
+pedantic = "warn"
 # Individual Lints
 # multiple_unsafe_ops_per_block = "forbid"
 multiple_unsafe_ops_per_block = "deny" # This is lowered to deny so that we can opt out of it for generated code
