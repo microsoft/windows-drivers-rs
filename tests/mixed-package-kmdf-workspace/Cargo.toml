@@ -17,9 +17,9 @@ wdk-panic.path = "../../crates/wdk-panic"
 wdk-sys.path = "../../crates/wdk-sys"
 
 [profile.dev]
-panic = "abort"
 lto = true
+panic = "abort"
 
 [profile.release]
-panic = "abort"
 lto = true
+panic = "abort"
