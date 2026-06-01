@@ -337,14 +337,14 @@ impl ParseCargoArgs for CompilationOptions {
         {
             "release" => {
                 // cargo-make release profile sets the `--profile release` flag
-                if let Some(profile) = &profile {
-                    if profile != "release" {
-                        eprintln!(
-                            "Specifying `--profile release` for cargo-make conflicts with the \
-                             setting `--profile {profile}` to forward to tasks"
-                        );
-                        std::process::exit(CLAP_USAGE_EXIT_CODE);
-                    }
+                if let Some(profile) = &profile
+                    && profile != "release"
+                {
+                    eprintln!(
+                        "Specifying `--profile release` for cargo-make conflicts with the setting \
+                         `--profile {profile}` to forward to tasks"
+                    );
+                    std::process::exit(CLAP_USAGE_EXIT_CODE);
                 }
 
                 append_to_space_delimited_env_var(
@@ -513,16 +513,14 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
 }
 
 fn is_cargo_make_color_disabled() -> bool {
-    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR)
-        .map(|value| {
-            !matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                // when color is enabled in cargo-make, the env var is guaranteed to be set to one
-                // of the below values, or not be set at all
-                "0" | "false" | "no" | ""
-            )
-        })
-        .unwrap_or(false)
+    env::var(CARGO_MAKE_DISABLE_COLOR_ENV_VAR).is_ok_and(|value| {
+        !matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            // when color is enabled in cargo-make, the env var is guaranteed to be set to one
+            // of the below values, or not be set at all
+            "0" | "false" | "no" | ""
+        )
+    })
 }
 
 /// Prepends the path variable with the necessary paths to access WDK(+SDK)
@@ -580,7 +578,7 @@ pub fn setup_path() -> Result<impl IntoIterator<Item = String>, ConfigError> {
 
     prepend_to_semicolon_delimited_env_var(
         PATH_ENV_VAR,
-        format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}",),
+        format!("{host_windows_sdk_ver_bin_path};{x86_windows_sdk_ver_bin_path}"),
     );
 
     let wdk_tool_root = get_wdk_tools_root(&wdk_content_root, &sdk_version);
@@ -761,10 +759,7 @@ pub fn get_wdk_build_output_directory() -> PathBuf {
 #[must_use]
 pub fn get_current_package_name() -> String {
     env::var(CARGO_MAKE_CRATE_FS_NAME_ENV_VAR).unwrap_or_else(|_| {
-        panic!(
-            "{} should be set by cargo-make",
-            &CARGO_MAKE_CRATE_FS_NAME_ENV_VAR
-        )
+        panic!("{CARGO_MAKE_CRATE_FS_NAME_ENV_VAR} should be set by cargo-make")
     })
 }
 
@@ -1034,10 +1029,7 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
         // `CARGO_MAKE_CRATE_FS_NAME_ENV_VAR`, since `cargo_metadata` output uses the
         // non-preprocessed name (ie. - instead of _)
         let current_package_name = env::var(CARGO_MAKE_CRATE_NAME_ENV_VAR).unwrap_or_else(|_| {
-            panic!(
-                "{} should be set by cargo-make",
-                &CARGO_MAKE_CRATE_NAME_ENV_VAR
-            )
+            panic!("{CARGO_MAKE_CRATE_NAME_ENV_VAR} should be set by cargo-make")
         });
         let cargo_metadata = get_cargo_metadata()?;
 

@@ -159,17 +159,15 @@ impl BuilderExt for Builder {
 impl ParseCallbacks for WdkCallbacks {
     fn generated_name_override(&self, item_info: ItemInfo) -> Option<String> {
         // Override the generated name for the WDF function table symbol, since bindgen is unable to currently translate the #define automatically: https://github.com/rust-lang/rust-bindgen/issues/2544
-        if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name {
-            if let ItemInfo {
+        if let Some(wdf_function_table_symbol_name) = &self.wdf_function_table_symbol_name
+            && let ItemInfo {
                 name: item_name,
                 kind: ItemKind::Var,
                 ..
             } = item_info
-            {
-                if item_name == wdf_function_table_symbol_name {
-                    return Some("WdfFunctions".to_string());
-                }
-            }
+            && item_name == wdf_function_table_symbol_name
+        {
+            return Some("WdfFunctions".to_string());
         }
         None
     }
