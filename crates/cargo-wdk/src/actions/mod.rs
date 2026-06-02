@@ -111,7 +111,7 @@ pub struct ManifestOptions {
 impl ManifestOptions {
     /// Returns an iterator over the cargo CLI flags equivalent to this set of
     /// options.
-    pub fn cargo_args(&self) -> impl Iterator<Item = &'static str> {
+    pub fn as_cargo_args(&self) -> impl Iterator<Item = &'static str> {
         [
             self.locked.then_some("--locked"),
             self.offline.then_some("--offline"),

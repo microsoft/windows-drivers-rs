@@ -319,7 +319,7 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .into();
-        let other_options: Vec<&str> = self.manifest_options.cargo_args().collect();
+        let other_options: Vec<&str> = self.manifest_options.as_cargo_args().collect();
         let cargo_metadata = self
             .metadata
             .get_cargo_metadata_at_path(&working_dir_path_trimmed, &other_options)?;
@@ -510,7 +510,7 @@ impl<'a> BuildAction<'a> {
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {
         let mut args: Vec<&str> = vec!["rustc"];
-        args.extend(self.manifest_options.cargo_args());
+        args.extend(self.manifest_options.as_cargo_args());
         args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec

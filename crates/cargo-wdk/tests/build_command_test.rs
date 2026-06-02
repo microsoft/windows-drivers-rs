@@ -85,6 +85,22 @@ fn kmdf_driver_builds_successfully_with_offline_flag() {
 }
 
 #[test]
+fn kmdf_driver_builds_successfully_with_locked_flag() {
+    let driver = "kmdf-driver";
+    clean_build_and_verify_project(
+        "kmdf",
+        driver,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&["--locked"]),
+    );
+}
+
+#[test]
 fn kmdf_driver_cross_compiles_with_cli_option_successfully() {
     let driver = "kmdf-driver";
     let target_arch = cross_compile_target_arch();

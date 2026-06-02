@@ -234,7 +234,7 @@ impl Cli {
 #[cfg(test)]
 mod tests {
     use crate::{
-        actions::DriverType,
+        actions::{DriverType, ManifestOptions},
         cli::{Cli, NewArgs},
     };
 
@@ -306,6 +306,7 @@ mod tests {
                 verify_signature: true,
                 sign_mode: SignModeArg::Off,
                 sample: false,
+                manifest_options: ManifestOptions::default(),
             }),
             verbose: clap_verbosity_flag::Verbosity::default(),
         };

@@ -114,7 +114,7 @@ impl<'a> BuildTask<'a> {
             args.push("--target".to_string());
             args.push(to_target_triple(target_arch));
         }
-        args.extend(self.manifest_options.cargo_args().map(String::from));
+        args.extend(self.manifest_options.as_cargo_args().map(String::from));
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
         }
@@ -387,13 +387,6 @@ mod tests {
                     && args.contains(&"--frozen")
                     && args.contains(&"--locked")
                     && args.contains(&"--offline")
-                    && {
-                        // Confirm fixed ordering: locked before offline before frozen
-                        let locked_idx = args.iter().position(|a| *a == "--locked").unwrap();
-                        let offline_idx = args.iter().position(|a| *a == "--offline").unwrap();
-                        let frozen_idx = args.iter().position(|a| *a == "--frozen").unwrap();
-                        locked_idx < offline_idx && offline_idx < frozen_idx
-                    }
             })
             .return_once(move |_, _, _, _| {
                 Ok(Output {

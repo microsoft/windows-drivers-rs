@@ -304,6 +304,49 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
 }
 
 #[test]
+pub fn given_a_driver_project_when_manifest_options_are_set_then_they_are_forwarded_to_cargo_invocations()
+ {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = false;
+    let manifest_options = ManifestOptions {
+        frozen: true,
+        locked: true,
+        offline: true,
+    };
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_build_output =
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
+
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_manifest_options(manifest_options)
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
+        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
 pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -1703,6 +1746,7 @@ struct TestBuildAction {
     target_arch: Option<CpuArchitecture>,
     sample_class: bool,
     sign_mode: SignMode,
+    manifest_options: ManifestOptions,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1732,6 +1776,7 @@ impl TestBuildAction {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
+            manifest_options: ManifestOptions::default(),
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
@@ -1742,6 +1787,11 @@ impl TestBuildAction {
 
     fn with_sign_mode(mut self, sign_mode: SignMode) -> Self {
         self.sign_mode = sign_mode;
+        self
+    }
+
+    fn with_manifest_options(mut self, manifest_options: ManifestOptions) -> Self {
+        self.manifest_options = manifest_options;
         self
     }
 
@@ -1761,7 +1811,7 @@ impl TestBuildAction {
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
         let expected_options: Vec<String> = self
             .manifest_options
-            .cargo_args()
+            .as_cargo_args()
             .map(String::from)
             .collect();
         self.mock_metadata_provider
@@ -1799,7 +1849,7 @@ impl TestBuildAction {
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
         let expected_options: Vec<String> = self
             .manifest_options
-            .cargo_args()
+            .as_cargo_args()
             .map(String::from)
             .collect();
         self.mock_metadata_provider
@@ -1821,7 +1871,7 @@ impl TestBuildAction {
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
         let expected_options: Vec<String> = self
             .manifest_options
-            .cargo_args()
+            .as_cargo_args()
             .map(String::from)
             .collect();
         self.mock_metadata_provider
@@ -2052,7 +2102,7 @@ impl TestBuildAction {
             expected_cargo_build_args.push(to_target_triple(target_arch));
         }
 
-        expected_cargo_build_args.extend(self.manifest_options.cargo_args().map(String::from));
+        expected_cargo_build_args.extend(self.manifest_options.as_cargo_args().map(String::from));
 
         expected_cargo_build_args.push("-v".to_string());
         let expected_output = override_output.unwrap_or_else(|| Output {
@@ -2092,7 +2142,7 @@ impl TestBuildAction {
             CpuArchitecture::Arm64 => "aarch64",
         };
         let mut expected_args: Vec<String> = vec!["rustc".to_string()];
-        expected_args.extend(self.manifest_options.cargo_args().map(String::from));
+        expected_args.extend(self.manifest_options.as_cargo_args().map(String::from));
         expected_args.push("--".to_string());
         expected_args.push("--print".to_string());
         expected_args.push("cfg".to_string());
