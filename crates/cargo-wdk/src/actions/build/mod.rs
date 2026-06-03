@@ -30,7 +30,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::{LOCKED_FLAG, Profile};
+use crate::actions::{CARGO_LOCKED_FLAG_NAME, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -321,7 +321,7 @@ impl<'a> BuildAction<'a> {
             .into();
         let mut other_options: Vec<String> = Vec::new();
         if self.locked {
-            other_options.push(LOCKED_FLAG.to_string());
+            other_options.push(CARGO_LOCKED_FLAG_NAME.to_string());
         }
         let cargo_metadata = self
             .metadata
@@ -514,7 +514,7 @@ impl<'a> BuildAction<'a> {
     ) -> Result<CpuArchitecture, BuildActionError> {
         let mut args: Vec<&str> = vec!["rustc"];
         if self.locked {
-            args.push(LOCKED_FLAG);
+            args.push(CARGO_LOCKED_FLAG_NAME);
         }
         args.extend(["--", "--print", "cfg"]);
         let output = self

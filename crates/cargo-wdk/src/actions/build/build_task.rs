@@ -16,7 +16,14 @@ use wdk_build::CpuArchitecture;
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{LOCKED_FLAG, Profile, build::error::BuildTaskError, to_target_triple},
+    actions::{
+        CARGO_LOCKED_FLAG_NAME,
+        CARGO_PROFILE_ARG_NAME,
+        CARGO_TARGET_ARG_NAME,
+        Profile,
+        build::error::BuildTaskError,
+        to_target_triple,
+    },
     providers::error::CommandError,
     trace,
 };
@@ -107,15 +114,15 @@ impl<'a> BuildTask<'a> {
             return Err(BuildTaskError::EmptyManifestPath);
         }
         if let Some(profile) = self.profile {
-            args.push("--profile".to_string());
+            args.push(CARGO_PROFILE_ARG_NAME.to_string());
             args.push(profile.to_string());
         }
         if let Some(target_arch) = self.target_arch {
-            args.push("--target".to_string());
+            args.push(CARGO_TARGET_ARG_NAME.to_string());
             args.push(to_target_triple(target_arch));
         }
         if self.locked {
-            args.push(LOCKED_FLAG.to_string());
+            args.push(CARGO_LOCKED_FLAG_NAME.to_string());
         }
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
@@ -230,9 +237,9 @@ mod tests {
             "my-driver".to_string(),
             "--manifest-path".to_string(),
             manifest_path_string,
-            "--profile".to_string(),
+            CARGO_PROFILE_ARG_NAME.to_string(),
             "release".to_string(),
-            "--target".to_string(),
+            CARGO_TARGET_ARG_NAME.to_string(),
             "x86_64-pc-windows-msvc".to_string(),
         ];
         let expected_working_dir = working_dir.clone();
