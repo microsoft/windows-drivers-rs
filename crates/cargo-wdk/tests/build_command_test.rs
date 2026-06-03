@@ -69,22 +69,6 @@ fn kmdf_driver_builds_successfully() {
 }
 
 #[test]
-fn kmdf_driver_builds_successfully_with_offline_flag() {
-    let driver = "kmdf-driver";
-    clean_build_and_verify_project(
-        "kmdf",
-        driver,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(&["--offline"]),
-    );
-}
-
-#[test]
 fn kmdf_driver_builds_successfully_with_locked_flag() {
     let driver = "kmdf-driver";
     clean_build_and_verify_project(

@@ -68,19 +68,15 @@ Options:
       --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
       --verify-signature           Verify the signature
       --sample                     Build sample class driver project
+      --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
-
-Manifest Options:
-      --locked   Require Cargo.lock is up to date
-      --offline  Run without accessing the network
-      --frozen   Require Cargo.lock and cache are up to date
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity
   -q, --quiet...    Decrease logging verbosity
 ```
 
-`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags. It also accepts cargo manifest flags `--locked`, `--offline` and `--frozen`, which are forwarded to `cargo`.
+`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver, a flag enabling the `--locked` flag passthrough to `cargo`, along with verbosity flags.
 
 When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
 

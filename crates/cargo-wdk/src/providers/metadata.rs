@@ -31,7 +31,7 @@ impl Metadata {
     /// * `working_dir` - A reference to a `Path` that specifies the path to the
     ///   working directory.
     /// * `other_options` - Additional command-line flags to forward to `cargo
-    ///   metadata` (e.g. `--locked`, `--offline`, `--frozen`).
+    ///   metadata` (e.g. `--locked`).
     ///
     /// # Returns
     ///
@@ -44,20 +44,14 @@ impl Metadata {
     ///
     /// This function will return an error if the `cargo metadata` command fails
     /// to execute or if the specified path is not a valid Cargo project.
-    pub fn get_cargo_metadata_at_path<'a>(
+    pub fn get_cargo_metadata_at_path(
         &self,
-        working_dir: &'a Path,
-        other_options: &'a [&'a str],
+        working_dir: &Path,
+        other_options: Vec<String>,
     ) -> cargo_metadata::Result<cargo_metadata::Metadata> {
         cargo_metadata::MetadataCommand::new()
             .current_dir(working_dir)
-            .other_options(
-                other_options
-                    .iter()
-                    .copied()
-                    .map(String::from)
-                    .collect::<Vec<String>>(),
-            )
+            .other_options(other_options)
             .exec()
     }
 }

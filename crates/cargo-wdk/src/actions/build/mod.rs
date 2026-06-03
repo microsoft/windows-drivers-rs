@@ -30,7 +30,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::{ManifestOptions, Profile};
+use crate::actions::{LOCKED_FLAG, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -40,8 +40,8 @@ pub struct BuildActionParams<'a> {
     pub target_arch: Option<CpuArchitecture>,
     pub sign_mode: SignMode,
     pub is_sample_class: bool,
+    pub locked: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
-    pub manifest_options: ManifestOptions,
 }
 
 /// Action that orchestrates the build and package of a driver project. Build is
@@ -52,8 +52,8 @@ pub struct BuildAction<'a> {
     target_arch: Option<CpuArchitecture>,
     sign_mode: SignMode,
     is_sample_class: bool,
+    locked: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
-    manifest_options: ManifestOptions,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -98,8 +98,8 @@ impl<'a> BuildAction<'a> {
             target_arch: params.target_arch,
             sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
+            locked: params.locked,
             verbosity_level: params.verbosity_level,
-            manifest_options: params.manifest_options,
             wdk_build,
             command_exec,
             fs,
@@ -319,10 +319,13 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .into();
-        let other_options: Vec<&str> = self.manifest_options.as_cargo_args().collect();
+        let mut other_options: Vec<String> = Vec::new();
+        if self.locked {
+            other_options.push(LOCKED_FLAG.to_string());
+        }
         let cargo_metadata = self
             .metadata
-            .get_cargo_metadata_at_path(&working_dir_path_trimmed, &other_options)?;
+            .get_cargo_metadata_at_path(&working_dir_path_trimmed, other_options)?;
         Ok(cargo_metadata)
     }
 
@@ -341,8 +344,8 @@ impl<'a> BuildAction<'a> {
             working_dir,
             self.profile,
             self.target_arch,
+            self.locked,
             self.verbosity_level,
-            self.manifest_options,
             self.command_exec,
         );
         let output_message_iter = build_task.run()?;
@@ -510,7 +513,9 @@ impl<'a> BuildAction<'a> {
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {
         let mut args: Vec<&str> = vec!["rustc"];
-        args.extend(self.manifest_options.as_cargo_args());
+        if self.locked {
+            args.push(LOCKED_FLAG);
+        }
         args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec

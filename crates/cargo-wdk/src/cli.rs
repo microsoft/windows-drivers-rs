@@ -14,7 +14,6 @@ use wdk_build::CpuArchitecture;
 use crate::actions::{
     DriverType,
     KMDF_STR,
-    ManifestOptions,
     Profile,
     UMDF_STR,
     WDM_STR,
@@ -109,8 +108,9 @@ pub struct BuildArgs {
     #[arg(long)]
     pub sample: bool,
 
-    #[command(flatten)]
-    pub manifest_options: ManifestOptions,
+    /// Assert that `Cargo.lock` will remain unchanged
+    #[arg(long)]
+    pub locked: bool,
 }
 
 impl BuildArgs {
@@ -212,8 +212,8 @@ impl Cli {
                         target_arch: cli_args.target_arch,
                         sign_mode,
                         is_sample_class: cli_args.sample,
+                        locked: cli_args.locked,
                         verbosity_level: self.verbose,
-                        manifest_options: cli_args.manifest_options,
                     },
                     &wdk_build,
                     &command_exec,
@@ -234,7 +234,7 @@ impl Cli {
 #[cfg(test)]
 mod tests {
     use crate::{
-        actions::{DriverType, ManifestOptions},
+        actions::DriverType,
         cli::{Cli, NewArgs},
     };
 
@@ -306,7 +306,7 @@ mod tests {
                 verify_signature: true,
                 sign_mode: SignModeArg::Off,
                 sample: false,
-                manifest_options: ManifestOptions::default(),
+                locked: false,
             }),
             verbose: clap_verbosity_flag::Verbosity::default(),
         };
