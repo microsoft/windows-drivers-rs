@@ -30,8 +30,8 @@ impl Metadata {
     ///
     /// * `working_dir` - A reference to a `Path` that specifies the path to the
     ///   working directory.
-    /// * `other_options` - Additional command-line flags to forward to `cargo
-    ///   metadata` (e.g. `--locked`).
+    /// * `other_options` - Additional command-line options (e.g. `--locked`)
+    ///   that are forwarded to the `cargo metadata` command.
     ///
     /// # Returns
     ///
