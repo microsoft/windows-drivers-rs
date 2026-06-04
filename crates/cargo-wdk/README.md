@@ -76,7 +76,7 @@ Verbosity:
   -q, --quiet...    Decrease logging verbosity
 ```
 
-`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver, a flag enabling the `--locked` flag passthrough to `cargo`, along with verbosity flags.
+`build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
 When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
 
