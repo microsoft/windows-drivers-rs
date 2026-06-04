@@ -28,9 +28,6 @@ use crate::providers::{
 };
 use crate::{
     actions::{
-        CARGO_LOCKED_FLAG_NAME,
-        CARGO_PROFILE_ARG_NAME,
-        CARGO_TARGET_ARG_NAME,
         Profile,
         build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
@@ -1806,7 +1803,7 @@ impl TestBuildAction {
                 .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
         let expected_options: Vec<String> = if self.locked {
-            vec![CARGO_LOCKED_FLAG_NAME.to_string()]
+            vec!["--locked".to_string()]
         } else {
             vec![]
         };
@@ -1843,7 +1840,7 @@ impl TestBuildAction {
         .expect("Failed to parse cargo metadata in set_up_workspace_with_multiple_driver_projects");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
         let expected_options: Vec<String> = if self.locked {
-            vec![CARGO_LOCKED_FLAG_NAME.to_string()]
+            vec!["--locked".to_string()]
         } else {
             vec![]
         };
@@ -1864,7 +1861,7 @@ impl TestBuildAction {
                 .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
         let expected_options: Vec<String> = if self.locked {
-            vec![CARGO_LOCKED_FLAG_NAME.to_string()]
+            vec!["--locked".to_string()]
         } else {
             vec![]
         };
@@ -2086,17 +2083,17 @@ impl TestBuildAction {
         .map(ToString::to_string)
         .collect();
         if let Some(profile) = self.profile {
-            expected_cargo_build_args.push(CARGO_PROFILE_ARG_NAME.to_string());
+            expected_cargo_build_args.push("--profile".to_string());
             expected_cargo_build_args.push(profile.to_string());
         }
 
         if let Some(target_arch) = self.target_arch {
-            expected_cargo_build_args.push(CARGO_TARGET_ARG_NAME.to_string());
+            expected_cargo_build_args.push("--target".to_string());
             expected_cargo_build_args.push(to_target_triple(target_arch));
         }
 
         if self.locked {
-            expected_cargo_build_args.push(CARGO_LOCKED_FLAG_NAME.to_string());
+            expected_cargo_build_args.push("--locked".to_string());
         }
 
         expected_cargo_build_args.push("-v".to_string());
@@ -2138,7 +2135,7 @@ impl TestBuildAction {
         };
         let mut expected_args: Vec<String> = vec!["rustc".to_string()];
         if self.locked {
-            expected_args.push(CARGO_LOCKED_FLAG_NAME.to_string());
+            expected_args.push("--locked".to_string());
         }
         expected_args.push("--".to_string());
         expected_args.push("--print".to_string());

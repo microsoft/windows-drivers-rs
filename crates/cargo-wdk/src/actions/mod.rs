@@ -92,12 +92,3 @@ impl Display for DriverType {
         write!(f, "{s}")
     }
 }
-
-/// Cargo's `--locked` flag.
-pub const CARGO_LOCKED_FLAG_NAME: &str = "--locked";
-
-/// Cargo's `--profile` argument.
-pub const CARGO_PROFILE_ARG_NAME: &str = "--profile";
-
-/// Cargo's `--target` argument.
-pub const CARGO_TARGET_ARG_NAME: &str = "--target";
