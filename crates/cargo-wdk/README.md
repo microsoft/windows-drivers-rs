@@ -68,6 +68,7 @@ Options:
       --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
       --verify-signature           Verify the signature
       --sample                     Build sample class driver project
+      --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
 
 Verbosity:

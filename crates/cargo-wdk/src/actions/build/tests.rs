@@ -303,6 +303,43 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
 }
 
 #[test]
+pub fn given_a_driver_project_when_locked_is_set_then_it_is_forwarded_to_cargo_invocations() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_build_output =
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
+
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_locked(true)
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
+        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
 pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -1639,6 +1676,7 @@ fn initialize_build_action<'a>(
             target_arch,
             sign_mode,
             is_sample_class: sample_class,
+            locked: test_build_action.locked,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
@@ -1701,6 +1739,7 @@ struct TestBuildAction {
     target_arch: Option<CpuArchitecture>,
     sample_class: bool,
     sign_mode: SignMode,
+    locked: bool,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1730,6 +1769,7 @@ impl TestBuildAction {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
+            locked: false,
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
@@ -1740,6 +1780,11 @@ impl TestBuildAction {
 
     fn with_sign_mode(mut self, sign_mode: SignMode) -> Self {
         self.sign_mode = sign_mode;
+        self
+    }
+
+    fn with_locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
         self
     }
 
@@ -1757,10 +1802,18 @@ impl TestBuildAction {
             serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = if self.locked {
+            vec!["--locked".to_string()]
+        } else {
+            vec![]
+        };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
+                *other_options == expected_options
+            })
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1786,10 +1839,18 @@ impl TestBuildAction {
         )
         .expect("Failed to parse cargo metadata in set_up_workspace_with_multiple_driver_projects");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = if self.locked {
+            vec!["--locked".to_string()]
+        } else {
+            vec![]
+        };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
+                *other_options == expected_options
+            })
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1799,10 +1860,18 @@ impl TestBuildAction {
             serde_json::from_str::<cargo_metadata::Metadata>(cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = if self.locked {
+            vec!["--locked".to_string()]
+        } else {
+            vec![]
+        };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
+                *other_options == expected_options
+            })
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -2023,6 +2092,10 @@ impl TestBuildAction {
             expected_cargo_build_args.push(to_target_triple(target_arch));
         }
 
+        if self.locked {
+            expected_cargo_build_args.push("--locked".to_string());
+        }
+
         expected_cargo_build_args.push("-v".to_string());
         let expected_output = override_output.unwrap_or_else(|| Output {
             status: ExitStatus::default(),
@@ -2060,6 +2133,14 @@ impl TestBuildAction {
             CpuArchitecture::Amd64 => "x86_64",
             CpuArchitecture::Arm64 => "aarch64",
         };
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if self.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.push("--".to_string());
+        expected_args.push("--print".to_string());
+        expected_args.push("cfg".to_string());
+        let expected_args_for_err = expected_args.clone();
         self.mock_run_command
             .expect_run()
             .withf(
@@ -2068,24 +2149,25 @@ impl TestBuildAction {
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>| {
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args == expected_args
                         && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
                 },
             )
             .once()
             .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output(
-                        "cargo",
-                        &["rustc", "--", "--print", "cfg"],
-                        &output,
-                    )),
-                },
+                Some(output) => {
+                    if output.status.code() == Some(0) {
+                        Ok(Output {
+                            status: ExitStatus::from_raw(0),
+                            stdout: vec![],
+                            stderr: vec![],
+                        })
+                    } else {
+                        let err_args: Vec<&str> =
+                            expected_args_for_err.iter().map(String::as_str).collect();
+                        Err(CommandError::from_output("cargo", &err_args, &output))
+                    }
+                }
                 None => Ok(Output {
                     status: ExitStatus::default(),
                     stdout: format!("target_arch=\"{arch_str}\"\n").as_bytes().to_vec(),
