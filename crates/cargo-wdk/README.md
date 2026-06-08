@@ -89,24 +89,6 @@ When the command completes the packaged driver artifacts are emitted at the path
 
 `build` supports workspaces. If run at the root of a workspace, it will build and package all driver projects in it. If the workspace contains any non-driver projects they will also be built but not packaged.
 
-#### Cargo Features
-
-`build` accepts the standard cargo feature-selection flags and forwards them to `cargo build`, `cargo metadata`, and `cargo rustc` so the resolver view is consistent across all phases.
-
-```pwsh
-# Activate a single feature
-cargo wdk build --features usb
-
-# Activate multiple features
-cargo wdk build -F usb,hid
-
-# Activate every available feature
-cargo wdk build --all-features
-
-# Build with only the explicitly selected features
-cargo wdk build --no-default-features --features usb
-```
-
 #### Sample Drivers
 
 Building a sample driver requires the `--sample` flag. If it is not specified, the build will fail.
@@ -148,4 +130,10 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
     ```pwsh
     cargo wdk build --sign-mode off
+    ```
+
+- To build a driver project with specific cargo features enabled, navigate to the root of the project and run:
+
+    ```pwsh
+    cargo wdk build --features usb,hid
     ```
