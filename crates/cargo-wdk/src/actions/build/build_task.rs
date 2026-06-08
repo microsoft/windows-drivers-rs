@@ -26,6 +26,7 @@ pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
+    locked: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -40,6 +41,8 @@ impl<'a> BuildTask<'a> {
     /// * `working_dir` - The working directory for the build
     /// * `profile` - An optional profile for the build
     /// * `target_arch` - The target architecture for the build
+    /// * `locked` - Whether to forward `--locked` to the `cargo build`
+    ///   invocation
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider
     ///
@@ -53,6 +56,7 @@ impl<'a> BuildTask<'a> {
         working_dir: &'a Path,
         profile: Option<&'a Profile>,
         target_arch: Option<CpuArchitecture>,
+        locked: bool,
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
     ) -> Self {
@@ -66,6 +70,7 @@ impl<'a> BuildTask<'a> {
             profile,
             target_arch,
             verbosity_level,
+            locked,
             manifest_path: working_dir.join("Cargo.toml"),
             command_exec,
             working_dir,
@@ -108,6 +113,9 @@ impl<'a> BuildTask<'a> {
         if let Some(target_arch) = self.target_arch {
             args.push("--target".to_string());
             args.push(to_target_triple(target_arch));
+        }
+        if self.locked {
+            args.push("--locked".to_string());
         }
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
@@ -167,6 +175,7 @@ mod tests {
             &working_dir,
             Some(&profile),
             target_arch,
+            false,
             verbosity_level,
             &command_exec,
         );
@@ -200,6 +209,7 @@ mod tests {
             &working_dir,
             profile.as_ref(),
             target_arch,
+            false,
             verbosity_level,
             &command_exec,
         );
@@ -256,6 +266,7 @@ mod tests {
             &working_dir,
             Some(&profile),
             Some(target_arch),
+            false,
             verbosity,
             &mock,
         );
@@ -297,6 +308,7 @@ mod tests {
             &working_dir,
             None,
             None,
+            false,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
         );
@@ -338,6 +350,7 @@ mod tests {
             &working_dir,
             None,
             None,
+            false,
             clap_verbosity_flag::Verbosity::default(),
             &mock,
         );
@@ -355,5 +368,39 @@ mod tests {
             "expected args to contain 'build', got: {args:?}"
         );
         assert_eq!(io_err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn run_forwards_locked_to_cargo_invocation_when_locked_is_set() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_stdout_for_mock = expected_stdout.clone();
+
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(|command, args, _env, _wd| command == "cargo" && args.contains(&"--locked"))
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout_for_mock,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(
+            "my-driver",
+            &working_dir,
+            None,
+            None,
+            true,
+            clap_verbosity_flag::Verbosity::default(),
+            &mock,
+        );
+
+        task.run()
+            .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
     }
 }
