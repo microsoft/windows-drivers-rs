@@ -29,6 +29,7 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
         None,
         None,
         None,
+        None,
     );
 }
 
@@ -64,14 +65,30 @@ fn kmdf_driver_builds_successfully() {
         assert!(output.status.success());
     }
 
-    clean_build_and_verify_project("kmdf", driver, None, None, None, None, None, None);
+    clean_build_and_verify_project("kmdf", driver, None, None, None, None, None, None, None);
+}
+
+#[test]
+fn kmdf_driver_builds_successfully_with_locked_flag() {
+    let driver = "kmdf-driver";
+    clean_build_and_verify_project(
+        "kmdf",
+        driver,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&["--locked"]),
+    );
 }
 
 #[test]
 fn kmdf_driver_cross_compiles_with_cli_option_successfully() {
     let driver = "kmdf-driver";
     let target_arch = cross_compile_target_arch();
-    let env_overrides = nuget_wdk_content_root_path(target_arch)
+    let env = nuget_wdk_content_root_path(target_arch)
         .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
     clean_build_and_verify_project(
         "kmdf",
@@ -80,22 +97,23 @@ fn kmdf_driver_cross_compiles_with_cli_option_successfully() {
         None,
         Some(target_arch),
         None,
-        env_overrides.as_deref(),
+        env.as_deref(),
         Some(target_arch),
+        None,
     );
 }
 
 #[test]
 fn umdf_driver_builds_successfully() {
     let driver = "umdf-driver";
-    clean_build_and_verify_project("umdf", driver, None, None, None, None, None, None);
+    clean_build_and_verify_project("umdf", driver, None, None, None, None, None, None, None);
 }
 
 #[test]
 fn umdf_driver_cross_compiles_with_cli_option_successfully() {
     let driver = "umdf-driver";
     let target_arch = cross_compile_target_arch();
-    let env_overrides = nuget_wdk_content_root_path(target_arch)
+    let env = nuget_wdk_content_root_path(target_arch)
         .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
     clean_build_and_verify_project(
         "umdf",
@@ -104,8 +122,9 @@ fn umdf_driver_cross_compiles_with_cli_option_successfully() {
         None,
         Some(target_arch),
         None,
-        env_overrides.as_deref(),
+        env.as_deref(),
         Some(target_arch),
+        None,
     );
 }
 
@@ -114,7 +133,7 @@ fn umdf_driver_with_target_arch_cli_option_and_release_profile_builds_successful
     let driver = "umdf-driver";
     let target_arch = "ARM64";
     let profile = "release";
-    let env_overrides = nuget_wdk_content_root_path(target_arch)
+    let env = nuget_wdk_content_root_path(target_arch)
         .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
     clean_build_and_verify_project(
         "umdf",
@@ -123,15 +142,16 @@ fn umdf_driver_with_target_arch_cli_option_and_release_profile_builds_successful
         None,
         Some(target_arch),
         Some(profile),
-        env_overrides.as_deref(),
+        env.as_deref(),
         Some(target_arch),
+        None,
     );
 }
 
 #[test]
 fn wdm_driver_builds_successfully() {
     let driver = "wdm-driver";
-    clean_build_and_verify_project("wdm", driver, None, None, None, None, None, None);
+    clean_build_and_verify_project("wdm", driver, None, None, None, None, None, None, None);
 }
 
 #[test]
@@ -147,6 +167,7 @@ fn wdm_driver_builds_successfully_with_given_version() {
         None,
         Some(&env),
         None,
+        None,
     );
 }
 
@@ -154,7 +175,7 @@ fn wdm_driver_builds_successfully_with_given_version() {
 fn wdm_driver_cross_compiles_with_cli_option_successfully() {
     let driver = "wdm-driver";
     let target_arch = cross_compile_target_arch();
-    let env_overrides = nuget_wdk_content_root_path(target_arch)
+    let env = nuget_wdk_content_root_path(target_arch)
         .map(|path| vec![(WDK_CONTENT_ROOT_ENV_VAR, Some(path))]);
     clean_build_and_verify_project(
         "wdm",
@@ -163,8 +184,9 @@ fn wdm_driver_cross_compiles_with_cli_option_successfully() {
         None,
         Some(target_arch),
         None,
-        env_overrides.as_deref(),
+        env.as_deref(),
         Some(target_arch),
+        None,
     );
 }
 
@@ -243,6 +265,7 @@ mod kmdf_driver_with_target_override {
             None,
             Some(env.as_slice()),
             Some(target_arch),
+            None,
         );
     }
 
@@ -259,6 +282,7 @@ mod kmdf_driver_with_target_override {
             None,
             Some(env.as_slice()),
             Some(target_arch),
+            None,
         );
     }
 
@@ -276,6 +300,7 @@ mod kmdf_driver_with_target_override {
             None,
             Some(env.as_slice()),
             Some(cli_target_arch),
+            None,
         );
     }
 
@@ -292,6 +317,7 @@ mod kmdf_driver_with_target_override {
             None,
             Some(env.as_slice()),
             Some(target_arch),
+            None,
         );
     }
 }
@@ -363,6 +389,7 @@ fn clean_build_and_verify_project(
     profile: Option<&str>,
     env_overrides: Option<&[(&str, Option<String>)]>,
     target_arch_for_verification: Option<&str>,
+    additional_build_args: Option<&[&str]>,
 ) {
     let project_path =
         project_path.map_or_else(|| format!("tests/{driver_name}"), ToString::to_string);
@@ -379,6 +406,9 @@ fn clean_build_and_verify_project(
         if let Some(profile) = profile {
             args.push("--profile");
             args.push(profile);
+        }
+        if let Some(additional_args) = additional_build_args {
+            args.extend_from_slice(additional_args);
         }
         let cmd_args = if args.is_empty() {
             None

@@ -30,6 +30,8 @@ impl Metadata {
     ///
     /// * `working_dir` - A reference to a `Path` that specifies the path to the
     ///   working directory.
+    /// * `other_options` - Additional command-line options (e.g. `--locked`)
+    ///   that are forwarded to the `cargo metadata` command.
     ///
     /// # Returns
     ///
@@ -45,9 +47,11 @@ impl Metadata {
     pub fn get_cargo_metadata_at_path(
         &self,
         working_dir: &Path,
+        other_options: Vec<String>,
     ) -> cargo_metadata::Result<cargo_metadata::Metadata> {
         cargo_metadata::MetadataCommand::new()
             .current_dir(working_dir)
+            .other_options(other_options)
             .exec()
     }
 }
