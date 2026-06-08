@@ -40,6 +40,7 @@ pub struct BuildActionParams<'a> {
     pub target_arch: Option<CpuArchitecture>,
     pub sign_mode: SignMode,
     pub is_sample_class: bool,
+    pub locked: bool,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
@@ -51,6 +52,7 @@ pub struct BuildAction<'a> {
     target_arch: Option<CpuArchitecture>,
     sign_mode: SignMode,
     is_sample_class: bool,
+    locked: bool,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
     // Injected deps
@@ -96,6 +98,7 @@ impl<'a> BuildAction<'a> {
             target_arch: params.target_arch,
             sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
+            locked: params.locked,
             verbosity_level: params.verbosity_level,
             wdk_build,
             command_exec,
@@ -316,9 +319,13 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .into();
+        let mut other_options: Vec<String> = Vec::new();
+        if self.locked {
+            other_options.push("--locked".to_string());
+        }
         let cargo_metadata = self
             .metadata
-            .get_cargo_metadata_at_path(&working_dir_path_trimmed)?;
+            .get_cargo_metadata_at_path(&working_dir_path_trimmed, other_options)?;
         Ok(cargo_metadata)
     }
 
@@ -337,6 +344,7 @@ impl<'a> BuildAction<'a> {
             working_dir,
             self.profile,
             self.target_arch,
+            self.locked,
             self.verbosity_level,
             self.command_exec,
         );
@@ -504,7 +512,11 @@ impl<'a> BuildAction<'a> {
         &self,
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {
-        let args = ["rustc", "--", "--print", "cfg"];
+        let mut args: Vec<&str> = vec!["rustc"];
+        if self.locked {
+            args.push("--locked");
+        }
+        args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;

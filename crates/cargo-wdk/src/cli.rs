@@ -107,6 +107,10 @@ pub struct BuildArgs {
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
+
+    /// Assert that `Cargo.lock` will remain unchanged
+    #[arg(long)]
+    pub locked: bool,
 }
 
 impl BuildArgs {
@@ -208,6 +212,7 @@ impl Cli {
                         target_arch: cli_args.target_arch,
                         sign_mode,
                         is_sample_class: cli_args.sample,
+                        locked: cli_args.locked,
                         verbosity_level: self.verbose,
                     },
                     &wdk_build,
@@ -301,6 +306,7 @@ mod tests {
                 verify_signature: true,
                 sign_mode: SignModeArg::Off,
                 sample: false,
+                locked: false,
             }),
             verbose: clap_verbosity_flag::Verbosity::default(),
         };
