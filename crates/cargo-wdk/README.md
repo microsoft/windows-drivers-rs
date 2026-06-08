@@ -74,7 +74,7 @@ Options:
 Feature Selection:
       --all-features               Activate all available features
       --no-default-features        Do not activate the `default` feature
-  -F, --features <FEATURES>        Space- or comma-separated list of features to activate
+      --features <FEATURES>        Space- or comma-separated list of features to activate
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity

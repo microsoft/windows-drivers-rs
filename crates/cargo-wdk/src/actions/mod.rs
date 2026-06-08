@@ -100,7 +100,7 @@ impl Display for DriverType {
 ///
 /// * `--all-features` activates every feature in the resolved package(s).
 /// * `--no-default-features` skips the `default` feature.
-/// * `-F/--features <FEATURES>` is a space- or comma-separated list (and may be
+/// * `--features <FEATURES>` is a space- or comma-separated list (and may be
 ///   repeated) of features to activate.
 #[derive(Args, Debug, Default, Clone)]
 pub struct FeatureArgs {
@@ -113,7 +113,7 @@ pub struct FeatureArgs {
     pub no_default_features: bool,
 
     /// Space- or comma-separated list of features to activate.
-    #[arg(short = 'F', long, value_name = "FEATURES", value_delimiter = ',')]
+    #[arg(long, value_name = "FEATURES", value_delimiter = ',')]
     pub features: Vec<String>,
 }
 
