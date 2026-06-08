@@ -100,8 +100,8 @@ impl Display for DriverType {
 ///
 /// * `--all-features` activates every feature in the resolved package(s).
 /// * `--no-default-features` skips the `default` feature.
-/// * `-F/--features <FEATURES>` is a comma-separated list (and may be repeated)
-///   of features to activate.
+/// * `-F/--features <FEATURES>` is a space- or comma-separated list (and may be
+///   repeated) of features to activate.
 #[derive(Args, Debug, Default, Clone)]
 pub struct FeatureArgs {
     /// Activate all available features.
