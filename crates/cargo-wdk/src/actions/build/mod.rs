@@ -18,7 +18,7 @@ use std::{
 };
 
 use anyhow::Result;
-use build_task::BuildTask;
+use build_task::{BuildTask, BuildTaskParams};
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
@@ -30,7 +30,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::Profile;
+use crate::actions::{FeatureArgs, Profile};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -41,6 +41,7 @@ pub struct BuildActionParams<'a> {
     pub sign_mode: SignMode,
     pub is_sample_class: bool,
     pub locked: bool,
+    pub features: &'a FeatureArgs,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
@@ -53,6 +54,7 @@ pub struct BuildAction<'a> {
     sign_mode: SignMode,
     is_sample_class: bool,
     locked: bool,
+    features: &'a FeatureArgs,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
     // Injected deps
@@ -99,6 +101,7 @@ impl<'a> BuildAction<'a> {
             sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
             locked: params.locked,
+            features: params.features,
             verbosity_level: params.verbosity_level,
             wdk_build,
             command_exec,
@@ -323,6 +326,7 @@ impl<'a> BuildAction<'a> {
         if self.locked {
             other_options.push("--locked".to_string());
         }
+        other_options.extend(self.features.to_cargo_args());
         let cargo_metadata = self
             .metadata
             .get_cargo_metadata_at_path(&working_dir_path_trimmed, other_options)?;
@@ -340,12 +344,15 @@ impl<'a> BuildAction<'a> {
         info!("Building package {package_name}");
 
         let build_task = BuildTask::new(
-            package_name,
-            working_dir,
-            self.profile,
-            self.target_arch,
-            self.locked,
-            self.verbosity_level,
+            &BuildTaskParams {
+                package_name,
+                working_dir,
+                profile: self.profile,
+                target_arch: self.target_arch,
+                locked: self.locked,
+                features: self.features,
+                verbosity_level: self.verbosity_level,
+            },
             self.command_exec,
         );
         let output_message_iter = build_task.run()?;
@@ -516,7 +523,10 @@ impl<'a> BuildAction<'a> {
         if self.locked {
             args.push("--locked");
         }
-        args.extend(["--", "--print", "cfg"]);
+        let feature_args = self.features.to_cargo_args();
+        args.extend(feature_args.iter().map(String::as_str));
+        let print_cfg_passthrough = ["--", "--print", "cfg"];
+        args.extend(print_cfg_passthrough);
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;

@@ -28,6 +28,7 @@ use crate::providers::{
 };
 use crate::{
     actions::{
+        FeatureArgs,
         Profile,
         build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
@@ -1677,6 +1678,7 @@ fn initialize_build_action<'a>(
             sign_mode,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
+            features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
@@ -1740,6 +1742,7 @@ struct TestBuildAction {
     sample_class: bool,
     sign_mode: SignMode,
     locked: bool,
+    features: FeatureArgs,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1770,6 +1773,7 @@ impl TestBuildAction {
                 verify_signature: false,
             },
             locked: false,
+            features: FeatureArgs::default(),
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
