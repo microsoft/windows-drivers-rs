@@ -11,6 +11,7 @@
 //! models (WDM, KMDF, UMDF).
 
 use std::{
+    collections::BTreeSet,
     env,
     fmt,
     path::{Path, PathBuf, absolute},
@@ -30,7 +31,7 @@ mod utils;
 mod bindgen;
 
 use cargo_metadata::MetadataCommand;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::IntoDeserializer};
 use thiserror::Error;
 
 use crate::utils::detect_windows_sdk_version;
@@ -45,6 +46,8 @@ pub struct Config {
     cpu_architecture: CpuArchitecture,
     /// Build configuration of driver
     pub driver_config: DriverConfig,
+    /// List of features enabled for `wdk-sys` in resolved dependency graph
+    enabled_api_subsets: BTreeSet<ApiSubset>,
 }
 
 /// The driver type with its associated configuration parameters
@@ -316,7 +319,8 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
 }
 
 /// Subset of APIs in the Windows Driver Kit
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Ord, PartialOrd)]
+#[serde(rename_all = "kebab-case")]
 pub enum ApiSubset {
     /// API subset typically required for all Windows drivers
     Base,
@@ -335,6 +339,11 @@ pub enum ApiSubset {
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
 }
+
+/// Known `wdk-sys` cargo features that are not API subsets and should be
+/// skipped during feature detection. Any `wdk-sys` feature not in this list
+/// and not deserializable as an [`ApiSubset`] will cause a hard error.
+const NON_API_SUBSET_FEATURES: &[&str] = &["default", "nightly", "test-stubs"];
 
 #[derive(Debug, Error, PartialEq, Eq)]
 /// Error when parsing a [`TwoPartVersion`].
@@ -397,6 +406,7 @@ impl Default for Config {
             ),
             driver_config: DriverConfig::Wdm,
             cpu_architecture: utils::detect_cpu_architecture_in_build_script(),
+            enabled_api_subsets: BTreeSet::new(),
         }
     }
 }
@@ -447,6 +457,56 @@ impl Config {
             .exec()?;
         let wdk_metadata = metadata::Wdk::try_from(&cargo_metadata)?;
 
+        // Find the `wdk-sys` package's PackageId in `cargo_metadata`
+        let wdk_sys_package_id = cargo_metadata
+            .packages
+            .iter()
+            .find(|pkg| pkg.name == "wdk-sys")
+            .map(|pkg| &pkg.id);
+        // Extract the features enabled for `wdk-sys`
+        // Produces an empty Vec if `wdk-sys` is not found in the dependency graph
+        let wdk_sys_enabled_features = match wdk_sys_package_id {
+            None => {
+                // wdk-sys not in dependency graph
+                Vec::new()
+            }
+            Some(id) => {
+                let node = cargo_metadata
+                    .resolve
+                    .as_ref()
+                    .and_then(|resolve| resolve.nodes.iter().find(|node| node.id == *id))
+                    .expect(
+                        "wdk-sys was found in packages but has no matching entry in the cargo \
+                         metadata resolve graph. This indicates a broken build setup.",
+                    );
+
+                let mut api_subsets = Vec::new();
+                for feature in &node.features {
+                    if NON_API_SUBSET_FEATURES.contains(&feature.as_str()) {
+                        continue;
+                    }
+                    match ApiSubset::deserialize(<&str as IntoDeserializer<
+                        '_,
+                        serde::de::value::Error,
+                    >>::into_deserializer(
+                        feature.as_str()
+                    )) {
+                        Ok(subset) => api_subsets.push(subset),
+                        Err(err) => {
+                            panic!(
+                                "Unknown wdk-sys feature '{feature}' is not a recognized \
+                                 ApiSubset and not in the known non-API-subset feature list: \
+                                 {err}. If this is a new API subset, add a variant to ApiSubset. \
+                                 If it is not an API subset, add it to NON_API_SUBSET_FEATURES in \
+                                 wdk-build."
+                            );
+                        }
+                    }
+                }
+                api_subsets
+            }
+        };
+
         // Force rebuilds if any of the manifest files change (ex. if wdk metadata
         // section is modified)
         for manifest_path in metadata::iter_manifest_paths(cargo_metadata)
@@ -462,6 +522,7 @@ impl Config {
 
         Ok(Self {
             driver_config: wdk_metadata.driver_model,
+            enabled_api_subsets: wdk_sys_enabled_features.into_iter().collect(),
             ..Default::default()
         })
     }
@@ -1157,6 +1218,13 @@ impl Config {
                 // provides no way to set a symbol's name without also exporting the symbol:
                 // https://github.com/rust-lang/rust/issues/67399
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
+
+                // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
+                // the "hid" feature is enabled in wdk-sys. Required by drivers that
+                // create virtual HID devices.
+                if self.enabled_api_subsets.contains(&ApiSubset::Hid) {
+                    println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
+                }
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
@@ -1186,6 +1254,13 @@ impl Config {
                 // Ignore `LNK4257: object file was not compiled for kernel mode; the image
                 // might not run` since `rustc` has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
+
+                // Link against VhfKm.lib (Virtual HID Framework, kernel-mode) when
+                // the "hid" feature is enabled in wdk-sys. Required by drivers that
+                // create virtual HID devices.
+                if self.enabled_api_subsets.contains(&ApiSubset::Hid) {
+                    println!("cargo::rustc-cdylib-link-arg=VhfKm.lib");
+                }
             }
             DriverConfig::Umdf(umdf_config) => {
                 // Emit UMDF-specific libraries to link to
@@ -1200,6 +1275,13 @@ impl Config {
 
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
+
+                // Link against VhfUm.lib (Virtual HID Framework, user-mode) when
+                // the "hid" feature is enabled in wdk-sys. Required by drivers that
+                // create virtual HID devices.
+                if self.enabled_api_subsets.contains(&ApiSubset::Hid) {
+                    println!("cargo::rustc-cdylib-link-arg=VhfUm.lib");
+                }
             }
         }
 
@@ -1826,18 +1908,25 @@ mod tests {
         #[cfg(assert_matches_stabilized)]
         assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
+        assert!(config.enabled_api_subsets.is_empty());
     }
 
     #[test]
     fn wdm_config() {
+        let mut test_api_subset = BTreeSet::<ApiSubset>::new();
+        test_api_subset.insert(ApiSubset::Hid);
+
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Wdm,
+            enabled_api_subsets: test_api_subset,
             ..Config::default()
         });
 
         #[cfg(assert_matches_stabilized)]
         assert_matches!(config.driver_config, DriverConfig::Wdm);
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Hid));
+        assert!(!config.enabled_api_subsets.contains(&ApiSubset::Gpio));
     }
 
     #[test]
@@ -1861,12 +1950,17 @@ mod tests {
 
     #[test]
     fn kmdf_config() {
+        let mut test_api_subset = BTreeSet::<ApiSubset>::new();
+        test_api_subset.insert(ApiSubset::Hid);
+        test_api_subset.insert(ApiSubset::Gpio);
+
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("x86_64"))], || Config {
             driver_config: DriverConfig::Kmdf(KmdfConfig {
                 kmdf_version_major: 1,
                 target_kmdf_version_minor: 15,
                 minimum_kmdf_version_minor: None,
             }),
+            enabled_api_subsets: test_api_subset,
             ..Config::default()
         });
 
@@ -1880,6 +1974,8 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Amd64);
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Hid));
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Gpio));
     }
 
     #[test]
@@ -1903,12 +1999,16 @@ mod tests {
 
     #[test]
     fn umdf_config() {
+        let mut test_api_subset = BTreeSet::<ApiSubset>::new();
+        test_api_subset.insert(ApiSubset::Usb);
+
         let config = with_env(&[("CARGO_CFG_TARGET_ARCH", Some("aarch64"))], || Config {
             driver_config: DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
                 target_umdf_version_minor: 15,
                 minimum_umdf_version_minor: None,
             }),
+            enabled_api_subsets: test_api_subset,
             ..Config::default()
         });
 
@@ -1922,6 +2022,8 @@ mod tests {
             })
         );
         assert_eq!(config.cpu_architecture, CpuArchitecture::Arm64);
+        assert!(!config.enabled_api_subsets.contains(&ApiSubset::Hid));
+        assert!(config.enabled_api_subsets.contains(&ApiSubset::Usb));
     }
 
     #[test]
