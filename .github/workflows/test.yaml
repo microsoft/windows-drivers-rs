@@ -123,3 +123,7 @@ jobs:
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
+
+      - name: Run Cargo Test (Top-Level tests Folder via Cargo Make) w/ Nightly Features
+        # some tests have varying collateral depending on whether the nightly feature is enabled (not to be confused with the nightly toolchain)
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }} --features nightly 
