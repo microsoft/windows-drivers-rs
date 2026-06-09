@@ -22,11 +22,6 @@ use crate::types::NTSTATUS;
 )]
 #[allow(clippy::unreadable_literal)]
 mod bindings {
-    // allow wildcards for types module since underlying c code relies on all
-    // type definitions being in scope
-    #[allow(clippy::wildcard_imports)]
-    use crate::types::*;
-
     include!(concat!(env!("OUT_DIR"), "/constants.rs"));
 }
 

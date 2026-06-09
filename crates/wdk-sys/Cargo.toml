@@ -39,6 +39,7 @@ bindgen.workspace = true
 cargo_metadata.workspace = true
 cc.workspace = true
 cfg-if.workspace = true
+regex.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
