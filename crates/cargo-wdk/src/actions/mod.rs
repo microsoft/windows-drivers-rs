@@ -16,7 +16,6 @@ use std::{
     str::FromStr,
 };
 
-use clap::Args;
 use wdk_build::CpuArchitecture;
 
 pub const KMDF_STR: &str = "kmdf";
@@ -91,49 +90,5 @@ impl Display for DriverType {
             Self::Wdm => WDM_STR,
         };
         write!(f, "{s}")
-    }
-}
-
-/// Cargo feature selection forwarded to `cargo` CLI commands.
-///
-/// Options:
-///
-/// * `--all-features` activates every feature in the resolved package(s).
-/// * `--no-default-features` skips the `default` feature.
-/// * `--features <FEATURES>` is a space- or comma-separated list (and may be
-///   repeated) of features to activate.
-#[derive(Args, Debug, Default, Clone)]
-pub struct FeatureArgs {
-    /// Activate all available features.
-    #[arg(long)]
-    pub all_features: bool,
-
-    /// Do not activate the `default` feature.
-    #[arg(long)]
-    pub no_default_features: bool,
-
-    /// Space- or comma-separated list of features to activate.
-    #[arg(long, value_name = "FEATURES", value_delimiter = ',')]
-    pub features: Vec<String>,
-}
-
-impl FeatureArgs {
-    /// Returns the `cargo` CLI arguments equivalent to this selection, in the
-    /// canonical order (`--all-features`, `--no-default-features`, then one
-    /// `--features <name>` pair per feature).
-    #[must_use]
-    pub fn to_cargo_args(&self) -> Vec<String> {
-        let mut args = Vec::new();
-        if self.all_features {
-            args.push("--all-features".to_string());
-        }
-        if self.no_default_features {
-            args.push("--no-default-features".to_string());
-        }
-        for feature in &self.features {
-            args.push("--features".to_string());
-            args.push(feature.clone());
-        }
-        args
     }
 }

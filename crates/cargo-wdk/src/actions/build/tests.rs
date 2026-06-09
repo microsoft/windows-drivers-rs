@@ -11,6 +11,7 @@ use std::{
 };
 
 use cargo_metadata::Metadata as CargoMetadata;
+use clap_cargo::Features;
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
@@ -28,7 +29,6 @@ use crate::providers::{
 };
 use crate::{
     actions::{
-        FeatureArgs,
         Profile,
         build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
@@ -1742,7 +1742,7 @@ struct TestBuildAction {
     sample_class: bool,
     sign_mode: SignMode,
     locked: bool,
-    features: FeatureArgs,
+    features: Features,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1773,7 +1773,7 @@ impl TestBuildAction {
                 verify_signature: false,
             },
             locked: false,
-            features: FeatureArgs::default(),
+            features: Features::default(),
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
@@ -1813,11 +1813,13 @@ impl TestBuildAction {
         };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
-                *other_options == expected_options
-            })
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
+                    *other_options == expected_options
+                },
+            )
             .once()
-            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1850,11 +1852,13 @@ impl TestBuildAction {
         };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
-                *other_options == expected_options
-            })
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
+                    *other_options == expected_options
+                },
+            )
             .once()
-            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1871,11 +1875,13 @@ impl TestBuildAction {
         };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
-                *other_options == expected_options
-            })
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
+                    *other_options == expected_options
+                },
+            )
             .once()
-            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }

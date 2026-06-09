@@ -9,14 +9,16 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use cargo_metadata::Message;
+use clap_cargo::Features;
 use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
 
+use super::features_to_cargo_args;
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
-    actions::{FeatureArgs, Profile, build::error::BuildTaskError, to_target_triple},
+    actions::{Profile, build::error::BuildTaskError, to_target_triple},
     providers::error::CommandError,
     trace,
 };
@@ -28,7 +30,7 @@ pub struct BuildTaskParams<'a> {
     pub profile: Option<&'a Profile>,
     pub target_arch: Option<CpuArchitecture>,
     pub locked: bool,
-    pub features: &'a FeatureArgs,
+    pub features: &'a Features,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
@@ -38,7 +40,7 @@ pub struct BuildTask<'a> {
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
     locked: bool,
-    features: &'a FeatureArgs,
+    features: &'a Features,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -117,7 +119,7 @@ impl<'a> BuildTask<'a> {
         if self.locked {
             args.push("--locked".to_string());
         }
-        args.extend(self.features.to_cargo_args());
+        args.extend(features_to_cargo_args(self.features));
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
         }
@@ -158,13 +160,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        actions::{FeatureArgs, Profile},
+        actions::Profile,
         providers::{error::CommandError, exec::MockCommandExec},
     };
 
     fn default_build_task_params<'a>(
         working_dir: &'a Path,
-        features: &'a FeatureArgs,
+        features: &'a Features,
     ) -> BuildTaskParams<'a> {
         BuildTaskParams {
             package_name: "my-driver",
@@ -183,7 +185,7 @@ mod tests {
         let package_name = "test_package";
         let profile = Profile::Dev;
         let target_arch = Some(CpuArchitecture::Amd64);
-        let features = FeatureArgs::default();
+        let features = Features::default();
         let command_exec = CommandExec::new();
 
         let build_task = BuildTask::new(
@@ -214,7 +216,7 @@ mod tests {
                                relative/path/to/working/dir")]
     fn new_panics_when_working_dir_is_not_absolute() {
         let working_dir = PathBuf::from("relative/path/to/working/dir");
-        let features = FeatureArgs::default();
+        let features = Features::default();
         let command_exec = CommandExec::new();
 
         BuildTask::new(
@@ -230,7 +232,7 @@ mod tests {
         let manifest_path_string = manifest_path.to_string_lossy().to_string();
         let profile = Profile::Release;
         let target_arch = CpuArchitecture::Amd64;
-        let features = FeatureArgs::default();
+        let features = Features::default();
         let expected_args = vec![
             "build".to_string(),
             "--message-format=json-render-diagnostics".to_string(),
@@ -310,7 +312,7 @@ mod tests {
             ))
         });
 
-        let features = FeatureArgs::default();
+        let features = Features::default();
         let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
 
         let err = task.run().err().expect("expected cargo failure");
@@ -345,7 +347,7 @@ mod tests {
             ))
         });
 
-        let features = FeatureArgs::default();
+        let features = Features::default();
         let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
 
         let err = task
@@ -366,7 +368,7 @@ mod tests {
     #[test]
     fn run_forwards_locked_to_cargo_invocation_when_locked_is_set() {
         let working_dir = PathBuf::from("C:/abs/driver");
-        let features = FeatureArgs::default();
+        let features = Features::default();
         let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
         expected_stdout.push(b'\n');
         let expected_stdout_for_mock = expected_stdout.clone();
@@ -399,11 +401,10 @@ mod tests {
     #[test]
     fn run_forwards_features_to_cargo_invocation_when_features_are_set() {
         let working_dir = PathBuf::from("C:/abs/driver");
-        let features = FeatureArgs {
-            all_features: true,
-            no_default_features: true,
-            features: vec!["foo".to_string(), "bar".to_string()],
-        };
+        let mut features = Features::default();
+        features.all_features = true;
+        features.no_default_features = true;
+        features.features = vec!["foo".to_string(), "bar".to_string()];
         let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
         expected_stdout.push(b'\n');
         let expected_stdout_for_mock = expected_stdout.clone();

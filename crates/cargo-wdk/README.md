@@ -74,7 +74,7 @@ Options:
 Feature Selection:
       --all-features               Activate all available features
       --no-default-features        Do not activate the `default` feature
-      --features <FEATURES>        Space- or comma-separated list of features to activate
+  -F, --features <FEATURES>        Space-separated list of features to activate
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity
@@ -135,5 +135,5 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 - To build a driver project with specific cargo features enabled, navigate to the root of the project and run:
 
     ```pwsh
-    cargo wdk build --features usb,hid
+    cargo wdk build --features "usb hid"
     ```

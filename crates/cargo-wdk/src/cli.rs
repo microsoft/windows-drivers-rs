@@ -7,13 +7,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+use clap_cargo::Features;
 use clap_verbosity_flag::Verbosity;
 use mockall_double::double;
 use wdk_build::CpuArchitecture;
 
 use crate::actions::{
     DriverType,
-    FeatureArgs,
     KMDF_STR,
     Profile,
     UMDF_STR,
@@ -115,7 +115,7 @@ pub struct BuildArgs {
 
     #[command(flatten)]
     #[clap(next_help_heading = "Feature Selection")]
-    pub features: FeatureArgs,
+    pub features: Features,
 }
 
 impl BuildArgs {
@@ -239,8 +239,10 @@ impl Cli {
 
 #[cfg(test)]
 mod tests {
+    use clap_cargo::Features;
+
     use crate::{
-        actions::{DriverType, FeatureArgs},
+        actions::DriverType,
         cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd},
     };
 
@@ -311,7 +313,7 @@ mod tests {
                 sign_mode: SignModeArg::Off,
                 sample: false,
                 locked: false,
-                features: FeatureArgs::default(),
+                features: Features::default(),
             }),
             verbose: clap_verbosity_flag::Verbosity::default(),
         };
