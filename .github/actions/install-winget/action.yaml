@@ -142,3 +142,9 @@ runs:
 
         $moduleVersion = (Get-InstalledPSResource -Name Microsoft.WinGet.Client | Sort-Object Version -Descending | Select-Object -First 1).Version.ToString()
         Write-Host "Installed module version: $moduleVersion"
+
+    - name: Collect failure diagnostics
+      if: failure()
+      uses: ./.github/actions/winget-failure-diagnostics
+      with:
+        scope: psgallery
