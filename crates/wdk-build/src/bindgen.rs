@@ -131,6 +131,9 @@ impl BuilderExt for Builder {
             .blocklist_item(".*USBDEVICE_ABORTIO")
             .blocklist_item(".*USBDEVICE_STARTIO")
             .blocklist_item(".*USBDEVICE_TREE_PURGEIO")
+            // FIXME: bindgen unable to generate nameless fields
+            .blocklist_item(".*NET_BUFFER_HEADER")
+            .blocklist_item(".*NDIS_OPEN_BLOCK")
             // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
             .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")
@@ -142,7 +145,8 @@ impl BuilderExt for Builder {
             .parse_callbacks(Box::new(WdkCallbacks::new(config)))
             .formatter(bindgen::Formatter::Prettyplease)
             .rust_target(get_rust_target()?)
-            .rust_edition(get_rust_edition()?);
+            .rust_edition(get_rust_edition()?)
+            .wrap_unsafe_ops(true);
 
         // The `_USBPM_CLIENT_CONFIG_EXTRA_INFO` struct only has members when
         // _KERNEL_MODE flag is defined. We need to mark this type as opaque to avoid
