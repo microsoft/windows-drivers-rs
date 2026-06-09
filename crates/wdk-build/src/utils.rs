@@ -23,7 +23,6 @@ use windows::{
     },
     core::{PCSTR, s},
 };
-
 use crate::{ConfigError, CpuArchitecture, IoError, TwoPartVersion};
 
 /// Detect `WDKContentRoot` Directory. Logic is based off of Toolset.props in
