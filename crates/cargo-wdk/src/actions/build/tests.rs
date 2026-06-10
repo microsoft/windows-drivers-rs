@@ -1792,6 +1792,11 @@ impl TestBuildAction {
         self
     }
 
+    fn with_features(mut self, features: Features) -> Self {
+        self.features = features;
+        self
+    }
+
     fn set_up_standalone_driver_project(
         mut self,
         package_metadata: (TestMetadataWorkspaceMemberId, TestMetadataPackage),
@@ -3517,9 +3522,10 @@ mod get_target_arch_from_cargo_rustc {
         process::{ExitStatus, Output},
     };
 
+    use clap_cargo::Features;
     use wdk_build::CpuArchitecture;
 
-    use super::{BuildActionError, TestBuildAction};
+    use super::{super::features_to_cargo_args, BuildActionError, TestBuildAction};
 
     fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
@@ -3555,6 +3561,30 @@ mod get_target_arch_from_cargo_rustc {
             b"target_arch=  \"aarch64\"\n".to_vec(),
             CpuArchitecture::Arm64,
         );
+    }
+
+    #[test]
+    fn forwards_feature_selection_flags() {
+        let cwd = PathBuf::from(r"C:\tmp");
+        let mut features = Features::default();
+        features.no_default_features = true;
+        features.features = vec!["foo".to_string(), "bar".to_string()];
+        let mut test_build_action =
+            TestBuildAction::new(cwd.clone(), None, None, false).with_features(features);
+        expect_cargo_rustc_print_cfg(
+            &mut test_build_action,
+            cwd.clone(),
+            b"target_arch=\"x86_64\"\n".to_vec(),
+        );
+
+        let build_action =
+            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
+                .expect("Failed to init build action");
+
+        let arch = build_action
+            .get_target_arch_from_cargo_rustc(&cwd)
+            .expect("Expected target arch to be detected");
+        assert_eq!(arch, CpuArchitecture::Amd64);
     }
 
     #[test]
@@ -3618,6 +3648,12 @@ mod get_target_arch_from_cargo_rustc {
         cwd: PathBuf,
         stdout: Vec<u8>,
     ) {
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if test_build_action.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.extend(features_to_cargo_args(&test_build_action.features));
+        expected_args.extend(["--", "--print", "cfg"].map(String::from));
         test_build_action
             .mock_run_command
             .expect_run()
@@ -3628,7 +3664,11 @@ mod get_target_arch_from_cargo_rustc {
                       working_dir: &Option<&Path>|
                       -> bool {
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args.len() == expected_args.len()
+                        && args
+                            .iter()
+                            .zip(expected_args.iter())
+                            .all(|(actual, expected)| *actual == expected.as_str())
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
                 },
             )
