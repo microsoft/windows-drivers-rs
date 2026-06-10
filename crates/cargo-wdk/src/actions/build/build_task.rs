@@ -9,10 +9,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use cargo_metadata::Message;
+use clap_cargo::Features;
 use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
 
+use super::features_to_cargo_args;
 #[double]
 use crate::providers::exec::CommandExec;
 use crate::{
@@ -21,12 +23,24 @@ use crate::{
     trace,
 };
 
+/// Parameters for constructing a [`BuildTask`].
+pub struct BuildTaskParams<'a> {
+    pub package_name: &'a str,
+    pub working_dir: &'a Path,
+    pub profile: Option<&'a Profile>,
+    pub target_arch: Option<CpuArchitecture>,
+    pub locked: bool,
+    pub features: &'a Features,
+    pub verbosity_level: clap_verbosity_flag::Verbosity,
+}
+
 /// Builds specified package by running `cargo build`  
 pub struct BuildTask<'a> {
     package_name: &'a str,
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
     locked: bool,
+    features: &'a Features,
     verbosity_level: clap_verbosity_flag::Verbosity,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
@@ -37,43 +51,31 @@ impl<'a> BuildTask<'a> {
     /// Creates a new instance of `BuildTask`.
     ///
     /// # Arguments
-    /// * `package_name` - The name of the package to build
-    /// * `working_dir` - The working directory for the build
-    /// * `profile` - An optional profile for the build
-    /// * `target_arch` - The target architecture for the build
-    /// * `locked` - Whether to forward `--locked` to the `cargo build`
-    ///   invocation
-    /// * `verbosity_level` - The verbosity level for logging
+    /// * `params` - The [`BuildTaskParams`] describing the package to build and
+    ///   the flags to forward to `cargo build`
     /// * `command_exec` - The command execution provider
     ///
     /// # Returns
     /// * `Self` - A new instance of `BuildTask`.
     ///
     /// # Panics
-    /// * If `working_dir` is not absolute
-    pub fn new(
-        package_name: &'a str,
-        working_dir: &'a Path,
-        profile: Option<&'a Profile>,
-        target_arch: Option<CpuArchitecture>,
-        locked: bool,
-        verbosity_level: clap_verbosity_flag::Verbosity,
-        command_exec: &'a CommandExec,
-    ) -> Self {
+    /// * If `params.working_dir` is not absolute
+    pub fn new(params: &BuildTaskParams<'a>, command_exec: &'a CommandExec) -> Self {
         assert!(
-            working_dir.is_absolute(),
+            params.working_dir.is_absolute(),
             "Working directory path must be absolute. Input path: {}",
-            working_dir.display()
+            params.working_dir.display()
         );
         Self {
-            package_name,
-            profile,
-            target_arch,
-            verbosity_level,
-            locked,
-            manifest_path: working_dir.join("Cargo.toml"),
+            package_name: params.package_name,
+            profile: params.profile,
+            target_arch: params.target_arch,
+            locked: params.locked,
+            features: params.features,
+            verbosity_level: params.verbosity_level,
+            manifest_path: params.working_dir.join("Cargo.toml"),
             command_exec,
-            working_dir,
+            working_dir: params.working_dir,
         }
     }
 
@@ -117,6 +119,7 @@ impl<'a> BuildTask<'a> {
         if self.locked {
             args.push("--locked".to_string());
         }
+        args.extend(features_to_cargo_args(self.features));
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag.to_string());
         }
@@ -161,22 +164,37 @@ mod tests {
         providers::{error::CommandError, exec::MockCommandExec},
     };
 
+    fn default_build_task_params<'a>(
+        working_dir: &'a Path,
+        features: &'a Features,
+    ) -> BuildTaskParams<'a> {
+        BuildTaskParams {
+            package_name: "my-driver",
+            working_dir,
+            profile: None,
+            target_arch: None,
+            locked: false,
+            features,
+            verbosity_level: clap_verbosity_flag::Verbosity::default(),
+        }
+    }
+
     #[test]
     fn new_succeeds_for_valid_args() {
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
         let package_name = "test_package";
         let profile = Profile::Dev;
         let target_arch = Some(CpuArchitecture::Amd64);
-        let verbosity_level = clap_verbosity_flag::Verbosity::default();
+        let features = Features::default();
         let command_exec = CommandExec::new();
 
         let build_task = BuildTask::new(
-            package_name,
-            &working_dir,
-            Some(&profile),
-            target_arch,
-            false,
-            verbosity_level,
+            &BuildTaskParams {
+                package_name,
+                profile: Some(&profile),
+                target_arch,
+                ..default_build_task_params(&working_dir, &features)
+            },
             &command_exec,
         );
 
@@ -198,19 +216,11 @@ mod tests {
                                relative/path/to/working/dir")]
     fn new_panics_when_working_dir_is_not_absolute() {
         let working_dir = PathBuf::from("relative/path/to/working/dir");
-        let package_name = "test_package";
-        let profile = Some(Profile::Dev);
-        let target_arch = Some(CpuArchitecture::Arm64);
-        let verbosity_level = clap_verbosity_flag::Verbosity::default();
+        let features = Features::default();
         let command_exec = CommandExec::new();
 
         BuildTask::new(
-            package_name,
-            &working_dir,
-            profile.as_ref(),
-            target_arch,
-            false,
-            verbosity_level,
+            &default_build_task_params(&working_dir, &features),
             &command_exec,
         );
     }
@@ -222,7 +232,7 @@ mod tests {
         let manifest_path_string = manifest_path.to_string_lossy().to_string();
         let profile = Profile::Release;
         let target_arch = CpuArchitecture::Amd64;
-        let verbosity = clap_verbosity_flag::Verbosity::default();
+        let features = Features::default();
         let expected_args = vec![
             "build".to_string(),
             "--message-format=json-render-diagnostics".to_string(),
@@ -262,12 +272,11 @@ mod tests {
                 })
             });
         let task = BuildTask::new(
-            "my-driver",
-            &working_dir,
-            Some(&profile),
-            Some(target_arch),
-            false,
-            verbosity,
+            &BuildTaskParams {
+                profile: Some(&profile),
+                target_arch: Some(target_arch),
+                ..default_build_task_params(&working_dir, &features)
+            },
             &mock,
         );
 
@@ -303,15 +312,8 @@ mod tests {
             ))
         });
 
-        let task = BuildTask::new(
-            "my-driver",
-            &working_dir,
-            None,
-            None,
-            false,
-            clap_verbosity_flag::Verbosity::default(),
-            &mock,
-        );
+        let features = Features::default();
+        let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
 
         let err = task.run().err().expect("expected cargo failure");
         let BuildTaskError::CargoBuild(CommandError::CommandFailed {
@@ -345,15 +347,8 @@ mod tests {
             ))
         });
 
-        let task = BuildTask::new(
-            "my-driver",
-            &working_dir,
-            None,
-            None,
-            false,
-            clap_verbosity_flag::Verbosity::default(),
-            &mock,
-        );
+        let features = Features::default();
+        let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
 
         let err = task
             .run()
@@ -373,6 +368,7 @@ mod tests {
     #[test]
     fn run_forwards_locked_to_cargo_invocation_when_locked_is_set() {
         let working_dir = PathBuf::from("C:/abs/driver");
+        let features = Features::default();
         let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
         expected_stdout.push(b'\n');
         let expected_stdout_for_mock = expected_stdout.clone();
@@ -389,17 +385,51 @@ mod tests {
             });
 
         let task = BuildTask::new(
-            "my-driver",
-            &working_dir,
-            None,
-            None,
-            true,
-            clap_verbosity_flag::Verbosity::default(),
+            &BuildTaskParams {
+                locked: true,
+                ..default_build_task_params(&working_dir, &features)
+            },
             &mock,
         );
 
         task.run()
             .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+    }
+
+    #[test]
+    fn run_forwards_features_to_cargo_invocation_when_features_are_set() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let mut features = Features::default();
+        features.all_features = true;
+        features.no_default_features = true;
+        features.features = vec!["foo".to_string(), "bar".to_string()];
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_stdout_for_mock = expected_stdout.clone();
+
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(move |command, args, _env, _working_dir_opt| {
+                command == "cargo"
+                    && args.contains(&"--all-features")
+                    && args.contains(&"--no-default-features")
+                    && args.windows(2).any(|w| w == ["--features", "foo"])
+                    && args.windows(2).any(|w| w == ["--features", "bar"])
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout_for_mock,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
+
+        task.run()
+            .expect("expected cargo build to succeed")
             .collect::<std::result::Result<Vec<_>, _>>()
             .expect("expected valid cargo messages");
     }

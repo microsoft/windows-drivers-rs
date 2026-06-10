@@ -11,6 +11,7 @@ use std::{
 };
 
 use cargo_metadata::Metadata as CargoMetadata;
+use clap_cargo::Features;
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
@@ -1677,6 +1678,7 @@ fn initialize_build_action<'a>(
             sign_mode,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
+            features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
@@ -1740,6 +1742,7 @@ struct TestBuildAction {
     sample_class: bool,
     sign_mode: SignMode,
     locked: bool,
+    features: Features,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1770,6 +1773,7 @@ impl TestBuildAction {
                 verify_signature: false,
             },
             locked: false,
+            features: Features::default(),
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
@@ -1785,6 +1789,11 @@ impl TestBuildAction {
 
     fn with_locked(mut self, locked: bool) -> Self {
         self.locked = locked;
+        self
+    }
+
+    fn with_features(mut self, features: Features) -> Self {
+        self.features = features;
         self
     }
 
@@ -1809,11 +1818,13 @@ impl TestBuildAction {
         };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
-                *other_options == expected_options
-            })
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
+                    *other_options == expected_options
+                },
+            )
             .once()
-            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1846,11 +1857,13 @@ impl TestBuildAction {
         };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
-                *other_options == expected_options
-            })
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
+                    *other_options == expected_options
+                },
+            )
             .once()
-            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1867,11 +1880,13 @@ impl TestBuildAction {
         };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(move |_working_dir: &Path, other_options: &Vec<String>| {
-                *other_options == expected_options
-            })
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
+                    *other_options == expected_options
+                },
+            )
             .once()
-            .returning(move |_, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -3507,9 +3522,10 @@ mod get_target_arch_from_cargo_rustc {
         process::{ExitStatus, Output},
     };
 
+    use clap_cargo::Features;
     use wdk_build::CpuArchitecture;
 
-    use super::{BuildActionError, TestBuildAction};
+    use super::{super::features_to_cargo_args, BuildActionError, TestBuildAction};
 
     fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
@@ -3545,6 +3561,30 @@ mod get_target_arch_from_cargo_rustc {
             b"target_arch=  \"aarch64\"\n".to_vec(),
             CpuArchitecture::Arm64,
         );
+    }
+
+    #[test]
+    fn forwards_feature_selection_flags() {
+        let cwd = PathBuf::from(r"C:\tmp");
+        let mut features = Features::default();
+        features.no_default_features = true;
+        features.features = vec!["foo".to_string(), "bar".to_string()];
+        let mut test_build_action =
+            TestBuildAction::new(cwd.clone(), None, None, false).with_features(features);
+        expect_cargo_rustc_print_cfg(
+            &mut test_build_action,
+            cwd.clone(),
+            b"target_arch=\"x86_64\"\n".to_vec(),
+        );
+
+        let build_action =
+            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
+                .expect("Failed to init build action");
+
+        let arch = build_action
+            .get_target_arch_from_cargo_rustc(&cwd)
+            .expect("Expected target arch to be detected");
+        assert_eq!(arch, CpuArchitecture::Amd64);
     }
 
     #[test]
@@ -3608,6 +3648,12 @@ mod get_target_arch_from_cargo_rustc {
         cwd: PathBuf,
         stdout: Vec<u8>,
     ) {
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if test_build_action.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.extend(features_to_cargo_args(&test_build_action.features));
+        expected_args.extend(["--", "--print", "cfg"].map(String::from));
         test_build_action
             .mock_run_command
             .expect_run()
@@ -3618,7 +3664,11 @@ mod get_target_arch_from_cargo_rustc {
                       working_dir: &Option<&Path>|
                       -> bool {
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args.len() == expected_args.len()
+                        && args
+                            .iter()
+                            .zip(expected_args.iter())
+                            .all(|(actual, expected)| *actual == expected.as_str())
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
                 },
             )

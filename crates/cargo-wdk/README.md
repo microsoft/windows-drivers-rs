@@ -71,6 +71,11 @@ Options:
       --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
 
+Feature Selection:
+      --all-features               Activate all available features
+      --no-default-features        Do not activate the `default` feature
+  -F, --features <FEATURES>        Space-separated list of features to activate
+
 Verbosity:
   -v, --verbose...  Increase logging verbosity
   -q, --quiet...    Decrease logging verbosity
@@ -125,4 +130,10 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
     ```pwsh
     cargo wdk build --sign-mode off
+    ```
+
+- To build a driver project with specific cargo features enabled, navigate to the root of the project and run:
+
+    ```pwsh
+    cargo wdk build --features "usb hid"
     ```
