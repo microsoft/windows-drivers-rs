@@ -44,7 +44,7 @@ pub enum SignMode {
 }
 
 // InfVerif in WDK builds in this range is bugged and does not contain the
-// /sample flag.
+// /samples flag.
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";

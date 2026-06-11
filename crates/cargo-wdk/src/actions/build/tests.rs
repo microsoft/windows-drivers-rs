@@ -250,8 +250,6 @@ pub fn given_sample_class_and_wdk_build_with_missing_sample_flag_then_infverif_i
 
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    // WDK build 26100 is within the range whose InfVerif is missing the
-    // /sample flag, so InfVerif is skipped entirely for the sample class.
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
@@ -1959,9 +1957,6 @@ impl TestBuildAction {
             .expect_infverif(driver_name, &cwd, driver_type, None)
     }
 
-    /// Sets up all package-task expectations except `infverif`. Useful for
-    /// asserting the sample-class path where `InfVerif` is skipped for WDK
-    /// builds whose `InfVerif` is missing the `/sample` flag.
     fn expect_package_task_steps_without_infverif(
         self,
         driver_name: &str,
