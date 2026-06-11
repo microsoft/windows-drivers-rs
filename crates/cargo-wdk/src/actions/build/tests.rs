@@ -213,12 +213,49 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
 
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
+
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature)
-        .expect_detect_wdk_build_number(25100u32);
+        .expect_detect_wdk_build_number(28000u32);
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
+pub fn given_sample_class_and_wdk_build_with_missing_sample_flag_then_infverif_is_skipped() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = true;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_build_output =
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
+        .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
+        .expect_detect_wdk_build_number(26100u32);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -1916,6 +1953,17 @@ impl TestBuildAction {
         verify_signature: bool,
     ) -> Self {
         let cwd = self.cwd.clone();
+        self.expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
+            .expect_infverif(driver_name, &cwd, driver_type, None)
+    }
+
+    fn expect_package_task_steps_without_infverif(
+        self,
+        driver_name: &str,
+        target_arch: CpuArchitecture,
+        verify_signature: bool,
+    ) -> Self {
+        let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
             .expect_final_package_dir_exists(driver_name, &cwd, true)
@@ -1932,8 +1980,7 @@ impl TestBuildAction {
             .expect_makecert(&cwd, None)
             .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
             .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None);
+            .expect_signtool_sign_cat_file(driver_name, &cwd, None);
         if !verify_signature {
             return expectations;
         }
@@ -2932,7 +2979,7 @@ impl TestBuildAction {
             expected_infverif_args.push("/u".to_string());
         }
         if self.sample_class {
-            expected_infverif_args.push("/msft".to_string());
+            expected_infverif_args.push("/samples".to_string());
         }
         let expected_infverif_command: &'static str = "infverif";
         let expected_driver_name_underscored = driver_name.replace('-', "_");

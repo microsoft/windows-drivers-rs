@@ -10,7 +10,7 @@
 use std::{
     ffi::{CStr, CString},
     marker::PhantomData,
-    ops::RangeFrom,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     result::Result,
 };
@@ -43,9 +43,9 @@ pub enum SignMode {
     },
 }
 
-// FIXME: This range is inclusive of 25798. Update with range end after /sample
-// flag is added to InfVerif CLI
-const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
+// InfVerif in WDK builds in this range is bugged and does not contain the
+// /samples flag.
+const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
@@ -552,7 +552,11 @@ impl<'a> PackageTask<'a> {
                 warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
                 return Ok(());
             }
-            "/msft"
+            if wdk_build_number > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() {
+                "/samples"
+            } else {
+                "/msft"
+            }
         } else {
             ""
         };
