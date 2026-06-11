@@ -709,6 +709,10 @@ fn compile_version_resource_inner(config: &Config) -> Result<(), ResourceCompile
     // Emit linker directive to include the compiled resource
     println!("cargo::rustc-cdylib-link-arg={}", res_path.display());
 
+    // Mark the .rsrc section as non-discardable so the embedded version
+    // resource is not paged out after driver initialization.
+    println!("cargo::rustc-cdylib-link-arg=/section:.rsrc,!d");
+
     Ok(())
 }
 
