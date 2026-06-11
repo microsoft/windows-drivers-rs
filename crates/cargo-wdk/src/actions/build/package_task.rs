@@ -552,7 +552,11 @@ impl<'a> PackageTask<'a> {
                 warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
                 return Ok(());
             }
-            "/msft"
+            if wdk_build_number > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() {
+                "/samples"
+            } else {
+                "/msft"
+            }
         } else {
             ""
         };

@@ -2979,7 +2979,7 @@ impl TestBuildAction {
             expected_infverif_args.push("/u".to_string());
         }
         if self.sample_class {
-            expected_infverif_args.push("/msft".to_string());
+            expected_infverif_args.push("/samples".to_string());
         }
         let expected_infverif_command: &'static str = "infverif";
         let expected_driver_name_underscored = driver_name.replace('-', "_");
