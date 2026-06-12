@@ -80,15 +80,16 @@ runs:
           # Install all dependency packages for the detected architecture
           $depsInstalled = 0
           $depsFailed = 0
-          Get-ChildItem -Path $depsDir -Recurse -Include '*.appx', '*.msix' | Where-Object {
+          $dep_packages = Get-ChildItem -Path $depsDir -Recurse -Include '*.appx', '*.msix' | Where-Object {
             $_.FullName -match "[\\/]$arch[\\/]"
-          } | ForEach-Object {
+          }
+          foreach ($pkg in $dep_packages) {
             try {
-              Add-AppxPackage -Path $_.FullName -ForceApplicationShutdown -ForceUpdateFromAnyVersion -ErrorAction Stop
-              Write-Host "Installed dependency: $($_.Name)"
+              Add-AppxPackage -Path $pkg.FullName -ForceApplicationShutdown -ForceUpdateFromAnyVersion -ErrorAction Stop
+              Write-Host "Installed dependency: $($pkg.Name)"
               $depsInstalled++
             } catch {
-              Write-Host "Dependency $($_.Name): $($_.Exception.Message)"
+              Write-Host "Dependency $($pkg.Name): $($_.Exception.Message)"
               $depsFailed++
             }
           }
