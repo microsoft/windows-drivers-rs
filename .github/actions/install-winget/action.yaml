@@ -80,7 +80,7 @@ runs:
           # Install all dependency packages for the detected architecture
           $depsInstalled = 0
           $depsFailed = 0
-          $dep_packages = Get-ChildItem -Path $depsDir -Recurse -Include '*.appx', '*.msix' | Where-Object {
+          $depPackages = Get-ChildItem -Path $depsDir -Recurse -Include '*.appx', '*.msix' | Where-Object {
             $_.FullName -match "[\\/]$arch[\\/]"
           }
           foreach ($pkg in $dep_packages) {
