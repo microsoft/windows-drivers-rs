@@ -83,7 +83,7 @@ runs:
           $depPackages = Get-ChildItem -Path $depsDir -Recurse -Include '*.appx', '*.msix' | Where-Object {
             $_.FullName -match "[\\/]$arch[\\/]"
           }
-          foreach ($pkg in $dep_packages) {
+          foreach ($pkg in $depPackages) {
             try {
               Add-AppxPackage -Path $pkg.FullName -ForceApplicationShutdown -ForceUpdateFromAnyVersion -ErrorAction Stop
               Write-Host "Installed dependency: $($pkg.Name)"
