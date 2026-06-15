@@ -678,6 +678,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
+name = "wdk"
+version = "0.4.1"
+dependencies = [
+ "cfg-if",
+ "tracing",
+ "tracing-subscriber",
+ "wdk-build",
+ "wdk-sys",
+]
+
+[[package]]
 name = "wdk-alloc"
 version = "0.4.1"
 dependencies = [
@@ -727,6 +738,12 @@ dependencies = [
 [[package]]
 name = "wdk-panic"
 version = "0.4.1"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wdk",
+ "wdk-build",
+]
 
 [[package]]
 name = "wdk-sys"
