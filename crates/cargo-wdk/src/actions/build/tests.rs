@@ -250,8 +250,6 @@ pub fn given_sample_class_and_wdk_build_before_sample_flag_range_then_infverif_r
 
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    // WDK build 25100 is below the range with the bugged InfVerif and predates
-    // the /samples flag, so InfVerif runs with /msft for the sample class.
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
