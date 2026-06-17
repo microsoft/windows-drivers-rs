@@ -43,9 +43,37 @@ pub enum SignMode {
     },
 }
 
+/// Driver target platform as per <https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/target-platforms>
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetPlatform {
+    /// Universal target. Maps to `infverif /u` (Universal driver requirements).
+    /// Designed to be compatible across various Windows platforms.
+    Universal,
+    /// Desktop target. Maps to `infverif /h` (WHQL signing-mode validation). A
+    /// Windows driver that runs on both desktop and non-desktop variants of
+    /// Windows.
+    Desktop,
+    /// Windows Driver target. Maps to `infverif /w` (DCH/declarative + driver
+    /// package isolation). Designed to run exclusively on Windows desktop
+    /// editions.
+    WindowsDriver,
+}
+
+impl TargetPlatform {
+    /// Returns the `InfVerif` mode flag for this target platform.
+    const fn infverif_flag(self) -> &'static str {
+        match self {
+            Self::Universal => "/u",
+            Self::Desktop => "/h",
+            Self::WindowsDriver => "/w",
+        }
+    }
+}
+
 // FIXME: This range is inclusive of 25798. Update with range end after /sample
 // flag is added to InfVerif CLI
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
+const GE_WDK_BUILD_NUMBER: u32 = 26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
@@ -59,6 +87,7 @@ pub struct PackageTaskParams<'a> {
     pub sign_mode: SignMode,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
+    pub target_platform: Option<TargetPlatform>,
 }
 
 /// Supports low level driver packaging operations
@@ -87,6 +116,7 @@ pub struct PackageTask<'a> {
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
     driver_model: DriverConfig,
+    target_platform: Option<TargetPlatform>,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -192,6 +222,7 @@ impl<'a> PackageTask<'a> {
             arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
+            target_platform: params.target_platform,
             wdk_build,
             command_exec,
             fs,
@@ -558,15 +589,20 @@ impl<'a> PackageTask<'a> {
         };
 
         info!("Running infverif");
-        let mut args = vec![
-            "/v",
-            match self.driver_model {
+        let mode_flag = match self.target_platform {
+            Some(target_platform) => target_platform.infverif_flag(),
+            None => match self.driver_model {
                 DriverConfig::Kmdf(_) | DriverConfig::Wdm => "/w",
-                // TODO: This should be /u if WDK <= GE && DRIVER_MODEL == UMDF, otherwise it should
-                // be /w
-                DriverConfig::Umdf(_) => "/u",
+                DriverConfig::Umdf(_) => {
+                    if self.wdk_build.detect_wdk_build_number()? <= GE_WDK_BUILD_NUMBER {
+                        "/u"
+                    } else {
+                        "/w"
+                    }
+                }
             },
-        ];
+        };
+        let mut args = vec!["/v", mode_flag];
         let inf_path = self.dest_inf_file_path.to_string_lossy();
 
         if self.sample_class {
@@ -644,7 +680,7 @@ mod tests {
         process::{ExitStatus, Output},
     };
 
-    use wdk_build::{CpuArchitecture, KmdfConfig};
+    use wdk_build::{CpuArchitecture, KmdfConfig, UmdfConfig};
 
     use super::*;
 
@@ -665,6 +701,7 @@ mod tests {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
+            target_platform: None,
         };
         let dest_root = target_dir.join(format!("{package_name}_package"));
 
@@ -735,6 +772,7 @@ mod tests {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
+            target_platform: None,
         };
 
         let command_exec = CommandExec::default();
@@ -763,6 +801,7 @@ mod tests {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
+            target_platform: None,
         };
 
         let command_exec = CommandExec::default();
@@ -800,6 +839,7 @@ mod tests {
                         sign_mode: SignMode::Test {
                             verify_signature: false,
                         },
+                        target_platform: None,
                     };
 
                     let wdk_build = WdkBuild::default();
@@ -837,6 +877,72 @@ mod tests {
                 "scenario {name} failed (env_set={env_val:?})"
             );
         }
+    }
+
+    fn assert_umdf_infverif_mode_flag(wdk_build_number: u32, expected_mode_flag: &'static str) {
+        let package_name = "umdf_driver";
+        let working_dir = PathBuf::from("C:/abs/umdf_driver");
+        let target_dir = PathBuf::from("C:/abs/umdf_driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Umdf(UmdfConfig {
+                umdf_version_major: 2,
+                target_umdf_version_minor: 33,
+                minimum_umdf_version_minor: None,
+            }),
+            sample_class: false,
+            sign_mode: SignMode::Off,
+            target_platform: None,
+        };
+
+        let fs = Fs::default();
+        let mut wdk_build = WdkBuild::default();
+        wdk_build
+            .expect_detect_wdk_build_number()
+            .once()
+            .returning(move || Ok(wdk_build_number));
+
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "infverif"
+                    && args.len() >= 2
+                    && args[0] == "/v"
+                    && args[1] == expected_mode_flag
+            })
+            .once()
+            .returning(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(
+            task.run_infverif().is_ok(),
+            "run_infverif failed for wdk_build_number={wdk_build_number}"
+        );
+    }
+
+    #[test]
+    fn run_infverif_for_umdf_uses_universal_flag_up_to_and_including_ge() {
+        // GE (build 26100) and older WDKs validate UMDF packages with `/u`.
+        assert_umdf_infverif_mode_flag(25100, "/u");
+        assert_umdf_infverif_mode_flag(GE_WDK_BUILD_NUMBER, "/u");
+    }
+
+    #[test]
+    fn run_infverif_for_umdf_uses_windows_driver_flag_after_ge() {
+        // WDKs newer than GE validate UMDF packages with `/w`.
+        assert_umdf_infverif_mode_flag(GE_WDK_BUILD_NUMBER + 1, "/w");
     }
 
     mod named_mutex {

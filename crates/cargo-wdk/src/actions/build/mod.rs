@@ -22,8 +22,8 @@ use build_task::BuildTask;
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
-pub use package_task::SignMode;
 use package_task::{PackageTask, PackageTaskParams};
+pub use package_task::{SignMode, TargetPlatform};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
     CpuArchitecture,
@@ -41,6 +41,7 @@ pub struct BuildActionParams<'a> {
     pub sign_mode: SignMode,
     pub is_sample_class: bool,
     pub locked: bool,
+    pub target_platform: Option<TargetPlatform>,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
@@ -53,6 +54,7 @@ pub struct BuildAction<'a> {
     sign_mode: SignMode,
     is_sample_class: bool,
     locked: bool,
+    target_platform: Option<TargetPlatform>,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
     // Injected deps
@@ -99,6 +101,7 @@ impl<'a> BuildAction<'a> {
             sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
             locked: params.locked,
+            target_platform: params.target_platform,
             verbosity_level: params.verbosity_level,
             wdk_build,
             command_exec,
@@ -398,6 +401,7 @@ impl<'a> BuildAction<'a> {
                 sign_mode: self.sign_mode,
                 sample_class: self.is_sample_class,
                 driver_model,
+                target_platform: self.target_platform,
             },
             self.wdk_build,
             self.command_exec,
