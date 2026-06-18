@@ -30,6 +30,9 @@ pub struct CommandExec {}
 
 #[automock]
 impl CommandExec {
+    // The `'a` lifetime is required by mockall's `#[automock]` to generate the
+    // mock impl
+    #[allow(clippy::extra_unused_lifetimes)]
     pub fn run<'a>(
         &self,
         command: &'a str,
