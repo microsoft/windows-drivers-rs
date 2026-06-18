@@ -1125,20 +1125,12 @@ impl Config {
             println!("cargo::rustc-link-search={}", path.display());
         }
 
+        // TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
+        // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be moved to 
+        // the wdk-sys build script
         match &self.driver_config {
             DriverConfig::Wdm => {
                 // Emit WDM-specific libraries to link to
-                println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
-                println!("cargo::rustc-link-lib=static=ntoskrnl");
-                println!("cargo::rustc-link-lib=static=hal");
-                println!("cargo::rustc-link-lib=static=wmilib");
-
-                // Emit ARM64-specific libraries to link to derived from
-                // WindowsDriver.arm64.props
-                if self.cpu_architecture == CpuArchitecture::Arm64 {
-                    println!("cargo::rustc-link-lib=static=arm64rt");
-                }
-
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -1160,19 +1152,6 @@ impl Config {
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific libraries to link to
-                println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
-                println!("cargo::rustc-link-lib=static=ntoskrnl");
-                println!("cargo::rustc-link-lib=static=hal");
-                println!("cargo::rustc-link-lib=static=wmilib");
-                println!("cargo::rustc-link-lib=static=WdfLdr");
-                println!("cargo::rustc-link-lib=static=WdfDriverEntry");
-
-                // Emit ARM64-specific libraries to link to derived from
-                // WindowsDriver.arm64.props
-                if self.cpu_architecture == CpuArchitecture::Arm64 {
-                    println!("cargo::rustc-link-lib=static=arm64rt");
-                }
-
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -1187,16 +1166,9 @@ impl Config {
                 // might not run` since `rustc` has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
             }
-            DriverConfig::Umdf(umdf_config) => {
-                // Emit UMDF-specific libraries to link to
-                if umdf_config.umdf_version_major >= 2 {
-                    println!("cargo::rustc-link-lib=static=WdfDriverStubUm");
-                    println!("cargo::rustc-link-lib=static=ntdll");
-                }
-
+            DriverConfig::Umdf(_) => {
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:kernel32.lib");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:user32.lib");
-                println!("cargo::rustc-link-lib=static=OneCoreUAP");
 
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
