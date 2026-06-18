@@ -18,6 +18,7 @@ use std::{
     sync::LazyLock,
 };
 
+use ::bindgen::Builder;
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
 use tracing::debug;
@@ -1057,6 +1058,97 @@ impl Config {
             .collect())
     }
 
+    /// Returns the native libraries that must be linked for a given
+    /// [`ApiSubset`], based off this [`Config`].
+    ///
+    /// This is the link-directive analogue of [`Config::headers`]: it owns the
+    /// mapping from [`ApiSubset`] (and the active [`DriverConfig`] and
+    /// [`CpuArchitecture`]) to the set of [`LinkDirective`]s that should be
+    /// emitted into the generated bindings for that subset. Subsets that
+    /// contribute no extra libraries return an empty [`Vec`].
+    ///
+    /// Unlike header selection, link subsets must be selected
+    /// *non-cumulatively*: each generated bindings file should request only
+    /// its own subset's libraries (e.g. `hid.rs` requests only
+    /// [`ApiSubset::Hid`], not [`ApiSubset::Base`]), since the base
+    /// libraries are already emitted into the base bindings file. This
+    /// avoids duplicate `#[link]` directives across generated files.
+    #[must_use]
+    pub fn link_directives(&self, api_subset: ApiSubset) -> Vec<LinkDirective<'static>> {
+        match api_subset {
+            ApiSubset::Base => self.base_link_directives(),
+            ApiSubset::Hid => self.hid_link_directives(),
+            ApiSubset::Wdf
+            | ApiSubset::Gpio
+            | ApiSubset::ParallelPorts
+            | ApiSubset::Spb
+            | ApiSubset::Storage
+            | ApiSubset::Usb => Vec::new(),
+        }
+    }
+
+    /// Builds the static library link directives for the base bindings.
+    ///
+    /// TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
+    /// stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives from
+    /// [`wdk_build::Config::configure_binary_build`] will be added
+    #[tracing::instrument(level = "trace")]
+    fn base_link_directives(&self) -> Vec<LinkDirective<'static>> {
+        const fn static_lib(name: &'static str) -> LinkDirective<'static> {
+            LinkDirective::new(name, "static").with_modifiers(&["-bundle"])
+        }
+
+        let mut directives = Vec::new();
+        match &self.driver_config {
+            DriverConfig::Wdm => {
+                directives.extend([
+                    static_lib("BufferOverflowFastFailK"),
+                    static_lib("ntoskrnl"),
+                    static_lib("hal"),
+                    static_lib("wmilib"),
+                ]);
+            }
+            DriverConfig::Kmdf(_) => {
+                directives.extend([
+                    static_lib("BufferOverflowFastFailK"),
+                    static_lib("ntoskrnl"),
+                    static_lib("hal"),
+                    static_lib("wmilib"),
+                    static_lib("WdfLdr"),
+                    static_lib("WdfDriverEntry"),
+                ]);
+            }
+            DriverConfig::Umdf(umdf_config) => {
+                if umdf_config.umdf_version_major >= 2 {
+                    directives.extend([static_lib("WdfDriverStubUm"), static_lib("ntdll")]);
+                }
+                directives.push(static_lib("OneCoreUAP"));
+            }
+        }
+
+        // ARM64-specific libraries to link to derived from
+        // WindowsDriver.arm64.props.
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) && self.cpu_architecture == CpuArchitecture::Arm64
+        {
+            directives.push(static_lib("arm64rt"));
+        }
+
+        directives
+    }
+
+    #[tracing::instrument(level = "trace")]
+    fn hid_link_directives(&self) -> Vec<LinkDirective<'static>> {
+        match self.driver_config {
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                vec![LinkDirective::new("VhfKm", "static").with_modifiers(&["-bundle"])]
+            }
+            DriverConfig::Umdf(_) => vec![LinkDirective::new("VhfUm", "dylib")],
+        }
+    }
+
     /// Configure a Cargo build of a library that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
@@ -1126,7 +1218,7 @@ impl Config {
         }
 
         // TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
-        // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be moved to 
+        // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be moved to
         // the wdk-sys build script
         match &self.driver_config {
             DriverConfig::Wdm => {
@@ -1465,6 +1557,123 @@ where
 #[tracing::instrument(level = "debug")]
 pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
+}
+
+/// A native library to link into the generated bindings.
+///
+/// Rendered as a `#[link(...)]` attribute on an (empty) `extern` block and
+/// emitted into the bindgen output via [`Builder::raw_line`]. An optional
+/// `cfg` predicate gates the directive (e.g. by driver type).
+#[derive(Debug, Clone)]
+pub struct LinkDirective<'a> {
+    /// `#[link(name = "...")]` — the library to link.
+    name: &'a str,
+    /// `kind = "..."` — one of `static`, `dylib`, `raw-dylib`, `framework`.
+    /// `#[link(name = "VhfKm", kind = "...")]`
+    kind: &'a str,
+    /// `modifiers = "..."` values (e.g. `-bundle`, `+whole-archive`). Joined
+    /// with commas; an empty slice omits the `modifiers` key entirely.
+    /// `#[link(name = "VhfKm", kind = "static", modifiers = "...")]`
+    modifiers: &'a [&'a str],
+    /// ABI of the emitted `extern` block (e.g. `C`, `system`).
+    abi: &'a str,
+    /// Inner predicate of `#[cfg(...)]` gating the directive. `None` emits no
+    /// cfg.
+    cfg: Option<&'a str>,
+}
+
+impl<'a> LinkDirective<'a> {
+    /// Creates a directive with the default `"C"` ABI, no modifiers, and no cfg
+    /// gate.
+    #[must_use]
+    pub const fn new(name: &'a str, kind: &'a str) -> Self {
+        Self {
+            name,
+            kind,
+            modifiers: &[],
+            abi: "C",
+            cfg: None,
+        }
+    }
+
+    /// Sets the linking modifiers (e.g. `["-bundle"]`). Each modifier must be
+    /// prefixed with `+` or `-`.
+    #[must_use]
+    pub const fn with_modifiers(mut self, modifiers: &'a [&'a str]) -> Self {
+        self.modifiers = modifiers;
+        self
+    }
+
+    /// Sets the ABI of the emitted `extern` block (defaults to `"C"`).
+    #[must_use]
+    pub const fn with_abi(mut self, abi: &'a str) -> Self {
+        self.abi = abi;
+        self
+    }
+
+    /// Gates the directive behind a `#[cfg(...)]` predicate.
+    #[must_use]
+    pub const fn with_cfg(mut self, cfg: &'a str) -> Self {
+        self.cfg = Some(cfg);
+        self
+    }
+
+    /// Renders this directive into a self-contained block of Rust source.
+    fn render(&self) -> String {
+        const VALID_KINDS: [&str; 4] = ["static", "dylib", "raw-dylib", "framework"];
+
+        assert!(
+            !self.name.is_empty(),
+            "link directive `name` must not be empty"
+        );
+        assert!(
+            !self.abi.is_empty(),
+            "link directive `abi` must not be empty"
+        );
+        assert!(
+            VALID_KINDS.contains(&self.kind),
+            "unsupported link kind {:?}; expected one of {VALID_KINDS:?}",
+            self.kind
+        );
+        assert!(
+            self.modifiers
+                .iter()
+                .all(|m| m.starts_with('+') || m.starts_with('-')),
+            "each link modifier must start with `+` or `-`: {:?}",
+            self.modifiers
+        );
+
+        let modifiers = if self.modifiers.is_empty() {
+            String::new()
+        } else {
+            format!(r#", modifiers = "{}""#, self.modifiers.join(","))
+        };
+        let link_attr = format!(
+            r#"#[link(name = "{}", kind = "{}"{modifiers})]"#,
+            self.name, self.kind
+        );
+        let cfg_attr = self
+            .cfg
+            .map(|cfg| format!("#[cfg({cfg})]"))
+            .unwrap_or_default();
+
+        // Emitted as one block so the attributes always stay attached to the
+        // following `extern` block, regardless of where bindgen places raw
+        // lines.
+        format!(
+            "\n{cfg_attr}\n{link_attr}\nunsafe extern \"{}\" {{}}",
+            self.abi
+        )
+    }
+}
+
+/// Appends each [`LinkDirective`] to `builder` so rustc links the corresponding
+/// libraries when compiling the generated bindings.
+#[must_use]
+pub fn add_link_directives(builder: Builder, directives: &[LinkDirective]) -> Builder {
+    directives.iter().fold(builder, |builder, directive| {
+        builder.raw_line(directive.render())
+    })
 }
 
 /// This currently only exports the driver type, but may export more metadata in
