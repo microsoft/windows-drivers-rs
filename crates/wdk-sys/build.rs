@@ -32,7 +32,6 @@ use wdk_build::{
     IoError,
     KmdfConfig,
     UmdfConfig,
-    add_link_directives,
     configure_wdk_library_build_and_then,
 };
 
@@ -270,13 +269,10 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     let header_contents = config.bindgen_header_contents([ApiSubset::Base])?;
     trace!(header_contents = ?header_contents);
 
-    let bindgen_builder = {
-        let builder = bindgen::Builder::wdk_default(config)?
-            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
-            .header_contents(&format!("{outfile_name}-input.h"), &header_contents);
-
-        add_link_directives(builder, &config.link_directives(ApiSubset::Base))
-    };
+    let bindgen_builder = bindgen::Builder::wdk_default(config)?
+        .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+        .header_contents(&format!("{outfile_name}-input.h"), &header_contents)
+        .raw_line(config.bindgen_library_link_raw_lines(ApiSubset::Base));
     trace!(bindgen_builder = ?bindgen_builder);
 
     let output_file_path = out_path.join(format!("{outfile_name}.rs"));
@@ -366,7 +362,7 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
         }
 
-        add_link_directives(builder, &config.link_directives(ApiSubset::Hid))
+        builder.raw_line(config.bindgen_library_link_raw_lines(ApiSubset::Hid))
     };
     trace!(bindgen_builder = ?bindgen_builder);
 
