@@ -1095,7 +1095,12 @@ impl Config {
     #[tracing::instrument(level = "trace")]
     fn base_link_directives(&self) -> Vec<LinkDirective<'static>> {
         const fn static_lib(name: &'static str) -> LinkDirective<'static> {
-            LinkDirective::new(name, "static").with_modifiers(&["-bundle"])
+            // Gated on `NOT_TEST_STUBS_CFG` so non-driver test consumers don't
+            // link the real WDK libraries (see the const's docs for the full
+            // rationale).
+            LinkDirective::new(name, "static")
+                .with_modifiers(&["-bundle"])
+                .with_cfg(NOT_TEST_STUBS_CFG)
         }
 
         let mut directives = Vec::new();
@@ -1143,9 +1148,15 @@ impl Config {
     fn hid_link_directives(&self) -> Vec<LinkDirective<'static>> {
         match self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                vec![LinkDirective::new("VhfKm", "static").with_modifiers(&["-bundle"])]
+                vec![
+                    LinkDirective::new("VhfKm", "static")
+                        .with_modifiers(&["-bundle"])
+                        .with_cfg(NOT_TEST_STUBS_CFG),
+                ]
             }
-            DriverConfig::Umdf(_) => vec![LinkDirective::new("VhfUm", "dylib")],
+            DriverConfig::Umdf(_) => {
+                vec![LinkDirective::new("VhfUm", "dylib").with_cfg(NOT_TEST_STUBS_CFG)]
+            }
         }
     }
 
@@ -1558,6 +1569,17 @@ where
 pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
+
+/// `cfg` predicate that gates the WDK link directives so that they are only
+/// emitted when the `wdk-sys` `test-stubs` feature is *not* enabled.
+///
+/// Downstream test executables that depend on `wdk-sys` enable its `test-stubs`
+/// feature (which provides stubbed symbols *and*, via this gate, suppresses
+/// real WDK library linkage; see `wdk_sys::test_stubs`). Such executables are
+/// not driver binaries, so they never receive the WDK `rustc-link-search` paths
+/// that `Config::configure_binary_build` emits, and must therefore not attempt
+/// to link the real WDK libraries.
+const NOT_TEST_STUBS_CFG: &str = r#"not(feature = "test-stubs")"#;
 
 /// A native library to link into the generated bindings.
 ///
