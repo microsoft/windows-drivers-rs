@@ -36,15 +36,9 @@ pub struct BuildTaskParams<'a> {
 
 /// Builds specified package by running `cargo build`  
 pub struct BuildTask<'a> {
-    package_name: &'a str,
-    profile: Option<&'a Profile>,
-    target_arch: Option<CpuArchitecture>,
-    locked: bool,
-    features: &'a Features,
-    verbosity_level: clap_verbosity_flag::Verbosity,
+    params: BuildTaskParams<'a>,
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
-    working_dir: &'a Path,
 }
 
 impl<'a> BuildTask<'a> {
@@ -60,22 +54,17 @@ impl<'a> BuildTask<'a> {
     ///
     /// # Panics
     /// * If `params.working_dir` is not absolute
-    pub fn new(params: &BuildTaskParams<'a>, command_exec: &'a CommandExec) -> Self {
+    pub fn new(params: BuildTaskParams<'a>, command_exec: &'a CommandExec) -> Self {
         assert!(
             params.working_dir.is_absolute(),
             "Working directory path must be absolute. Input path: {}",
             params.working_dir.display()
         );
+        let manifest_path = params.working_dir.join("Cargo.toml");
         Self {
-            package_name: params.package_name,
-            profile: params.profile,
-            target_arch: params.target_arch,
-            locked: params.locked,
-            features: params.features,
-            verbosity_level: params.verbosity_level,
-            manifest_path: params.working_dir.join("Cargo.toml"),
+            params,
+            manifest_path,
             command_exec,
-            working_dir: params.working_dir,
         }
     }
 
@@ -101,26 +90,26 @@ impl<'a> BuildTask<'a> {
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json-render-diagnostics".to_string());
         args.push("-p".to_string());
-        args.push(self.package_name.to_string());
+        args.push(self.params.package_name.to_string());
         if let Some(path) = self.manifest_path.to_str() {
             args.push("--manifest-path".to_string());
             args.push(path.to_string());
         } else {
             return Err(BuildTaskError::EmptyManifestPath);
         }
-        if let Some(profile) = self.profile {
+        if let Some(profile) = self.params.profile {
             args.push("--profile".to_string());
             args.push(profile.to_string());
         }
-        if let Some(target_arch) = self.target_arch {
+        if let Some(target_arch) = self.params.target_arch {
             args.push("--target".to_string());
             args.push(to_target_triple(target_arch));
         }
-        if self.locked {
+        if self.params.locked {
             args.push("--locked".to_string());
         }
-        args.extend(features_to_cargo_args(self.features));
-        if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
+        args.extend(features_to_cargo_args(self.params.features));
+        if let Some(flag) = trace::get_cargo_verbose_flags(self.params.verbosity_level) {
             args.push(flag.to_string());
         }
         let args = args
@@ -132,7 +121,7 @@ impl<'a> BuildTask<'a> {
         // is respected
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(self.working_dir))
+            .run("cargo", &args, None, Some(self.params.working_dir))
             .map_err(|mut err| {
                 // Drop stdout from CommandFailed so the noisy
                 // --message-format=json-render-diagnostics output isn't bubbled up
@@ -189,7 +178,7 @@ mod tests {
         let command_exec = CommandExec::new();
 
         let build_task = BuildTask::new(
-            &BuildTaskParams {
+            BuildTaskParams {
                 package_name,
                 profile: Some(&profile),
                 target_arch,
@@ -198,9 +187,9 @@ mod tests {
             &command_exec,
         );
 
-        assert_eq!(build_task.package_name, package_name);
-        assert_eq!(build_task.profile, Some(&profile));
-        assert_eq!(build_task.target_arch, target_arch);
+        assert_eq!(build_task.params.package_name, package_name);
+        assert_eq!(build_task.params.profile, Some(&profile));
+        assert_eq!(build_task.params.target_arch, target_arch);
         assert_eq!(build_task.manifest_path, working_dir.join("Cargo.toml"));
         assert_eq!(
             std::ptr::from_ref(build_task.command_exec),
@@ -220,7 +209,7 @@ mod tests {
         let command_exec = CommandExec::new();
 
         BuildTask::new(
-            &default_build_task_params(&working_dir, &features),
+            default_build_task_params(&working_dir, &features),
             &command_exec,
         );
     }
@@ -272,7 +261,7 @@ mod tests {
                 })
             });
         let task = BuildTask::new(
-            &BuildTaskParams {
+            BuildTaskParams {
                 profile: Some(&profile),
                 target_arch: Some(target_arch),
                 ..default_build_task_params(&working_dir, &features)
@@ -313,7 +302,7 @@ mod tests {
         });
 
         let features = Features::default();
-        let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
+        let task = BuildTask::new(default_build_task_params(&working_dir, &features), &mock);
 
         let err = task.run().err().expect("expected cargo failure");
         let BuildTaskError::CargoBuild(CommandError::CommandFailed {
@@ -348,7 +337,7 @@ mod tests {
         });
 
         let features = Features::default();
-        let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
+        let task = BuildTask::new(default_build_task_params(&working_dir, &features), &mock);
 
         let err = task
             .run()
@@ -385,7 +374,7 @@ mod tests {
             });
 
         let task = BuildTask::new(
-            &BuildTaskParams {
+            BuildTaskParams {
                 locked: true,
                 ..default_build_task_params(&working_dir, &features)
             },
@@ -426,7 +415,7 @@ mod tests {
                 })
             });
 
-        let task = BuildTask::new(&default_build_task_params(&working_dir, &features), &mock);
+        let task = BuildTask::new(default_build_task_params(&working_dir, &features), &mock);
 
         task.run()
             .expect("expected cargo build to succeed")

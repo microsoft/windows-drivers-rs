@@ -346,7 +346,7 @@ impl<'a> BuildAction<'a> {
         info!("Building package {package_name}");
 
         let build_task = BuildTask::new(
-            &BuildTaskParams {
+            BuildTaskParams {
                 package_name,
                 working_dir,
                 profile: self.profile,
