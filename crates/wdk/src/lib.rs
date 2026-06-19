@@ -10,6 +10,9 @@
     no_std
 )]
 
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+extern crate alloc;
+
 #[cfg(any(
     driver_model__driver_type = "WDM",
     driver_model__driver_type = "KMDF",
@@ -35,6 +38,9 @@ mod print;
 /// Fixed-size formatting types for heap-free `fmt::Write` in driver
 /// environments.
 pub mod fmt;
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub mod sync;
 
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub mod wdf;
