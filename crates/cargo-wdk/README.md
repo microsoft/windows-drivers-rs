@@ -131,9 +131,3 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
     ```pwsh
     cargo wdk build --sign-mode off
     ```
-
-- To build a driver project with specific cargo features enabled, navigate to the root of the project and run:
-
-    ```pwsh
-    cargo wdk build --features "usb hid"
-    ```
