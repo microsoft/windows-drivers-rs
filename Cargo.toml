@@ -44,7 +44,7 @@ cargo_metadata = "0.19.2"
 cc = "1.2.39"
 cfg-if = "1.0.3"
 clap = "4.5.40"
-clap-cargo = { features = ["cargo_metadata"], version = "0.15.2" }
+clap-cargo = "0.15.2"
 clap-verbosity-flag = "3.0.2"
 fs4 = "0.13.1"
 include_dir = "0.7.4"

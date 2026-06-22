@@ -1816,11 +1816,12 @@ impl TestBuildAction {
         } else {
             vec![]
         };
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
-                    *other_options == expected_options
+                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
+                    *other_options == expected_options && *features == expected_features
                 },
             )
             .once()
@@ -1855,11 +1856,12 @@ impl TestBuildAction {
         } else {
             vec![]
         };
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
-                    *other_options == expected_options
+                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
+                    *other_options == expected_options && *features == expected_features
                 },
             )
             .once()
@@ -1878,11 +1880,12 @@ impl TestBuildAction {
         } else {
             vec![]
         };
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, _features: &Features| {
-                    *other_options == expected_options
+                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
+                    *other_options == expected_options && *features == expected_features
                 },
             )
             .once()
