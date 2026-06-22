@@ -29,13 +29,7 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{
-            BuildAction,
-            BuildActionParams,
-            SignMode,
-            TargetPlatform,
-            error::BuildActionError,
-        },
+        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -293,45 +287,6 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .with_sign_mode(SignMode::Off)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_target_platform_is_set_then_it_derives_the_infverif_mode_flag_correctly()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data: a KMDF driver would default to `/w`, but the
-    // explicit `--target-platform desktop` must override that to `/h`.
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .with_sign_mode(SignMode::Off)
-        .with_target_platform(Some(TargetPlatform::Desktop))
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
@@ -1722,7 +1677,7 @@ fn initialize_build_action<'a>(
             sign_mode,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
-            target_platform: test_build_action.target_platform,
+            target_platform: None,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
@@ -1786,7 +1741,6 @@ struct TestBuildAction {
     sample_class: bool,
     sign_mode: SignMode,
     locked: bool,
-    target_platform: Option<TargetPlatform>,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1817,7 +1771,6 @@ impl TestBuildAction {
                 verify_signature: false,
             },
             locked: false,
-            target_platform: None,
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
@@ -1833,11 +1786,6 @@ impl TestBuildAction {
 
     fn with_locked(mut self, locked: bool) -> Self {
         self.locked = locked;
-        self
-    }
-
-    fn with_target_platform(mut self, target_platform: Option<TargetPlatform>) -> Self {
-        self.target_platform = target_platform;
         self
     }
 
@@ -2975,25 +2923,12 @@ impl TestBuildAction {
         mut self,
         driver_name: &str,
         driver_dir: &Path,
-        driver_type: &str,
+        _driver_type: &str,
         override_output: Option<Output>,
     ) -> Self {
-        let mut expected_infverif_args = vec!["/v".to_string()];
-        if let Some(target_platform) = self.target_platform {
-            let mode_flag = match target_platform {
-                TargetPlatform::Universal => "/u",
-                TargetPlatform::Desktop => "/h",
-                TargetPlatform::WindowsDriver => "/w",
-            };
-            expected_infverif_args.push(mode_flag.to_string());
-        } else if driver_type.eq_ignore_ascii_case("KMDF")
-            || driver_type.eq_ignore_ascii_case("WDM")
-        {
-            expected_infverif_args.push("/w".to_string());
-        } else {
-            expected_infverif_args.push("/u".to_string());
-            self = self.expect_detect_wdk_build_number(25100u32);
-        }
+        // cargo-wdk emits its derived mode flag. With no `--target-platform`,
+        // cargo-wdk defaults to `Universal` (`/u`) for every driver model.
+        let mut expected_infverif_args = vec!["/v".to_string(), "/u".to_string()];
         if self.sample_class {
             expected_infverif_args.push("/msft".to_string());
         }

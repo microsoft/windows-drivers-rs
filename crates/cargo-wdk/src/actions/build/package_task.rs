@@ -30,6 +30,13 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
+// FIXME: This range is inclusive of 25798. Update with range end after /sample
+// flag is added to InfVerif CLI
+const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
+const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
+const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
+const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+
 /// Signing mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SignMode {
@@ -69,14 +76,6 @@ impl TargetPlatform {
         }
     }
 }
-
-// FIXME: This range is inclusive of 25798. Update with range end after /sample
-// flag is added to InfVerif CLI
-const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
-const GE_WDK_BUILD_NUMBER: u32 = 26100;
-const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
-const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
-const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 #[derive(Debug)]
 pub struct PackageTaskParams<'a> {
@@ -589,19 +588,12 @@ impl<'a> PackageTask<'a> {
         };
 
         info!("Running infverif");
-        let mode_flag = match self.target_platform {
-            Some(target_platform) => target_platform.infverif_flag(),
-            None => match self.driver_model {
-                DriverConfig::Kmdf(_) | DriverConfig::Wdm => "/w",
-                DriverConfig::Umdf(_) => {
-                    if self.wdk_build.detect_wdk_build_number()? <= GE_WDK_BUILD_NUMBER {
-                        "/u"
-                    } else {
-                        "/w"
-                    }
-                }
-            },
-        };
+
+        let mode_flag = self.target_platform.map_or_else(
+            || TargetPlatform::Universal.infverif_flag(),
+            TargetPlatform::infverif_flag,
+        );
+
         let mut args = vec!["/v", mode_flag];
         let inf_path = self.dest_inf_file_path.to_string_lossy();
 
@@ -879,10 +871,13 @@ mod tests {
         }
     }
 
-    fn assert_umdf_infverif_mode_flag(wdk_build_number: u32, expected_mode_flag: &'static str) {
-        let package_name = "umdf_driver";
-        let working_dir = PathBuf::from("C:/abs/umdf_driver");
-        let target_dir = PathBuf::from("C:/abs/umdf_driver/target/debug");
+    fn assert_default_infverif_mode_flag(
+        driver_model: DriverConfig,
+        expected_mode_flag: &'static str,
+    ) {
+        let package_name = "driver";
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let target_dir = PathBuf::from("C:/abs/driver/target/debug");
         let arch = CpuArchitecture::Amd64;
 
         let params = PackageTaskParams {
@@ -890,22 +885,14 @@ mod tests {
             working_dir: &working_dir,
             target_dir: &target_dir,
             target_arch: &arch,
-            driver_model: DriverConfig::Umdf(UmdfConfig {
-                umdf_version_major: 2,
-                target_umdf_version_minor: 33,
-                minimum_umdf_version_minor: None,
-            }),
+            driver_model,
             sample_class: false,
             sign_mode: SignMode::Off,
             target_platform: None,
         };
 
         let fs = Fs::default();
-        let mut wdk_build = WdkBuild::default();
-        wdk_build
-            .expect_detect_wdk_build_number()
-            .once()
-            .returning(move || Ok(wdk_build_number));
+        let wdk_build = WdkBuild::default();
 
         let mut command_exec = CommandExec::default();
         command_exec
@@ -926,23 +913,108 @@ mod tests {
             });
 
         let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
-        assert!(
-            task.run_infverif().is_ok(),
-            "run_infverif failed for wdk_build_number={wdk_build_number}"
+        assert!(task.run_infverif().is_ok());
+    }
+
+    #[test]
+    fn run_infverif_defaults_to_universal_for_all_driver_models() {
+        assert_default_infverif_mode_flag(DriverConfig::Kmdf(KmdfConfig::default()), "/u");
+        assert_default_infverif_mode_flag(DriverConfig::Wdm, "/u");
+        assert_default_infverif_mode_flag(
+            DriverConfig::Umdf(UmdfConfig {
+                umdf_version_major: 2,
+                target_umdf_version_minor: 33,
+                minimum_umdf_version_minor: None,
+            }),
+            "/u",
         );
     }
 
     #[test]
-    fn run_infverif_for_umdf_uses_universal_flag_up_to_and_including_ge() {
-        // GE (build 26100) and older WDKs validate UMDF packages with `/u`.
-        assert_umdf_infverif_mode_flag(25100, "/u");
-        assert_umdf_infverif_mode_flag(GE_WDK_BUILD_NUMBER, "/u");
+    fn run_infverif_uses_target_platform_mode_flag() {
+        assert_target_platform_infverif_mode_flag(TargetPlatform::Universal, "/u");
+        assert_target_platform_infverif_mode_flag(TargetPlatform::Desktop, "/h");
+        assert_target_platform_infverif_mode_flag(TargetPlatform::WindowsDriver, "/w");
+    }
+
+    fn assert_target_platform_infverif_mode_flag(
+        target_platform: TargetPlatform,
+        expected_mode_flag: &'static str,
+    ) {
+        let package_name = "kmdf_driver";
+        let working_dir = PathBuf::from("C:/abs/kmdf_driver");
+        let target_dir = PathBuf::from("C:/abs/kmdf_driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            sign_mode: SignMode::Off,
+            target_platform: Some(target_platform),
+        };
+
+        let fs = Fs::default();
+        let wdk_build = WdkBuild::default();
+
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "infverif"
+                    && args.len() >= 2
+                    && args[0] == "/v"
+                    && args[1] == expected_mode_flag
+            })
+            .once()
+            .returning(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_infverif().is_ok());
     }
 
     #[test]
-    fn run_infverif_for_umdf_uses_windows_driver_flag_after_ge() {
-        // WDKs newer than GE validate UMDF packages with `/w`.
-        assert_umdf_infverif_mode_flag(GE_WDK_BUILD_NUMBER + 1, "/w");
+    fn run_infverif_skips_sample_class_when_samples_flag_missing() {
+        let package_name = "kmdf_driver";
+        let working_dir = PathBuf::from("C:/abs/kmdf_driver");
+        let target_dir = PathBuf::from("C:/abs/kmdf_driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: true,
+            sign_mode: SignMode::Off,
+            target_platform: Some(TargetPlatform::WindowsDriver),
+        };
+
+        let fs = Fs::default();
+        let mut wdk_build = WdkBuild::default();
+        // A WDK build number in the missing-`/samples`-flag range, so InfVerif
+        // is skipped for the sample class.
+        wdk_build
+            .expect_detect_wdk_build_number()
+            .once()
+            .returning(|| Ok(28000u32));
+
+        let mut command_exec = CommandExec::default();
+        // `infverif` must not be invoked when the sample class is skipped.
+        command_exec.expect_run().never();
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_infverif().is_ok());
     }
 
     mod named_mutex {

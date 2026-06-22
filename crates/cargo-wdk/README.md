@@ -66,10 +66,10 @@ Options:
       --profile <PROFILE>          Build artifacts with the specified profile
       --target-arch <TARGET_ARCH>  Build for the target architecture
       --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
-      --verify-signature           Verify the signature
-      --sample                     Build sample class driver project
       --target-platform <TARGET_PLATFORM>
                                    Driver target platform [possible values: desktop, universal, windows-driver]
+      --verify-signature           Verify the signature
+      --sample                     Build sample class driver project
       --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
 
@@ -103,22 +103,6 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
 
-#### Driver Target Platform
-
-When developing a driver for the Windows, you have three types of drivers to choose from (listed below). You need to build the driver with the correct target platform based on the type of driver you are developing. The `build` command runs `infverif` to validate the generated `.inf` file, and the `--target-platform` flag selects the validation mode that `infverif` runs in:
-
-- `desktop`: `infverif /h` (WHQL signing-mode validation).
-- `universal`: `infverif /u` (universal driver requirements).
-- `windows-driver`: `infverif /w` (DCH/declarative + driver package isolation).
-
-When `--target-platform` is not specified, the mode is derived from the driver model: KMDF and WDM use `/w`, while UMDF uses `/u` up to and including the Germanium (GE) WDK and `/w` on newer WDKs.
-
-For more details, see:
-
-- [Target platforms](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/target-platforms)
-- [Windows Driver Types](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/windows-driver-types)
-- [Building a driver with the WDK](https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/building-a-driver#target-platform)
-
 #### Examples
 
 - To build a driver project with default options, navigate to the root of the project and run:
@@ -143,10 +127,4 @@ For more details, see:
 
     ```pwsh
     cargo wdk build --sign-mode off
-    ```
-
-- To build a driver project and validate its `.inf` against the Windows driver target platform, navigate to the root of the project and run:
-
-    ```pwsh
-    cargo wdk build --target-platform windows-driver
     ```

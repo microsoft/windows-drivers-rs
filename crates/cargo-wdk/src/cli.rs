@@ -124,16 +124,16 @@ pub struct BuildArgs {
     #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
     pub sign_mode: SignModeArg,
 
+    /// Driver target platform.
+    #[arg(long, value_enum, ignore_case = true)]
+    pub target_platform: Option<TargetPlatformArg>,
+
     /// Verify the signature
     #[arg(long)]
     pub verify_signature: bool,
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
-
-    /// Driver target platform
-    #[arg(long, value_enum, ignore_case = true)]
-    pub target_platform: Option<TargetPlatformArg>,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
@@ -345,6 +345,24 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             "`--verify-signature` cannot be used with `--sign-mode=off`."
+        );
+    }
+
+    #[test]
+    fn target_platform_arg_maps_to_target_platform() {
+        use crate::{actions::build::TargetPlatform, cli::TargetPlatformArg};
+
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Universal),
+            TargetPlatform::Universal
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Desktop),
+            TargetPlatform::Desktop
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::WindowsDriver),
+            TargetPlatform::WindowsDriver
         );
     }
 }
