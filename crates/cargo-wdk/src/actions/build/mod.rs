@@ -527,8 +527,7 @@ impl<'a> BuildAction<'a> {
         }
         let feature_args = features_to_cargo_args(self.features);
         args.extend(feature_args.iter().map(String::as_str));
-        let print_cfg_passthrough = ["--", "--print", "cfg"];
-        args.extend(print_cfg_passthrough);
+        args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;

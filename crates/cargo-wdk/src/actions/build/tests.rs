@@ -3564,7 +3564,7 @@ mod get_target_arch_from_cargo_rustc {
     }
 
     #[test]
-    fn forwards_feature_selection_flags() {
+    fn parses_target_when_features_specified() {
         let cwd = PathBuf::from(r"C:\tmp");
         let mut features = Features::default();
         features.no_default_features = true;
@@ -3664,11 +3664,7 @@ mod get_target_arch_from_cargo_rustc {
                       working_dir: &Option<&Path>|
                       -> bool {
                     command == "cargo"
-                        && args.len() == expected_args.len()
-                        && args
-                            .iter()
-                            .zip(expected_args.iter())
-                            .all(|(actual, expected)| *actual == expected.as_str())
+                        && args == expected_args
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
                 },
             )
