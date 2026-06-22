@@ -25,12 +25,19 @@ use crate::{
 
 /// Parameters for constructing a [`BuildTask`].
 pub struct BuildTaskParams<'a> {
+    /// The name of the package to build
     pub package_name: &'a str,
+    /// The working directory for the build
     pub working_dir: &'a Path,
+    /// An optional profile for the build
     pub profile: Option<&'a Profile>,
+    /// The target architecture for the build
     pub target_arch: Option<CpuArchitecture>,
+    /// Whether to forward `--locked` to the `cargo` invocations
     pub locked: bool,
+    /// The feature selection to forward to the `cargo` invocations
     pub features: &'a Features,
+    /// The verbosity level for logging
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
