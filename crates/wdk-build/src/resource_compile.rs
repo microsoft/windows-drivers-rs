@@ -7,6 +7,7 @@
 //! file) that gets linked into the driver binary. This embeds version metadata
 //! (file version, product name, company, copyright, etc.) into the `.sys` or
 //! `.dll` PE file, making it visible in Windows Explorer's file properties.
+//! The generated `.rc` declares UTF-8 with `#pragma code_page(65001)`.
 //!
 //! # Usage
 //!
@@ -142,7 +143,7 @@ pub enum ResourceCompileError {
     IoError(#[from] IoError),
 
     /// An error from the WDK build configuration.
-    #[error("WDK build configuration error during resource compilation")]
+    #[error("WDK build configuration error during resource compilation: {0}")]
     ConfigError(#[source] Box<ConfigError>),
 }
 
@@ -441,6 +442,7 @@ fn generate_rc_content(
     };
 
     let mut rc = String::with_capacity(1024);
+    writeln!(rc, "#pragma code_page(65001)").expect("write to String should not fail");
     writeln!(rc, "#include <windows.h>").expect("write to String should not fail");
     writeln!(rc, "#include <ntverp.h>").expect("write to String should not fail");
     writeln!(rc).expect("write to String should not fail");
@@ -1463,6 +1465,29 @@ mod tests {
         }
 
         #[test]
+        fn generate_rc_content_declares_utf8_code_page_first() {
+            let version = DriverVersion {
+                major: 1,
+                minor: 0,
+                patch: 0,
+                revision: 0,
+            };
+            let metadata = VersionResourceMetadata {
+                company_name: "Test Corp".to_string(),
+                copyright: "Copyright Test".to_string(),
+                product_name: "Test Product".to_string(),
+                file_description: "Test Driver".to_string(),
+                internal_name: Some("test.sys".to_string()),
+                original_filename: Some("test.sys".to_string()),
+            };
+            let config = test_config(DriverConfig::Kmdf(crate::KmdfConfig::default()));
+
+            let rc = generate_rc_content(version, &metadata, &config);
+
+            assert!(rc.starts_with("#pragma code_page(65001)\n"));
+        }
+
+        #[test]
         fn generate_rc_content_contains_expected_fields() {
             let version = DriverVersion {
                 major: 1,
@@ -1482,6 +1507,7 @@ mod tests {
 
             let rc = generate_rc_content(version, &metadata, &config);
 
+            assert!(rc.contains("#pragma code_page(65001)"));
             assert!(rc.contains("#include <windows.h>"));
             assert!(rc.contains("#include <ntverp.h>"));
             assert!(rc.contains("#include \"common.ver\""));
@@ -1518,6 +1544,30 @@ mod tests {
 
             assert!(rc.contains("VFT_DLL"));
             assert!(rc.contains("VFT2_UNKNOWN"));
+        }
+
+        #[test]
+        fn generate_rc_content_preserves_non_ascii_metadata() {
+            let version = DriverVersion {
+                major: 1,
+                minor: 0,
+                patch: 0,
+                revision: 0,
+            };
+            let metadata = VersionResourceMetadata {
+                company_name: "Tëst Çörp".to_string(),
+                copyright: "Copyright".to_string(),
+                product_name: "Prödüct".to_string(),
+                file_description: "Driver".to_string(),
+                internal_name: Some("test.sys".to_string()),
+                original_filename: Some("test.sys".to_string()),
+            };
+            let config = test_config(DriverConfig::Kmdf(crate::KmdfConfig::default()));
+
+            let rc = generate_rc_content(version, &metadata, &config);
+
+            assert!(rc.contains("\"Tëst Çörp\""));
+            assert!(rc.contains("\"Prödüct\""));
         }
     }
 }
