@@ -44,11 +44,14 @@ pub enum SignModeArg {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub enum TargetPlatformArg {
-    /// Desktop target.
+    /// Desktop target. Validates that the INF meets WHQL signature
+    /// requirements.
     Desktop,
-    /// Universal target. A Universal driver targets all Windows editions.
+    /// Universal target (default). Validates that the INF meets Universal
+    /// driver requirements.
     Universal,
-    /// Windows Driver target.
+    /// Windows Driver target. Validates that the INF meets Windows Driver
+    /// requirements.
     WindowsDriver,
 }
 
@@ -120,20 +123,21 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
-    /// Driver signing mode
-    #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
-    pub sign_mode: SignModeArg,
-
     /// Driver target platform.
     #[arg(long, value_enum, ignore_case = true)]
     pub target_platform: Option<TargetPlatformArg>,
 
-    /// Verify the signature
-    #[arg(long)]
-    pub verify_signature: bool,
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
+
+    /// Driver signing mode
+    #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
+    pub sign_mode: SignModeArg,
+
+    /// Verify the signature
+    #[arg(long)]
+    pub verify_signature: bool,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]

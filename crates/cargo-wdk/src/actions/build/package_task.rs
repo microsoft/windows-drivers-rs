@@ -53,16 +53,15 @@ pub enum SignMode {
 /// Driver target platform as per <https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/target-platforms>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetPlatform {
-    /// Universal target. Maps to `infverif /u` (Universal driver requirements).
-    /// Designed to be compatible across various Windows platforms.
+    /// Universal target (default). Validates that the INF meets Universal
+    /// driver requirements (`infverif /u`) — portable everywhere.
     Universal,
-    /// Desktop target. Maps to `infverif /h` (WHQL signing-mode validation). A
-    /// Windows driver that runs on both desktop and non-desktop variants of
-    /// Windows.
+    /// Desktop target. Validates that the INF meets WHQL signature
+    /// requirements (`infverif /h`).
     Desktop,
-    /// Windows Driver target. Maps to `infverif /w` (DCH/declarative + driver
-    /// package isolation). Designed to run exclusively on Windows desktop
-    /// editions.
+    /// Windows Driver target. Validates that the INF meets Windows Driver
+    /// requirements (`infverif /w`) — declarative (DCH) + driver package
+    /// isolation.
     WindowsDriver,
 }
 
