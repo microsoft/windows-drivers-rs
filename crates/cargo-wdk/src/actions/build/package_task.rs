@@ -50,24 +50,17 @@ pub enum SignMode {
     },
 }
 
-/// Driver target platform as per <https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/target-platforms>
+/// Platform at which the device driver is targeted. See <https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/target-platforms>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetPlatform {
-    /// Universal target (default). Validates that the INF meets Universal
-    /// driver requirements (`infverif /u`) — portable everywhere.
     Universal,
-    /// Desktop target. Validates that the INF meets WHQL signature
-    /// requirements (`infverif /h`).
     Desktop,
-    /// Windows Driver target. Validates that the INF meets Windows Driver
-    /// requirements (`infverif /w`) — declarative (DCH) + driver package
-    /// isolation.
     WindowsDriver,
 }
 
 impl TargetPlatform {
     /// Returns the `InfVerif` mode flag for this target platform.
-    const fn infverif_flag(self) -> &'static str {
+    const fn as_infverif_flag(self) -> &'static str {
         match self {
             Self::Universal => "/u",
             Self::Desktop => "/h",
@@ -85,7 +78,7 @@ pub struct PackageTaskParams<'a> {
     pub sign_mode: SignMode,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
-    pub target_platform: Option<TargetPlatform>,
+    pub target_platform: TargetPlatform,
 }
 
 /// Supports low level driver packaging operations
@@ -114,7 +107,7 @@ pub struct PackageTask<'a> {
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
     driver_model: DriverConfig,
-    target_platform: Option<TargetPlatform>,
+    target_platform: TargetPlatform,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -588,10 +581,7 @@ impl<'a> PackageTask<'a> {
 
         info!("Running infverif");
 
-        let mode_flag = self.target_platform.map_or_else(
-            || TargetPlatform::Universal.infverif_flag(),
-            TargetPlatform::infverif_flag,
-        );
+        let mode_flag = self.target_platform.as_infverif_flag();
 
         let mut args = vec!["/v", mode_flag];
         let inf_path = self.dest_inf_file_path.to_string_lossy();
@@ -692,7 +682,7 @@ mod tests {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
-            target_platform: None,
+            target_platform: TargetPlatform::Universal,
         };
         let dest_root = target_dir.join(format!("{package_name}_package"));
 
@@ -763,7 +753,7 @@ mod tests {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
-            target_platform: None,
+            target_platform: TargetPlatform::Universal,
         };
 
         let command_exec = CommandExec::default();
@@ -792,7 +782,7 @@ mod tests {
             sign_mode: SignMode::Test {
                 verify_signature: false,
             },
-            target_platform: None,
+            target_platform: TargetPlatform::Universal,
         };
 
         let command_exec = CommandExec::default();
@@ -830,7 +820,7 @@ mod tests {
                         sign_mode: SignMode::Test {
                             verify_signature: false,
                         },
-                        target_platform: None,
+                        target_platform: TargetPlatform::Universal,
                     };
 
                     let wdk_build = WdkBuild::default();
@@ -887,7 +877,7 @@ mod tests {
             driver_model,
             sample_class: false,
             sign_mode: SignMode::Off,
-            target_platform: None,
+            target_platform: TargetPlatform::Universal,
         };
 
         let fs = Fs::default();
@@ -953,7 +943,7 @@ mod tests {
             driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: false,
             sign_mode: SignMode::Off,
-            target_platform: Some(target_platform),
+            target_platform,
         };
 
         let fs = Fs::default();
@@ -996,7 +986,7 @@ mod tests {
             driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
             sample_class: true,
             sign_mode: SignMode::Off,
-            target_platform: Some(TargetPlatform::WindowsDriver),
+            target_platform: TargetPlatform::WindowsDriver,
         };
 
         let fs = Fs::default();

@@ -41,7 +41,7 @@ pub struct BuildActionParams<'a> {
     pub sign_mode: SignMode,
     pub is_sample_class: bool,
     pub locked: bool,
-    pub target_platform: Option<TargetPlatform>,
+    pub target_platform: TargetPlatform,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
@@ -54,7 +54,7 @@ pub struct BuildAction<'a> {
     sign_mode: SignMode,
     is_sample_class: bool,
     locked: bool,
-    target_platform: Option<TargetPlatform>,
+    target_platform: TargetPlatform,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
     // Injected deps

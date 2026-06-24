@@ -39,19 +39,18 @@ pub enum SignModeArg {
     Test,
 }
 
-/// Driver target platform. Set the target platform to the type of driver that
-/// you wish to develop
+/// Platform at which the device driver is targeted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub enum TargetPlatformArg {
-    /// Desktop target. Validates that the INF meets WHQL signature
-    /// requirements.
-    Desktop,
-    /// Universal target (default). Validates that the INF meets Universal
-    /// driver requirements.
+    /// Validates that the INF meets Universal driver requirements (using
+    /// `InfVerif /u`).
     Universal,
-    /// Windows Driver target. Validates that the INF meets Windows Driver
-    /// requirements.
+    /// Validates that the INF meets WHQL signature requirements (using
+    /// `InfVerif /h`).
+    Desktop,
+    /// Validates that the INF meets Windows Driver requirements (using
+    /// `InfVerif /w`).
     WindowsDriver,
 }
 
@@ -244,7 +243,9 @@ impl Cli {
                         sign_mode,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
-                        target_platform: cli_args.target_platform.map(TargetPlatform::from),
+                        target_platform: cli_args
+                            .target_platform
+                            .map_or(TargetPlatform::Universal, TargetPlatform::from),
                         verbosity_level: self.verbose,
                     },
                     &wdk_build,

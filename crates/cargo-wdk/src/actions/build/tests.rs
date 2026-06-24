@@ -29,7 +29,13 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
+        build::{
+            BuildAction,
+            BuildActionParams,
+            SignMode,
+            TargetPlatform,
+            error::BuildActionError,
+        },
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -1677,7 +1683,7 @@ fn initialize_build_action<'a>(
             sign_mode,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
-            target_platform: None,
+            target_platform: TargetPlatform::Universal,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
@@ -2926,8 +2932,6 @@ impl TestBuildAction {
         _driver_type: &str,
         override_output: Option<Output>,
     ) -> Self {
-        // cargo-wdk emits its derived mode flag. With no `--target-platform`,
-        // cargo-wdk defaults to `Universal` (`/u`) for every driver model.
         let mut expected_infverif_args = vec!["/v".to_string(), "/u".to_string()];
         if self.sample_class {
             expected_infverif_args.push("/msft".to_string());
