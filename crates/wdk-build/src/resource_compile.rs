@@ -43,7 +43,13 @@ use std::{
     process::Command,
 };
 
-use crate::{Config, ConfigError, DriverConfig, IoError};
+use crate::{
+    Config,
+    ConfigError,
+    DriverConfig,
+    IoError,
+    utils::{detect_windows_sdk_version, env_var_non_empty},
+};
 
 /// Environment variable for overriding the driver version in CI pipelines.
 ///
@@ -89,6 +95,27 @@ impl DriverVersion {
             self.major, self.minor, self.patch, self.revision
         )
     }
+}
+
+/// Optional overrides from `[package.metadata.wdk.version-resource]` in
+/// `Cargo.toml`.
+///
+/// All fields are optional; absent keys fall back to Cargo-derived defaults.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+struct VersionResourceOverrides {
+    /// Company name override
+    company_name: Option<String>,
+    /// Copyright string override
+    copyright: Option<String>,
+    /// Product name override
+    product_name: Option<String>,
+    /// File description override
+    file_description: Option<String>,
+    /// Internal name of the binary (e.g. "MyDriver.sys")
+    internal_name: Option<String>,
+    /// Original filename of the binary
+    original_filename: Option<String>,
 }
 
 /// Metadata for the version resource, sourced from Cargo defaults and optional
@@ -142,9 +169,10 @@ pub enum ResourceCompileError {
     #[error(transparent)]
     IoError(#[from] IoError),
 
-    /// An error from the WDK build configuration.
-    #[error("WDK build configuration error during resource compilation: {0}")]
-    ConfigError(#[source] Box<ConfigError>),
+    /// The Windows SDK version needed to locate `rc.exe` include paths could
+    /// not be detected from the WDK content root.
+    #[error("failed to detect the Windows SDK version for resource compilation: {0}")]
+    SdkVersionDetection(String),
 }
 
 /// Parse a version string into a [`DriverVersion`].
@@ -290,35 +318,43 @@ fn read_version_resource_metadata() -> Result<VersionResourceMetadata, ResourceC
             detail: format!("package '{pkg_name}' not found in cargo metadata"),
         })?;
 
-    let version_resource = package
+    let overrides: VersionResourceOverrides = package
         .metadata
         .get("wdk")
-        .and_then(|w| w.get("version-resource"));
-    if let Some(version_resource) = version_resource
-        && !version_resource.is_object()
-    {
-        return Err(ResourceCompileError::MetadataError {
-            detail: "[package.metadata.wdk.version-resource] must be a table".to_string(),
-        });
-    }
-
-    let company_name = version_resource_string(version_resource, "company-name")?
-        .or_else(|| env_var_non_empty("CARGO_PKG_AUTHORS"))
+        .and_then(|w| w.get("version-resource"))
+        .map(|v| {
+            if !v.is_object() {
+                return Err(ResourceCompileError::MetadataError {
+                    detail: "[package.metadata.wdk.version-resource] must be a table".to_string(),
+                });
+            }
+            serde_json::from_value(v.clone()).map_err(|e| ResourceCompileError::MetadataError {
+                detail: format!("[package.metadata.wdk.version-resource] is invalid: {e}"),
+            })
+        })
+        .transpose()?
         .unwrap_or_default();
 
-    let copyright = version_resource_string(version_resource, "copyright")?.unwrap_or_default();
+    let company_name = overrides
+        .company_name
+        .or_else(|| {
+            env_var_non_empty("CARGO_PKG_AUTHORS").map(|authors| format_cargo_authors(&authors))
+        })
+        .unwrap_or_default();
 
-    let product_name = version_resource_string(version_resource, "product-name")?
-        .unwrap_or_else(|| pkg_name.clone());
+    let copyright = overrides.copyright.unwrap_or_default();
 
-    let file_description = version_resource_string(version_resource, "file-description")?
+    let product_name = overrides.product_name.unwrap_or_else(|| pkg_name.clone());
+
+    let file_description = overrides
+        .file_description
         .or_else(|| env::var("CARGO_PKG_DESCRIPTION").ok())
         .filter(|description| !description.is_empty())
         .unwrap_or_else(|| product_name.clone());
 
-    let internal_name = version_resource_string(version_resource, "internal-name")?;
+    let internal_name = overrides.internal_name;
 
-    let original_filename = version_resource_string(version_resource, "original-filename")?;
+    let original_filename = overrides.original_filename;
 
     // Check both provided and fallback metadata values for invalid characters
     validate_rc_metadata_string("company-name", &company_name)?;
@@ -342,21 +378,20 @@ fn read_version_resource_metadata() -> Result<VersionResourceMetadata, ResourceC
     })
 }
 
-fn version_resource_string(
-    version_resource: Option<&serde_json::Value>,
-    key: &str,
-) -> Result<Option<String>, ResourceCompileError> {
-    let Some(value) = version_resource.and_then(|metadata| metadata.get(key)) else {
-        return Ok(None);
-    };
-
-    value
-        .as_str()
-        .map(ToString::to_string)
-        .map(Some)
-        .ok_or_else(|| ResourceCompileError::MetadataError {
-            detail: format!("[package.metadata.wdk.version-resource].{key} must be a string"),
-        })
+/// Normalize the `CARGO_PKG_AUTHORS` value into a readable company name.
+///
+/// Cargo joins multiple `authors` entries with a colon (`:`), so the raw value
+/// for `["Alice", "Bob"]` is `"Alice:Bob"`. Embedding that verbatim into the
+/// `CompanyName` resource string shows a colon-separated blob in Explorer.
+/// This renders the authors as a comma-separated list instead, trimming each
+/// entry and dropping empty segments.
+fn format_cargo_authors(authors: &str) -> String {
+    authors
+        .split(':')
+        .map(str::trim)
+        .filter(|author| !author.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Validates that a metadata string is safe to interpolate into an RC string
@@ -401,13 +436,6 @@ fn validate_rc_metadata_string(field: &str, value: &str) -> Result<(), ResourceC
         }
     }
     Ok(())
-}
-
-/// Reads an environment variable, returning `None` for both unset and empty
-/// values. eWDK/vcvars occasionally export variables with empty defaults that
-/// should be treated as unset.
-fn env_var_non_empty(key: &str) -> Option<String> {
-    env::var(key).ok().filter(|value| !value.is_empty())
 }
 
 /// Generate the contents of a WDK-style `.rc` file.
@@ -509,12 +537,14 @@ fn generate_rc_content(
 ///
 /// # Errors
 ///
-/// Returns [`ResourceCompileError::MetadataError`] if no `um` directory is
-/// found in either root (rc.exe would otherwise fail with a cryptic
+/// Returns [`ResourceCompileError::SdkVersionDetection`] if the Windows SDK
+/// version cannot be detected from the WDK content root, or
+/// [`ResourceCompileError::MetadataError`] if no `um` directory is found in
+/// either root (rc.exe would otherwise fail with a cryptic
 /// `windows.h: No such file or directory`).
 fn resource_include_paths(config: &Config) -> Result<Vec<PathBuf>, ResourceCompileError> {
-    let sdk_version = crate::utils::detect_windows_sdk_version(&config.wdk_content_root)
-        .map_err(|e| ResourceCompileError::ConfigError(Box::new(e)))?;
+    let sdk_version = detect_windows_sdk_version(&config.wdk_content_root)
+        .map_err(|e| ResourceCompileError::SdkVersionDetection(e.to_string()))?;
     let wdk_include_directory = config.wdk_content_root.join("Include").join(&sdk_version);
 
     let mut paths = vec![];
@@ -1022,6 +1052,48 @@ mod tests {
         use super::*;
 
         #[test]
+        fn format_cargo_authors_renders_multiple_authors_as_comma_list() {
+            assert_eq!(format_cargo_authors("Solo Author"), "Solo Author");
+            assert_eq!(
+                format_cargo_authors("Alice <a@example.com>:Bob <b@example.com>"),
+                "Alice <a@example.com>, Bob <b@example.com>"
+            );
+            // Extra whitespace and empty segments are trimmed/dropped.
+            assert_eq!(format_cargo_authors("Alice : : Bob"), "Alice, Bob");
+        }
+
+        #[test]
+        fn read_version_resource_metadata_joins_multiple_authors_for_company_name() {
+            let temp_dir = create_test_crate(
+                r#"
+                [package]
+                name = "test-driver"
+                version = "1.2.3"
+                edition = "2021"
+            "#,
+            );
+            let manifest_dir = temp_dir.path().to_string_lossy().to_string();
+
+            let metadata = with_env(
+                &[
+                    ("CARGO_MANIFEST_DIR", Some(&manifest_dir)),
+                    ("CARGO_PKG_NAME", Some("test-driver")),
+                    (
+                        "CARGO_PKG_AUTHORS",
+                        Some("Alice <a@example.com>:Bob <b@example.com>"),
+                    ),
+                ],
+                read_version_resource_metadata,
+            )
+            .unwrap();
+
+            assert_eq!(
+                metadata.company_name,
+                "Alice <a@example.com>, Bob <b@example.com>"
+            );
+        }
+
+        #[test]
         fn read_version_resource_metadata_uses_cargo_defaults_without_overrides() {
             let temp_dir = create_test_crate(
                 r#"
@@ -1175,7 +1247,7 @@ mod tests {
             assert!(matches!(
                 result,
                 Err(ResourceCompileError::MetadataError { detail })
-                    if detail.contains("[package.metadata.wdk.version-resource].company-name must be a string")
+                    if detail.contains("[package.metadata.wdk.version-resource] is invalid")
             ));
         }
 
