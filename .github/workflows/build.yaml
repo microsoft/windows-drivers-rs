@@ -101,10 +101,47 @@ jobs:
             ${{ matrix.target_triple.name }}
 
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
+      # Faithful cargo-native HTTP/2 reproduction loop: uses cargo's own
+      # statically-linked libcurl+nghttp2 (the transport that actually fails
+      # with "[16] Error in the HTTP2 framing layer"). Deletes the registry
+      # cache before each iteration so every fetch re-downloads from the CDN,
+      # maximising the chance of hitting the intermittent failure.
+      - name: cargo fetch HTTP/2 repro loop (diagnostics)
+        shell: cmd
+        run: |
+          setlocal enabledelayedexpansion
+          set FAILED=0
+          for /L %%i in (1,1,10) do (
+            echo ----- cargo fetch iteration %%i ----- >> cargo-fetch-repro.log 2>&1
+            if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
+            if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
+            cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose >> cargo-fetch-repro.log 2>&1
+            if errorlevel 1 (
+              set FAILED=1
+              goto :loop_done
+            )
+          )
+          :loop_done
+          echo ----- cargo-fetch-repro.log -----
+          type cargo-fetch-repro.log
+          if !FAILED! NEQ 0 (
+            echo One or more cargo fetch iterations failed.
+            exit /b 1
+          )
+
+      - name: Upload cargo fetch repro log (diagnostics)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-fetch-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
+          path: cargo-fetch-repro.log
+          if-no-files-found: ignore
+
+      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
       # Unattended raw curl -v HTTP/2 probe loop to capture libcurl frame-level
       # trace (h2 lines, ALPN negotiation, GOAWAY/RST_STREAM) directly from the
-      # crates.io CDN, without going through cargo. Runs before the cargo fetch
-      # probes so we get a clean protocol trace even if cargo fails first.
+      # crates.io CDN, without going through cargo. Runs after the cargo fetch
+      # probe so we still get a clean protocol trace if cargo did not fail.
       - name: Raw curl HTTP/2 probe loop (diagnostics)
         shell: cmd
         run: |
@@ -162,43 +199,6 @@ jobs:
         with:
           name: curl-http2-debug-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
           path: curl-http2-debug.log
-          if-no-files-found: ignore
-
-      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-      # Faithful cargo-native HTTP/2 reproduction loop: uses cargo's own
-      # statically-linked libcurl+nghttp2 (the transport that actually fails
-      # with "[16] Error in the HTTP2 framing layer"). Deletes the registry
-      # cache before each iteration so every fetch re-downloads from the CDN,
-      # maximising the chance of hitting the intermittent failure.
-      - name: cargo fetch HTTP/2 repro loop (diagnostics)
-        shell: cmd
-        run: |
-          setlocal enabledelayedexpansion
-          set FAILED=0
-          for /L %%i in (1,1,10) do (
-            echo ----- cargo fetch iteration %%i ----- >> cargo-fetch-repro.log 2>&1
-            if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
-            if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
-            cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose >> cargo-fetch-repro.log 2>&1
-            if errorlevel 1 (
-              set FAILED=1
-              goto :loop_done
-            )
-          )
-          :loop_done
-          echo ----- cargo-fetch-repro.log -----
-          type cargo-fetch-repro.log
-          if !FAILED! NEQ 0 (
-            echo One or more cargo fetch iterations failed.
-            exit /b 1
-          )
-
-      - name: Upload cargo fetch repro log (diagnostics)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-fetch-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
-          path: cargo-fetch-repro.log
           if-no-files-found: ignore
 
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
