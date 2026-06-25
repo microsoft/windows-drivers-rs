@@ -67,18 +67,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
+      # --- TEMPORARY DIAGNOSTICS (do not merge): Winget/LLVM/WDK installs are
+      # only needed to *build* the crates (bindgen/linker). The diagnostic
+      # curl + cargo-fetch probes below only download from crates.io, so these
+      # installs are disabled to speed up the debug cycle. ---
       - name: Install Winget
+        if: false
         uses: ./.github/actions/install-winget
         with:
           # windows-11-arm runner image does not include winget-cli (see https://github.com/actions/partner-runner-images/issues/95).
           force-cli-install: ${{ matrix.runner.name == 'windows-11-arm' && 'true' || 'false' }}
 
       - name: Install LLVM ${{ matrix.llvm }}
+        if: false
         uses: ./.github/actions/install-llvm
         with:
           version: ${{ matrix.llvm }}
 
       - name: Install WDK (${{ matrix.wdk.version }})
+        if: false
         uses: ./.github/actions/install-wdk
         with:
           version: ${{ matrix.wdk.version }}

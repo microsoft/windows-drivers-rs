@@ -1,13 +1,17 @@
 name: Cargo Audit
 
 on:
-  push:
-    branches-ignore:
-      - 'gh-readonly-queue/**'
-    paths:
-      - "**/Cargo.toml"
-      - "**/Cargo.lock"
-  pull_request:
+  # --- TEMPORARY DIAGNOSTICS (do not merge): push/pull_request triggers
+  # commented out on the copilot/diagnostics-http2-logging branch so only the
+  # Build workflow runs during the HTTP/2 download investigation. Restore when
+  # closing this debug branch. ---
+  # push:
+  #   branches-ignore:
+  #     - 'gh-readonly-queue/**'
+  #   paths:
+  #     - "**/Cargo.toml"
+  #     - "**/Cargo.lock"
+  # pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
