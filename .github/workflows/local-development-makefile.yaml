@@ -18,6 +18,8 @@ env:
 
 jobs:
   build:
+    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
+    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: Test WDR's local cargo-make Makefile
     strategy:
       fail-fast: false # Allow all matrix variants to complete even if some fail

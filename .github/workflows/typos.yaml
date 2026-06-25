@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   typos:
+    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
+    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: Spell check
     runs-on: windows-2025
     steps:

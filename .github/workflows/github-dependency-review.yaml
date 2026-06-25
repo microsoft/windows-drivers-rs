@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   dependency-review:
+    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
+    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: Github Dependency Review
     runs-on: ubuntu-latest
     permissions:

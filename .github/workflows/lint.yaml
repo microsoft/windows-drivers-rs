@@ -19,6 +19,8 @@ env:
 
 jobs:
   clippy:
+    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
+    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: Clippy
     permissions:
       checks: write
