@@ -109,9 +109,25 @@ jobs:
         shell: cmd
         run: |
           setlocal enabledelayedexpansion
-          set "CURL=curl"
-          if exist "C:\Program Files\Git\mingw64\bin\curl.exe" set "CURL=C:\Program Files\Git\mingw64\bin\curl.exe"
-          echo ===== curl version ===== > curl-http2-debug.log
+          rem --- Select an nghttp2-capable curl. The system curl on the GitHub
+          rem Windows images is built with Schannel and has NO HTTP/2 support, so
+          rem we must use the one shipped by Git for Windows. The binary lives in
+          rem different directories per architecture: clangarm64\bin on ARM64,
+          rem mingw64\bin on x64, and usr\bin on both. Pick the first candidate
+          rem whose --version advertises nghttp2. ---
+          set "CURL="
+          for %%C in (
+            "C:\Program Files\Git\clangarm64\bin\curl.exe"
+            "C:\Program Files\Git\mingw64\bin\curl.exe"
+            "C:\Program Files\Git\usr\bin\curl.exe"
+          ) do (
+            if not defined CURL if exist "%%~C" (
+              "%%~C" --version 2>&1 | findstr /I nghttp2 >nul 2>&1
+              if not errorlevel 1 set "CURL=%%~C"
+            )
+          )
+          if not defined CURL set "CURL=curl"
+          echo ===== curl version (selected: !CURL!) ===== > curl-http2-debug.log
           "!CURL!" --version >> curl-http2-debug.log 2>&1
           set HAS_HTTP2=0
           "!CURL!" --version 2>&1 | findstr /I nghttp2 >nul 2>&1
