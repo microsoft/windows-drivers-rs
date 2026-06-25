@@ -154,7 +154,7 @@ jobs:
           setlocal enabledelayedexpansion
           set FAILED=0
           for /L %%i in (1,1,10) do (
-            echo ----- cargo fetch (multiplexing OFF) iteration %%i ----- >> cargo-fetch-nomux-repro.log 2>&1
+            echo ----- cargo fetch nomux iteration %%i ----- >> cargo-fetch-nomux-repro.log 2>&1
             if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
             if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
             if exist "%USERPROFILE%\.cargo\registry\index" rmdir /s /q "%USERPROFILE%\.cargo\registry\index"
