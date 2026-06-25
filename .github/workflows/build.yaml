@@ -20,12 +20,15 @@ env:
   # --- TEMPORARY DIAGNOSTICS (do not merge) ---
   # Capture verbose cargo + libcurl HTTP/2 logging to investigate the recurring
   # "curl failed [16] Error in the HTTP2 framing layer" download failures.
-  # CARGO_HTTP_DEBUG logs curl's frame-level chatter (the `*` lines), headers,
-  # and connection reuse. CARGO_LOG/RUST_LOG raise cargo's internal tracing.
+  # CARGO_HTTP_DEBUG installs libcurl's verbose debug callback, which logs the
+  # `*` protocol lines (ALPN, "using HTTP/2", stream resets, connection-died),
+  # request/response headers, and connection reuse. That callback emits under
+  # the tracing target `network` at debug level, so CARGO_LOG=network=debug is
+  # REQUIRED to actually surface it (cargo::ops::registry=trace does NOT match).
   # CARGO_NET_RETRY=0 fails fast on the first error so the trace is clean and
   # not buried under retry noise.
   CARGO_HTTP_DEBUG: "true"
-  CARGO_LOG: cargo::ops::registry=trace
+  CARGO_LOG: network=debug
   RUST_LOG: trace
   CARGO_NET_RETRY: "0"
   RUST_BACKTRACE: "full"
@@ -103,15 +106,21 @@ jobs:
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
       # Faithful cargo-native HTTP/2 reproduction loop: uses cargo's own
       # statically-linked libcurl+nghttp2 (the transport that actually fails
-      # with "[16] Error in the HTTP2 framing layer"). Deletes the registry
-      # cache before each iteration so every fetch re-downloads from the CDN,
-      # maximising the chance of hitting the intermittent failure.
+      # with "[16] Error in the HTTP2 framing layer"). This is the ONLY HTTP/2
+      # client available on the runner image — the system curl is Schannel-only
+      # (no nghttp2) and Git for Windows does not ship an nghttp2 curl here, so a
+      # raw `curl --http2` probe cannot exercise HTTP/2 and was removed.
+      # With CARGO_HTTP_DEBUG + CARGO_LOG=network=debug (set at job level), the
+      # libcurl `*` protocol trace is captured into the log on the failing fetch.
+      # Deletes the registry cache before each iteration so every fetch
+      # re-downloads from the CDN, maximising the chance of hitting the
+      # intermittent failure.
       - name: cargo fetch HTTP/2 repro loop (diagnostics)
         shell: cmd
         run: |
           setlocal enabledelayedexpansion
           set FAILED=0
-          for /L %%i in (1,1,10) do (
+          for /L %%i in (1,1,30) do (
             echo ----- cargo fetch iteration %%i ----- >> cargo-fetch-repro.log 2>&1
             if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
             if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
@@ -122,8 +131,8 @@ jobs:
             )
           )
           :loop_done
-          echo ----- cargo-fetch-repro.log -----
-          type cargo-fetch-repro.log
+          echo ----- cargo-fetch-repro.log (tail) -----
+          powershell -NoProfile -Command "Get-Content cargo-fetch-repro.log -Tail 200"
           if !FAILED! NEQ 0 (
             echo One or more cargo fetch iterations failed.
             exit /b 1
@@ -135,71 +144,6 @@ jobs:
         with:
           name: cargo-fetch-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
           path: cargo-fetch-repro.log
-          if-no-files-found: ignore
-
-      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-      # Unattended raw curl -v HTTP/2 probe loop to capture libcurl frame-level
-      # trace (h2 lines, ALPN negotiation, GOAWAY/RST_STREAM) directly from the
-      # crates.io CDN, without going through cargo. Runs even if the cargo fetch
-      # step above fails, so we always capture a clean protocol trace.
-      - name: Raw curl HTTP/2 probe loop (diagnostics)
-        if: always()
-        shell: cmd
-        run: |
-          setlocal enabledelayedexpansion
-          rem --- Select an nghttp2-capable curl. The system curl on the GitHub
-          rem Windows images is built with Schannel and has NO HTTP/2 support, so
-          rem we must use the one shipped by Git for Windows. The binary lives in
-          rem different directories per architecture: clangarm64\bin on ARM64,
-          rem mingw64\bin on x64, and usr\bin on both. Pick the first candidate
-          rem whose --version advertises nghttp2. ---
-          set "CURL="
-          for %%C in (
-            "C:\Program Files\Git\clangarm64\bin\curl.exe"
-            "C:\Program Files\Git\mingw64\bin\curl.exe"
-            "C:\Program Files\Git\usr\bin\curl.exe"
-          ) do (
-            if not defined CURL if exist "%%~C" (
-              "%%~C" --version 2>&1 | findstr /I nghttp2 >nul 2>&1
-              if not errorlevel 1 set "CURL=%%~C"
-            )
-          )
-          if not defined CURL set "CURL=curl"
-          echo ===== curl version (selected: !CURL!) ===== > curl-http2-debug.log
-          "!CURL!" --version >> curl-http2-debug.log 2>&1
-          set HAS_HTTP2=0
-          "!CURL!" --version 2>&1 | findstr /I nghttp2 >nul 2>&1
-          if not errorlevel 1 set HAS_HTTP2=1
-          echo HAS_HTTP2=!HAS_HTTP2! >> curl-http2-debug.log
-          set "H2FLAG="
-          if !HAS_HTTP2!==1 set "H2FLAG=--http2"
-          echo ===== DNS resolution ===== >> curl-http2-debug.log
-          nslookup static.crates.io >> curl-http2-debug.log 2>&1 || ver > nul
-          nslookup index.crates.io >> curl-http2-debug.log 2>&1 || ver > nul
-          powershell -Command "Test-NetConnection static.crates.io -Port 443" >> curl-http2-debug.log 2>&1 || ver > nul
-          echo ===== curl probe loop (H2FLAG=!H2FLAG!) ===== >> curl-http2-debug.log
-          set FAILED=0
-          for /L %%i in (1,1,20) do (
-            echo ----- iteration %%i : index.crates.io ----- >> curl-http2-debug.log
-            "!CURL!" -v !H2FLAG! --no-progress-meter --retry 0 -o NUL https://index.crates.io/config.json >> curl-http2-debug.log 2>&1
-            if errorlevel 1 set FAILED=1
-            echo ----- iteration %%i : static.crates.io ----- >> curl-http2-debug.log
-            "!CURL!" -v !H2FLAG! --no-progress-meter --retry 0 -o NUL https://static.crates.io/crates/clap_builder/clap_builder-4.5.40.crate >> curl-http2-debug.log 2>&1
-            if errorlevel 1 set FAILED=1
-          )
-          echo ----- curl-http2-debug.log -----
-          type curl-http2-debug.log
-          if !FAILED! NEQ 0 (
-            echo One or more curl transfers failed.
-            exit /b 1
-          )
-
-      - name: Upload raw curl http2 debug log (diagnostics)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: curl-http2-debug-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
-          path: curl-http2-debug.log
           if-no-files-found: ignore
 
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
