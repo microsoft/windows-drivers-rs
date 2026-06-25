@@ -102,24 +102,34 @@ jobs:
         shell: cmd
         run: |
           setlocal enabledelayedexpansion
-          echo ===== DNS resolution =====
-          nslookup static.crates.io || ver > nul
-          nslookup index.crates.io || ver > nul
-          powershell -Command "Test-NetConnection static.crates.io -Port 443" || ver > nul
-          echo ===== curl HTTP/2 probe loop ===== > curl-http2-debug.log
+          set "CURL=curl"
+          if exist "C:\Program Files\Git\mingw64\bin\curl.exe" set "CURL=C:\Program Files\Git\mingw64\bin\curl.exe"
+          echo ===== curl version ===== > curl-http2-debug.log
+          "!CURL!" --version >> curl-http2-debug.log 2>&1
+          set HAS_HTTP2=0
+          "!CURL!" --version 2>&1 | findstr /I nghttp2 >nul 2>&1
+          if not errorlevel 1 set HAS_HTTP2=1
+          echo HAS_HTTP2=!HAS_HTTP2! >> curl-http2-debug.log
+          set "H2FLAG="
+          if !HAS_HTTP2!==1 set "H2FLAG=--http2"
+          echo ===== DNS resolution ===== >> curl-http2-debug.log
+          nslookup static.crates.io >> curl-http2-debug.log 2>&1 || ver > nul
+          nslookup index.crates.io >> curl-http2-debug.log 2>&1 || ver > nul
+          powershell -Command "Test-NetConnection static.crates.io -Port 443" >> curl-http2-debug.log 2>&1 || ver > nul
+          echo ===== curl probe loop (H2FLAG=!H2FLAG!) ===== >> curl-http2-debug.log
           set FAILED=0
           for /L %%i in (1,1,20) do (
             echo ----- iteration %%i : index.crates.io ----- >> curl-http2-debug.log
-            curl -v --http2 --no-progress-meter --retry 0 -o NUL https://index.crates.io/config.json 1>> curl-http2-debug.log 2>&1
+            "!CURL!" -v !H2FLAG! --no-progress-meter --retry 0 -o NUL https://index.crates.io/config.json >> curl-http2-debug.log 2>&1
             if errorlevel 1 set FAILED=1
             echo ----- iteration %%i : static.crates.io ----- >> curl-http2-debug.log
-            curl -v --http2 --no-progress-meter --retry 0 -o NUL https://static.crates.io/crates/clap_builder/clap_builder-4.5.40.crate 1>> curl-http2-debug.log 2>&1
+            "!CURL!" -v !H2FLAG! --no-progress-meter --retry 0 -o NUL https://static.crates.io/crates/clap_builder/clap_builder-4.5.40.crate >> curl-http2-debug.log 2>&1
             if errorlevel 1 set FAILED=1
           )
           echo ----- curl-http2-debug.log -----
           type curl-http2-debug.log
           if !FAILED! NEQ 0 (
-            echo One or more curl iterations failed.
+            echo One or more curl transfers failed.
             exit /b 1
           )
 
@@ -129,6 +139,43 @@ jobs:
         with:
           name: curl-http2-debug-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
           path: curl-http2-debug.log
+          if-no-files-found: ignore
+
+      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
+      # Faithful cargo-native HTTP/2 reproduction loop: uses cargo's own
+      # statically-linked libcurl+nghttp2 (the transport that actually fails
+      # with "[16] Error in the HTTP2 framing layer"). Deletes the registry
+      # cache before each iteration so every fetch re-downloads from the CDN,
+      # maximising the chance of hitting the intermittent failure.
+      - name: cargo fetch HTTP/2 repro loop (diagnostics)
+        shell: cmd
+        run: |
+          setlocal enabledelayedexpansion
+          set FAILED=0
+          for /L %%i in (1,1,10) do (
+            echo ----- cargo fetch iteration %%i ----- >> cargo-fetch-repro.log 2>&1
+            if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
+            if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
+            cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose >> cargo-fetch-repro.log 2>&1
+            if errorlevel 1 (
+              set FAILED=1
+              goto :loop_done
+            )
+          )
+          :loop_done
+          echo ----- cargo-fetch-repro.log -----
+          type cargo-fetch-repro.log
+          if !FAILED! NEQ 0 (
+            echo One or more cargo fetch iterations failed.
+            exit /b 1
+          )
+
+      - name: Upload cargo fetch repro log (diagnostics)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-fetch-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
+          path: cargo-fetch-repro.log
           if-no-files-found: ignore
 
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
