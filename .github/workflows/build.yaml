@@ -97,6 +97,34 @@ jobs:
           targets: |
             ${{ matrix.target_triple.name }}
 
+      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
+      # Top-level `cargo fetch` so CARGO_HTTP_DEBUG's libcurl frame-level trace is
+      # captured directly (nested cargo-make/rust-script invocations swallow it).
+      # Tee stderr to a file so the trace survives for artifact upload on failure.
+      - name: HTTP/2 download probe (diagnostics)
+        shell: cmd
+        env:
+          # A/B TEST: disable HTTP/2 multiplexing on a SINGLE matrix leg only
+          # (windows-2025 / stable / dev / x86_64). If this leg stops failing while
+          # all HTTP/2 legs keep hitting "[16] Error in the HTTP2 framing layer",
+          # that is decisive proof the HTTP/2 transport is the root cause.
+          CARGO_HTTP_MULTIPLEXING: ${{ (matrix.runner.name == 'windows-2025' && matrix.rust_toolchain == 'stable' && matrix.cargo_profile == 'dev' && matrix.target_triple.name == 'x86_64-pc-windows-msvc') && 'false' || '' }}
+        run: |
+          echo HTTP/2 probe: CARGO_HTTP_MULTIPLEXING="%CARGO_HTTP_MULTIPLEXING%"
+          cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose 2> cargo-http-debug.log
+          set FETCH_EXIT=%ERRORLEVEL%
+          echo ----- cargo-http-debug.log -----
+          type cargo-http-debug.log
+          exit /b %FETCH_EXIT%
+
+      - name: Upload cargo http debug log (diagnostics)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-http-debug-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
+          path: cargo-http-debug.log
+          if-no-files-found: ignore
+
       - name: Run Cargo Build
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
