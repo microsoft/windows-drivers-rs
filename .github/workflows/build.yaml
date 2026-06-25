@@ -17,6 +17,18 @@ env:
   RUSTFLAGS: >-
     -D warnings
     -C target-feature=+crt-static
+  # --- TEMPORARY DIAGNOSTICS (do not merge) ---
+  # Capture verbose cargo + libcurl HTTP/2 logging to investigate the recurring
+  # "curl failed [16] Error in the HTTP2 framing layer" download failures.
+  # CARGO_HTTP_DEBUG logs curl's frame-level chatter (the `*` lines), headers,
+  # and connection reuse. CARGO_LOG/RUST_LOG raise cargo's internal tracing.
+  # CARGO_NET_RETRY=0 fails fast on the first error so the trace is clean and
+  # not buried under retry noise.
+  CARGO_HTTP_DEBUG: "true"
+  CARGO_LOG: cargo::ops::registry=trace
+  RUST_LOG: trace
+  CARGO_NET_RETRY: "0"
+  RUST_BACKTRACE: "full"
 
 jobs:
   build:
