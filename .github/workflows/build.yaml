@@ -140,9 +140,10 @@ jobs:
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
       # Unattended raw curl -v HTTP/2 probe loop to capture libcurl frame-level
       # trace (h2 lines, ALPN negotiation, GOAWAY/RST_STREAM) directly from the
-      # crates.io CDN, without going through cargo. Runs after the cargo fetch
-      # probe so we still get a clean protocol trace if cargo did not fail.
+      # crates.io CDN, without going through cargo. Runs even if the cargo fetch
+      # step above fails, so we always capture a clean protocol trace.
       - name: Raw curl HTTP/2 probe loop (diagnostics)
+        if: always()
         shell: cmd
         run: |
           setlocal enabledelayedexpansion
