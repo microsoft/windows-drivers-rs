@@ -100,6 +100,8 @@ jobs:
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
+        env:
+          CARGO_NET_RETRY: "10"
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Build Tests (via Cargo Make)
