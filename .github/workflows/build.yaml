@@ -75,20 +75,17 @@ jobs:
       # curl + cargo-fetch probes below only download from crates.io, so these
       # installs are disabled to speed up the debug cycle. ---
       - name: Install Winget
-        if: false
         uses: ./.github/actions/install-winget
         with:
           # windows-11-arm runner image does not include winget-cli (see https://github.com/actions/partner-runner-images/issues/95).
           force-cli-install: ${{ matrix.runner.name == 'windows-11-arm' && 'true' || 'false' }}
 
       - name: Install LLVM ${{ matrix.llvm }}
-        if: false
         uses: ./.github/actions/install-llvm
         with:
           version: ${{ matrix.llvm }}
 
       - name: Install WDK (${{ matrix.wdk.version }})
-        if: false
         uses: ./.github/actions/install-wdk
         with:
           version: ${{ matrix.wdk.version }}
@@ -104,23 +101,19 @@ jobs:
             ${{ matrix.target_triple.name }}
 
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-      # Faithful cargo-native HTTP/2 reproduction loop: uses cargo's own
-      # statically-linked libcurl+nghttp2 (the transport that actually fails
-      # with "[16] Error in the HTTP2 framing layer"). This is the ONLY HTTP/2
-      # client available on the runner image — the system curl is Schannel-only
-      # (no nghttp2) and Git for Windows does not ship an nghttp2 curl here, so a
-      # raw `curl --http2` probe cannot exercise HTTP/2 and was removed.
+      # Single cargo-native fetch as a quick pre-check / trace capture point.
+      # The PRIMARY reproduction target is now the cargo-make
+      # package-driver-flow step below, which is the original source of the
+      # intermittent HTTP/2 download failures. Kept at 1 iteration so it does
+      # not pre-empt or significantly delay reaching that step.
       # With CARGO_HTTP_DEBUG + CARGO_LOG=network=debug (set at job level), the
-      # libcurl `*` protocol trace is captured into the log on the failing fetch.
-      # Deletes the registry cache before each iteration so every fetch
-      # re-downloads from the CDN, maximising the chance of hitting the
-      # intermittent failure.
+      # libcurl `*` protocol trace is captured into the log on a failing fetch.
       - name: cargo fetch HTTP/2 repro loop (diagnostics)
         shell: cmd
         run: |
           setlocal enabledelayedexpansion
           set FAILED=0
-          for /L %%i in (1,1,30) do (
+          for /L %%i in (1,1,1) do (
             echo ----- cargo fetch iteration %%i ----- >> cargo-fetch-repro.log 2>&1
             if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
             if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
@@ -191,13 +184,11 @@ jobs:
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
       - name: Install Cargo Make
-        if: false
         uses: ./.github/actions/install-cargo-tool
         with:
           tool: cargo-make
 
       - name: Run Cargo Make (package-driver-flow) in Workspace
-        if: false
         run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace
 
       - name: Build Examples (via Cargo Make)
