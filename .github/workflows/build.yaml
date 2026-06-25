@@ -98,19 +98,30 @@ jobs:
             ${{ matrix.target_triple.name }}
 
       # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-      # Top-level `cargo fetch` so CARGO_HTTP_DEBUG's libcurl frame-level trace is
-      # captured directly (nested cargo-make/rust-script invocations swallow it).
-      # Tee stderr to a file so the trace survives for artifact upload on failure.
-      - name: HTTP/2 download probe (diagnostics)
+      # A/B leg: HTTP/2 multiplexing OFF (single matrix leg only). If this leg
+      # stops failing while the HTTP/2-on legs keep hitting
+      # "[16] Error in the HTTP2 framing layer", that proves HTTP/2 is the cause.
+      - name: HTTP/2 download probe — multiplexing OFF (diagnostics)
+        if: ${{ matrix.runner.name == 'windows-2025' && matrix.rust_toolchain == 'stable' && matrix.cargo_profile == 'dev' && matrix.target_triple.name == 'x86_64-pc-windows-msvc' }}
         shell: cmd
         env:
-          # A/B TEST: disable HTTP/2 multiplexing on a SINGLE matrix leg only
-          # (windows-2025 / stable / dev / x86_64). If this leg stops failing while
-          # all HTTP/2 legs keep hitting "[16] Error in the HTTP2 framing layer",
-          # that is decisive proof the HTTP/2 transport is the root cause.
-          CARGO_HTTP_MULTIPLEXING: ${{ (matrix.runner.name == 'windows-2025' && matrix.rust_toolchain == 'stable' && matrix.cargo_profile == 'dev' && matrix.target_triple.name == 'x86_64-pc-windows-msvc') && 'false' || '' }}
+          CARGO_HTTP_MULTIPLEXING: "false"
         run: |
-          echo HTTP/2 probe: CARGO_HTTP_MULTIPLEXING="%CARGO_HTTP_MULTIPLEXING%"
+          echo HTTP/2 probe (multiplexing OFF)
+          cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose 2> cargo-http-debug.log
+          set FETCH_EXIT=%ERRORLEVEL%
+          echo ----- cargo-http-debug.log -----
+          type cargo-http-debug.log
+          exit /b %FETCH_EXIT%
+
+      # All other legs: HTTP/2 multiplexing ON (cargo default). The variable is
+      # deliberately NOT set here so cargo uses its default; setting it to an
+      # empty string is invalid and makes cargo error out.
+      - name: HTTP/2 download probe — multiplexing ON (diagnostics)
+        if: ${{ !(matrix.runner.name == 'windows-2025' && matrix.rust_toolchain == 'stable' && matrix.cargo_profile == 'dev' && matrix.target_triple.name == 'x86_64-pc-windows-msvc') }}
+        shell: cmd
+        run: |
+          echo HTTP/2 probe (multiplexing ON / default)
           cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose 2> cargo-http-debug.log
           set FETCH_EXIT=%ERRORLEVEL%
           echo ----- cargo-http-debug.log -----
