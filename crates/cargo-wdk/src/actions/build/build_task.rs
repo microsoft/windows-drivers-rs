@@ -5,10 +5,14 @@
 //! building a driver package with the provided options using the `cargo build`
 //! command.
 
+#![allow(dead_code)]
+#![allow(clippy::unused_self)]
+
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use cargo_metadata::Message;
+use mockall::automock;
 use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
@@ -29,6 +33,38 @@ pub struct BuildTask<'a> {
     manifest_path: PathBuf,
     command_exec: &'a CommandExec,
     working_dir: &'a Path,
+}
+
+#[derive(Debug)]
+pub struct BuildTaskRunParams<'a> {
+    pub package_name: &'a str,
+    pub working_dir: &'a Path,
+    pub profile: Option<&'a Profile>,
+    pub target_arch: Option<CpuArchitecture>,
+    pub verbosity_level: clap_verbosity_flag::Verbosity,
+}
+
+#[derive(Debug, Default)]
+pub struct BuildTaskRunner {}
+
+#[automock]
+impl BuildTaskRunner {
+    pub fn run<'a>(
+        &self,
+        params: &BuildTaskRunParams<'a>,
+        command_exec: &CommandExec,
+    ) -> Result<Vec<Result<Message, std::io::Error>>, BuildTaskError> {
+        BuildTask::new(
+            params.package_name,
+            params.working_dir,
+            params.profile,
+            params.target_arch,
+            params.verbosity_level,
+            command_exec,
+        )
+        .run()
+        .map(Iterator::collect)
+    }
 }
 
 impl<'a> BuildTask<'a> {

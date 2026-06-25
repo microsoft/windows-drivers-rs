@@ -7,6 +7,9 @@
 //! includes functions that invoke various WDK Tools involved in signing,
 //! validating, verifying and generating artefacts for the driver package.
 
+#![allow(dead_code)]
+#![allow(clippy::unused_self)]
+
 use std::{
     ffi::{CStr, CString},
     marker::PhantomData,
@@ -15,6 +18,7 @@ use std::{
     result::Result,
 };
 
+use mockall::automock;
 use mockall_double::double;
 use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
@@ -46,6 +50,36 @@ pub struct PackageTaskParams<'a> {
     pub verify_signature: bool,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
+}
+
+#[derive(Debug, Default)]
+pub struct PackageTaskRunner {}
+
+#[automock]
+impl PackageTaskRunner {
+    pub fn run<'a>(
+        &self,
+        params: &PackageTaskParams<'a>,
+        wdk_build: &WdkBuild,
+        command_exec: &CommandExec,
+        fs: &Fs,
+    ) -> Result<(), PackageTaskError> {
+        PackageTask::new(
+            PackageTaskParams {
+                package_name: params.package_name,
+                working_dir: params.working_dir,
+                target_dir: params.target_dir,
+                target_arch: params.target_arch,
+                verify_signature: params.verify_signature,
+                sample_class: params.sample_class,
+                driver_model: params.driver_model.clone(),
+            },
+            wdk_build,
+            command_exec,
+            fs,
+        )
+        .run()
+    }
 }
 
 /// Supports low level driver packaging operations
@@ -613,13 +647,21 @@ impl Drop for NamedMutex {
 #[cfg(test)]
 mod tests {
     use std::{
+        os::windows::process::ExitStatusExt,
         path::PathBuf,
         process::{ExitStatus, Output},
     };
 
-    use wdk_build::{CpuArchitecture, KmdfConfig};
+    use mockall::predicate::eq;
+    use wdk_build::{CpuArchitecture, DriverConfig, KmdfConfig};
 
     use super::*;
+    use crate::providers::{
+        error::{CommandError, FileError},
+        exec::MockCommandExec,
+        fs::MockFs,
+        wdk_build::MockWdkBuild,
+    };
 
     #[test]
     fn new_succeeds_for_valid_args() {
@@ -735,6 +777,403 @@ mod tests {
     }
 
     #[test]
+    fn run_packages_driver_with_expected_operations() {
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), false);
+        harness
+            .fs
+            .expect_create_dir()
+            .with(eq(paths.dest_root_package_folder.clone()))
+            .once()
+            .return_once(|_| Ok(()));
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_pdb_file_path.clone(),
+            paths.dest_pdb_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_inx_file_path.clone(),
+            paths.dest_inf_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_map_file_path.clone(),
+            paths.dest_map_file_path.clone(),
+            Ok(1),
+        );
+        expect_stampinf(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
+        expect_inf2cat(
+            &mut harness.command_exec,
+            paths.dest_root_package_folder.clone(),
+            "10_x64",
+        );
+        expect_exists(&mut harness.fs, paths.src_cert_file_path.clone(), false);
+        expect_certmgr_exists_check(&mut harness.command_exec, false);
+        expect_certmgr_exists_check(&mut harness.command_exec, false);
+        expect_makecert(&mut harness.command_exec, paths.src_cert_file_path.clone());
+        expect_copy(
+            &mut harness.fs,
+            paths.src_cert_file_path.clone(),
+            paths.dest_cert_file_path.clone(),
+            Ok(1),
+        );
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_driver_binary_path.clone());
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_cat_file_path.clone());
+        expect_infverif(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            "/w",
+            None,
+        );
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(result.is_ok(), "package task failed unexpectedly: {result:?}");
+    }
+
+    #[test]
+    fn run_verifies_signatures_when_enabled() {
+        let mut harness = PackageTaskHarness::new().with_verify_signature(true);
+        let paths = harness.paths();
+
+        expect_successful_packaging_without_verification_side_effects(&mut harness);
+        expect_signtool_verify(&mut harness.command_exec, paths.dest_driver_binary_path.clone());
+        expect_signtool_verify(&mut harness.command_exec, paths.dest_cat_file_path.clone());
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(result.is_ok(), "package task failed unexpectedly: {result:?}");
+    }
+
+    #[test]
+    fn run_exports_certificate_from_store_when_it_already_exists() {
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), true);
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_pdb_file_path.clone(),
+            paths.dest_pdb_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_inx_file_path.clone(),
+            paths.dest_inf_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_map_file_path.clone(),
+            paths.dest_map_file_path.clone(),
+            Ok(1),
+        );
+        expect_stampinf(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
+        expect_inf2cat(
+            &mut harness.command_exec,
+            paths.dest_root_package_folder.clone(),
+            "10_x64",
+        );
+        expect_exists(&mut harness.fs, paths.src_cert_file_path.clone(), false);
+        expect_certmgr_exists_check(&mut harness.command_exec, true);
+        expect_certmgr_create_cert_from_store(
+            &mut harness.command_exec,
+            paths.src_cert_file_path.clone(),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_cert_file_path.clone(),
+            paths.dest_cert_file_path.clone(),
+            Ok(1),
+        );
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_driver_binary_path.clone());
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_cat_file_path.clone());
+        expect_infverif(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            "/w",
+            None,
+        );
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(result.is_ok(), "package task failed unexpectedly: {result:?}");
+    }
+
+    #[test]
+    fn run_returns_error_when_inx_file_is_missing() {
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), false);
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(
+            result,
+            Err(PackageTaskError::MissingInxSrcFile(path))
+            if path == paths.src_inx_file_path
+        ));
+    }
+
+    #[test]
+    fn run_returns_error_when_copying_driver_binary_fails() {
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), true);
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Err(FileError::CopyError(
+                paths.src_renamed_driver_binary_file_path.clone(),
+                paths.dest_driver_binary_path.clone(),
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, "copy failed"),
+            )),
+        );
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(
+            result,
+            Err(PackageTaskError::FileIo(FileError::CopyError(src, dest, _)))
+            if src == paths.src_renamed_driver_binary_file_path
+                && dest == paths.dest_driver_binary_path
+        ));
+    }
+
+    #[test]
+    fn run_returns_error_when_stampinf_fails() {
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), true);
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_pdb_file_path.clone(),
+            paths.dest_pdb_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_inx_file_path.clone(),
+            paths.dest_inf_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_map_file_path.clone(),
+            paths.dest_map_file_path.clone(),
+            Ok(1),
+        );
+        expect_stampinf_error(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(result, Err(PackageTaskError::StampinfCommand(_))));
+    }
+
+    #[test]
+    fn run_returns_error_when_inf2cat_fails() {
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), true);
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_pdb_file_path.clone(),
+            paths.dest_pdb_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_inx_file_path.clone(),
+            paths.dest_inf_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_map_file_path.clone(),
+            paths.dest_map_file_path.clone(),
+            Ok(1),
+        );
+        expect_stampinf(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
+        expect_inf2cat_error(
+            &mut harness.command_exec,
+            paths.dest_root_package_folder.clone(),
+            "10_x64",
+        );
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(result, Err(PackageTaskError::Inf2CatCommand(_))));
+    }
+
+    #[test]
+    fn run_skips_infverif_for_samples_when_wdk_build_is_in_bugged_range() {
+        let mut harness = PackageTaskHarness::new().with_sample_class(true);
+        let paths = harness.paths();
+
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), true);
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_pdb_file_path.clone(),
+            paths.dest_pdb_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_inx_file_path.clone(),
+            paths.dest_inf_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_map_file_path.clone(),
+            paths.dest_map_file_path.clone(),
+            Ok(1),
+        );
+        expect_stampinf(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
+        expect_inf2cat(
+            &mut harness.command_exec,
+            paths.dest_root_package_folder.clone(),
+            "10_x64",
+        );
+        expect_exists(&mut harness.fs, paths.src_cert_file_path.clone(), false);
+        expect_certmgr_exists_check(&mut harness.command_exec, false);
+        expect_certmgr_exists_check(&mut harness.command_exec, false);
+        expect_makecert(&mut harness.command_exec, paths.src_cert_file_path.clone());
+        expect_copy(
+            &mut harness.fs,
+            paths.src_cert_file_path.clone(),
+            paths.dest_cert_file_path.clone(),
+            Ok(1),
+        );
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_driver_binary_path.clone());
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_cat_file_path.clone());
+        harness
+            .wdk_build
+            .expect_detect_wdk_build_number()
+            .once()
+            .return_once(|| Ok(25798));
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(result.is_ok(), "package task failed unexpectedly: {result:?}");
+    }
+
+    #[test]
     fn stampinf_version_overrides_with_env_var() {
         // verify both with and without the env var set scenarios
         let scenarios = [
@@ -797,6 +1236,509 @@ mod tests {
                 "scenario {name} failed (env_set={env_val:?})"
             );
         }
+    }
+
+    struct PackageTaskHarness {
+        package_name: &'static str,
+        working_dir: PathBuf,
+        target_dir: PathBuf,
+        arch: CpuArchitecture,
+        verify_signature: bool,
+        sample_class: bool,
+        driver_model: DriverConfig,
+        command_exec: MockCommandExec,
+        wdk_build: MockWdkBuild,
+        fs: MockFs,
+    }
+
+    impl PackageTaskHarness {
+        fn new() -> Self {
+            Self {
+                package_name: "sample-driver",
+                working_dir: PathBuf::from(r"C:\abs\sample-driver"),
+                target_dir: PathBuf::from(r"C:\abs\sample-driver\target\debug"),
+                arch: CpuArchitecture::Amd64,
+                verify_signature: false,
+                sample_class: false,
+                driver_model: DriverConfig::Kmdf(KmdfConfig {
+                    kmdf_version_major: 1,
+                    target_kmdf_version_minor: 33,
+                    minimum_kmdf_version_minor: Some(33),
+                }),
+                command_exec: MockCommandExec::new(),
+                wdk_build: MockWdkBuild::new(),
+                fs: MockFs::new(),
+            }
+        }
+
+        fn with_verify_signature(mut self, verify_signature: bool) -> Self {
+            self.verify_signature = verify_signature;
+            self
+        }
+
+        fn with_sample_class(mut self, sample_class: bool) -> Self {
+            self.sample_class = sample_class;
+            self
+        }
+
+        fn paths(&self) -> PackageTaskPaths {
+            PackageTaskPaths {
+                src_inx_file_path: self.src_inx_file_path(),
+                src_driver_binary_file_path: self.src_driver_binary_file_path(),
+                src_renamed_driver_binary_file_path: self.src_renamed_driver_binary_file_path(),
+                src_pdb_file_path: self.src_pdb_file_path(),
+                src_map_file_path: self.src_map_file_path(),
+                src_cert_file_path: self.src_cert_file_path(),
+                dest_root_package_folder: self.dest_root_package_folder(),
+                dest_inf_file_path: self.dest_inf_file_path(),
+                dest_driver_binary_path: self.dest_driver_binary_path(),
+                dest_pdb_file_path: self.dest_pdb_file_path(),
+                dest_map_file_path: self.dest_map_file_path(),
+                dest_cert_file_path: self.dest_cert_file_path(),
+                dest_cat_file_path: self.dest_cat_file_path(),
+            }
+        }
+
+        fn task(&self) -> PackageTask<'_> {
+            PackageTask::new(
+                PackageTaskParams {
+                    package_name: self.package_name,
+                    working_dir: &self.working_dir,
+                    target_dir: &self.target_dir,
+                    target_arch: &self.arch,
+                    verify_signature: self.verify_signature,
+                    sample_class: self.sample_class,
+                    driver_model: self.driver_model.clone(),
+                },
+                &self.wdk_build,
+                &self.command_exec,
+                &self.fs,
+            )
+        }
+
+        fn normalized_package_name(&self) -> String {
+            self.package_name.replace('-', "_")
+        }
+
+        fn src_inx_file_path(&self) -> PathBuf {
+            self.working_dir
+                .join(format!("{}.inx", self.normalized_package_name()))
+        }
+
+        fn src_driver_binary_file_path(&self) -> PathBuf {
+            self.target_dir
+                .join(format!("{}.dll", self.normalized_package_name()))
+        }
+
+        fn src_renamed_driver_binary_file_path(&self) -> PathBuf {
+            self.target_dir
+                .join(format!("{}.sys", self.normalized_package_name()))
+        }
+
+        fn src_pdb_file_path(&self) -> PathBuf {
+            self.target_dir
+                .join(format!("{}.pdb", self.normalized_package_name()))
+        }
+
+        fn src_map_file_path(&self) -> PathBuf {
+            self.target_dir
+                .join("deps")
+                .join(format!("{}.map", self.normalized_package_name()))
+        }
+
+        fn src_cert_file_path(&self) -> PathBuf {
+            self.target_dir.join(format!("{WDR_LOCAL_TEST_CERT}.cer"))
+        }
+
+        fn dest_root_package_folder(&self) -> PathBuf {
+            self.target_dir
+                .join(format!("{}_package", self.normalized_package_name()))
+        }
+
+        fn dest_inf_file_path(&self) -> PathBuf {
+            self.dest_root_package_folder()
+                .join(format!("{}.inf", self.normalized_package_name()))
+        }
+
+        fn dest_driver_binary_path(&self) -> PathBuf {
+            self.dest_root_package_folder()
+                .join(format!("{}.sys", self.normalized_package_name()))
+        }
+
+        fn dest_pdb_file_path(&self) -> PathBuf {
+            self.dest_root_package_folder()
+                .join(format!("{}.pdb", self.normalized_package_name()))
+        }
+
+        fn dest_map_file_path(&self) -> PathBuf {
+            self.dest_root_package_folder()
+                .join(format!("{}.map", self.normalized_package_name()))
+        }
+
+        fn dest_cert_file_path(&self) -> PathBuf {
+            self.dest_root_package_folder()
+                .join(format!("{WDR_LOCAL_TEST_CERT}.cer"))
+        }
+
+        fn dest_cat_file_path(&self) -> PathBuf {
+            self.dest_root_package_folder()
+                .join(format!("{}.cat", self.normalized_package_name()))
+        }
+    }
+
+    struct PackageTaskPaths {
+        src_inx_file_path: PathBuf,
+        src_driver_binary_file_path: PathBuf,
+        src_renamed_driver_binary_file_path: PathBuf,
+        src_pdb_file_path: PathBuf,
+        src_map_file_path: PathBuf,
+        src_cert_file_path: PathBuf,
+        dest_root_package_folder: PathBuf,
+        dest_inf_file_path: PathBuf,
+        dest_driver_binary_path: PathBuf,
+        dest_pdb_file_path: PathBuf,
+        dest_map_file_path: PathBuf,
+        dest_cert_file_path: PathBuf,
+        dest_cat_file_path: PathBuf,
+    }
+
+    fn expect_successful_packaging_without_verification_side_effects(
+        harness: &mut PackageTaskHarness,
+    ) {
+        let paths = harness.paths();
+        expect_exists(&mut harness.fs, paths.src_inx_file_path.clone(), true);
+        expect_exists(&mut harness.fs, paths.dest_root_package_folder.clone(), true);
+        expect_rename(
+            &mut harness.fs,
+            paths.src_driver_binary_file_path.clone(),
+            paths.src_renamed_driver_binary_file_path.clone(),
+            Ok(()),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_renamed_driver_binary_file_path.clone(),
+            paths.dest_driver_binary_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_pdb_file_path.clone(),
+            paths.dest_pdb_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_inx_file_path.clone(),
+            paths.dest_inf_file_path.clone(),
+            Ok(1),
+        );
+        expect_copy(
+            &mut harness.fs,
+            paths.src_map_file_path.clone(),
+            paths.dest_map_file_path.clone(),
+            Ok(1),
+        );
+        expect_stampinf(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
+        expect_inf2cat(
+            &mut harness.command_exec,
+            paths.dest_root_package_folder.clone(),
+            "10_x64",
+        );
+        expect_exists(&mut harness.fs, paths.src_cert_file_path.clone(), true);
+        expect_copy(
+            &mut harness.fs,
+            paths.src_cert_file_path.clone(),
+            paths.dest_cert_file_path.clone(),
+            Ok(1),
+        );
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_driver_binary_path.clone());
+        expect_signtool_sign(&mut harness.command_exec, paths.dest_cat_file_path.clone());
+        expect_infverif(
+            &mut harness.command_exec,
+            paths.dest_inf_file_path.clone(),
+            "/w",
+            None,
+        );
+    }
+
+    fn expect_exists(fs: &mut MockFs, path: PathBuf, exists: bool) {
+        fs.expect_exists()
+            .with(eq(path))
+            .once()
+            .return_once(move |_| exists);
+    }
+
+    fn expect_rename(
+        fs: &mut MockFs,
+        src: PathBuf,
+        dest: PathBuf,
+        result: Result<(), FileError>,
+    ) {
+        fs.expect_rename()
+            .with(eq(src), eq(dest))
+            .once()
+            .return_once(move |_, _| result);
+    }
+
+    fn expect_copy(
+        fs: &mut MockFs,
+        src: PathBuf,
+        dest: PathBuf,
+        result: Result<u64, FileError>,
+    ) {
+        fs.expect_copy()
+            .with(eq(src), eq(dest))
+            .once()
+            .return_once(move |_, _| result);
+    }
+
+    fn expect_stampinf(
+        command_exec: &mut MockCommandExec,
+        dest_inf_file_path: PathBuf,
+        arch: CpuArchitecture,
+        wdf_version: Option<String>,
+    ) {
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                let dest_inf = dest_inf_file_path.to_string_lossy().to_string();
+                command == "stampinf"
+                    && args.len() >= 8
+                    && args[0] == "-f"
+                    && args[1] == dest_inf
+                    && args[2] == "-d"
+                    && args[3] == "*"
+                    && args[4] == "-a"
+                    && args[5] == arch.to_string()
+                    && args[6] == "-c"
+                    && args[7] == "sample_driver.cat"
+                    && args.windows(2).any(|window| window == ["-v", "*"])
+                    && wdf_version
+                        .as_deref()
+                        .is_none_or(|version| args.windows(2).any(|window| window == ["-k", version]))
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn expect_stampinf_error(
+        command_exec: &mut MockCommandExec,
+        dest_inf_file_path: PathBuf,
+        arch: CpuArchitecture,
+        wdf_version: Option<String>,
+    ) {
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                let dest_inf = dest_inf_file_path.to_string_lossy().to_string();
+                command == "stampinf"
+                    && args.len() >= 8
+                    && args[0] == "-f"
+                    && args[1] == dest_inf
+                    && args[4] == "-a"
+                    && args[5] == arch.to_string()
+                    && wdf_version
+                        .as_deref()
+                        .is_none_or(|version| args.windows(2).any(|window| window == ["-k", version]))
+            })
+            .once()
+            .return_once(|_, _, _, _| Err(command_error("stampinf")));
+    }
+
+    fn expect_inf2cat(command_exec: &mut MockCommandExec, dest_root: PathBuf, os_mapping: &str) {
+        let trimmed_dest_root = dest_root.to_string_lossy().trim_start_matches("\\\\?\\").to_string();
+        let expected_driver_arg = format!("/driver:{trimmed_dest_root}");
+        let expected_os_arg = format!("/os:{os_mapping}");
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "inf2cat"
+                    && args == [expected_driver_arg.as_str(), expected_os_arg.as_str(), "/uselocaltime"]
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn expect_inf2cat_error(
+        command_exec: &mut MockCommandExec,
+        dest_root: PathBuf,
+        os_mapping: &str,
+    ) {
+        let trimmed_dest_root = dest_root.to_string_lossy().trim_start_matches("\\\\?\\").to_string();
+        let expected_driver_arg = format!("/driver:{trimmed_dest_root}");
+        let expected_os_arg = format!("/os:{os_mapping}");
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "inf2cat"
+                    && args == [expected_driver_arg.as_str(), expected_os_arg.as_str(), "/uselocaltime"]
+            })
+            .once()
+            .return_once(|_, _, _, _| Err(command_error("inf2cat")));
+    }
+
+    fn expect_certmgr_exists_check(command_exec: &mut MockCommandExec, has_cert: bool) {
+        let stdout = if has_cert {
+            r"==============Certificate # 1 ==========
+                Subject::
+                [0,0] 2.5.4.3 (CN) WDRLocalTestCert
+                CertMgr Succeeded"
+                .as_bytes()
+                .to_vec()
+        } else {
+            r"==============No Certificates ==========
+                CertMgr Succeeded"
+                .as_bytes()
+                .to_vec()
+        };
+        command_exec
+            .expect_run()
+            .withf(|command, args, _, _| command == "certmgr.exe" && args == ["-s", WDR_TEST_CERT_STORE])
+            .once()
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout,
+                    stderr: vec![],
+                })
+            });
+    }
+
+    fn expect_certmgr_create_cert_from_store(
+        command_exec: &mut MockCommandExec,
+        cert_path: PathBuf,
+    ) {
+        let cert_path = cert_path.to_string_lossy().to_string();
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "certmgr.exe"
+                    && args
+                        == [
+                            "-put",
+                            "-s",
+                            WDR_TEST_CERT_STORE,
+                            "-c",
+                            "-n",
+                            WDR_LOCAL_TEST_CERT,
+                            cert_path.as_str(),
+                        ]
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn expect_makecert(command_exec: &mut MockCommandExec, cert_path: PathBuf) {
+        let cert_path = cert_path.to_string_lossy().to_string();
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "makecert"
+                    && args
+                        == [
+                            "-r",
+                            "-pe",
+                            "-a",
+                            "SHA256",
+                            "-eku",
+                            "1.3.6.1.5.5.7.3.3",
+                            "-ss",
+                            WDR_TEST_CERT_STORE,
+                            "-n",
+                            "CN=WDRLocalTestCert",
+                            cert_path.as_str(),
+                        ]
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn expect_signtool_sign(command_exec: &mut MockCommandExec, file_path: PathBuf) {
+        let file_path = file_path.to_string_lossy().to_string();
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "signtool"
+                    && args
+                        == [
+                            "sign",
+                            "/v",
+                            "/s",
+                            WDR_TEST_CERT_STORE,
+                            "/n",
+                            WDR_LOCAL_TEST_CERT,
+                            "/t",
+                            "http://timestamp.digicert.com",
+                            "/fd",
+                            "SHA256",
+                            file_path.as_str(),
+                        ]
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn expect_signtool_verify(command_exec: &mut MockCommandExec, file_path: PathBuf) {
+        let file_path = file_path.to_string_lossy().to_string();
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "signtool"
+                    && args == ["verify", "/v", "/pa", file_path.as_str()]
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn expect_infverif(
+        command_exec: &mut MockCommandExec,
+        inf_path: PathBuf,
+        driver_flag: &str,
+        sample_flag: Option<&'static str>,
+    ) {
+        let inf_path = inf_path.to_string_lossy().to_string();
+        let expected_args = if let Some(sample_flag) = sample_flag {
+            vec!["/v".to_string(), driver_flag.to_string(), sample_flag.to_string(), inf_path]
+        } else {
+            vec!["/v".to_string(), driver_flag.to_string(), inf_path]
+        };
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _, _| {
+                command == "infverif"
+                    && args.len() == expected_args.len()
+                    && args
+                        .iter()
+                        .zip(expected_args.iter())
+                        .all(|(actual, expected)| actual == expected)
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(success_output()));
+    }
+
+    fn success_output() -> Output {
+        Output {
+            status: ExitStatus::default(),
+            stdout: vec![],
+            stderr: vec![],
+        }
+    }
+
+    fn command_error(command: &'static str) -> CommandError {
+        CommandError::from_output(
+            command,
+            &[],
+            &Output {
+                status: ExitStatus::from_raw(1),
+                stdout: vec![],
+                stderr: b"command failed".to_vec(),
+            },
+        )
     }
 
     mod named_mutex {

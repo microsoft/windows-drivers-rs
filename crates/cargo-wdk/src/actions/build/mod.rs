@@ -18,11 +18,9 @@ use std::{
 };
 
 use anyhow::Result;
-use build_task::BuildTask;
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use error::BuildActionError;
 use mockall_double::double;
-use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
     CpuArchitecture,
@@ -31,7 +29,13 @@ use wdk_build::{
 
 use crate::actions::Profile;
 #[double]
+use build_task::BuildTaskRunner;
+use build_task::BuildTaskRunParams;
+#[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+#[double]
+use package_task::PackageTaskRunner;
+use package_task::PackageTaskParams;
 
 pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
@@ -57,6 +61,8 @@ pub struct BuildAction<'a> {
     command_exec: &'a CommandExec,
     fs: &'a Fs,
     metadata: &'a Metadata,
+    build_task_runner: BuildTaskRunner,
+    package_task_runner: PackageTaskRunner,
 }
 
 impl<'a> BuildAction<'a> {
@@ -84,6 +90,26 @@ impl<'a> BuildAction<'a> {
         fs: &'a Fs,
         metadata: &'a Metadata,
     ) -> Result<Self> {
+        Self::new_with_runners(
+            params,
+            wdk_build,
+            command_exec,
+            fs,
+            metadata,
+            BuildTaskRunner::default(),
+            PackageTaskRunner::default(),
+        )
+    }
+
+    fn new_with_runners(
+        params: &BuildActionParams<'a>,
+        wdk_build: &'a WdkBuild,
+        command_exec: &'a CommandExec,
+        fs: &'a Fs,
+        metadata: &'a Metadata,
+        build_task_runner: BuildTaskRunner,
+        package_task_runner: PackageTaskRunner,
+    ) -> Result<Self> {
         // TODO: validate params
         Ok(Self {
             working_dir: absolute(params.working_dir)?,
@@ -96,6 +122,8 @@ impl<'a> BuildAction<'a> {
             command_exec,
             fs,
             metadata,
+            build_task_runner,
+            package_task_runner,
         })
     }
 
@@ -330,15 +358,16 @@ impl<'a> BuildAction<'a> {
         let package_name = package.name.as_str();
         info!("Building package {package_name}");
 
-        let build_task = BuildTask::new(
-            package_name,
-            working_dir,
-            self.profile,
-            self.target_arch,
-            self.verbosity_level,
+        let output_message_iter = self.build_task_runner.run(
+            &BuildTaskRunParams {
+                package_name,
+                working_dir,
+                profile: self.profile,
+                target_arch: self.target_arch,
+                verbosity_level: self.verbosity_level,
+            },
             self.command_exec,
-        );
-        let output_message_iter = build_task.run()?;
+        )?;
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
             debug!("Found wdk metadata in package: {}", package_name);
@@ -372,28 +401,29 @@ impl<'a> BuildAction<'a> {
             self.get_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
-        let target_dir = Self::get_target_dir_from_output(package, output_message_iter)?;
+        let target_dir = Self::get_target_dir_from_output(package, output_message_iter.into_iter())?;
         debug!(
             "Target directory for package: {} is: {}",
             package_name,
             target_dir.display()
         );
 
-        PackageTask::new(
-            PackageTaskParams {
-                package_name,
-                working_dir,
-                target_dir: &target_dir,
-                target_arch: &target_arch,
-                verify_signature: self.verify_signature,
-                sample_class: self.is_sample_class,
-                driver_model,
-            },
+        let package_task_params = PackageTaskParams {
+            package_name,
+            working_dir,
+            target_dir: &target_dir,
+            target_arch: &target_arch,
+            verify_signature: self.verify_signature,
+            sample_class: self.is_sample_class,
+            driver_model,
+        };
+
+        self.package_task_runner.run(
+            &package_task_params,
             self.wdk_build,
             self.command_exec,
             self.fs,
-        )
-        .run()?;
+        )?;
 
         info!("Finished building {package_name}");
         Ok(())
