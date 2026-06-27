@@ -30,7 +30,6 @@ env:
   CARGO_HTTP_DEBUG: "true"
   CARGO_LOG: network=debug
   RUST_LOG: trace
-  CARGO_NET_RETRY: "0"
   RUST_BACKTRACE: "full"
 
 jobs:
