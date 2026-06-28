@@ -221,9 +221,8 @@ jobs:
           path: cargo-http-debug.log
           if-no-files-found: ignore
 
-      # --- TEMPORARY DIAGNOSTICS (do not merge): build/package steps disabled to speed up repro ---
+      # --- TEMPORARY DIAGNOSTICS (do not merge): build/package steps restored to increase repro surface ---
       - name: Run Cargo Build
-        if: false
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
       - name: Install Cargo Make
@@ -235,19 +234,15 @@ jobs:
         run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace
 
       - name: Build Examples (via Cargo Make)
-        if: false
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
-        if: false
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Build Tests (via Cargo Make)
-        if: false
         run: cargo make --cwd ./tests build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Tests (via Cargo Make)
-        if: false
         run: cargo make --cwd ./tests package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
