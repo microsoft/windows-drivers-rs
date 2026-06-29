@@ -514,7 +514,7 @@ fn generate_rc_content(
         writeln!(rc).expect("write to String should not fail");
     }
 
-    writeln!(rc, "#include \"common.ver\"").expect("write to String should not fail");
+    writeln!(rc, "#include <common.ver>").expect("write to String should not fail");
 
     rc
 }
@@ -1582,7 +1582,7 @@ mod tests {
             assert!(rc.contains("#pragma code_page(65001)"));
             assert!(rc.contains("#include <windows.h>"));
             assert!(rc.contains("#include <ntverp.h>"));
-            assert!(rc.contains("#include \"common.ver\""));
+            assert!(rc.contains("#include <common.ver>"));
             assert!(rc.contains("VFT_DRV"));
             assert!(rc.contains("VFT2_DRV_SYSTEM"));
             assert!(rc.contains("\"test.sys\""));
