@@ -223,26 +223,33 @@ jobs:
 
       # --- TEMPORARY DIAGNOSTICS (do not merge): build/package steps restored to increase repro surface ---
       - name: Run Cargo Build
+        if: always()
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
       - name: Install Cargo Make
+        if: always()
         uses: ./.github/actions/install-cargo-tool
         with:
           tool: cargo-make
 
       - name: Run Cargo Make (package-driver-flow) in Workspace
+        if: always()
         run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace
 
       - name: Build Examples (via Cargo Make)
+        if: always()
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
+        if: always()
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Build Tests (via Cargo Make)
+        if: always()
         run: cargo make --cwd ./tests build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Tests (via Cargo Make)
+        if: always()
         run: cargo make --cwd ./tests package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
