@@ -1,11 +1,5 @@
 on:
-  push:
-    branches-ignore:
-      - 'gh-readonly-queue/**'
-  pull_request:
-  merge_group:
-  schedule: # Trigger a job on default branch at 4AM PST everyday
-    - cron: 0 11 * * *
+  workflow_dispatch:
 
 name: Typos
 

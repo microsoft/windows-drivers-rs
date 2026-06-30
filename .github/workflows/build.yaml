@@ -17,6 +17,10 @@ env:
   RUSTFLAGS: >-
     -D warnings
     -C target-feature=+crt-static
+  CARGO_HTTP_DEBUG: "true"
+  CARGO_LOG: network=debug
+  RUST_LOG: trace
+  RUST_BACKTRACE: "full"
 
 jobs:
   build:
@@ -41,8 +45,6 @@ jobs:
 
         rust_toolchain:
           - stable
-          - beta
-          - nightly
 
         cargo_profile:
           - dev
