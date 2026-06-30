@@ -45,8 +45,6 @@ jobs:
 
         rust_toolchain:
           - stable
-          - beta
-          - nightly
 
         cargo_profile:
           - dev
