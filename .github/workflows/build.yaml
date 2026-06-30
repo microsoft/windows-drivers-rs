@@ -17,16 +17,6 @@ env:
   RUSTFLAGS: >-
     -D warnings
     -C target-feature=+crt-static
-  # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-  # Capture verbose cargo + libcurl HTTP/2 logging to investigate the recurring
-  # "curl failed [16] Error in the HTTP2 framing layer" download failures.
-  # CARGO_HTTP_DEBUG installs libcurl's verbose debug callback, which logs the
-  # `*` protocol lines (ALPN, "using HTTP/2", stream resets, connection-died),
-  # request/response headers, and connection reuse. That callback emits under
-  # the tracing target `network` at debug level, so CARGO_LOG=network=debug is
-  # REQUIRED to actually surface it (cargo::ops::registry=trace does NOT match).
-  # CARGO_NET_RETRY=0 fails fast on the first error so the trace is clean and
-  # not buried under retry noise.
   CARGO_HTTP_DEBUG: "true"
   CARGO_LOG: network=debug
   RUST_LOG: trace
@@ -44,19 +34,23 @@ jobs:
           - name: windows-11-arm
             arch: arm64
 
-        # --- TEMPORARY DIAGNOSTICS (do not merge): matrix slimmed for faster debug cycle ---
         wdk:
           - version: 10.0.22621 # NI WDK
             source: winget
+          - version: 10.0.26100 # GE WDK
+            source: nuget
 
         llvm:
           - 17.0.6
 
         rust_toolchain:
           - stable
+          - beta
+          - nightly
 
         cargo_profile:
           - dev
+          - release
 
         target_triple:
           - name: x86_64-pc-windows-msvc
@@ -69,10 +63,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      # --- TEMPORARY DIAGNOSTICS (do not merge): Winget/LLVM/WDK installs are
-      # only needed to *build* the crates (bindgen/linker). The diagnostic
-      # curl + cargo-fetch probes below only download from crates.io, so these
-      # installs are disabled to speed up the debug cycle. ---
       - name: Install Winget
         uses: ./.github/actions/install-winget
         with:
@@ -99,171 +89,37 @@ jobs:
           targets: |
             ${{ matrix.target_triple.name }}
 
-      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-      # Single cargo-native fetch as a quick pre-check / trace capture point.
-      # The PRIMARY reproduction target is now the cargo-make
-      # package-driver-flow step below, which is the original source of the
-      # intermittent HTTP/2 download failures. Kept at 1 iteration so it does
-      # not pre-empt or significantly delay reaching that step.
-      # With CARGO_HTTP_DEBUG + CARGO_LOG=network=debug (set at job level), the
-      # libcurl `*` protocol trace is captured into the log on a failing fetch.
-      - name: cargo fetch HTTP/2 repro loop (diagnostics)
-        if: false
-        shell: cmd
-        run: |
-          setlocal enabledelayedexpansion
-          set FAILED=0
-          for /L %%i in (1,1,5) do (
-            echo ----- cargo fetch iteration %%i ----- >> cargo-fetch-repro.log 2>&1
-            if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
-            if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
-            if exist "%USERPROFILE%\.cargo\registry\index" rmdir /s /q "%USERPROFILE%\.cargo\registry\index"
-            cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose >> cargo-fetch-repro.log 2>&1
-            if errorlevel 1 (
-              set FAILED=1
-              goto :loop_done
-            )
-          )
-          :loop_done
-          echo ----- cargo-fetch-repro.log (tail) -----
-          powershell -NoProfile -Command "Get-Content cargo-fetch-repro.log -Tail 200"
-          if !FAILED! NEQ 0 (
-            echo One or more cargo fetch iterations failed.
-            exit /b 1
-          )
-
-      - name: Upload cargo fetch repro log (diagnostics)
-        if: false
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-fetch-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
-          path: cargo-fetch-repro.log
-          if-no-files-found: ignore
-
-      # A/B control: identical aggressive fetch loop but with HTTP/2 multiplexing
-      # DISABLED (1 request per connection). Hypothesis: a graceful GOAWAY then
-      # affects at most one in-flight request (curl reconnects), so the
-      # "[16] Error in the HTTP2 framing layer" should NOT surface here even
-      # though GOAWAY frames are still received. Runs even if the ON loop failed.
-      - name: cargo fetch HTTP/2 repro loop — multiplexing OFF (diagnostics)
-        if: false
-        shell: cmd
-        env:
-          CARGO_HTTP_MULTIPLEXING: "false"
-        run: |
-          setlocal enabledelayedexpansion
-          set FAILED=0
-          for /L %%i in (1,1,10) do (
-            echo ----- cargo fetch nomux iteration %%i ----- >> cargo-fetch-nomux-repro.log 2>&1
-            if exist "%USERPROFILE%\.cargo\registry\cache" rmdir /s /q "%USERPROFILE%\.cargo\registry\cache"
-            if exist "%USERPROFILE%\.cargo\registry\src"   rmdir /s /q "%USERPROFILE%\.cargo\registry\src"
-            if exist "%USERPROFILE%\.cargo\registry\index" rmdir /s /q "%USERPROFILE%\.cargo\registry\index"
-            cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose >> cargo-fetch-nomux-repro.log 2>&1
-            if errorlevel 1 (
-              set FAILED=1
-              goto :nomux_done
-            )
-          )
-          :nomux_done
-          echo ----- GOAWAY frames observed while multiplexing OFF -----
-          powershell -NoProfile -Command "Select-String -Path cargo-fetch-nomux-repro.log -Pattern 'received GOAWAY' | ForEach-Object { $_.Line.Trim() }"
-          echo ----- cargo-fetch-nomux-repro.log (tail) -----
-          powershell -NoProfile -Command "Get-Content cargo-fetch-nomux-repro.log -Tail 80"
-          if !FAILED! NEQ 0 (
-            echo multiplexing-OFF loop ALSO failed.
-            exit /b 1
-          )
-          echo multiplexing-OFF loop completed with no failures.
-
-      - name: Upload cargo fetch nomux repro log (diagnostics)
-        if: false
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-fetch-nomux-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
-          path: cargo-fetch-nomux-repro.log
-          if-no-files-found: ignore
-
-      # --- TEMPORARY DIAGNOSTICS (do not merge) ---
-      # A/B leg: HTTP/2 multiplexing OFF (single matrix leg only). If this leg
-      # stops failing while the HTTP/2-on legs keep hitting
-      # "[16] Error in the HTTP2 framing layer", that proves HTTP/2 is the cause.
-      - name: HTTP/2 download probe — multiplexing OFF (diagnostics)
-        if: false
-        shell: cmd
-        env:
-          CARGO_HTTP_MULTIPLEXING: "false"
-        run: |
-          echo HTTP/2 probe (multiplexing OFF)
-          cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose 2> cargo-http-debug.log
-          set FETCH_EXIT=%ERRORLEVEL%
-          echo ----- cargo-http-debug.log -----
-          type cargo-http-debug.log
-          exit /b %FETCH_EXIT%
-
-      # All other legs: HTTP/2 multiplexing ON (cargo default). The variable is
-      # deliberately NOT set here so cargo uses its default; setting it to an
-      # empty string is invalid and makes cargo error out.
-      - name: HTTP/2 download probe — multiplexing ON (diagnostics)
-        if: false
-        shell: cmd
-        run: |
-          echo HTTP/2 probe (multiplexing ON / default)
-          cargo +${{ matrix.rust_toolchain }} fetch --locked --verbose 2> cargo-http-debug.log
-          set FETCH_EXIT=%ERRORLEVEL%
-          echo ----- cargo-http-debug.log -----
-          type cargo-http-debug.log
-          exit /b %FETCH_EXIT%
-
-      - name: Upload cargo http debug log (diagnostics)
-        if: false
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-http-debug-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
-          path: cargo-http-debug.log
-          if-no-files-found: ignore
-
-      # --- TEMPORARY DIAGNOSTICS (do not merge): build/package steps restored to increase repro surface ---
       - name: Run Cargo Build
-        if: always()
         run: cargo +${{ matrix.rust_toolchain }} build --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace --all-features
 
       - name: Install Cargo Make
-        if: always()
         uses: ./.github/actions/install-cargo-tool
         with:
           tool: cargo-make
 
       - name: Run Cargo Make (package-driver-flow) in Workspace
-        if: always()
         run: cargo make package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }} --workspace
 
       - name: Build Examples (via Cargo Make)
-        if: always()
         run: cargo make --cwd ./examples build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Examples (via Cargo Make)
-        if: always()
         run: cargo make --cwd ./examples package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Build Tests (via Cargo Make)
-        if: always()
         run: cargo make --cwd ./tests build +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       - name: Package Tests (via Cargo Make)
-        if: always()
         run: cargo make --cwd ./tests package-driver-flow +${{ matrix.rust_toolchain }} --locked --profile ${{ matrix.cargo_profile }} --target ${{ matrix.target_triple.name }}
 
       # Run cargo-wdk on examples and tests
       - name: Install cargo-wdk
-        if: false
         run: cargo +${{ matrix.rust_toolchain }} install --path=crates/cargo-wdk --profile ${{ matrix.cargo_profile }} --locked --force
 
       - name: Build & Package Examples (via cargo-wdk)
-        if: false
         run: cargo +${{ matrix.rust_toolchain }} wdk build --locked --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }} --sample
         working-directory: ./examples
 
       - name: Run build on tests folder (via cargo-wdk)
-        if: false
         run: cargo +${{ matrix.rust_toolchain }} wdk build --locked --profile ${{ matrix.cargo_profile }} --target-arch ${{ matrix.target_triple.arch }}
         working-directory: ./tests

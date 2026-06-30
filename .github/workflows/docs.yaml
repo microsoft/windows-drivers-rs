@@ -1,14 +1,10 @@
 name: Docs
 
 on:
-  # --- TEMPORARY DIAGNOSTICS (do not merge): push/pull_request triggers
-  # commented out on the copilot/diagnostics-http2-logging branch so only the
-  # Build workflow runs during the HTTP/2 download investigation. Restore when
-  # closing this debug branch. ---
-  # push:
-  #   branches-ignore:
-  #     - 'gh-readonly-queue/**'
-  # pull_request:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
@@ -22,8 +18,6 @@ env:
 
 jobs:
   docs:
-    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
-    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: Docs
     strategy:
       fail-fast: false # Allow all matrix variants to complete even if some fail

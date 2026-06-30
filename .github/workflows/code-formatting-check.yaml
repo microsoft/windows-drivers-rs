@@ -1,14 +1,10 @@
 name: Code Formatting Check
 
 on:
-  # --- TEMPORARY DIAGNOSTICS (do not merge): push/pull_request triggers
-  # commented out on the copilot/diagnostics-http2-logging branch so only the
-  # Build workflow runs during the HTTP/2 download investigation. Restore when
-  # closing this debug branch. ---
-  # push:
-  #   branches-ignore:
-  #     - 'gh-readonly-queue/**'
-  # pull_request:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
   merge_group:
   schedule: # Trigger a job on default branch at 4AM PST everyday
     - cron: 0 11 * * *
@@ -19,8 +15,6 @@ concurrency:
 
 jobs:
   cargo-fmt:
-    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
-    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: .rs Formatting Check
     runs-on: windows-2025
 
@@ -37,8 +31,6 @@ jobs:
         run: cargo +nightly fmt --all -- --check
 
   taplo-fmt:
-    # --- TEMPORARY DIAGNOSTICS (do not merge): skipped on debug branch to speed up CI ---
-    if: ${{ github.ref != 'refs/heads/copilot/diagnostics-http2-logging' }}
     name: .toml Formatting Check
     runs-on: windows-2025
 
