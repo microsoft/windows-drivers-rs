@@ -215,7 +215,7 @@ jobs:
           exit /b %FETCH_EXIT%
 
       - name: Upload cargo http debug log (diagnostics)
-        if: failure()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: cargo-http-debug-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
