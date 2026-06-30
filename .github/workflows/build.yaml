@@ -108,6 +108,7 @@ jobs:
       # With CARGO_HTTP_DEBUG + CARGO_LOG=network=debug (set at job level), the
       # libcurl `*` protocol trace is captured into the log on a failing fetch.
       - name: cargo fetch HTTP/2 repro loop (diagnostics)
+        if: false
         shell: cmd
         run: |
           setlocal enabledelayedexpansion
@@ -132,7 +133,7 @@ jobs:
           )
 
       - name: Upload cargo fetch repro log (diagnostics)
-        if: failure()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: cargo-fetch-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
@@ -145,7 +146,7 @@ jobs:
       # "[16] Error in the HTTP2 framing layer" should NOT surface here even
       # though GOAWAY frames are still received. Runs even if the ON loop failed.
       - name: cargo fetch HTTP/2 repro loop — multiplexing OFF (diagnostics)
-        if: always()
+        if: false
         shell: cmd
         env:
           CARGO_HTTP_MULTIPLEXING: "false"
@@ -175,7 +176,7 @@ jobs:
           echo multiplexing-OFF loop completed with no failures.
 
       - name: Upload cargo fetch nomux repro log (diagnostics)
-        if: always()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: cargo-fetch-nomux-repro-${{ matrix.runner.name }}-${{ matrix.rust_toolchain }}-${{ matrix.cargo_profile }}-${{ matrix.target_triple.arch }}
@@ -187,7 +188,7 @@ jobs:
       # stops failing while the HTTP/2-on legs keep hitting
       # "[16] Error in the HTTP2 framing layer", that proves HTTP/2 is the cause.
       - name: HTTP/2 download probe — multiplexing OFF (diagnostics)
-        if: ${{ matrix.runner.name == 'windows-2025' && matrix.rust_toolchain == 'stable' && matrix.cargo_profile == 'dev' && matrix.target_triple.name == 'x86_64-pc-windows-msvc' }}
+        if: false
         shell: cmd
         env:
           CARGO_HTTP_MULTIPLEXING: "false"
@@ -203,7 +204,7 @@ jobs:
       # deliberately NOT set here so cargo uses its default; setting it to an
       # empty string is invalid and makes cargo error out.
       - name: HTTP/2 download probe — multiplexing ON (diagnostics)
-        if: ${{ !(matrix.runner.name == 'windows-2025' && matrix.rust_toolchain == 'stable' && matrix.cargo_profile == 'dev' && matrix.target_triple.name == 'x86_64-pc-windows-msvc') }}
+        if: false
         shell: cmd
         run: |
           echo HTTP/2 probe (multiplexing ON / default)
