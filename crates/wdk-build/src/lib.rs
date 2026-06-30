@@ -20,11 +20,13 @@ use std::{
 
 pub use bindgen::BuilderExt;
 use metadata::TryFromCargoMetadataError;
+pub use resource_compile::ResourceCompileError;
 use tracing::debug;
 
 pub mod cargo_make;
 pub mod metadata;
 
+mod resource_compile;
 mod utils;
 
 mod bindgen;
@@ -313,6 +315,10 @@ rustflags = [\"-C\", \"target-feature=+crt-static\"]
     /// [`metadata::Wdk`]
     #[error(transparent)]
     SerdeError(#[from] metadata::Error),
+
+    /// Error returned when version resource compilation fails
+    #[error(transparent)]
+    ResourceCompileError(#[from] resource_compile::ResourceCompileError),
 }
 
 /// Subset of APIs in the Windows Driver Kit
@@ -1223,6 +1229,8 @@ impl Config {
             // Disable Manifest File Generation
             println!("cargo::rustc-cdylib-link-arg=/MANIFEST:NO");
         }
+
+        resource_compile::compile_version_resource(self)?;
 
         self.emit_cfg_settings()
     }
