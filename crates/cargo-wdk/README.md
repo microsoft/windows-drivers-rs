@@ -71,6 +71,11 @@ Options:
       --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
 
+Feature Selection:
+      --all-features               Activate all available features
+      --no-default-features        Do not activate the `default` feature
+  -F, --features <FEATURES>        Space-separated list of features to activate
+
 Verbosity:
   -v, --verbose...  Increase logging verbosity
   -q, --quiet...    Decrease logging verbosity
