@@ -271,7 +271,7 @@ mod tests {
 
     use crate::{
         actions::DriverType,
-        cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd},
+        cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd, TargetPlatformArg},
     };
 
     #[test]
@@ -332,8 +332,6 @@ mod tests {
 
     #[test]
     fn build_rejects_verify_signature_when_sign_mode_is_off() {
-        use crate::cli::{BuildArgs, SignModeArg, Subcmd};
-
         let cli = Cli {
             cargo_command: "wdk".to_string(),
             sub_cmd: Subcmd::Build(BuildArgs {
