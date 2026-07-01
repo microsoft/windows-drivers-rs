@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Ok, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+use clap_cargo::Features;
 use clap_verbosity_flag::Verbosity;
 use mockall_double::double;
 use wdk_build::CpuArchitecture;
@@ -141,6 +142,10 @@ pub struct BuildArgs {
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
     pub locked: bool,
+
+    #[command(flatten)]
+    #[clap(next_help_heading = "Feature Selection")]
+    pub features: Features,
 }
 
 impl BuildArgs {
@@ -246,6 +251,7 @@ impl Cli {
                         target_platform: cli_args
                             .target_platform
                             .map_or(TargetPlatform::Universal, TargetPlatform::from),
+                        features: &cli_args.features,
                         verbosity_level: self.verbose,
                     },
                     &wdk_build,
@@ -266,9 +272,11 @@ impl Cli {
 
 #[cfg(test)]
 mod tests {
+    use clap_cargo::Features;
+
     use crate::{
         actions::DriverType,
-        cli::{Cli, NewArgs},
+        cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd},
     };
 
     #[test]
@@ -329,8 +337,6 @@ mod tests {
 
     #[test]
     fn build_rejects_verify_signature_when_sign_mode_is_off() {
-        use crate::cli::{BuildArgs, SignModeArg, Subcmd};
-
         let cli = Cli {
             cargo_command: "wdk".to_string(),
             sub_cmd: Subcmd::Build(BuildArgs {
@@ -341,6 +347,7 @@ mod tests {
                 sample: false,
                 target_platform: None,
                 locked: false,
+                features: Features::default(),
             }),
             verbose: clap_verbosity_flag::Verbosity::default(),
         };
