@@ -12,6 +12,7 @@
 
 use std::path::Path;
 
+use clap_cargo::Features;
 use mockall::automock;
 
 #[derive(Default)]
@@ -32,6 +33,8 @@ impl Metadata {
     ///   working directory.
     /// * `other_options` - Additional command-line options (e.g. `--locked`)
     ///   that are forwarded to the `cargo metadata` command.
+    /// * `features` - Feature selection forwarded to the `cargo metadata`
+    ///   command via [`clap_cargo::Features::forward_metadata`].
     ///
     /// # Returns
     ///
@@ -48,10 +51,11 @@ impl Metadata {
         &self,
         working_dir: &Path,
         other_options: Vec<String>,
+        features: &Features,
     ) -> cargo_metadata::Result<cargo_metadata::Metadata> {
-        cargo_metadata::MetadataCommand::new()
-            .current_dir(working_dir)
-            .other_options(other_options)
-            .exec()
+        let mut cmd = cargo_metadata::MetadataCommand::new();
+        cmd.current_dir(working_dir).other_options(other_options);
+        features.forward_metadata(&mut cmd);
+        cmd.exec()
     }
 }
