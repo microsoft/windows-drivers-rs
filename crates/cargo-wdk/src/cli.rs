@@ -245,9 +245,7 @@ impl Cli {
                         sign_mode,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
-                        target_platform: cli_args
-                            .target_platform
-                            .map_or(TargetPlatform::Universal, TargetPlatform::from),
+                        target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
                     },
