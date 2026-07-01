@@ -43,14 +43,11 @@ pub enum SignModeArg {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub enum TargetPlatformArg {
-    /// Validates that the INF meets Universal driver requirements (using
-    /// `InfVerif /u`).
+    /// Validates that the INF meets Universal driver requirements.
     Universal,
-    /// Validates that the INF meets WHQL signature requirements (using
-    /// `InfVerif /h`).
+    /// Validates that the INF meets Desktop driver requirements.
     Desktop,
-    /// Validates that the INF meets Windows Driver requirements (using
-    /// `InfVerif /w`).
+    /// Validates that the INF meets Windows driver requirements.
     WindowsDriver,
 }
 
@@ -122,9 +119,9 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
-    /// Driver target platform.
-    #[arg(long, value_enum, ignore_case = true)]
-    pub target_platform: Option<TargetPlatformArg>,
+    /// Driver target platform
+    #[arg(long, value_enum, ignore_case = true, default_value_t = TargetPlatformArg::Universal)]
+    pub target_platform: TargetPlatformArg,
 
     /// Build sample class driver project
     #[arg(long)]
@@ -243,9 +240,7 @@ impl Cli {
                         sign_mode,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
-                        target_platform: cli_args
-                            .target_platform
-                            .map_or(TargetPlatform::Universal, TargetPlatform::from),
+                        target_platform: cli_args.target_platform.into(),
                         verbosity_level: self.verbose,
                     },
                     &wdk_build,
@@ -329,7 +324,7 @@ mod tests {
 
     #[test]
     fn build_rejects_verify_signature_when_sign_mode_is_off() {
-        use crate::cli::{BuildArgs, SignModeArg, Subcmd};
+        use crate::cli::{BuildArgs, SignModeArg, Subcmd, TargetPlatformArg};
 
         let cli = Cli {
             cargo_command: "wdk".to_string(),
@@ -339,7 +334,7 @@ mod tests {
                 verify_signature: true,
                 sign_mode: SignModeArg::Off,
                 sample: false,
-                target_platform: None,
+                target_platform: TargetPlatformArg::Universal,
                 locked: false,
             }),
             verbose: clap_verbosity_flag::Verbosity::default(),

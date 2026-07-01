@@ -30,8 +30,8 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
-// FIXME: This range is inclusive of 25798. Update with range end after /sample
-// flag is added to InfVerif CLI
+// FIXME: This range is inclusive of 25798. Update with range end after
+// `/sample` flag is added to InfVerif CLI
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
@@ -860,8 +860,9 @@ mod tests {
         }
     }
 
-    fn assert_default_infverif_mode_flag(
+    fn assert_infverif_mode_flag(
         driver_model: DriverConfig,
+        target_platform: TargetPlatform,
         expected_mode_flag: &'static str,
     ) {
         let package_name = "driver";
@@ -877,7 +878,7 @@ mod tests {
             driver_model,
             sample_class: false,
             sign_mode: SignMode::Off,
-            target_platform: TargetPlatform::Universal,
+            target_platform,
         };
 
         let fs = Fs::default();
@@ -907,68 +908,40 @@ mod tests {
 
     #[test]
     fn run_infverif_defaults_to_universal_for_all_driver_models() {
-        assert_default_infverif_mode_flag(DriverConfig::Kmdf(KmdfConfig::default()), "/u");
-        assert_default_infverif_mode_flag(DriverConfig::Wdm, "/u");
-        assert_default_infverif_mode_flag(
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Universal,
+            "/u",
+        );
+        assert_infverif_mode_flag(DriverConfig::Wdm, TargetPlatform::Universal, "/u");
+        assert_infverif_mode_flag(
             DriverConfig::Umdf(UmdfConfig {
                 umdf_version_major: 2,
                 target_umdf_version_minor: 33,
                 minimum_umdf_version_minor: None,
             }),
+            TargetPlatform::Universal,
             "/u",
         );
     }
 
     #[test]
     fn run_infverif_uses_target_platform_mode_flag() {
-        assert_target_platform_infverif_mode_flag(TargetPlatform::Universal, "/u");
-        assert_target_platform_infverif_mode_flag(TargetPlatform::Desktop, "/h");
-        assert_target_platform_infverif_mode_flag(TargetPlatform::WindowsDriver, "/w");
-    }
-
-    fn assert_target_platform_infverif_mode_flag(
-        target_platform: TargetPlatform,
-        expected_mode_flag: &'static str,
-    ) {
-        let package_name = "kmdf_driver";
-        let working_dir = PathBuf::from("C:/abs/kmdf_driver");
-        let target_dir = PathBuf::from("C:/abs/kmdf_driver/target/debug");
-        let arch = CpuArchitecture::Amd64;
-
-        let params = PackageTaskParams {
-            package_name,
-            working_dir: &working_dir,
-            target_dir: &target_dir,
-            target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
-            sample_class: false,
-            sign_mode: SignMode::Off,
-            target_platform,
-        };
-
-        let fs = Fs::default();
-        let wdk_build = WdkBuild::default();
-
-        let mut command_exec = CommandExec::default();
-        command_exec
-            .expect_run()
-            .withf(move |cmd: &str, args: &[&str], _, _| {
-                cmd == "infverif"
-                    && args.len() >= 2
-                    && args[0] == "/v"
-                    && args[1] == expected_mode_flag
-            })
-            .once()
-            .returning(|_, _, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                })
-            });
-
-        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
-        assert!(task.run_infverif().is_ok());
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Universal,
+            "/u",
+        );
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Desktop,
+            "/h",
+        );
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::WindowsDriver,
+            "/w",
+        );
     }
 
     #[test]
