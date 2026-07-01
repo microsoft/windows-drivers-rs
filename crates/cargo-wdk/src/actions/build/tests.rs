@@ -30,7 +30,13 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
+        build::{
+            BuildAction,
+            BuildActionParams,
+            SignMode,
+            TargetPlatform,
+            error::BuildActionError,
+        },
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -1678,6 +1684,7 @@ fn initialize_build_action<'a>(
             sign_mode,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
+            target_platform: TargetPlatform::Universal,
             features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
@@ -2940,15 +2947,10 @@ impl TestBuildAction {
         mut self,
         driver_name: &str,
         driver_dir: &Path,
-        driver_type: &str,
+        _driver_type: &str,
         override_output: Option<Output>,
     ) -> Self {
-        let mut expected_infverif_args = vec!["/v".to_string()];
-        if driver_type.eq_ignore_ascii_case("KMDF") || driver_type.eq_ignore_ascii_case("WDM") {
-            expected_infverif_args.push("/w".to_string());
-        } else {
-            expected_infverif_args.push("/u".to_string());
-        }
+        let mut expected_infverif_args = vec!["/v".to_string(), "/u".to_string()];
         if self.sample_class {
             expected_infverif_args.push("/msft".to_string());
         }
