@@ -1060,34 +1060,31 @@ impl Config {
     /// Returns the formatted `#[link]` raw lines for the given [`ApiSubset`],
     /// ready to be passed to bindgen's `raw_line`.
     ///
-    /// This is the link-directive analogue of
-    /// [`Config::bindgen_header_contents`]: it maps the [`ApiSubset`] (and the
-    /// active [`DriverConfig`] and [`CpuArchitecture`]) to the native libraries
-    /// that must be linked, rendering them as `#[link(...)]` attributes emitted
-    /// into the generated bindings.
-    ///
-    /// Unlike header selection, link subsets are selected *non-cumulatively*:
-    /// each generated bindings file requests only its own subset's libraries
-    /// (e.g. `hid.rs` requests only [`ApiSubset::Hid`], not
-    /// [`ApiSubset::Base`]), since the base libraries are already emitted
-    /// into the base bindings file. This avoids duplicate `#[link]`
-    /// directives across generated files, and is why this takes a single
-    /// [`ApiSubset`] rather than a set like
-    /// [`Config::bindgen_header_contents`].
+    /// Each generated bindings file requests only the native libraries
+    /// introduced by its own [`ApiSubset`]. This avoids duplicate `#[link]` directives
+    /// across generated files.
     ///
     /// Each emitted directive is gated behind
     /// `#[cfg(not(any(test, feature = "test-stubs")))]`, evaluated in the crate
     /// that compiles the generated bindings (`wdk-sys`). The directives are
     /// therefore suppressed when `wdk-sys` is built with its `test-stubs`
     /// feature, or when `wdk-sys` is itself compiled as a test target (e.g.
-    /// `cargo test -p wdk-sys`); see the `NOT_TEST_CFG` constant for the
-    /// rationale.
+    /// `cargo test -p wdk-sys`).
+    ///
+    /// Downstream test executables that depend on `wdk-sys` enable its
+    /// `test-stubs` feature to provide stubbed symbols. These executables are
+    /// not driver binaries, so they do not receive the WDK
+    /// `rustc-link-search` paths that [`Config::configure_binary_build`] emits
+    /// and must not link the real WDK libraries. The `test` predicate covers
+    /// the case where `wdk-sys` itself is compiled as a test target.
     #[must_use]
-    pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> String {
-        self.libraries(api_subset)
-            .iter()
-            .map(LinkDirective::render)
-            .collect()
+    pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
+        let libraries = self.libraries(api_subset);
+        if libraries.is_empty() {
+            None
+        } else {
+            Some(libraries.iter().map(LinkDirective::render).collect())
+        }
     }
 
     /// Returns the native libraries that must be linked for a given
@@ -1110,25 +1107,21 @@ impl Config {
 
     /// Builds the static library link directives for the base bindings.
     ///
+    /// Base libraries are derived from WindowsDriver.KernelMode.props
+    /// (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni(22H2) WDK.
+    /// ARM64 WDM/KMDF builds also link `arm64rt`, derived from
+    /// WindowsDriver.arm64.props.
+    ///
     /// TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
     /// stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives emitted by
     /// [`wdk_build::Config::configure_binary_build`] will be moved here too.
-    #[tracing::instrument(level = "trace")]
     fn base_libraries(&self) -> Vec<LinkDirective> {
         const fn static_lib(name: &'static str) -> LinkDirective {
-            // `LinkModifier::NoBundle` (rustc `-bundle`): don't pack the static
-            // lib into wdk-sys's rlib; defer its linking to the final driver
-            // binary, which is where the WDK `rustc-link-search` paths are
-            // emitted (by `Config::configure_binary_build`). Without it, building
-            // wdk-sys's rlib would fail since those search paths aren't available
-            // then.
-            LinkDirective::new(name, LinkKind::Static).with_modifiers(&[LinkModifier::NoBundle])
+            LinkDirective::new(name, LinkKind::Static)
         }
 
         let mut directives = Vec::new();
 
-        // Base libraries derived from WindowsDriver.KernelMode.props (WDM/KMDF)
-        // and WindowsDriver.UserMode.props (UMDF) in the Ni(22H2) WDK.
         match &self.driver_config {
             DriverConfig::Wdm => {
                 directives.extend([
@@ -1137,6 +1130,9 @@ impl Config {
                     static_lib("hal"),
                     static_lib("wmilib"),
                 ]);
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    directives.push(static_lib("arm64rt"));
+                }
             }
             DriverConfig::Kmdf(_) => {
                 directives.extend([
@@ -1147,6 +1143,9 @@ impl Config {
                     static_lib("WdfLdr"),
                     static_lib("WdfDriverEntry"),
                 ]);
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    directives.push(static_lib("arm64rt"));
+                }
             }
             DriverConfig::Umdf(umdf_config) => {
                 if umdf_config.umdf_version_major >= 2 {
@@ -1156,29 +1155,17 @@ impl Config {
             }
         }
 
-        // ARM64-specific libraries to link to derived from
-        // WindowsDriver.arm64.props.
-        if matches!(
-            self.driver_config,
-            DriverConfig::Wdm | DriverConfig::Kmdf(_)
-        ) && self.cpu_architecture == CpuArchitecture::Arm64
-        {
-            directives.push(static_lib("arm64rt"));
-        }
-
         directives
     }
 
-    #[tracing::instrument(level = "trace")]
+    /// Builds the Virtual HID Framework library link directives for HID
+    /// bindings.
+    ///
+    /// WDM/KMDF drivers link `VhfKm`, while UMDF drivers link `VhfUm`.
     fn hid_libraries(&self) -> Vec<LinkDirective> {
-        match self.driver_config {
+        match &self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                // `LinkModifier::NoBundle` for the same reason as the base
-                // static libs; see `static_lib` in `base_libraries`.
-                vec![
-                    LinkDirective::new("VhfKm", LinkKind::Static)
-                        .with_modifiers(&[LinkModifier::NoBundle]),
-                ]
+                vec![LinkDirective::new("VhfKm", LinkKind::Static)]
             }
             DriverConfig::Umdf(_) => vec![LinkDirective::new("VhfUm", LinkKind::Dylib)],
         }
@@ -1594,21 +1581,6 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
 
-/// `cfg` predicate that gates the WDK link directives so that they are only
-/// emitted when the bindings are compiled for a real driver build.
-///
-/// Downstream test executables that depend on `wdk-sys` enable its `test-stubs`
-/// feature (which provides stubbed symbols *and*, via this gate, suppresses
-/// real WDK library linkage; see `wdk_sys::test_stubs`). Such executables are
-/// not driver binaries, so they never receive the WDK `rustc-link-search` paths
-/// that `Config::configure_binary_build` emits, and must therefore not attempt
-/// to link the real WDK libraries.
-///
-/// The `test` predicate covers the analogous case where `wdk-sys` *itself* is
-/// compiled as a test target (e.g. `cargo test -p wdk-sys`): that build goes
-/// through `configure_library_build` rather than `configure_binary_build`, so
-/// it likewise lacks the `rustc-link-search` paths and must not link the real
-/// WDK libraries.
 const NOT_TEST_CFG: &str = r#"not(any(test, feature = "test-stubs"))"#;
 
 /// The `kind` of a `#[link]` attribute (i.e. how the library is linked).
@@ -1636,55 +1608,26 @@ impl LinkKind {
     }
 }
 
-/// A linking modifier for a `#[link]` attribute (the `modifiers = "..."`
-/// field). Only the modifiers actually emitted by [`Config`] are modelled.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LinkModifier {
-    /// `-bundle`
-    NoBundle,
-}
-
-impl LinkModifier {
-    /// Returns the string used in the `modifiers = "..."` field of a `#[link]`
-    /// attribute, including its `+`/`-` prefix.
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::NoBundle => "-bundle",
-        }
-    }
-}
-
 /// A native library to link into the generated bindings.
 ///
 /// Rendered by [`LinkDirective::render`] as a `#[link(...)]` attribute on an
 /// (empty) `extern` block and emitted into the bindgen output via bindgen's
 /// `raw_line`. Every directive is gated behind [`NOT_TEST_CFG`] so that
-/// non-driver test consumers don't link the real WDK libraries.
+/// non-driver test consumers don't link the real WDK libraries. Static
+/// libraries are emitted with `modifiers = "-bundle"` so they are linked into
+/// the final driver binary instead of bundled into the `wdk-sys` rlib.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LinkDirective {
     /// `name = "..."` — the library to link.
     name: &'static str,
     /// `kind = "..."` — how the library is linked.
     kind: LinkKind,
-    /// `modifiers = "..."` values (e.g. [`LinkModifier::NoBundle`]). Joined
-    /// with commas; an empty slice omits the `modifiers` key entirely.
-    modifiers: &'static [LinkModifier],
 }
 
 impl LinkDirective {
-    /// Creates a directive with no modifiers.
+    /// Creates a link directive.
     const fn new(name: &'static str, kind: LinkKind) -> Self {
-        Self {
-            name,
-            kind,
-            modifiers: &[],
-        }
-    }
-
-    /// Sets the linking modifiers (e.g. `[LinkModifier::NoBundle]`).
-    const fn with_modifiers(mut self, modifiers: &'static [LinkModifier]) -> Self {
-        self.modifiers = modifiers;
-        self
+        Self { name, kind }
     }
 
     /// Renders this directive into a self-contained block of Rust source.
@@ -1692,21 +1635,13 @@ impl LinkDirective {
     /// Emitted as a single block so the attributes always stay attached to the
     /// following `extern` block, regardless of where bindgen places raw lines.
     fn render(&self) -> String {
-        let modifiers = if self.modifiers.is_empty() {
-            String::new()
-        } else {
-            let modifiers = self
-                .modifiers
-                .iter()
-                .map(|modifier| modifier.as_str())
-                .collect::<Vec<_>>()
-                .join(",");
-            format!(r#", modifiers = "{modifiers}""#)
+        let modifiers = match self.kind {
+            LinkKind::Static => r#", modifiers = "-bundle""#,
+            LinkKind::Dylib => "",
         };
 
         format!(
-            r#"
-#[cfg({cfg})]
+            r#"#[cfg({cfg})]
 #[link(name = "{name}", kind = "{kind}"{modifiers})]
 unsafe extern "C" {{}}"#,
             cfg = NOT_TEST_CFG,
@@ -2298,35 +2233,30 @@ mod tests {
         }
 
         #[test]
+        fn link_directives_are_disabled_for_tests_and_test_stubs() {
+            assert_eq!(
+                NOT_TEST_CFG,
+                r#"not(any(test, feature = "test-stubs"))"#
+            );
+        }
+
+        #[test]
         fn render_minimal_directive() {
             assert_eq!(
                 LinkDirective::new("Foo", LinkKind::Dylib).render(),
                 format!(
-                    "\n#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"dylib\")]\nunsafe \
+                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"dylib\")]\nunsafe \
                      extern \"C\" {{}}"
                 )
             );
         }
 
         #[test]
-        fn render_static_without_modifiers_omits_modifiers_key() {
+        fn render_static_directive_includes_no_bundle_modifier() {
             assert_eq!(
                 LinkDirective::new("Foo", LinkKind::Static).render(),
                 format!(
-                    "\n#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\")]\nunsafe \
-                     extern \"C\" {{}}"
-                )
-            );
-        }
-
-        #[test]
-        fn render_with_no_bundle_modifier() {
-            assert_eq!(
-                LinkDirective::new("Foo", LinkKind::Static)
-                    .with_modifiers(&[LinkModifier::NoBundle])
-                    .render(),
-                format!(
-                    "\n#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", \
+                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", \
                      modifiers = \"-bundle\")]\nunsafe extern \"C\" {{}}"
                 )
             );
@@ -2452,7 +2382,10 @@ mod tests {
             );
             for directive in &directives {
                 assert_eq!(directive.kind, LinkKind::Static);
-                assert_eq!(directive.modifiers, [LinkModifier::NoBundle].as_slice());
+                assert!(
+                    directive.render().contains(r#"modifiers = "-bundle""#),
+                    "static directive should render with -bundle"
+                );
             }
         }
 
@@ -2463,10 +2396,7 @@ mod tests {
 
                 assert_eq!(
                     config.hid_libraries(),
-                    vec![
-                        LinkDirective::new("VhfKm", LinkKind::Static)
-                            .with_modifiers(&[LinkModifier::NoBundle])
-                    ]
+                    vec![LinkDirective::new("VhfKm", LinkKind::Static)]
                 );
             }
         }
@@ -2497,6 +2427,7 @@ mod tests {
                     config.libraries(subset).is_empty(),
                     "{subset:?} should contribute no libraries"
                 );
+                assert_eq!(config.bindgen_library_link_raw_lines(subset), None);
             }
         }
 
@@ -2525,11 +2456,13 @@ mod tests {
             // per-subset library set by the `base_*`/`hid_*` tests.
             assert_eq!(
                 config.bindgen_library_link_raw_lines(ApiSubset::Base),
-                config
-                    .base_libraries()
-                    .iter()
-                    .map(LinkDirective::render)
-                    .collect::<String>()
+                Some(
+                    config
+                        .base_libraries()
+                        .iter()
+                        .map(LinkDirective::render)
+                        .collect::<String>()
+                )
             );
         }
     }
