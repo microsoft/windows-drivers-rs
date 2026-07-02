@@ -1061,8 +1061,8 @@ impl Config {
     /// ready to be passed to bindgen's `raw_line`.
     ///
     /// Each generated bindings file requests only the native libraries
-    /// introduced by its own [`ApiSubset`]. This avoids duplicate `#[link]` directives
-    /// across generated files.
+    /// introduced by its own [`ApiSubset`]. This avoids duplicate `#[link]`
+    /// directives across generated files.
     ///
     /// Each emitted directive is gated behind
     /// `#[cfg(not(any(test, feature = "test-stubs")))]`, evaluated in the crate
@@ -2234,10 +2234,7 @@ mod tests {
 
         #[test]
         fn link_directives_are_disabled_for_tests_and_test_stubs() {
-            assert_eq!(
-                NOT_TEST_CFG,
-                r#"not(any(test, feature = "test-stubs"))"#
-            );
+            assert_eq!(NOT_TEST_CFG, r#"not(any(test, feature = "test-stubs"))"#);
         }
 
         #[test]
@@ -2256,8 +2253,8 @@ mod tests {
             assert_eq!(
                 LinkDirective::new("Foo", LinkKind::Static).render(),
                 format!(
-                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", \
-                     modifiers = \"-bundle\")]\nunsafe extern \"C\" {{}}"
+                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", modifiers \
+                     = \"-bundle\")]\nunsafe extern \"C\" {{}}"
                 )
             );
         }
