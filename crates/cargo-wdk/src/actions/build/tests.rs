@@ -64,7 +64,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
 
@@ -99,7 +99,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
 
@@ -140,7 +140,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
     let test_build_action =
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
-            .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+            .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
             .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
@@ -182,7 +182,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
     let test_build_action =
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
-            .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+            .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
             .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
@@ -216,7 +216,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 26101u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
         .expect_infverif(driver_name, &cwd, driver_type, Some("/samples"), None)
@@ -253,11 +253,11 @@ pub fn given_sample_class_and_wdk_build_before_sample_flag_range_then_infverif_r
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25797u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
         .expect_infverif(driver_name, &cwd, driver_type, Some("/msft"), None)
-        .expect_detect_wdk_build_number(25100u32);
+        .expect_detect_wdk_build_number(25797u32);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -290,7 +290,7 @@ pub fn given_sample_class_and_wdk_build_with_missing_sample_flag_then_infverif_i
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 26100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
         .expect_detect_wdk_build_number(26100u32);
@@ -326,7 +326,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
 
@@ -363,7 +363,7 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .with_sign_mode(SignMode::Off)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch);
 
@@ -400,7 +400,7 @@ pub fn given_a_driver_project_when_locked_is_set_then_it_is_forwarded_to_cargo_i
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .with_locked(true)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
 
@@ -466,7 +466,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -520,7 +520,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, false)
         .expect_dir_created(driver_name, &cwd, true)
@@ -572,7 +572,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_inx_file_exists(driver_name, &cwd, false);
 
@@ -621,7 +621,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
     let test_build_action =
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
-            .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+            .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
             .expect_final_package_dir_exists(driver_name, &cwd, true)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -672,7 +672,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -733,7 +733,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -795,7 +795,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -855,7 +855,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -916,7 +916,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -979,7 +979,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
         .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
@@ -1026,7 +1026,7 @@ pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_m
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, None);
+        .expect_default_build_task_steps(driver_name, None, 25100u32);
 
     assert_build_action_run_is_success(
         &cwd,
@@ -1053,7 +1053,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_with_custom_toml(&cargo_toml_metadata)
-        .expect_default_build_task_steps(driver_name, None);
+        .expect_default_build_task_steps(driver_name, None, 25100u32);
 
     let build_action = initialize_build_action(
         &cwd,
@@ -1101,7 +1101,7 @@ pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo
 
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(
             &cwd,
             CpuArchitecture::Amd64,
@@ -1993,9 +1993,10 @@ impl TestBuildAction {
         self,
         driver_name: &str,
         cargo_build_output: Option<Output>,
+        wdk_build_number: u32,
     ) -> Self {
         let cwd = self.cwd.clone();
-        self.expect_detect_wdk_build_number(25100u32)
+        self.expect_detect_wdk_build_number(wdk_build_number)
             .expect_root_manifest_exists(&cwd, true)
             .expect_cargo_build(driver_name, &cwd, cargo_build_output)
     }
