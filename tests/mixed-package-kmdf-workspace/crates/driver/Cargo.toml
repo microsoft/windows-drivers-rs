@@ -20,4 +20,4 @@ wdk-panic.workspace = true
 wdk-sys.workspace = true
 
 [dev-dependencies]
-wdk-sys = { workspace = true, features = ["test-stubs"] }
+wdk-sys = { features = ["test-stubs"], workspace = true }
