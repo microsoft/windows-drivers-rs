@@ -2244,7 +2244,7 @@ mod tests {
                 LinkDirective::new("Foo", LinkKind::Dylib).render(),
                 format!(
                     "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"dylib\")]\nunsafe \
-                     extern \"C\" {{}}"
+                     extern \"C\" {{}}\n"
                 )
             );
         }
@@ -2255,7 +2255,7 @@ mod tests {
                 LinkDirective::new("Foo", LinkKind::Static).render(),
                 format!(
                     "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", modifiers \
-                     = \"-bundle\")]\nunsafe extern \"C\" {{}}"
+                     = \"-bundle\")]\nunsafe extern \"C\" {{}}\n"
                 )
             );
         }
