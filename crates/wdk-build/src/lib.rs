@@ -1643,7 +1643,8 @@ impl LinkDirective {
         format!(
             r#"#[cfg({cfg})]
 #[link(name = "{name}", kind = "{kind}"{modifiers})]
-unsafe extern "C" {{}}"#,
+unsafe extern "C" {{}}
+"#,
             cfg = NOT_TEST_CFG,
             name = self.name,
             kind = self.kind.as_str(),

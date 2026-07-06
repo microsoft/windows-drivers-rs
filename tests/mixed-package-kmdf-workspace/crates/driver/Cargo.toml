@@ -9,8 +9,6 @@ version = "0.0.0"
 
 [lib]
 crate-type = ["cdylib"]
-# temporarily disable due to github runner issues: https://github.com/microsoft/windows-drivers-rs/issues/502
-test = false
 
 [build-dependencies]
 wdk-build.workspace = true
@@ -20,3 +18,6 @@ wdk.workspace = true
 wdk-alloc.workspace = true
 wdk-panic.workspace = true
 wdk-sys.workspace = true
+
+[dev-dependencies]
+wdk-sys = { workspace = true, features = ["test-stubs"] }
