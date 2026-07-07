@@ -23,7 +23,7 @@ use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, Tar
 use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
-pub use package_task::{CertSource, FileDigestAlgorithm, SecretString, SignMode, SignOptions};
+pub use package_task::SignMode;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{

@@ -420,6 +420,229 @@ fn sign_mode_off_with_verify_signature_is_rejected() {
     );
 }
 
+/// `--signtool-args` passthrough with a caller-provided store and certificate.
+/// A dedicated custom store/cert (distinct from the auto-generated WDR test
+/// cert) proves the passthrough drives signtool's certificate selection rather
+/// than cargo-wdk's defaults.
+#[test]
+fn kmdf_driver_signs_with_custom_store_and_cert_via_signtool_args() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        setup_wdk_tool_path();
+        ensure_cert_in_store("WDRCustomTestStore", "WDRCustomTestCert");
+        run_clean_cmd(&project_path);
+
+        let stderr = run_build_cmd(
+            &project_path,
+            Some(&[
+                "--signtool-args",
+                "/s WDRCustomTestStore /n WDRCustomTestCert /fd SHA256",
+            ]),
+            None,
+        );
+        assert!(stderr.contains(&format!("Finished building {driver}")));
+
+        let driver_name = driver.replace('-', "_");
+        let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "sys"] {
+            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+        }
+        // Passthrough signing does not generate/copy the WDR test cert file.
+        assert!(
+            !PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer")).exists(),
+            "passthrough signing should not emit WDRLocalTestCert.cer"
+        );
+
+        // The freshly built driver binary must carry the custom cert's signature.
+        let sys = format!("{package_dir}/{driver_name}.sys");
+        let signer =
+            authenticode_signer_subject(Path::new(&sys)).expect("driver binary should be signed");
+        assert!(
+            signer.contains("WDRCustomTestCert"),
+            "driver binary signed by unexpected cert: {signer}"
+        );
+    });
+}
+
+/// signtool signs every file operand it is given. A file path inside
+/// `--signtool-args` is therefore signed in addition to cargo-wdk's own driver
+/// binary. Exercised on a UMDF driver (whose binary is a `.dll`).
+#[test]
+fn umdf_driver_signs_extra_file_operand_via_signtool_args() {
+    let driver = "umdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        setup_wdk_tool_path();
+        ensure_cert_in_store("WDRTestCertStore", "WDRLocalTestCert");
+        run_clean_cmd(&project_path);
+
+        let driver_name = driver.replace('-', "_");
+        let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
+        let common_args = "/s WDRTestCertStore /n WDRLocalTestCert /fd SHA256";
+
+        // First build produces a signed driver binary we can reuse as an
+        // independent second file operand.
+        run_build_cmd(&project_path, Some(&["--signtool-args", common_args]), None);
+        let built = format!("{package_dir}/{driver_name}.dll");
+        assert_file_exists(&built);
+
+        // Copy it out and strip the signature, so a passing assertion proves
+        // THIS build signed it (not a pre-existing signature).
+        let extra = env::current_dir()
+            .expect("cwd")
+            .join(&project_path)
+            .join("extra_to_sign.dll");
+        fs::copy(&built, &extra).expect("copy extra file");
+        strip_signature(&extra);
+        assert!(
+            authenticode_signer_subject(&extra).is_none(),
+            "precondition: extra file should be unsigned after strip"
+        );
+
+        // Pass the extra file as an additional operand inside --signtool-args.
+        let args_with_extra = format!("{common_args} {}", extra.to_string_lossy());
+        let stderr = run_build_cmd(
+            &project_path,
+            Some(&["--signtool-args", &args_with_extra]),
+            None,
+        );
+        assert!(stderr.contains(&format!("Finished building {driver}")));
+
+        let signer = authenticode_signer_subject(&extra)
+            .expect("extra file operand should be signed after build");
+        assert!(
+            signer.contains("WDRLocalTestCert"),
+            "extra file operand signed by unexpected cert: {signer}"
+        );
+
+        fs::remove_file(&extra).ok();
+    });
+}
+
+/// A certificate selector in `--signtool-args` that matches nothing must fail
+/// the build (signtool exits non-zero, surfaced as a signing error). Exercised
+/// on a WDM driver.
+#[test]
+fn wdm_driver_build_fails_when_signtool_args_select_unknown_cert() {
+    let driver = "wdm-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        setup_wdk_tool_path();
+        run_clean_cmd(&project_path);
+
+        let mut cmd = create_cargo_wdk_cmd(
+            "build",
+            Some(&[
+                "--signtool-args",
+                "/s WDRTestCertStore /n NoSuchCert /fd SHA256",
+            ]),
+            None,
+            Some(&project_path),
+        );
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+        assert!(
+            stderr.contains("No certificates were found")
+                || stderr.contains("signing driver binary"),
+            "expected a signtool certificate-selection failure, got: {stderr}"
+        );
+    });
+}
+
+/// A stray `sign` verb inside `--signtool-args` derails signtool's argument
+/// parser (the second `sign` is treated as a file operand, so `/fd` is never
+/// registered) and the build fails.
+#[test]
+fn kmdf_driver_build_fails_with_duplicate_sign_verb_in_signtool_args() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        setup_wdk_tool_path();
+        ensure_cert_in_store("WDRTestCertStore", "WDRLocalTestCert");
+        run_clean_cmd(&project_path);
+
+        let mut cmd = create_cargo_wdk_cmd(
+            "build",
+            Some(&[
+                "--signtool-args",
+                "sign /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256",
+            ]),
+            None,
+            Some(&project_path),
+        );
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+        assert!(
+            stderr.contains("No file digest algorithm specified")
+                || stderr.contains("signing driver binary"),
+            "expected a signtool failure from the duplicate `sign` verb, got: {stderr}"
+        );
+    });
+}
+
+/// `--signtool-args` together with `--sign-mode=off` is rejected at the CLI
+/// layer (nothing would be signed), before any build work happens.
+#[test]
+fn sign_mode_off_with_signtool_args_is_rejected() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    let mut cmd = create_cargo_wdk_cmd(
+        "build",
+        Some(&["--sign-mode", "off", "--signtool-args", "/fd SHA256"]),
+        None,
+        Some(&project_path),
+    );
+    let assertion = cmd.assert().failure();
+    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+    assert!(
+        stderr.contains("`--signtool-args` cannot be used with `--sign-mode=off`."),
+        "expected validation error mentioning both flags, got: {stderr}"
+    );
+}
+
+/// Workspace behavior: building a workspace with `--signtool-args` signs each
+/// packaged driver member with the caller-provided certificate. Uses a mixed
+/// workspace (a KMDF `driver` member plus a non-driver crate); only the driver
+/// member is packaged and signed.
+#[test]
+fn mixed_package_kmdf_workspace_signs_driver_member_via_signtool_args() {
+    let project_path = "tests/mixed-package-kmdf-workspace";
+    with_mutex(project_path, || {
+        setup_wdk_tool_path();
+        ensure_cert_in_store("WDRTestCertStore", "WDRLocalTestCert");
+        run_clean_cmd(project_path);
+
+        run_build_cmd(
+            project_path,
+            Some(&[
+                "--signtool-args",
+                "/s WDRTestCertStore /n WDRLocalTestCert /fd SHA256",
+            ]),
+            None,
+        );
+
+        let package_dir = format!("{project_path}/target/debug/driver_package");
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "sys"] {
+            assert_file_exists(&format!("{package_dir}/driver.{ext}"));
+        }
+        // Passthrough signing does not generate/copy the WDR test cert file.
+        assert!(
+            !PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer")).exists(),
+            "passthrough signing should not emit WDRLocalTestCert.cer"
+        );
+
+        let signer = authenticode_signer_subject(Path::new(&format!("{package_dir}/driver.sys")))
+            .expect("workspace driver member should be signed");
+        assert!(
+            signer.contains("WDRLocalTestCert"),
+            "workspace driver member signed by unexpected cert: {signer}"
+        );
+    });
+}
+
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
@@ -541,6 +764,91 @@ fn run_build_cmd(
     let output = cmd_assertion.get_output();
 
     String::from_utf8_lossy(&output.stderr).to_string()
+}
+
+/// Puts the WDK tools (`signtool`, `makecert`, `certmgr`, `stampinf`,
+/// `inf2cat`, ...) on `PATH` for this test process (and hence any child
+/// `cargo-wdk` invocation).
+fn setup_wdk_tool_path() {
+    wdk_build::cargo_make::setup_path().expect("failed to set up WDK tool paths");
+}
+
+/// Ensures a self-signed code-signing certificate `CN=<cn>` exists in the given
+/// certificate store, creating it with `makecert` if missing. Passthrough
+/// signing (`--signtool-args`) does not auto-generate certificates, so tests
+/// must provision them up front.
+fn ensure_cert_in_store(store: &str, cn: &str) {
+    let output = Command::new("certmgr.exe")
+        .args(["-s", store])
+        .output()
+        .expect("failed to query certificate store");
+    assert!(output.status.success(), "certmgr query failed for {store}");
+
+    if !String::from_utf8_lossy(&output.stdout).contains(cn) {
+        let subject = format!("CN={cn}");
+        let out = Command::new("makecert")
+            .args([
+                "-r",
+                "-pe",
+                "-a",
+                "SHA256",
+                "-eku",
+                "1.3.6.1.5.5.7.3.3",
+                "-ss",
+                store,
+                "-n",
+                &subject,
+            ])
+            .output()
+            .expect("failed to run makecert");
+        assert!(
+            out.status.success(),
+            "makecert failed for {store}/{cn}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
+/// Removes the primary Authenticode signature from a PE file using
+/// `signtool remove`.
+fn strip_signature(path: &Path) {
+    let out = Command::new("signtool")
+        .args(["remove", "/s"])
+        .arg(path)
+        .output()
+        .expect("failed to run signtool remove");
+    assert!(
+        out.status.success(),
+        "signtool remove failed for {}: {}",
+        path.display(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Returns the subject of the certificate that signed `path`, or `None` if the
+/// file is not signed. Reads the embedded PE signature (trust-independent) via
+/// `Get-AuthenticodeSignature`, so it works without the signer being trusted.
+fn authenticode_signer_subject(path: &Path) -> Option<String> {
+    let script = format!(
+        "$s = Get-AuthenticodeSignature -LiteralPath '{}'; if ($s.SignerCertificate) {{ \
+         Write-Output $s.SignerCertificate.Subject }}",
+        path.display()
+    );
+    let out = Command::new("powershell")
+        // Clear PSModulePath so Windows PowerShell uses its default module path.
+        // When the test runner is launched from PowerShell 7 (pwsh), the child
+        // Windows PowerShell inherits pwsh's PSModulePath and fails to load
+        // `Microsoft.PowerShell.Security` (which provides Get-AuthenticodeSignature).
+        .env_remove("PSModulePath")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .expect("failed to run Get-AuthenticodeSignature");
+    let subject = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if subject.is_empty() {
+        None
+    } else {
+        Some(subject)
+    }
 }
 
 fn verify_driver_package_files(

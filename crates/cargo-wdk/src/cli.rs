@@ -18,15 +18,7 @@ use crate::actions::{
     Profile,
     UMDF_STR,
     WDM_STR,
-    build::{
-        BuildAction,
-        BuildActionParams,
-        CertSource,
-        FileDigestAlgorithm,
-        SecretString,
-        SignMode,
-        SignOptions,
-    },
+    build::{BuildAction, BuildActionParams, SignMode},
     clean::CleanAction,
     new::NewAction,
 };
@@ -97,7 +89,6 @@ impl NewArgs {
 
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
-#[command(group = ArgGroup::new("cert_source").args(["cert_store", "cert_file"]).multiple(false))]
 pub struct BuildArgs {
     /// Build artifacts with the specified profile
     #[arg(long, ignore_case = true)]
@@ -115,57 +106,11 @@ pub struct BuildArgs {
     #[arg(long)]
     pub verify_signature: bool,
 
-    /// File digest algorithm passed to signtool (`/fd`, and `/td` when a
-    /// timestamp server is used).
-    #[arg(
-        long,
-        value_enum,
-        ignore_case = true,
-        default_value_t = FileDigestAlgorithm::Sha256,
-        help_heading = "Driver Signing"
-    )]
-    pub file_digest_algorithm: FileDigestAlgorithm,
-
-    /// Certificate store name to select the signing certificate from. Must be
-    /// used together with `--cert-name`.
-    #[arg(
-        long,
-        value_name = "STORE",
-        requires = "cert_name",
-        help_heading = "Driver Signing"
-    )]
-    pub cert_store: Option<String>,
-
-    /// Subject name of the certificate to select from the store. Must be used
-    /// together with `--cert-store`.
-    #[arg(
-        long,
-        value_name = "NAME",
-        requires = "cert_store",
-        help_heading = "Driver Signing"
-    )]
-    pub cert_name: Option<String>,
-
-    /// Path to a PFX certificate file to sign with. Mutually exclusive with
-    /// `--cert-store`/`--cert-name`.
-    #[arg(
-        long,
-        value_name = "PATH",
-        value_parser = existing_file,
-        help_heading = "Driver Signing"
-    )]
-    pub cert_file: Option<PathBuf>,
-
-    /// Name of the environment variable holding the PFX password. The password
-    /// is read from the environment (never passed as a plaintext CLI value).
-    /// Must be used together with `--cert-file`.
-    #[arg(
-        long,
-        value_name = "ENV_VAR",
-        requires = "cert_file",
-        help_heading = "Driver Signing"
-    )]
-    pub cert_password_env: Option<String>,
+    /// Additional arguments to pass to `signtool sign` when signing the driver
+    /// binary and the catalog file, e.g.
+    /// `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`.
+    #[arg(long, value_name = "ARGS", help_heading = "Driver Signing")]
+    pub signtool_args: Option<String>,
 
     /// Build sample class driver project
     #[arg(long)]
@@ -178,41 +123,6 @@ pub struct BuildArgs {
     #[command(flatten)]
     #[clap(next_help_heading = "Feature Selection")]
     pub features: Features,
-}
-
-impl BuildArgs {
-    /// Returns `true` if any certificate or timestamp signing option was
-    /// provided on the command line. The defaulted `--file-digest-algorithm`
-    /// is intentionally not counted (it is ignored when nothing is signed).
-    const fn has_signing_options(&self) -> bool {
-        self.cert_store.is_some()
-            || self.cert_name.is_some()
-            || self.cert_file.is_some()
-            || self.cert_password_env.is_some()
-    }
-
-    /// Resolves the certificate selection from the (already clap-validated)
-    /// certificate flags, reading the PFX password from the environment when
-    /// requested.
-    fn cert_source(&self) -> Result<CertSource, clap::Error> {
-        match (&self.cert_file, &self.cert_store, &self.cert_name) {
-            (Some(path), ..) => {
-                let password = match &self.cert_password_env {
-                    Some(var) => Some(resolve_password_env(var)?),
-                    None => None,
-                };
-                std::result::Result::Ok(CertSource::File {
-                    path: path.clone(),
-                    password,
-                })
-            }
-            (None, Some(store), Some(name)) => std::result::Result::Ok(CertSource::Store {
-                store: store.clone(),
-                name: name.clone(),
-            }),
-            _ => std::result::Result::Ok(CertSource::AutoTestCert),
-        }
-    }
 }
 
 /// Resolves a typed, fully-validated [`SignMode`] from the parsed build
@@ -229,47 +139,18 @@ impl TryFrom<&BuildArgs> for SignMode {
                         "`--verify-signature` cannot be used with `--sign-mode=off`.",
                     ));
                 }
-                if args.has_signing_options() {
+                if args.signtool_args.is_some() {
                     return Err(build_error(
-                        "Signing options (certificate/timestamp) cannot be used with \
-                         `--sign-mode=off`; nothing would be signed.",
+                        "`--signtool-args` cannot be used with `--sign-mode=off`.",
                     ));
                 }
                 std::result::Result::Ok(Self::Off)
             }
             SignModeArg::Test => std::result::Result::Ok(Self::Test {
                 verify_signature: args.verify_signature,
-                options: SignOptions {
-                    cert: args.cert_source()?,
-                    file_digest_algorithm: args.file_digest_algorithm,
-                },
+                signtool_args: args.signtool_args.clone(),
             }),
         }
-    }
-}
-
-/// `clap` value parser that accepts a path only if it points at an existing
-/// file.
-fn existing_file(value: &str) -> Result<PathBuf, String> {
-    let path = PathBuf::from(value);
-    if path.is_file() {
-        std::result::Result::Ok(path)
-    } else {
-        Err(format!("file does not exist: {value}"))
-    }
-}
-
-/// Reads the PFX password from the named environment variable, wrapping it in a
-/// redacting [`SecretString`]. Returns a `clap::Error` when the variable is
-/// unset or empty.
-fn resolve_password_env(var: &str) -> Result<SecretString, clap::Error> {
-    match std::env::var(var) {
-        std::result::Result::Ok(value) if !value.is_empty() => {
-            std::result::Result::Ok(SecretString::new(value))
-        }
-        _ => Err(build_error(format!(
-            "environment variable `{var}` referenced by `--cert-password-env` is unset or empty"
-        ))),
     }
 }
 
@@ -384,10 +265,7 @@ mod tests {
     use clap::Parser;
 
     use crate::{
-        actions::{
-            DriverType,
-            build::{CertSource, FileDigestAlgorithm, SignMode, SignOptions},
-        },
+        actions::{DriverType, build::SignMode},
         cli::{BuildArgs, Cli, NewArgs, Subcmd},
     };
 
@@ -471,16 +349,9 @@ mod tests {
     }
 
     #[test]
-    fn build_rejects_signing_options_with_sign_mode_off() {
-        let args = parse_build_args(&[
-            "--sign-mode",
-            "off",
-            "--cert-store",
-            "S",
-            "--cert-name",
-            "N",
-        ])
-        .expect("args parse");
+    fn build_rejects_signtool_args_with_sign_mode_off() {
+        let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", "/fd SHA256"])
+            .expect("args parse");
         let err = SignMode::try_from(&args).expect_err("should be rejected");
         assert!(
             err.to_string().contains("`--sign-mode=off`"),
@@ -489,137 +360,49 @@ mod tests {
     }
 
     #[test]
-    fn build_rejects_cert_file_with_store_and_name() {
-        assert!(
-            parse_build_args(&[
-                "--cert-file",
-                "cert.pfx",
-                "--cert-store",
-                "MyStore",
-                "--cert-name",
-                "MyCert",
-            ])
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn build_rejects_cert_store_without_cert_name() {
-        assert!(parse_build_args(&["--cert-store", "MyStore"]).is_err());
-    }
-
-    #[test]
-    fn build_rejects_cert_name_without_cert_store() {
-        assert!(parse_build_args(&["--cert-name", "MyCert"]).is_err());
-    }
-
-    #[test]
-    fn build_rejects_cert_password_env_without_cert_file() {
-        assert!(parse_build_args(&["--cert-password-env", "PFX_PW"]).is_err());
-    }
-
-    #[test]
-    fn build_rejects_invalid_file_digest_algorithm() {
-        assert!(parse_build_args(&["--file-digest-algorithm", "MD5"]).is_err());
-    }
-
-    #[test]
-    fn build_rejects_missing_cert_file_path() {
-        assert!(parse_build_args(&["--cert-file", "definitely_not_a_real_file.pfx"]).is_err());
-    }
-
-    #[test]
-    fn build_maps_store_cert_and_digest() {
-        let args = parse_build_args(&[
-            "--sign-mode",
-            "test",
-            "--cert-store",
-            "MyStore",
-            "--cert-name",
-            "MyCert",
-            "--file-digest-algorithm",
-            "SHA384",
-        ])
-        .expect("args should parse");
-
-        assert_eq!(
-            SignMode::try_from(&args).expect("mapping should succeed"),
-            SignMode::Test {
-                verify_signature: false,
-                options: SignOptions {
-                    cert: CertSource::Store {
-                        store: "MyStore".to_string(),
-                        name: "MyCert".to_string(),
-                    },
-                    file_digest_algorithm: FileDigestAlgorithm::Sha384,
-                },
-            }
-        );
-    }
-
-    #[test]
-    fn build_maps_pfx_cert_with_password_env() {
-        let cert = assert_fs::NamedTempFile::new("cert.pfx").expect("temp file");
-        std::fs::write(cert.path(), b"pfx").expect("write temp cert");
-        let cert_path = cert.path().to_path_buf();
-
-        let args = parse_build_args(&[
-            "--cert-file",
-            cert_path.to_str().expect("utf8 path"),
-            "--cert-password-env",
-            "CARGO_WDK_TEST_PFX_PW",
-        ])
-        .expect("args should parse");
-
-        let sign_mode =
-            crate::test_utils::with_env(&[("CARGO_WDK_TEST_PFX_PW", Some("secret"))], || {
-                SignMode::try_from(&args)
-            })
-            .expect("mapping should succeed");
-
-        assert_eq!(
-            sign_mode,
-            SignMode::Test {
-                verify_signature: false,
-                options: SignOptions {
-                    cert: CertSource::File {
-                        path: cert_path,
-                        password: Some(crate::actions::build::SecretString::new(
-                            "secret".to_string()
-                        )),
-                    },
-                    file_digest_algorithm: FileDigestAlgorithm::Sha256,
-                },
-            }
-        );
-    }
-
-    #[test]
-    fn build_rejects_unset_cert_password_env() {
-        let cert = assert_fs::NamedTempFile::new("cert.pfx").expect("temp file");
-        std::fs::write(cert.path(), b"pfx").expect("write temp cert");
-
-        let args = parse_build_args(&[
-            "--cert-file",
-            cert.path().to_str().expect("utf8 path"),
-            "--cert-password-env",
-            "CARGO_WDK_TEST_UNSET_PW",
-        ])
-        .expect("args should parse");
-
-        let result =
-            crate::test_utils::with_env(&[("CARGO_WDK_TEST_UNSET_PW", None::<&str>)], || {
-                SignMode::try_from(&args)
-            });
-        assert!(result.is_err(), "unset password env should be rejected");
-    }
-
-    #[test]
     fn build_off_mode_maps_to_off() {
         let args = parse_build_args(&["--sign-mode", "off"]).expect("args should parse");
         assert_eq!(
             SignMode::try_from(&args).expect("mapping should succeed"),
             SignMode::Off
+        );
+    }
+
+    #[test]
+    fn build_default_maps_to_test_with_no_signtool_args() {
+        let args = parse_build_args(&[]).expect("args should parse");
+        assert_eq!(
+            SignMode::try_from(&args).expect("mapping should succeed"),
+            SignMode::Test {
+                verify_signature: false,
+                signtool_args: None,
+            }
+        );
+    }
+
+    #[test]
+    fn build_maps_signtool_args_string_verbatim() {
+        let args = parse_build_args(&["--signtool-args", "/fd SHA384 /f cert.pfx"])
+            .expect("args should parse");
+        assert_eq!(
+            SignMode::try_from(&args).expect("mapping should succeed"),
+            SignMode::Test {
+                verify_signature: false,
+                signtool_args: Some("/fd SHA384 /f cert.pfx".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn build_signtool_args_with_verify_signature_maps_both() {
+        let args = parse_build_args(&["--verify-signature", "--signtool-args", "/fd SHA256"])
+            .expect("args should parse");
+        assert_eq!(
+            SignMode::try_from(&args).expect("mapping should succeed"),
+            SignMode::Test {
+                verify_signature: true,
+                signtool_args: Some("/fd SHA256".to_string()),
+            }
         );
     }
 }

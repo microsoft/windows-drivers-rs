@@ -30,7 +30,7 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{BuildAction, BuildActionParams, SignMode, SignOptions, error::BuildActionError},
+        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -1658,9 +1658,9 @@ fn initialize_build_action<'a>(
 ) -> Result<BuildAction<'a>, anyhow::Error> {
     let sign_mode = match &test_build_action.sign_mode {
         SignMode::Off => SignMode::Off,
-        SignMode::Test { options, .. } => SignMode::Test {
+        SignMode::Test { signtool_args, .. } => SignMode::Test {
             verify_signature,
-            options: options.clone(),
+            signtool_args: signtool_args.clone(),
         },
     };
     BuildAction::new(
@@ -1764,7 +1764,7 @@ impl TestBuildAction {
             sample_class,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                options: SignOptions::default(),
+                signtool_args: None,
             },
             locked: false,
             features: Features::default(),

@@ -72,13 +72,9 @@ Options:
   -h, --help                       Print help
 
 Driver Signing:
-      --file-digest-algorithm <ALGORITHM>
-                                        File digest algorithm [default: SHA256]
-                                        [possible values: SHA1, SHA256, SHA384, SHA512]
-      --cert-store <STORE>              Certificate store name (use with `--cert-name`)
-      --cert-name <NAME>                Certificate subject name (use with `--cert-store`)
-      --cert-file <PATH>                PFX certificate file to sign with
-      --cert-password-env <ENV_VAR>     Env var holding the PFX password (use with `--cert-file`)
+      --signtool-args <ARGS>       Additional arguments forwarded verbatim to
+                                   `signtool sign`, as a single quoted string
+                                   (e.g. `--signtool-args "/fd SHA256 /f cert.pfx"`)
 
 Feature Selection:
       --all-features               Activate all available features
@@ -115,18 +111,20 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
 
-##### Selecting a certificate
+##### Customizing signtool arguments
 
-By default test signing uses the auto-generated `WDRLocalTestCert` certificate. You can instead point `build` at your own certificate. These options apply only when signing (i.e. `--sign-mode=test`); supplying any of them with `--sign-mode=off` is an error.
+By default test signing uses the auto-generated `WDRLocalTestCert` certificate and cargo-wdk's default switches (`sign /v /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256 <file>`). If you need to sign with your own certificate or tweak any signing option, pass `--signtool-args` with a single quoted string of the arguments you want forwarded to `signtool sign`.
 
-- `--cert-store <STORE>` together with `--cert-name <NAME>` selects an existing certificate from a certificate store by store name and subject name (maps to `signtool /s <STORE> /n <NAME>`). Both flags must be provided together.
-- `--cert-file <PATH>` signs with a certificate from a PFX file (maps to `signtool /f <PATH>`); the path must exist. `--cert-file` is mutually exclusive with `--cert-store`/`--cert-name`.
-- `--cert-password-env <ENV_VAR>` names an environment variable that holds the PFX password. The password is read from the environment (never accepted as a plaintext CLI value, so it never leaks into process listings, shell history, or CI logs) and mapped to `signtool /p`. It requires `--cert-file`.
-- `--file-digest-algorithm <ALGORITHM>` controls the file digest algorithm passed to `signtool /fd`. Default `SHA256`; one of `SHA1`, `SHA256`, `SHA384`, `SHA512`.
+- When `--signtool-args` is **omitted**, cargo-wdk signs with the auto-generated WDR test certificate as described above.
+- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). cargo-wdk only wraps your arguments with the `sign` verb and the trailing file operand — it does **not** inject `/s`, `/n`, `/fd`, or `/v`, and it does **not** generate the WDR test certificate. Supply everything your signing scenario requires (for example `/f`, `/p`, `/fd`).
 
-Consistent with the WDK MSBuild `TestSign` target, test signing does **not** timestamp the signature (no `/t`, `/tr`, or `/td` switches). Timestamping is a production-signing concern and is planned for the production-signing follow-up.
+The string is split into individual arguments on whitespace, honoring single- and double-quoted spans so values containing spaces (e.g. `/n "CN=Contoso Root"`) survive as a single argument. Any shell-level quoting/escaping is your responsibility and is applied by the shell before cargo-wdk sees the value.
 
-If signing fails, `build` best-effort removes the produced `.sys`, `.cat`, and `.cer` artifacts from the package directory so it never leaves unsigned output behind.
+`--signtool-args` applies only when signing (i.e. `--sign-mode=test`); supplying it with `--sign-mode=off` is an error.
+
+Consistent with the WDK MSBuild `TestSign` target, the default test signing does **not** timestamp the signature (no `/t`, `/tr`, or `/td` switches). If you require timestamping, add the relevant switches through `--signtool-args`.
+
+If signing fails, the package folder is assembled only after signing succeeds, so a failure never leaves unsigned output in the package directory.
 
 #### Examples
 
@@ -157,18 +155,11 @@ If signing fails, `build` best-effort removes the produced `.sys`, `.cat`, and `
 - To test-sign with a certificate selected from a store by subject name, run:
 
     ```pwsh
-    cargo wdk build --cert-store MyStore --cert-name MyCert
+    cargo wdk build --signtool-args "/s MyStore /n MyCert /fd SHA256"
     ```
 
-- To test-sign with a PFX file whose password comes from an environment variable, run:
+- To test-sign with a PFX file whose password is supplied inline, run:
 
     ```pwsh
-    $env:PFX_PW = "<password>"
-    cargo wdk build --cert-file C:\certs\my.pfx --cert-password-env PFX_PW
-    ```
-
-- To test-sign with a specific file digest algorithm, run:
-
-    ```pwsh
-    cargo wdk build --file-digest-algorithm SHA384
+    cargo wdk build --signtool-args "/f C:\certs\my.pfx /p <password> /fd SHA256"
     ```
