@@ -23,7 +23,7 @@ use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, Tar
 use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
-pub use package_task::SignMode;
+pub use package_task::{CertSource, FileDigestAlgorithm, SecretString, SignMode, SignOptions};
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
@@ -99,7 +99,7 @@ impl<'a> BuildAction<'a> {
             working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
-            sign_mode: params.sign_mode,
+            sign_mode: params.sign_mode.clone(),
             is_sample_class: params.is_sample_class,
             locked: params.locked,
             features: params.features,
@@ -404,7 +404,7 @@ impl<'a> BuildAction<'a> {
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
-                sign_mode: self.sign_mode,
+                sign_mode: self.sign_mode.clone(),
                 sample_class: self.is_sample_class,
                 driver_model,
             },

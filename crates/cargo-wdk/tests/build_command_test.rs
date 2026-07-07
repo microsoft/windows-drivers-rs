@@ -359,6 +359,47 @@ fn kmdf_driver_builds_successfully_with_sign_mode_off() {
     });
 }
 
+/// Regression test for issue #660: because the package folder is assembled
+/// fresh (the tools run in a staging dir and the folder is replaced last),
+/// switching from `--sign-mode=test` to `--sign-mode=off` on a subsequent build
+/// (without cleaning) must drop the stale `WDRLocalTestCert.cer` from the
+/// package folder.
+#[test]
+fn rebuild_with_sign_mode_off_drops_stale_test_cert() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        run_clean_cmd(&project_path);
+
+        let driver_name = driver.replace('-', "_");
+        let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
+        let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+
+        // First build test-signs, so the package folder contains the cert.
+        run_build_cmd(&project_path, Some(&["--sign-mode", "test"]), None);
+        assert!(
+            cert_in_package.exists(),
+            "test-sign build should place the cert in the package folder: {}",
+            cert_in_package.display()
+        );
+
+        // Rebuild with signing off (no clean in between). The package folder is
+        // reassembled fresh, so the stale cert must be gone.
+        run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+        assert!(
+            !cert_in_package.exists(),
+            "stale cert must be removed after rebuilding with --sign-mode=off, but found {}",
+            cert_in_package.display()
+        );
+
+        // The rest of the package is still assembled.
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "map", "pdb", "sys"] {
+            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+        }
+    });
+}
+
 /// `--sign-mode=off` together with `--verify-signature` is rejected at the CLI
 /// layer
 #[test]

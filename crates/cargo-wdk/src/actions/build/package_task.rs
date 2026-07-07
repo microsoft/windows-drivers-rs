@@ -9,6 +9,7 @@
 
 use std::{
     ffi::{CStr, CString},
+    fmt,
     marker::PhantomData,
     ops::RangeFrom,
     path::{Path, PathBuf},
@@ -30,16 +31,132 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
+/// A string that must not be exposed in logs or `Debug` output (e.g. a PFX
+/// password). The wrapped value is only revealed via [`SecretString::expose`],
+/// which is called exactly once when building the `signtool` argument vector.
+#[derive(Clone)]
+pub struct SecretString(String);
+
+impl SecretString {
+    /// Wraps a secret value.
+    #[must_use]
+    pub const fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    /// Exposes the wrapped secret. Only call this at the point the value is
+    /// actually needed (i.e. when constructing the `signtool` argv).
+    #[must_use]
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for SecretString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SecretString(\"[REDACTED]\")")
+    }
+}
+
+impl PartialEq for SecretString {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for SecretString {}
+
+/// File digest algorithm passed to `signtool` via `/fd` (and `/td` when an
+/// RFC 3161 timestamp server is used).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+#[value(rename_all = "UPPER")]
+pub enum FileDigestAlgorithm {
+    /// SHA-1.
+    Sha1,
+    /// SHA-256 (default).
+    #[default]
+    Sha256,
+    /// SHA-384.
+    Sha384,
+    /// SHA-512.
+    Sha512,
+}
+
+impl FileDigestAlgorithm {
+    /// Returns the `signtool` spelling of the algorithm.
+    const fn as_signtool(self) -> &'static str {
+        match self {
+            Self::Sha1 => "SHA1",
+            Self::Sha256 => "SHA256",
+            Self::Sha384 => "SHA384",
+            Self::Sha512 => "SHA512",
+        }
+    }
+}
+
+/// Source of the certificate used by `signtool` to sign the driver artifacts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CertSource {
+    /// Use the auto-generated self-signed WDR test certificate. This is the
+    /// default and preserves the historical behavior: the certificate is
+    /// looked up in (and if missing, generated in) the `WDRTestCertStore`
+    /// store under the subject name `WDRLocalTestCert`.
+    AutoTestCert,
+    /// Select an existing certificate from a certificate store by store name
+    /// and subject name (maps to `signtool /s <store> /n <name>`).
+    Store {
+        /// Certificate store name (`/s`).
+        store: String,
+        /// Certificate subject name (`/n`).
+        name: String,
+    },
+    /// Select a certificate from a PFX file with an optional password (maps to
+    /// `signtool /f <path> [/p <password>]`).
+    File {
+        /// Path to the PFX file (`/f`).
+        path: PathBuf,
+        /// Optional password for the PFX file (`/p`).
+        password: Option<SecretString>,
+    },
+}
+
+/// Options controlling how the driver binary and catalog file are signed.
+///
+/// These mirror the certificate-selection and signing knobs from the Visual
+/// Studio "Driver Signing" property page. The shape is intentionally chosen so
+/// the production-signing follow-up can add timestamping and a
+/// `cross_certificate` field plus a `SignMode::Production` variant without
+/// churn. Test signing, like the WDK `MSBuild` `TestSign` target, does not
+/// timestamp.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignOptions {
+    /// Certificate selection strategy.
+    pub cert: CertSource,
+    /// File digest algorithm passed to `signtool /fd`.
+    pub file_digest_algorithm: FileDigestAlgorithm,
+}
+
+impl Default for SignOptions {
+    fn default() -> Self {
+        Self {
+            cert: CertSource::AutoTestCert,
+            file_digest_algorithm: FileDigestAlgorithm::Sha256,
+        }
+    }
+}
+
 /// Signing mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SignMode {
     /// Skip signing entirely.
     Off,
-    /// Sign with an auto-generated self-signed certificate.
+    /// Test-sign the driver artifacts.
     Test {
         /// When `true`, run `signtool verify` on the signed driver binary and
         /// catalog file after signing.
         verify_signature: bool,
+        /// Options controlling certificate selection and digest algorithm.
+        options: SignOptions,
     },
 }
 
@@ -75,14 +192,23 @@ pub struct PackageTask<'a> {
     src_map_file_path: PathBuf,
     src_cert_file_path: PathBuf,
 
-    // destination paths
-    dest_root_package_folder: PathBuf,
-    dest_inf_file_path: PathBuf,
-    dest_driver_binary_path: PathBuf,
-    dest_pdb_file_path: PathBuf,
-    dest_map_file_path: PathBuf,
-    dest_cert_file_path: PathBuf,
-    dest_cat_file_path: PathBuf,
+    // Staging paths. Only the files the packaging tools operate on (`.sys` and
+    // the `.inf`, plus the generated `.cat`/`.cer`) live in this clean,
+    // per-build staging directory, so `inf2cat` only ever scans the driver's
+    // `.sys` and `.inf`. The final package folder is assembled from it only
+    // once everything succeeds.
+    stage_root_folder: PathBuf,
+    stage_inf_file_path: PathBuf,
+    stage_driver_binary_path: PathBuf,
+    stage_cert_file_path: PathBuf,
+    stage_cat_file_path: PathBuf,
+
+    // Final package folder, assembled last by renaming the staging folder.
+    // The debug symbols (`.pdb`) and map (`.map`) are copied straight here
+    // during assembly rather than being staged.
+    final_package_folder: PathBuf,
+    final_pdb_file_path: PathBuf,
+    final_map_file_path: PathBuf,
 
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
@@ -156,16 +282,18 @@ impl<'a> PackageTask<'a> {
         let src_renamed_driver_binary_file_path = params
             .target_dir
             .join(format!("{package_name}.{dest_driver_binary_extension}"));
-        let dest_root_package_folder: PathBuf =
+        let stage_root_folder: PathBuf = params
+            .target_dir
+            .join(format!("{package_name}_package_stage"));
+        let stage_inf_file_path = stage_root_folder.join(format!("{package_name}.inf"));
+        let stage_driver_binary_path =
+            stage_root_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
+        let stage_cert_file_path = stage_root_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
+        let stage_cat_file_path = stage_root_folder.join(format!("{package_name}.cat"));
+        let final_package_folder: PathBuf =
             params.target_dir.join(format!("{package_name}_package"));
-        let dest_inf_file_path = dest_root_package_folder.join(format!("{package_name}.inf"));
-        let dest_driver_binary_path =
-            dest_root_package_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
-        let dest_pdb_file_path = dest_root_package_folder.join(format!("{package_name}.pdb"));
-        let dest_map_file_path = dest_root_package_folder.join(format!("{package_name}.map"));
-        let dest_cert_file_path =
-            dest_root_package_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
-        let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
+        let final_pdb_file_path = final_package_folder.join(format!("{package_name}.pdb"));
+        let final_map_file_path = final_package_folder.join(format!("{package_name}.map"));
 
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
@@ -182,13 +310,14 @@ impl<'a> PackageTask<'a> {
             src_pdb_file_path,
             src_map_file_path,
             src_cert_file_path,
-            dest_root_package_folder,
-            dest_inf_file_path,
-            dest_driver_binary_path,
-            dest_pdb_file_path,
-            dest_map_file_path,
-            dest_cert_file_path,
-            dest_cat_file_path,
+            stage_root_folder,
+            stage_inf_file_path,
+            stage_driver_binary_path,
+            stage_cert_file_path,
+            stage_cat_file_path,
+            final_package_folder,
+            final_pdb_file_path,
+            final_map_file_path,
             arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
@@ -231,55 +360,102 @@ impl<'a> PackageTask<'a> {
     /// * `PackageTaskError::Io` - Wraps all possible IO errors.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
-        debug!("Creating final package directory if it doesn't exist");
-        if !self.fs.exists(&self.dest_root_package_folder) {
-            self.fs.create_dir(&self.dest_root_package_folder)?;
-        }
+
+        // Assemble everything inside a clean, per-build staging directory so
+        // that packaging tools never operate on (or leave behind) files in the
+        // final package folder. Matches the WDK MSBuild ordering: run the tools
+        // against intermediate files, then assemble the package folder last.
+        self.recreate_stage_dir()?;
+
         info!(
-            "Copying files to target package folder: {}",
-            self.dest_root_package_folder.to_string_lossy()
+            "Staging files in: {}",
+            self.stage_root_folder.to_string_lossy()
         );
         self.rename_driver_binary_extension()?;
         self.copy(
             &self.src_renamed_driver_binary_file_path,
-            &self.dest_driver_binary_path,
+            &self.stage_driver_binary_path,
         )?;
-        self.copy(&self.src_pdb_file_path, &self.dest_pdb_file_path)?;
-        self.copy(&self.src_inx_file_path, &self.dest_inf_file_path)?;
-        self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
+        self.copy(&self.src_inx_file_path, &self.stage_inf_file_path)?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
         self.run_infverif()?;
         self.sign_and_verify()?;
+
+        // Everything succeeded: assemble the final package folder last by
+        // replacing any previous one with the freshly-staged artifacts.
+        self.assemble_package_folder()?;
+        Ok(())
+    }
+
+    /// Creates a clean staging directory, removing any leftovers from a
+    /// previous (possibly failed) build first.
+    fn recreate_stage_dir(&self) -> Result<(), PackageTaskError> {
+        if self.fs.exists(&self.stage_root_folder) {
+            debug!("Removing stale staging directory before packaging");
+            self.fs.remove_dir_all(&self.stage_root_folder)?;
+        }
+        debug!("Creating staging directory");
+        self.fs.create_dir(&self.stage_root_folder)?;
+        Ok(())
+    }
+
+    /// Assembles the final package folder by atomically replacing any existing
+    /// one with the fully-built staging directory. Because this runs only after
+    /// every packaging step succeeds, the package folder never contains partial
+    /// or unsigned output, and stale artifacts (e.g. a `.cer` from a previous
+    /// `--sign-mode=test` build) are removed when the mode changes.
+    fn assemble_package_folder(&self) -> Result<(), PackageTaskError> {
+        info!(
+            "Assembling final package folder: {}",
+            self.final_package_folder.to_string_lossy()
+        );
+        if self.fs.exists(&self.final_package_folder) {
+            debug!("Removing previous package folder");
+            self.fs.remove_dir_all(&self.final_package_folder)?;
+        }
+        self.fs
+            .rename(&self.stage_root_folder, &self.final_package_folder)?;
+
+        // The debug symbols (`.pdb`) and linker map (`.map`) are debugging aids
+        // that `inf2cat` does not need to catalog, so they are copied straight
+        // into the final package folder here rather than being staged.
+        self.copy(&self.src_pdb_file_path, &self.final_pdb_file_path)?;
+        self.copy(&self.src_map_file_path, &self.final_map_file_path)?;
         Ok(())
     }
 
     /// Signs the driver binary and catalog file according to `self.sign_mode`
-    /// and optionally verifies the resulting signatures. Returns a variant of
-    /// `PackageTaskError` if any step of the process fails.
+    /// and optionally verifies the resulting signatures. Operates on the
+    /// staging directory; the final package folder is assembled only after this
+    /// (and all other steps) succeed, so a failure never leaves unsigned output
+    /// in the package folder. Returns a variant of `PackageTaskError` if any
+    /// step of the process fails.
     fn sign_and_verify(&self) -> Result<(), PackageTaskError> {
-        let SignMode::Test { verify_signature } = self.sign_mode else {
+        let SignMode::Test {
+            verify_signature,
+            options,
+        } = &self.sign_mode
+        else {
             info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
 
-        self.generate_certificate()?;
-        self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-        self.run_signtool_sign(
-            &self.dest_driver_binary_path,
-            WDR_TEST_CERT_STORE,
-            WDR_LOCAL_TEST_CERT,
-        )?;
-        self.run_signtool_sign(
-            &self.dest_cat_file_path,
-            WDR_TEST_CERT_STORE,
-            WDR_LOCAL_TEST_CERT,
-        )?;
+        // Only the auto-generated test certificate requires generating/exporting
+        // a certificate. When the user selects a store certificate or a PFX
+        // file, signtool sources the certificate directly.
+        if matches!(options.cert, CertSource::AutoTestCert) {
+            self.generate_certificate()?;
+            self.copy(&self.src_cert_file_path, &self.stage_cert_file_path)?;
+        }
 
-        if verify_signature {
+        self.run_signtool_sign(&self.stage_driver_binary_path, options)?;
+        self.run_signtool_sign(&self.stage_cat_file_path, options)?;
+
+        if *verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
-            self.run_signtool_verify(&self.dest_driver_binary_path)?;
-            self.run_signtool_verify(&self.dest_cat_file_path)?;
+            self.run_signtool_verify(&self.stage_driver_binary_path)?;
+            self.run_signtool_verify(&self.stage_cat_file_path)?;
         }
 
         Ok(())
@@ -339,7 +515,7 @@ impl<'a> PackageTask<'a> {
         // TODO: Does it generate cat file relative to inf file path or we need to
         // provide the absolute path?
         let cat_file_path = format!("{}.cat", self.package_name);
-        let dest_inf_file_path = self.dest_inf_file_path.to_string_lossy();
+        let dest_inf_file_path = self.stage_inf_file_path.to_string_lossy();
         let arch = self.arch.to_string();
         let mut args: Vec<&str> = vec![
             "-f",
@@ -381,7 +557,7 @@ impl<'a> PackageTask<'a> {
         let args = [
             &format!(
                 "/driver:{}",
-                self.dest_root_package_folder
+                self.stage_root_folder
                     .to_string_lossy()
                     .trim_start_matches("\\\\?\\")
             ),
@@ -481,20 +657,30 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    /// Signs the specified file using signtool command using certificate from
-    /// certificate store.
+    /// Signs the specified file using the `signtool` command.
+    ///
+    /// The argument vector is assembled in a canonical order:
+    ///
+    /// `sign /v <cert group> /fd <digest> <file>`
+    ///
+    /// The certificate group is one of:
+    /// * auto test cert: `/s WDRTestCertStore /n WDRLocalTestCert`
+    /// * store cert: `/s <store> /n <name>`
+    /// * PFX file: `/f <path> [/p <password>]`
+    ///
+    /// Test signing does not timestamp (matching the WDK `MSBuild` `TestSign`
+    /// target); timestamping is a production-signing concern handled by a
+    /// follow-up.
     ///
     /// # Arguments
     ///
     /// * `file_path` - The path to the file to be signed.
-    /// * `cert_store` - The certificate store to use for signing.
-    /// * `cert_name` - The name of the certificate to use for signing. TODO:
-    ///   Add parameters for certificate store and name
+    /// * `options` - The signing options controlling certificate selection and
+    ///   digest algorithm.
     fn run_signtool_sign(
         &self,
         file_path: &Path,
-        cert_store: &str,
-        cert_name: &str,
+        options: &SignOptions,
     ) -> Result<(), PackageTaskError> {
         info!(
             "Signing {} using signtool",
@@ -503,21 +689,43 @@ impl<'a> PackageTask<'a> {
                 .expect("Unable to read file name from the path")
                 .to_string_lossy()
         );
-        let driver_binary_file_path = file_path.to_string_lossy();
-        let args = [
-            "sign",
-            "/v",
-            "/s",
-            cert_store,
-            "/n",
-            cert_name,
-            "/t",
-            "http://timestamp.digicert.com",
-            "/fd",
-            "SHA256",
-            &driver_binary_file_path,
-        ];
-        if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
+        let file_path = file_path.to_string_lossy().into_owned();
+
+        let mut args: Vec<String> = vec!["sign".to_string(), "/v".to_string()];
+
+        // Certificate group.
+        match &options.cert {
+            CertSource::AutoTestCert => {
+                args.push("/s".to_string());
+                args.push(WDR_TEST_CERT_STORE.to_string());
+                args.push("/n".to_string());
+                args.push(WDR_LOCAL_TEST_CERT.to_string());
+            }
+            CertSource::Store { store, name } => {
+                args.push("/s".to_string());
+                args.push(store.clone());
+                args.push("/n".to_string());
+                args.push(name.clone());
+            }
+            CertSource::File { path, password } => {
+                args.push("/f".to_string());
+                args.push(path.to_string_lossy().into_owned());
+                if let Some(password) = password {
+                    args.push("/p".to_string());
+                    args.push(password.expose().to_string());
+                }
+            }
+        }
+
+        // File digest algorithm.
+        args.push("/fd".to_string());
+        args.push(options.file_digest_algorithm.as_signtool().to_string());
+
+        // File operand (must be last).
+        args.push(file_path);
+
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        if let Err(e) = self.command_exec.run("signtool", &arg_refs, None, None) {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
         Ok(())
@@ -567,7 +775,7 @@ impl<'a> PackageTask<'a> {
                 DriverConfig::Umdf(_) => "/u",
             },
         ];
-        let inf_path = self.dest_inf_file_path.to_string_lossy();
+        let inf_path = self.stage_inf_file_path.to_string_lossy();
 
         if self.sample_class {
             args.push(additional_args);
@@ -664,9 +872,11 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
+                options: SignOptions::default(),
             },
         };
-        let dest_root = target_dir.join(format!("{package_name}_package"));
+        let stage_root = target_dir.join(format!("{package_name}_package_stage"));
+        let final_root = target_dir.join(format!("{package_name}_package"));
 
         let command_exec = CommandExec::default();
         let wdk_build = WdkBuild::default();
@@ -677,6 +887,7 @@ mod tests {
             task.sign_mode,
             SignMode::Test {
                 verify_signature: false,
+                options: SignOptions::default(),
             }
         );
         assert!(!task.sample_class);
@@ -698,19 +909,32 @@ mod tests {
             task.src_cert_file_path,
             target_dir.join("WDRLocalTestCert.cer")
         );
-        assert_eq!(task.dest_root_package_folder, dest_root);
-        assert_eq!(task.dest_inf_file_path, dest_root.join("test_package.inf"));
+        assert_eq!(task.stage_root_folder, stage_root);
         assert_eq!(
-            task.dest_driver_binary_path,
-            dest_root.join("test_package.sys")
+            task.stage_inf_file_path,
+            stage_root.join("test_package.inf")
         );
-        assert_eq!(task.dest_pdb_file_path, dest_root.join("test_package.pdb"));
-        assert_eq!(task.dest_map_file_path, dest_root.join("test_package.map"));
         assert_eq!(
-            task.dest_cert_file_path,
-            dest_root.join("WDRLocalTestCert.cer")
+            task.stage_driver_binary_path,
+            stage_root.join("test_package.sys")
         );
-        assert_eq!(task.dest_cat_file_path, dest_root.join("test_package.cat"));
+        assert_eq!(
+            task.stage_cert_file_path,
+            stage_root.join("WDRLocalTestCert.cer")
+        );
+        assert_eq!(
+            task.stage_cat_file_path,
+            stage_root.join("test_package.cat")
+        );
+        assert_eq!(task.final_package_folder, final_root);
+        assert_eq!(
+            task.final_pdb_file_path,
+            final_root.join("test_package.pdb")
+        );
+        assert_eq!(
+            task.final_map_file_path,
+            final_root.join("test_package.map")
+        );
         assert_eq!(*task.arch, arch);
         assert_eq!(task.os_mapping, "10_x64");
         assert!(matches!(task.driver_model, DriverConfig::Kmdf(_)));
@@ -734,6 +958,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
+                options: SignOptions::default(),
             },
         };
 
@@ -762,6 +987,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
+                options: SignOptions::default(),
             },
         };
 
@@ -799,6 +1025,7 @@ mod tests {
                         sample_class: false,
                         sign_mode: SignMode::Test {
                             verify_signature: false,
+                            options: SignOptions::default(),
                         },
                     };
 
@@ -837,6 +1064,266 @@ mod tests {
                 "scenario {name} failed (env_set={env_val:?})"
             );
         }
+    }
+
+    // Builds a minimal `PackageTask` suitable for exercising `run_signtool_sign`
+    // in isolation. The signing method does not read `sign_mode`, so `Off` is
+    // used here; the caller passes the `SignOptions` under test directly.
+    fn signing_task<'a>(
+        wdk_build: &'a WdkBuild,
+        command_exec: &'a CommandExec,
+        fs: &'a Fs,
+        arch: &'a CpuArchitecture,
+    ) -> PackageTask<'a> {
+        let params = PackageTaskParams {
+            package_name: "driver",
+            working_dir: Path::new("C:/abs/working"),
+            target_dir: Path::new("C:/abs/target"),
+            target_arch: arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            sign_mode: SignMode::Off,
+        };
+        PackageTask::new(params, wdk_build, command_exec, fs)
+    }
+
+    // Returns a mocked `CommandExec` that expects a single `signtool` invocation
+    // with exactly the provided argument vector.
+    fn expect_signtool_args(expected: Vec<String>) -> CommandExec {
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |command, args, _env, _cwd| command == "signtool" && args == expected)
+            .once()
+            .returning(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+        command_exec
+    }
+
+    #[test]
+    fn run_signtool_sign_with_auto_test_cert_uses_default_args() {
+        let arch = CpuArchitecture::Amd64;
+        let command_exec = expect_signtool_args(
+            [
+                "sign",
+                "/v",
+                "/s",
+                "WDRTestCertStore",
+                "/n",
+                "WDRLocalTestCert",
+                "/fd",
+                "SHA256",
+                "C:/pkg/driver.sys",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        );
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let task = signing_task(&wdk_build, &command_exec, &fs, &arch);
+
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &SignOptions::default())
+            .expect("signing should succeed");
+    }
+
+    #[test]
+    fn run_signtool_sign_with_store_cert_emits_store_and_name() {
+        let arch = CpuArchitecture::Amd64;
+        let command_exec = expect_signtool_args(
+            [
+                "sign",
+                "/v",
+                "/s",
+                "MyStore",
+                "/n",
+                "MyCert",
+                "/fd",
+                "SHA256",
+                "C:/pkg/driver.sys",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        );
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let task = signing_task(&wdk_build, &command_exec, &fs, &arch);
+
+        let options = SignOptions {
+            cert: CertSource::Store {
+                store: "MyStore".to_string(),
+                name: "MyCert".to_string(),
+            },
+            ..SignOptions::default()
+        };
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &options)
+            .expect("signing should succeed");
+    }
+
+    #[test]
+    fn run_signtool_sign_with_pfx_file_emits_file_and_password() {
+        let arch = CpuArchitecture::Amd64;
+        let command_exec = expect_signtool_args(
+            [
+                "sign",
+                "/v",
+                "/f",
+                "C:/certs/my.pfx",
+                "/p",
+                "secret",
+                "/fd",
+                "SHA256",
+                "C:/pkg/driver.sys",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        );
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let task = signing_task(&wdk_build, &command_exec, &fs, &arch);
+
+        let options = SignOptions {
+            cert: CertSource::File {
+                path: PathBuf::from("C:/certs/my.pfx"),
+                password: Some(SecretString::new("secret".to_string())),
+            },
+            ..SignOptions::default()
+        };
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &options)
+            .expect("signing should succeed");
+    }
+
+    #[test]
+    fn run_signtool_sign_with_pfx_file_without_password_omits_p_flag() {
+        let arch = CpuArchitecture::Amd64;
+        let command_exec = expect_signtool_args(
+            [
+                "sign",
+                "/v",
+                "/f",
+                "C:/certs/my.pfx",
+                "/fd",
+                "SHA256",
+                "C:/pkg/driver.sys",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        );
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let task = signing_task(&wdk_build, &command_exec, &fs, &arch);
+
+        let options = SignOptions {
+            cert: CertSource::File {
+                path: PathBuf::from("C:/certs/my.pfx"),
+                password: None,
+            },
+            ..SignOptions::default()
+        };
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &options)
+            .expect("signing should succeed");
+    }
+
+    #[test]
+    fn run_signtool_sign_uses_custom_file_digest_algorithm() {
+        let arch = CpuArchitecture::Amd64;
+        let command_exec = expect_signtool_args(
+            [
+                "sign",
+                "/v",
+                "/s",
+                "WDRTestCertStore",
+                "/n",
+                "WDRLocalTestCert",
+                "/fd",
+                "SHA384",
+                "C:/pkg/driver.sys",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        );
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let task = signing_task(&wdk_build, &command_exec, &fs, &arch);
+
+        let options = SignOptions {
+            file_digest_algorithm: FileDigestAlgorithm::Sha384,
+            ..SignOptions::default()
+        };
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &options)
+            .expect("signing should succeed");
+    }
+
+    #[test]
+    fn secret_string_debug_is_redacted() {
+        let secret = SecretString::new("hunter2".to_string());
+        let rendered = format!("{secret:?}");
+        assert!(
+            !rendered.contains("hunter2"),
+            "secret leaked in Debug: {rendered}"
+        );
+        assert!(rendered.contains("REDACTED"));
+        assert_eq!(secret.expose(), "hunter2");
+    }
+
+    #[test]
+    fn sign_and_verify_fails_when_signtool_fails() {
+        // Store cert avoids the makecert/certmgr path. When signtool fails,
+        // sign_and_verify propagates the error. There is no cleanup: the
+        // package folder is only assembled (in `run`) after signing succeeds,
+        // so a failure never leaves unsigned output behind.
+        let arch = CpuArchitecture::Amd64;
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(|command, args, _env, _cwd| {
+                command == "signtool" && args.first() == Some(&"sign")
+            })
+            .once()
+            .returning(|_, _, _, _| {
+                Err(crate::providers::error::CommandError::CommandFailed {
+                    command: "signtool".to_string(),
+                    args: vec![],
+                    stdout: String::new(),
+                })
+            });
+
+        let fs = Fs::default();
+
+        let wdk_build = WdkBuild::default();
+        let options = SignOptions {
+            cert: CertSource::Store {
+                store: "MyStore".to_string(),
+                name: "MyCert".to_string(),
+            },
+            ..SignOptions::default()
+        };
+        let working_dir = PathBuf::from("C:/abs/working");
+        let target_dir = PathBuf::from("C:/abs/target");
+        let params = PackageTaskParams {
+            package_name: "driver",
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+                options,
+            },
+        };
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+
+        assert!(task.sign_and_verify().is_err());
     }
 
     mod named_mutex {
