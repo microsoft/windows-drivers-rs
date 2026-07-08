@@ -116,7 +116,7 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 By default test signing uses the auto-generated `WDRLocalTestCert` certificate and cargo-wdk's default switches (`sign /v /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256 <file>`). If you need to sign with your own certificate or tweak any signing option, pass `--signtool-args` with a single quoted string of the arguments you want forwarded to `signtool sign`.
 
 - When `--signtool-args` is **omitted**, cargo-wdk signs with the auto-generated WDR test certificate as described above.
-- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). cargo-wdk only wraps your arguments with the `sign` verb and the trailing file operand — it does **not** inject `/s`, `/n`, `/fd`, or `/v`, and it does **not** generate the WDR test certificate. Supply everything your signing scenario requires (for example `/f`, `/p`, `/fd`).
+- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). cargo-wdk only wraps your arguments with the `sign` verb and the trailing file operand. If your arguments don't include a certificate selector (e.g. `/n`, `/s`, `/f`, `/sha1`), `signtool` auto-selects a code-signing certificate from your personal store and fails if none — or more than one — is found.
 
 The string is split into individual arguments on whitespace, honoring single- and double-quoted spans so values containing spaces (e.g. `/n "CN=Contoso Root"`) survive as a single argument. Any shell-level quoting/escaping is your responsibility and is applied by the shell before cargo-wdk sees the value.
 

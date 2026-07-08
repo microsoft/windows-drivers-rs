@@ -62,20 +62,14 @@ pub struct PackageTask<'a> {
     src_map_file_path: PathBuf,
     src_cert_file_path: PathBuf,
 
-    // Staging paths. Only the files the packaging tools operate on (`.sys` and
-    // the `.inf`, plus the generated `.cat`/`.cer`) live in this clean,
-    // per-build staging directory, so `inf2cat` only ever scans the driver's
-    // `.sys` and `.inf`. The final package folder is assembled from it only
-    // once everything succeeds.
+    // staging folder and related paths
     stage_root_folder: PathBuf,
     stage_inf_file_path: PathBuf,
     stage_driver_binary_path: PathBuf,
     stage_cert_file_path: PathBuf,
     stage_cat_file_path: PathBuf,
 
-    // Final package folder, assembled last by renaming the staging folder.
-    // The debug symbols (`.pdb`) and map (`.map`) are copied straight here
-    // during assembly rather than being staged.
+    // final package folder and related paths
     final_package_folder: PathBuf,
     final_pdb_file_path: PathBuf,
     final_map_file_path: PathBuf,
@@ -230,53 +224,33 @@ impl<'a> PackageTask<'a> {
     /// * `PackageTaskError::Io` - Wraps all possible IO errors.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
-
-        // Assemble everything inside a clean, per-build staging directory so
-        // that packaging tools never operate on (or leave behind) files in the
-        // final package folder. Matches the WDK MSBuild ordering: run the tools
-        // against intermediate files, then assemble the package folder last.
-        self.recreate_stage_dir()?;
-
-        info!(
-            "Staging files in: {}",
-            self.stage_root_folder.to_string_lossy()
-        );
-        self.rename_driver_binary_extension()?;
-        self.copy(
-            &self.src_renamed_driver_binary_file_path,
-            &self.stage_driver_binary_path,
-        )?;
-        self.copy(&self.src_inx_file_path, &self.stage_inf_file_path)?;
+        self.prepare_staging_dir()?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
         self.run_infverif()?;
         self.sign_and_verify()?;
-
-        // Everything succeeded: assemble the final package folder last by
-        // replacing any previous one with the freshly-staged artifacts.
-        self.assemble_package_folder()?;
+        self.create_final_package_dir()?;
         Ok(())
     }
 
-    /// Creates a clean staging directory, removing any leftovers from a
-    /// previous (possibly failed) build first.
-    fn recreate_stage_dir(&self) -> Result<(), PackageTaskError> {
+    fn prepare_staging_dir(&self) -> Result<(), PackageTaskError> {
         if self.fs.exists(&self.stage_root_folder) {
             debug!("Removing stale staging directory before packaging");
             self.fs.remove_dir_all(&self.stage_root_folder)?;
         }
         debug!("Creating staging directory");
         self.fs.create_dir(&self.stage_root_folder)?;
+        self.rename_driver_binary_extension()?;
+        self.copy(
+            &self.src_renamed_driver_binary_file_path,
+            &self.stage_driver_binary_path,
+        )?;
+        self.copy(&self.src_inx_file_path, &self.stage_inf_file_path)?;
         Ok(())
     }
 
-    /// Assembles the final package folder by atomically replacing any existing
-    /// one with the fully-built staging directory. Because this runs only after
-    /// every packaging step succeeds, the package folder never contains partial
-    /// or unsigned output, and stale artifacts (e.g. a `.cer` from a previous
-    /// `--sign-mode=test` build) are removed when the mode changes.
-    fn assemble_package_folder(&self) -> Result<(), PackageTaskError> {
-        info!(
+    fn create_final_package_dir(&self) -> Result<(), PackageTaskError> {
+        debug!(
             "Assembling final package folder: {}",
             self.final_package_folder.to_string_lossy()
         );
@@ -286,21 +260,11 @@ impl<'a> PackageTask<'a> {
         }
         self.fs
             .rename(&self.stage_root_folder, &self.final_package_folder)?;
-
-        // The debug symbols (`.pdb`) and linker map (`.map`) are debugging aids
-        // that `inf2cat` does not need to catalog, so they are copied straight
-        // into the final package folder here rather than being staged.
         self.copy(&self.src_pdb_file_path, &self.final_pdb_file_path)?;
         self.copy(&self.src_map_file_path, &self.final_map_file_path)?;
         Ok(())
     }
 
-    /// Signs the driver binary and catalog file according to `self.sign_mode`
-    /// and optionally verifies the resulting signatures. Operates on the
-    /// staging directory; the final package folder is assembled only after this
-    /// (and all other steps) succeed, so a failure never leaves unsigned output
-    /// in the package folder. Returns a variant of `PackageTaskError` if any
-    /// step of the process fails.
     fn sign_and_verify(&self) -> Result<(), PackageTaskError> {
         let SignMode::Test {
             verify_signature,
@@ -310,27 +274,18 @@ impl<'a> PackageTask<'a> {
             info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
-
-        // Tokenize the raw passthrough string once (this layer owns the split).
-        // `None` selects the auto-generated WDR test-cert flow; `Some` means the
-        // caller owns certificate selection, so cargo-wdk does not generate a
-        // test certificate.
         let custom_args = signtool_args.as_deref().map(split_signtool_args);
-
         if custom_args.is_none() {
             self.generate_certificate()?;
             self.copy(&self.src_cert_file_path, &self.stage_cert_file_path)?;
         }
-
         self.run_signtool_sign(&self.stage_driver_binary_path, custom_args.as_deref())?;
         self.run_signtool_sign(&self.stage_cat_file_path, custom_args.as_deref())?;
-
         if *verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
             self.run_signtool_verify(&self.stage_driver_binary_path)?;
             self.run_signtool_verify(&self.stage_cat_file_path)?;
         }
-
         Ok(())
     }
 
