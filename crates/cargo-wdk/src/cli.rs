@@ -148,7 +148,10 @@ impl TryFrom<&BuildArgs> for SignMode {
             }
             SignModeArg::Test => std::result::Result::Ok(Self::Test {
                 verify_signature: args.verify_signature,
-                signtool_args: args.signtool_args.clone(),
+                signtool_args: args
+                    .signtool_args
+                    .clone()
+                    .filter(|args| !args.trim().is_empty()),
             }),
         }
     }
@@ -391,6 +394,21 @@ mod tests {
                 signtool_args: Some("/fd SHA384 /f cert.pfx".to_string()),
             }
         );
+    }
+
+    #[test]
+    fn build_treats_empty_or_whitespace_signtool_args_as_not_provided() {
+        for value in ["", "   ", "\t"] {
+            let args = parse_build_args(&["--signtool-args", value]).expect("args should parse");
+            assert_eq!(
+                SignMode::try_from(&args).expect("mapping should succeed"),
+                SignMode::Test {
+                    verify_signature: false,
+                    signtool_args: None,
+                },
+                "value {value:?} should map to no signtool args"
+            );
+        }
     }
 
     #[test]

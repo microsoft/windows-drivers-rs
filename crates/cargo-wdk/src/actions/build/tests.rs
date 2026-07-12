@@ -2150,6 +2150,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2157,7 +2158,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| Ok(expected_output.clone()));
+            .returning(move |_, _, _, _, _| Ok(expected_output.clone()));
         self
     }
 
@@ -2189,6 +2190,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>| {
                     command == "cargo"
@@ -2197,7 +2199,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => {
                     if output.status.code() == Some(0) {
                         Ok(Output {
@@ -2498,6 +2500,7 @@ impl TestBuildAction {
                 .withf(
                     move |command: &str,
                           args: &[&str],
+                          _hide_args: &bool,
                           _env_vars: &Option<&HashMap<&str, &str>>,
                           _working_dir: &Option<&Path>|
                           -> bool {
@@ -2510,7 +2513,7 @@ impl TestBuildAction {
                     },
                 )
                 .once()
-                .returning(move |_, _, _, _| match override_output.clone() {
+                .returning(move |_, _, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
                         Some(0) => Ok(Output {
                             status: ExitStatus::from_raw(0),
@@ -2562,6 +2565,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2574,7 +2578,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2602,13 +2606,14 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2652,6 +2657,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2659,7 +2665,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2701,6 +2707,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2708,7 +2715,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2760,6 +2767,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2767,7 +2775,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2818,6 +2826,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2825,7 +2834,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2871,6 +2880,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2878,7 +2888,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2924,6 +2934,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2931,7 +2942,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2987,6 +2998,7 @@ impl TestBuildAction {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2994,7 +3006,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -3684,6 +3696,7 @@ mod get_target_arch_from_cargo_rustc {
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _hide_args: &bool,
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>|
                       -> bool {
@@ -3693,7 +3706,7 @@ mod get_target_arch_from_cargo_rustc {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| {
+            .returning(move |_, _, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
                     stdout: stdout.clone(),

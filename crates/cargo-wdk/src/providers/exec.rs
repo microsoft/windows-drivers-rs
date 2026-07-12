@@ -37,10 +37,12 @@ impl CommandExec {
         &self,
         command: &'a str,
         args: &'a [&'a str],
+        hide_args: bool,
         env_vars: Option<&'a HashMap<&'a str, &'a str>>,
         working_dir: Option<&'a Path>,
     ) -> Result<Output, CommandError> {
-        debug!("Running: {} {:?}", command, args);
+        let log_args: &[&str] = if hide_args { &["<hidden>"] } else { args };
+        debug!("Running: {} {:?}", command, log_args);
 
         let mut cmd = Command::new(command);
         cmd.args(args);
@@ -59,16 +61,16 @@ impl CommandExec {
             .stdout(Stdio::piped())
             .spawn()
             .and_then(std::process::Child::wait_with_output)
-            .map_err(|e| CommandError::from_io_error(command, args, e))?;
+            .map_err(|e| CommandError::from_io_error(command, log_args, e))?;
 
         if !output.status.success() {
-            return Err(CommandError::from_output(command, args, &output));
+            return Err(CommandError::from_output(command, log_args, &output));
         }
 
         debug!(
             "COMMAND: {}\n ARGS:{:?}\n OUTPUT: {}\n",
             command,
-            args,
+            log_args,
             String::from_utf8_lossy(&output.stdout)
         );
 

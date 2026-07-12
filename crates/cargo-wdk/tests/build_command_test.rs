@@ -694,6 +694,13 @@ mod signtool_args {
             .args(["-NoProfile", "-NonInteractive", "-Command", &script])
             .output()
             .expect("failed to run Get-AuthenticodeSignature");
+        assert!(
+            out.status.success(),
+            "Get-AuthenticodeSignature failed for {} (exit {:?}): {}",
+            path.display(),
+            out.status.code(),
+            String::from_utf8_lossy(&out.stderr)
+        );
         let subject = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if subject.is_empty() {
             None

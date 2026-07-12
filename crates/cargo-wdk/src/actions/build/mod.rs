@@ -530,7 +530,7 @@ impl<'a> BuildAction<'a> {
         args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(working_dir))?;
+            .run("cargo", &args, false, None, Some(working_dir))?;
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {

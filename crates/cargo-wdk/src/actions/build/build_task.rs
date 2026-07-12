@@ -128,7 +128,7 @@ impl<'a> BuildTask<'a> {
         // is respected
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(self.params.working_dir))
+            .run("cargo", &args, false, None, Some(self.params.working_dir))
             .map_err(|mut err| {
                 // Drop stdout from CommandFailed so the noisy
                 // --message-format=json-render-diagnostics output isn't bubbled up
@@ -248,7 +248,7 @@ mod tests {
 
         let mut mock = MockCommandExec::new();
         mock.expect_run()
-            .withf(move |command, args, _env, working_dir_opt| {
+            .withf(move |command, args, _hide_args, _env, working_dir_opt| {
                 let matches_command = command == "cargo";
                 let matches_args = args.len() == expected_args.len()
                     && args
@@ -260,7 +260,7 @@ mod tests {
                 let matches_working_dir = working_dir == expected_working_dir.as_path();
                 matches_command && matches_args && matches_working_dir
             })
-            .return_once(move |_, _, _, _| {
+            .return_once(move |_, _, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
                     stdout: expected_stdout_for_mock,
@@ -295,7 +295,7 @@ mod tests {
     fn run_returns_command_failed_error_with_empty_stdout_when_cargo_build_exits_nonzero() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let mut mock = MockCommandExec::new();
-        mock.expect_run().return_once(|_, _, _, _| {
+        mock.expect_run().return_once(|_, _, _, _, _| {
             let failure_output = Output {
                 status: ExitStatus::from_raw(1),
                 stdout: b"error".to_vec(),
@@ -335,7 +335,7 @@ mod tests {
     fn run_returns_io_error_when_cargo_build_command_invocation_fails() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let mut mock = MockCommandExec::new();
-        mock.expect_run().return_once(|_, _, _, _| {
+        mock.expect_run().return_once(|_, _, _, _, _| {
             Err(CommandError::from_io_error(
                 "cargo",
                 &["build"],
@@ -371,8 +371,10 @@ mod tests {
 
         let mut mock = MockCommandExec::new();
         mock.expect_run()
-            .withf(|command, args, _env, _wd| command == "cargo" && args.contains(&"--locked"))
-            .return_once(move |_, _, _, _| {
+            .withf(|command, args, _hide_args, _env, _wd| {
+                command == "cargo" && args.contains(&"--locked")
+            })
+            .return_once(move |_, _, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
                     stdout: expected_stdout_for_mock,
@@ -407,14 +409,14 @@ mod tests {
 
         let mut mock = MockCommandExec::new();
         mock.expect_run()
-            .withf(move |command, args, _env, _working_dir_opt| {
+            .withf(move |command, args, _hide_args, _env, _working_dir_opt| {
                 command == "cargo"
                     && args.contains(&"--all-features")
                     && args.contains(&"--no-default-features")
                     && args.windows(2).any(|w| w == ["--features", "foo"])
                     && args.windows(2).any(|w| w == ["--features", "bar"])
             })
-            .return_once(move |_, _, _, _| {
+            .return_once(move |_, _, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
                     stdout: expected_stdout_for_mock,

@@ -163,3 +163,5 @@ If signing fails, the package folder is assembled only after signing succeeds, s
     ```pwsh
     cargo wdk build --signtool-args "/f C:\certs\my.pfx /p <password> /fd SHA256"
     ```
+
+    > **Warning:** Passing a password inline via `/p` exposes it to other processes on the machine (e.g. through `Get-Process`/task managers) and risks it ending up in logs. cargo-wdk omits the signtool arguments from its own command logging, but the shell history and process arguments are outside its control. Prefer importing the PFX into a certificate store and selecting it with `/n`/`/sha1`, or provide the password through a more secure mechanism, instead of putting it on the command line.
