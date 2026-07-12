@@ -274,13 +274,12 @@ impl<'a> PackageTask<'a> {
             info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
-        let custom_args = signtool_args.as_deref().map(split_signtool_args);
-        if custom_args.is_none() {
+        if signtool_args.is_empty() {
             self.generate_certificate()?;
             self.copy(&self.src_cert_file_path, &self.stage_cert_file_path)?;
         }
-        self.run_signtool_sign(&self.stage_driver_binary_path, custom_args.as_deref())?;
-        self.run_signtool_sign(&self.stage_cat_file_path, custom_args.as_deref())?;
+        self.run_signtool_sign(&self.stage_driver_binary_path, signtool_args)?;
+        self.run_signtool_sign(&self.stage_cat_file_path, signtool_args)?;
         if *verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
             self.run_signtool_verify(&self.stage_driver_binary_path)?;
@@ -493,12 +492,12 @@ impl<'a> PackageTask<'a> {
 
     /// Signs the specified file using the `signtool` command.
     ///
-    /// When `signtool_args` is `None`, cargo-wdk signs with the auto-generated
+    /// When `signtool_args` is empty, cargo-wdk signs with the auto-generated
     /// WDR test certificate and its default switches:
     ///
     /// `sign /v /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256 <file>`
     ///
-    /// When `signtool_args` is `Some`, the caller owns the full signtool
+    /// When `signtool_args` is non-empty, the caller owns the full signtool
     /// option set; cargo-wdk only wraps their (already tokenized) arguments
     /// with the `sign` verb and the trailing file operand:
     ///
@@ -512,11 +511,11 @@ impl<'a> PackageTask<'a> {
     ///
     /// * `file_path` - The path to the file to be signed.
     /// * `signtool_args` - Tokenized user-supplied `signtool sign` arguments,
-    ///   or `None` to use the default WDR test-cert flow.
+    ///   or empty to use the default WDR test-cert flow.
     fn run_signtool_sign(
         &self,
         file_path: &Path,
-        signtool_args: Option<&[String]>,
+        signtool_args: &[String],
     ) -> Result<(), PackageTaskError> {
         info!(
             "Signing {} using signtool",
@@ -529,21 +528,18 @@ impl<'a> PackageTask<'a> {
 
         let mut args: Vec<String> = vec!["sign".to_string()];
 
-        match signtool_args {
-            None => {
-                // Default WDR test-cert switches.
-                args.push("/v".to_string());
-                args.push("/s".to_string());
-                args.push(WDR_TEST_CERT_STORE.to_string());
-                args.push("/n".to_string());
-                args.push(WDR_LOCAL_TEST_CERT.to_string());
-                args.push("/fd".to_string());
-                args.push("SHA256".to_string());
-            }
-            Some(extra) => {
-                // Caller owns the full option set.
-                args.extend(extra.iter().cloned());
-            }
+        if signtool_args.is_empty() {
+            // Default WDR test-cert switches.
+            args.push("/v".to_string());
+            args.push("/s".to_string());
+            args.push(WDR_TEST_CERT_STORE.to_string());
+            args.push("/n".to_string());
+            args.push(WDR_LOCAL_TEST_CERT.to_string());
+            args.push("/fd".to_string());
+            args.push("SHA256".to_string());
+        } else {
+            // Caller owns the full option set.
+            args.extend(signtool_args.iter().cloned());
         }
 
         // File operand (must be last).
@@ -628,55 +624,14 @@ pub enum SignMode {
         /// When `true`, run `signtool verify` on the signed driver binary and
         /// catalog file after signing.
         verify_signature: bool,
-        /// Raw `signtool sign` arguments.
+        /// Tokenized `signtool sign` arguments.
         ///
-        /// When `None`, run `signtool sign` with auto-generated WDR test
-        /// certificate and default switches. When `Some`, auto generation is
-        /// skipped and the caller owns the full signtool option set
+        /// When empty, run `signtool sign` with the auto-generated WDR test
+        /// certificate and default switches. When non-empty, auto generation
+        /// is skipped and the caller owns the full signtool option set
         /// (certificate selection, digest, etc.).
-        signtool_args: Option<String>,
+        signtool_args: Vec<String>,
     },
-}
-
-/// Splits a raw `--signtool-args` string into individual `signtool` arguments,
-/// honoring single- and double-quoted spans (e.g. `/n "CN=WDRTest Root"`).
-fn split_signtool_args(raw: &str) -> Vec<String> {
-    let mut args = Vec::new();
-    let mut current = String::new();
-    let mut in_arg = false;
-    let mut quote: Option<char> = None;
-
-    for c in raw.chars() {
-        match quote {
-            Some(q) => {
-                if c == q {
-                    quote = None;
-                } else {
-                    current.push(c);
-                }
-            }
-            None if c == '"' || c == '\'' => {
-                quote = Some(c);
-                in_arg = true;
-            }
-            None if c.is_whitespace() => {
-                if in_arg {
-                    args.push(std::mem::take(&mut current));
-                    in_arg = false;
-                }
-            }
-            None => {
-                current.push(c);
-                in_arg = true;
-            }
-        }
-    }
-
-    if in_arg {
-        args.push(current);
-    }
-
-    args
 }
 
 /// An RAII wrapper over a Win API named mutex
@@ -761,7 +716,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: None,
+                signtool_args: Vec::new(),
             },
         };
         let stage_root = target_dir.join(format!("{package_name}_package_stage"));
@@ -776,7 +731,7 @@ mod tests {
             task.sign_mode,
             SignMode::Test {
                 verify_signature: false,
-                signtool_args: None,
+                signtool_args: Vec::new(),
             }
         );
         assert!(!task.sample_class);
@@ -847,7 +802,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: None,
+                signtool_args: Vec::new(),
             },
         };
 
@@ -876,7 +831,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: None,
+                signtool_args: Vec::new(),
             },
         };
 
@@ -914,7 +869,7 @@ mod tests {
                         sample_class: false,
                         sign_mode: SignMode::Test {
                             verify_signature: false,
-                            signtool_args: None,
+                            signtool_args: Vec::new(),
                         },
                     };
 
@@ -1020,7 +975,7 @@ mod tests {
         let fs = Fs::default();
         let task = signing_task(&wdk_build, &command_exec, &fs, &arch);
 
-        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), None)
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &[])
             .expect("signing should succeed");
     }
 
@@ -1054,38 +1009,8 @@ mod tests {
             "/p".to_string(),
             "secret".to_string(),
         ];
-        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), Some(&signtool_args))
+        task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &signtool_args)
             .expect("signing should succeed");
-    }
-
-    #[test]
-    fn split_signtool_args_tokenizes_on_whitespace() {
-        assert_eq!(
-            split_signtool_args("/fd SHA384 /f cert.pfx"),
-            vec!["/fd", "SHA384", "/f", "cert.pfx"]
-        );
-    }
-
-    #[test]
-    fn split_signtool_args_preserves_quoted_values_with_spaces() {
-        assert_eq!(
-            split_signtool_args("/n \"CN=Contoso Root\" /fd SHA256"),
-            vec!["/n", "CN=Contoso Root", "/fd", "SHA256"]
-        );
-    }
-
-    #[test]
-    fn split_signtool_args_handles_single_quotes_and_extra_whitespace() {
-        assert_eq!(
-            split_signtool_args("  /n 'CN=A B'   /fd  SHA256 "),
-            vec!["/n", "CN=A B", "/fd", "SHA256"]
-        );
-    }
-
-    #[test]
-    fn split_signtool_args_empty_string_yields_no_tokens() {
-        assert!(split_signtool_args("").is_empty());
-        assert!(split_signtool_args("   ").is_empty());
     }
 
     #[test]
@@ -1124,7 +1049,14 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Some("/s MyStore /n MyCert /fd SHA256".to_string()),
+                signtool_args: vec![
+                    "/s".to_string(),
+                    "MyStore".to_string(),
+                    "/n".to_string(),
+                    "MyCert".to_string(),
+                    "/fd".to_string(),
+                    "SHA256".to_string(),
+                ],
             },
         };
         let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);

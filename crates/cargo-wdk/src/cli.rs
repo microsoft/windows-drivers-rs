@@ -109,8 +109,13 @@ pub struct BuildArgs {
     /// Additional arguments to pass to `signtool sign` when signing the driver
     /// binary and the catalog file, e.g.
     /// `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`.
-    #[arg(long, value_name = "ARGS", help_heading = "Driver Signing")]
-    pub signtool_args: Option<String>,
+    #[arg(
+        long,
+        value_name = "ARGS",
+        value_parser = parse_signtool_args,
+        help_heading = "Driver Signing"
+    )]
+    pub signtool_args: Option<SigntoolArgs>,
 
     /// Build sample class driver project
     #[arg(long)]
@@ -151,7 +156,8 @@ impl TryFrom<&BuildArgs> for SignMode {
                 signtool_args: args
                     .signtool_args
                     .clone()
-                    .filter(|args| !args.trim().is_empty()),
+                    .map(|parsed| parsed.0)
+                    .unwrap_or_default(),
             }),
         }
     }
@@ -161,6 +167,61 @@ impl TryFrom<&BuildArgs> for SignMode {
 /// `cargo wdk build` usage for a consistent CLI experience.
 fn build_error(message: impl std::fmt::Display) -> clap::Error {
     Cli::command().error(ErrorKind::ArgumentConflict, message)
+}
+
+/// Arguments to `signtool sign` for signing the driver binary and catalog file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SigntoolArgs(pub Vec<String>);
+
+/// `value_parser` for `--signtool-args`: tokenizes the raw string into
+/// individual `signtool` arguments.
+///
+/// Rules:
+/// - Whitespace separates arguments
+/// - Quoted spans (single or double quotes) are preserved as a single argument
+/// - Unterminated quotes are rejected with an error
+fn parse_signtool_args(raw: &str) -> std::result::Result<SigntoolArgs, String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut in_arg = false;
+    let mut quote: Option<char> = None;
+
+    for c in raw.chars() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                } else {
+                    current.push(c);
+                }
+            }
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                in_arg = true;
+            }
+            None if c.is_whitespace() => {
+                if in_arg {
+                    args.push(std::mem::take(&mut current));
+                    in_arg = false;
+                }
+            }
+            None => {
+                current.push(c);
+                in_arg = true;
+            }
+        }
+    }
+
+    if let Some(q) = quote {
+        return Err(format!(
+            "unterminated `{q}` quote in `--signtool-args`; make sure every quote is closed"
+        ));
+    }
+    if in_arg {
+        args.push(current);
+    }
+
+    std::result::Result::Ok(SigntoolArgs(args))
 }
 
 /// Subcommands
@@ -378,21 +439,54 @@ mod tests {
             SignMode::try_from(&args).expect("mapping should succeed"),
             SignMode::Test {
                 verify_signature: false,
-                signtool_args: None,
+                signtool_args: Vec::new(),
             }
         );
     }
 
     #[test]
-    fn build_maps_signtool_args_string_verbatim() {
+    fn build_tokenizes_signtool_args() {
         let args = parse_build_args(&["--signtool-args", "/fd SHA384 /f cert.pfx"])
             .expect("args should parse");
         assert_eq!(
             SignMode::try_from(&args).expect("mapping should succeed"),
             SignMode::Test {
                 verify_signature: false,
-                signtool_args: Some("/fd SHA384 /f cert.pfx".to_string()),
+                signtool_args: vec![
+                    "/fd".to_string(),
+                    "SHA384".to_string(),
+                    "/f".to_string(),
+                    "cert.pfx".to_string(),
+                ],
             }
+        );
+    }
+
+    #[test]
+    fn build_tokenizes_signtool_args_preserving_quoted_spans() {
+        let args = parse_build_args(&["--signtool-args", "/n \"CN=Contoso Root\" /fd SHA256"])
+            .expect("args should parse");
+        assert_eq!(
+            SignMode::try_from(&args).expect("mapping should succeed"),
+            SignMode::Test {
+                verify_signature: false,
+                signtool_args: vec![
+                    "/n".to_string(),
+                    "CN=Contoso Root".to_string(),
+                    "/fd".to_string(),
+                    "SHA256".to_string(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn build_rejects_unterminated_quote_in_signtool_args() {
+        let err = parse_build_args(&["--signtool-args", "/n \"CN=Contoso"])
+            .expect_err("unterminated quote should be rejected");
+        assert!(
+            err.to_string().contains("unterminated"),
+            "unexpected error: {err}"
         );
     }
 
@@ -404,7 +498,7 @@ mod tests {
                 SignMode::try_from(&args).expect("mapping should succeed"),
                 SignMode::Test {
                     verify_signature: false,
-                    signtool_args: None,
+                    signtool_args: Vec::new(),
                 },
                 "value {value:?} should map to no signtool args"
             );
@@ -419,7 +513,7 @@ mod tests {
             SignMode::try_from(&args).expect("mapping should succeed"),
             SignMode::Test {
                 verify_signature: true,
-                signtool_args: Some("/fd SHA256".to_string()),
+                signtool_args: vec!["/fd".to_string(), "SHA256".to_string()],
             }
         );
     }
