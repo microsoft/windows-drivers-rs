@@ -105,6 +105,17 @@ pub struct BuildArgs {
     /// Verify the signature
     #[arg(long)]
     pub verify_signature: bool,
+
+    /// Additional arguments to pass to `inf2cat` when generating the
+    /// driver's catalog e.g. `--inf2cat-args '/os:10_x64,10_CO_X64'`.
+    #[arg(
+        long,
+        value_name = "ARGS",
+        value_parser = parse_inf2cat_args,
+        help_heading = "Inf2Cat Options"
+    )]
+    pub inf2cat_args: Option<Inf2catArgs>,
+
     /// Build sample class driver project
     #[arg(long)]
     pub sample: bool,
@@ -135,6 +146,69 @@ impl BuildArgs {
             (SignModeArg::Test, verify_signature) => Ok(SignMode::Test { verify_signature }),
         }
     }
+
+    fn inf2cat_args(&self) -> Vec<String> {
+        self.inf2cat_args
+            .clone()
+            .map(|parsed| parsed.0)
+            .unwrap_or_default()
+    }
+}
+
+/// Arguments forwarded verbatim to `inf2cat` (after cargo-wdk's own `/driver:`
+/// argument).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Inf2catArgs(pub Vec<String>);
+
+/// `value_parser` for `--inf2cat-args`: tokenizes the raw string into
+/// individual `inf2cat` arguments.
+///
+/// Rules:
+/// - Whitespace separates arguments
+/// - Quoted spans (single or double quotes) are preserved as a single argument
+/// - Unterminated quotes are rejected with an error
+fn parse_inf2cat_args(raw: &str) -> std::result::Result<Inf2catArgs, String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut in_arg = false;
+    let mut quote: Option<char> = None;
+
+    for c in raw.chars() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                } else {
+                    current.push(c);
+                }
+            }
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                in_arg = true;
+            }
+            None if c.is_whitespace() => {
+                if in_arg {
+                    args.push(std::mem::take(&mut current));
+                    in_arg = false;
+                }
+            }
+            None => {
+                current.push(c);
+                in_arg = true;
+            }
+        }
+    }
+
+    if let Some(q) = quote {
+        return Err(format!(
+            "unterminated `{q}` quote in `--inf2cat-args`; make sure every quote is closed"
+        ));
+    }
+    if in_arg {
+        args.push(current);
+    }
+
+    std::result::Result::Ok(Inf2catArgs(args))
 }
 
 /// Subcommands
@@ -220,6 +294,7 @@ impl Cli {
                         locked: cli_args.locked,
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
+                        inf2cat_args: cli_args.inf2cat_args(),
                     },
                     &wdk_build,
                     &command_exec,
@@ -243,7 +318,7 @@ mod tests {
 
     use crate::{
         actions::DriverType,
-        cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd},
+        cli::{BuildArgs, Cli, Inf2catArgs, NewArgs, SignModeArg, Subcmd, parse_inf2cat_args},
     };
 
     #[test]
@@ -311,6 +386,7 @@ mod tests {
                 target_arch: None,
                 verify_signature: true,
                 sign_mode: SignModeArg::Off,
+                inf2cat_args: None,
                 sample: false,
                 locked: false,
                 features: Features::default(),
@@ -323,6 +399,68 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             "`--verify-signature` cannot be used with `--sign-mode=off`."
+        );
+    }
+
+    #[test]
+    fn parse_inf2cat_args_tokenizes_on_whitespace() {
+        assert_eq!(
+            parse_inf2cat_args("/os:10_x64 /uselocaltime").unwrap(),
+            Inf2catArgs(vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()])
+        );
+    }
+
+    #[test]
+    fn parse_inf2cat_args_preserves_quoted_spans() {
+        assert_eq!(
+            parse_inf2cat_args("/os:10_x64 \"a b\" /verbose").unwrap(),
+            Inf2catArgs(vec![
+                "/os:10_x64".to_string(),
+                "a b".to_string(),
+                "/verbose".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn parse_inf2cat_args_rejects_unterminated_quote() {
+        let err = parse_inf2cat_args("/os:10_x64 \"unterminated")
+            .expect_err("unterminated quote should be rejected");
+        assert!(err.contains("unterminated"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn parse_inf2cat_args_treats_empty_or_whitespace_as_no_tokens() {
+        for value in ["", "   ", "\t"] {
+            assert_eq!(
+                parse_inf2cat_args(value).unwrap(),
+                Inf2catArgs(Vec::new()),
+                "input {value:?} should yield no tokens"
+            );
+        }
+    }
+
+    #[test]
+    fn build_inf2cat_args_maps_none_to_empty_and_some_to_tokens() {
+        let mut args = BuildArgs {
+            profile: None,
+            target_arch: None,
+            verify_signature: false,
+            sign_mode: SignModeArg::Test,
+            inf2cat_args: None,
+            sample: false,
+            locked: false,
+            features: Features::default(),
+        };
+        assert!(args.inf2cat_args().is_empty());
+
+        args.inf2cat_args = Some(Inf2catArgs(vec![
+            "/os:10_x64".to_string(),
+            "/uselocaltime".to_string(),
+        ]));
+        assert_eq!(
+            args.inf2cat_args(),
+            vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
         );
     }
 }

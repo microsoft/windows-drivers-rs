@@ -1680,6 +1680,7 @@ fn initialize_build_action<'a>(
             locked: test_build_action.locked,
             features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
+            inf2cat_args: Vec::new(),
         },
         test_build_action.mock_wdk_build_provider(),
         test_build_action.mock_run_command(),

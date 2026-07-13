@@ -71,6 +71,9 @@ Options:
       --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
 
+Inf2Cat:
+      --inf2cat-args <ARGS>        Additional arguments forwarded verbatim to inf2cat, as a single quoted string
+
 Feature Selection:
       --all-features               Activate all available features
       --no-default-features        Do not activate the `default` feature
@@ -105,6 +108,12 @@ The `build` command has a `--sign-mode` flag that controls how driver artifacts 
 If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually.
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
+
+#### Customizing inf2cat arguments
+
+By default `build` generates the driver's security catalog by running `inf2cat` with an architecture-derived Windows version list (`/os:10_x64` for `amd64`, `/os:Server10_arm64` for `arm64`) and `/uselocaltime`. To target a specific set of Windows versions — or pass any other `inf2cat` switch — use `--inf2cat-args` with a single quoted string of the arguments to forward to `inf2cat`.
+
+See the [Inf2Cat documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/inf2cat) for the full list of `/os:` version identifiers and other options.
 
 #### Examples
 
