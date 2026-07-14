@@ -87,4 +87,23 @@ mod tests {
 
         assert_eq!(*lock.read(), 11);
     }
+
+    #[test]
+    fn rw_spin_lock_dpc_level_guards_access_value() {
+        let lock = RwSpinLock::new(1_u32);
+
+        // SAFETY: The test stubs do not inspect or modify IRQL, so they model
+        // the caller already running at DISPATCH_LEVEL.
+        let value = unsafe { lock.read_at_dpc_level() };
+        assert_eq!(*value, 1);
+        drop(value);
+
+        // SAFETY: The test stubs do not inspect or modify IRQL, so they model
+        // the caller already running at DISPATCH_LEVEL.
+        let mut value = unsafe { lock.write_at_dpc_level() };
+        *value = 13;
+        drop(value);
+
+        assert_eq!(*lock.read(), 13);
+    }
 }

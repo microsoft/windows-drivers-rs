@@ -95,7 +95,7 @@ pub extern "system" fn KeLeaveCriticalRegion() {}
 /// `push_lock` must point to valid writable push lock storage.
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ExInitializePushLock(push_lock: *mut ULONG_PTR) {
+pub unsafe extern "system" fn ExInitializePushLock(push_lock: *mut ULONG_PTR) {
     // SAFETY: Test callers pass a valid pointer to push lock storage.
     unsafe {
         push_lock.write(0);
@@ -105,27 +105,27 @@ pub unsafe extern "C" fn ExInitializePushLock(push_lock: *mut ULONG_PTR) {
 /// Stubbed version of `ExAcquirePushLockSharedEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExAcquirePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExAcquirePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
 
 /// Stubbed version of `ExAcquirePushLockExclusiveEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExAcquirePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExAcquirePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
 
 /// Stubbed version of `ExReleasePushLockSharedEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExReleasePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExReleasePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
 
 /// Stubbed version of `ExReleasePushLockExclusiveEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExReleasePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExReleasePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
 
 /// Stubbed version of `ExAcquireSpinLockShared` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExAcquireSpinLockShared(_spin_lock: *mut EX_SPIN_LOCK) -> KIRQL {
+pub extern "system" fn ExAcquireSpinLockShared(_spin_lock: *mut EX_SPIN_LOCK) -> KIRQL {
     0
 }
 
@@ -133,23 +133,23 @@ pub extern "C" fn ExAcquireSpinLockShared(_spin_lock: *mut EX_SPIN_LOCK) -> KIRQ
 /// link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExAcquireSpinLockSharedAtDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
+pub extern "system" fn ExAcquireSpinLockSharedAtDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
 
 /// Stubbed version of `ExReleaseSpinLockShared` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExReleaseSpinLockShared(_spin_lock: *mut EX_SPIN_LOCK, _old_irql: KIRQL) {}
+pub extern "system" fn ExReleaseSpinLockShared(_spin_lock: *mut EX_SPIN_LOCK, _old_irql: KIRQL) {}
 
 /// Stubbed version of `ExReleaseSpinLockSharedFromDpcLevel` so test targets can
 /// link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExReleaseSpinLockSharedFromDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
+pub extern "system" fn ExReleaseSpinLockSharedFromDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
 
 /// Stubbed version of `ExAcquireSpinLockExclusive` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExAcquireSpinLockExclusive(_spin_lock: *mut EX_SPIN_LOCK) -> KIRQL {
+pub extern "system" fn ExAcquireSpinLockExclusive(_spin_lock: *mut EX_SPIN_LOCK) -> KIRQL {
     0
 }
 
@@ -157,24 +157,26 @@ pub extern "C" fn ExAcquireSpinLockExclusive(_spin_lock: *mut EX_SPIN_LOCK) -> K
 /// can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExAcquireSpinLockExclusiveAtDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
+pub extern "system" fn ExAcquireSpinLockExclusiveAtDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
 
 /// Stubbed version of `ExReleaseSpinLockExclusive` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExReleaseSpinLockExclusive(_spin_lock: *mut EX_SPIN_LOCK, _old_irql: KIRQL) {}
+pub extern "system" fn ExReleaseSpinLockExclusive(_spin_lock: *mut EX_SPIN_LOCK, _old_irql: KIRQL) {}
 
 /// Stubbed version of `ExReleaseSpinLockExclusiveFromDpcLevel` so test targets
 /// can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExReleaseSpinLockExclusiveFromDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
+pub extern "system" fn ExReleaseSpinLockExclusiveFromDpcLevel(_spin_lock: *mut EX_SPIN_LOCK) {}
 
 /// Stubbed version of `ExTryConvertSharedSpinLockExclusive` so test targets can
 /// link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn ExTryConvertSharedSpinLockExclusive(_spin_lock: *mut EX_SPIN_LOCK) -> LOGICAL {
+pub extern "system" fn ExTryConvertSharedSpinLockExclusive(
+    _spin_lock: *mut EX_SPIN_LOCK,
+) -> LOGICAL {
     1
 }
 
