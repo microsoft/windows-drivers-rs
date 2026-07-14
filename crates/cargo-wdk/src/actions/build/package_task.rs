@@ -544,19 +544,18 @@ impl<'a> PackageTask<'a> {
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
-            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
-                debug!(
-                    "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
-                     /samples flag."
-                );
-                warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
-                return Ok(());
-            }
-            // Use the `/samples` flag after the range and the `/msft` flag before the range
-            if wdk_build_number > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() {
-                "/samples"
-            } else {
-                "/msft"
+            match wdk_build_number {
+                n if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&n) => {
+                    debug!(
+                        "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain \
+                         the /samples flag."
+                    );
+                    warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
+                    return Ok(());
+                }
+                // Use the `/samples` flag after the range and the `/msft` flag before the range
+                n if n > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() => "/samples",
+                _ => "/msft",
             }
         } else {
             ""

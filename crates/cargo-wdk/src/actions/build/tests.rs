@@ -196,7 +196,8 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
 }
 
 #[test]
-pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfully() {
+pub fn given_sample_class_is_true_and_wdk_build_is_above_range_then_infverif_runs_with_samples_flag()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -233,7 +234,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
 }
 
 #[test]
-pub fn given_sample_class_and_wdk_build_before_sample_flag_range_then_infverif_runs_with_msft() {
+pub fn given_sample_class_is_true_and_wdk_build_below_range_then_infverif_runs_with_msft_flag() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -270,7 +271,7 @@ pub fn given_sample_class_and_wdk_build_before_sample_flag_range_then_infverif_r
 }
 
 #[test]
-pub fn given_sample_class_and_wdk_build_with_missing_sample_flag_then_infverif_is_skipped() {
+pub fn given_sample_class_is_true_and_wdk_build_within_range_then_infverif_is_skipped() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
