@@ -106,8 +106,7 @@ pub struct BuildArgs {
     #[arg(long)]
     pub verify_signature: bool,
 
-    /// Additional arguments to pass to `inf2cat` when generating the
-    /// driver's catalog e.g. `--inf2cat-args '/os:10_x64,10_CO_X64'`.
+    /// Additional arguments to forward to `inf2cat`
     #[arg(
         long,
         value_name = "ARGS",
@@ -147,7 +146,7 @@ impl BuildArgs {
         }
     }
 
-    fn inf2cat_args(&self) -> Vec<String> {
+    fn inf2cat_arg_tokens(&self) -> Vec<String> {
         self.inf2cat_args
             .clone()
             .map(|parsed| parsed.0)
@@ -167,6 +166,8 @@ pub struct Inf2catArgs(pub Vec<String>);
 /// - Whitespace separates arguments
 /// - Quoted spans (single or double quotes) are preserved as a single argument
 /// - Unterminated quotes are rejected with an error
+/// - The `/driver:` (or its `/drv:` alias) switch is rejected because
+///   `cargo-wdk` supplies that argument itself
 fn parse_inf2cat_args(raw: &str) -> std::result::Result<Inf2catArgs, String> {
     let mut args = Vec::new();
     let mut current = String::new();
@@ -206,6 +207,17 @@ fn parse_inf2cat_args(raw: &str) -> std::result::Result<Inf2catArgs, String> {
     }
     if in_arg {
         args.push(current);
+    }
+
+    // reject a user-supplied `/driver:` (or `/drv:` alias) early.
+    if let Some(driver_arg) = args.iter().find(|arg| {
+        let lower = arg.to_ascii_lowercase();
+        lower.starts_with("/driver") || lower.starts_with("/drv")
+    }) {
+        return Err(format!(
+            "`--inf2cat-args` must not contain `{driver_arg}`: cargo-wdk supplies the `/driver:` \
+             argument itself"
+        ));
     }
 
     std::result::Result::Ok(Inf2catArgs(args))
@@ -294,7 +306,7 @@ impl Cli {
                         locked: cli_args.locked,
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
-                        inf2cat_args: cli_args.inf2cat_args(),
+                        inf2cat_args: cli_args.inf2cat_arg_tokens(),
                     },
                     &wdk_build,
                     &command_exec,
@@ -441,6 +453,23 @@ mod tests {
     }
 
     #[test]
+    fn parse_inf2cat_args_rejects_driver_switch() {
+        for value in [
+            "/driver:C:\\pkg",
+            "/os:10_x64 /driver:C:\\pkg",
+            "/DRIVER:C:\\pkg",
+            "/drv:C:\\pkg",
+        ] {
+            let err = parse_inf2cat_args(value)
+                .expect_err("a user-supplied /driver: switch should be rejected");
+            assert!(
+                err.contains("cargo-wdk supplies the `/driver:`"),
+                "unexpected error for {value:?}: {err}"
+            );
+        }
+    }
+
+    #[test]
     fn build_inf2cat_args_maps_none_to_empty_and_some_to_tokens() {
         let mut args = BuildArgs {
             profile: None,
@@ -452,14 +481,14 @@ mod tests {
             locked: false,
             features: Features::default(),
         };
-        assert!(args.inf2cat_args().is_empty());
+        assert!(args.inf2cat_arg_tokens().is_empty());
 
         args.inf2cat_args = Some(Inf2catArgs(vec![
             "/os:10_x64".to_string(),
             "/uselocaltime".to_string(),
         ]));
         assert_eq!(
-            args.inf2cat_args(),
+            args.inf2cat_arg_tokens(),
             vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
         );
     }

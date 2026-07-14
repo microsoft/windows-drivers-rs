@@ -390,11 +390,9 @@ impl<'a> PackageTask<'a> {
 
         let mut args: Vec<String> = vec![driver_arg];
         if self.inf2cat_args.is_empty() {
-            // Default: architecture-derived OS list and local-time timestamps.
             args.push(format!("/os:{}", self.os_mapping));
             args.push("/uselocaltime".to_string());
         } else {
-            // Caller owns the full option set (except `/driver:`).
             args.extend(self.inf2cat_args.iter().cloned());
         }
 
@@ -921,9 +919,6 @@ mod tests {
         command_exec
             .expect_run()
             .withf(move |cmd: &str, args: &[&str], _, _| {
-                // cargo-wdk owns `/driver:` (first); the rest is verbatim, and
-                // cargo-wdk's defaults (`/os:` arch value, `/uselocaltime`) are
-                // NOT injected when custom args are supplied.
                 cmd == "inf2cat"
                     && args[0].starts_with("/driver:")
                     && args.contains(&"/os:10_x64,10_CO_X64")
