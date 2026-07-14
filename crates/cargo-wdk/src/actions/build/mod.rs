@@ -18,13 +18,17 @@ use std::{
 };
 
 use anyhow::Result;
-use build_task::{BuildTask, BuildTaskParams};
+use build_task::BuildTaskParams;
+#[double]
+use build_task::BuildTaskRunner;
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
+use package_task::PackageTaskParams;
+#[double]
+use package_task::PackageTaskRunner;
 pub use package_task::SignMode;
-use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
     CpuArchitecture,
@@ -63,6 +67,8 @@ pub struct BuildAction<'a> {
     command_exec: &'a CommandExec,
     fs: &'a Fs,
     metadata: &'a Metadata,
+    build_task_runner: BuildTaskRunner,
+    package_task_runner: PackageTaskRunner,
 }
 
 impl<'a> BuildAction<'a> {
@@ -90,6 +96,26 @@ impl<'a> BuildAction<'a> {
         fs: &'a Fs,
         metadata: &'a Metadata,
     ) -> Result<Self> {
+        Self::new_with_runners(
+            params,
+            wdk_build,
+            command_exec,
+            fs,
+            metadata,
+            BuildTaskRunner::default(),
+            PackageTaskRunner::default(),
+        )
+    }
+
+    fn new_with_runners(
+        params: &BuildActionParams<'a>,
+        wdk_build: &'a WdkBuild,
+        command_exec: &'a CommandExec,
+        fs: &'a Fs,
+        metadata: &'a Metadata,
+        build_task_runner: BuildTaskRunner,
+        package_task_runner: PackageTaskRunner,
+    ) -> Result<Self> {
         // TODO: validate params
         anyhow::ensure!(
             !params.working_dir.as_os_str().is_empty(),
@@ -108,6 +134,8 @@ impl<'a> BuildAction<'a> {
             command_exec,
             fs,
             metadata,
+            build_task_runner,
+            package_task_runner,
         })
     }
 
@@ -345,8 +373,8 @@ impl<'a> BuildAction<'a> {
         let package_name = package.name.as_str();
         info!("Building package {package_name}");
 
-        let build_task = BuildTask::new(
-            BuildTaskParams {
+        let output_message_iter = self.build_task_runner.run(
+            &BuildTaskParams {
                 package_name,
                 working_dir,
                 profile: self.profile,
@@ -356,8 +384,7 @@ impl<'a> BuildAction<'a> {
                 verbosity_level: self.verbosity_level,
             },
             self.command_exec,
-        );
-        let output_message_iter = build_task.run()?;
+        )?;
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
             debug!("Found wdk metadata in package: {}", package_name);
@@ -391,15 +418,16 @@ impl<'a> BuildAction<'a> {
             self.get_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
-        let target_dir = Self::get_target_dir_from_output(package, output_message_iter)?;
+        let target_dir =
+            Self::get_target_dir_from_output(package, output_message_iter.into_iter())?;
         debug!(
             "Target directory for package: {} is: {}",
             package_name,
             target_dir.display()
         );
 
-        PackageTask::new(
-            PackageTaskParams {
+        self.package_task_runner.run(
+            &PackageTaskParams {
                 package_name,
                 working_dir,
                 target_dir: &target_dir,
@@ -411,8 +439,7 @@ impl<'a> BuildAction<'a> {
             self.wdk_build,
             self.command_exec,
             self.fs,
-        )
-        .run()?;
+        )?;
 
         info!("Finished building {package_name}");
         Ok(())

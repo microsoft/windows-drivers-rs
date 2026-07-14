@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use cargo_metadata::Message;
 use clap_cargo::Features;
+use mockall::automock;
 use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
@@ -24,6 +25,7 @@ use crate::{
 };
 
 /// Parameters for constructing a [`BuildTask`].
+#[derive(Clone, Copy)]
 pub struct BuildTaskParams<'a> {
     /// The name of the package to build
     pub package_name: &'a str,
@@ -39,6 +41,24 @@ pub struct BuildTaskParams<'a> {
     pub features: &'a Features,
     /// The verbosity level for logging
     pub verbosity_level: clap_verbosity_flag::Verbosity,
+}
+
+#[derive(Debug, Default)]
+#[allow(dead_code)]
+pub struct BuildTaskRunner {}
+
+#[automock]
+#[allow(dead_code, clippy::unused_self, clippy::elidable_lifetime_names)]
+impl BuildTaskRunner {
+    pub fn run<'a>(
+        &self,
+        params: &BuildTaskParams<'a>,
+        command_exec: &CommandExec,
+    ) -> Result<Vec<Result<Message, std::io::Error>>, BuildTaskError> {
+        BuildTask::new(*params, command_exec)
+            .run()
+            .map(Iterator::collect)
+    }
 }
 
 /// Builds specified package by running `cargo build`  

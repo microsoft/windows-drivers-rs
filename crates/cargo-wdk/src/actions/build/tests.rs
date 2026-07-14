@@ -1,1755 +1,645 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)] // Package tests are longer and splitting them into sub functions can make the code less readable
-#![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::ref_option_ref)]
+
 use std::{
     collections::HashMap,
+    fs,
+    io,
     os::windows::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{ExitStatus, Output},
-    result::Result::Ok,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-use cargo_metadata::Metadata as CargoMetadata;
+use cargo_metadata::{Message, Metadata as CargoMetadata};
 use clap_cargo::Features;
 use mockall::predicate::eq;
-use mockall_double::double;
-use wdk_build::{
-    CpuArchitecture,
-    DriverConfig,
-    metadata::{TryFromCargoMetadataError, Wdk},
-};
+use wdk_build::{CpuArchitecture, DriverConfig};
 
-#[double]
-use crate::providers::{
-    exec::CommandExec,
-    fs::Fs,
-    metadata::Metadata as MetadataProvider,
-    wdk_build::WdkBuild,
+use super::{
+    BuildAction,
+    BuildActionError,
+    BuildActionParams,
+    SignMode,
+    build_task::{BuildTaskParams, MockBuildTaskRunner},
+    package_task::{MockPackageTaskRunner, PackageTaskParams},
 };
 use crate::{
-    actions::{
-        Profile,
-        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
-        to_target_triple,
+    actions::{Profile, to_target_triple},
+    providers::{
+        error::{CommandError, FileError},
+        exec::MockCommandExec,
+        fs::MockFs,
+        metadata::MockMetadata,
+        wdk_build::MockWdkBuild,
     },
-    providers::error::{CommandError, FileError},
 };
 
-////////////////////////////////////////////////////////////////////////////////
-/// Standalone driver project tests
-////////////////////////////////////////////////////////////////////////////////
-// Test name is of form Given When Then
-// Given: A driver project
-// When: Default values are provided
-// Then: It builds successfully
-#[test]
-pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+const DEFAULT_DRIVER_NAME: &str = "sample-driver";
+const DEFAULT_DRIVER_VERSION: &str = "0.0.1";
 
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
+type PackageSpec<'a> = (
+    &'a str,
+    PathBuf,
+    Option<TestWdkMetadata>,
+    &'a str,
+    &'a str,
+    &'a str,
+);
 
 #[test]
-pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = Some(Profile::Release);
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Arm64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output = create_cargo_build_output_json(
-        driver_name,
-        driver_version,
-        &cwd,
-        Some(&to_target_triple(target_arch)),
-        profile,
-    );
-    let test_build_action =
-        &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
-            .set_up_standalone_driver_project((workspace_member, package))
-            .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-            .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        Some(target_arch),
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_then_it_builds_successfully()
+fn given_a_driver_project_when_target_arch_is_detected_then_build_action_orchestrates_build_and_package()
  {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = Some(Profile::Release);
-    let target_arch = CpuArchitecture::Arm64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output = create_cargo_build_output_json(
-        driver_name,
-        driver_version,
-        &cwd,
-        Some(&to_target_triple(target_arch)),
-        profile,
-    );
-
-    let test_build_action =
-        &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
-            .set_up_standalone_driver_project((workspace_member, package))
-            .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-            .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        Some(target_arch),
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = true;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature)
-        .expect_detect_wdk_build_number(25100u32);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
+    let cwd = PathBuf::from(r"C:\tmp\sample-driver");
+    let target_dir = expected_target_dir(&cwd, None, None);
+    let mut test_build_action = TestBuildAction::new(
+        cwd.clone(),
         None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_successfully() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
         None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    )
+    .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
 
-#[test]
-pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verification_steps_are_skipped()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .with_sign_mode(SignMode::Off)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch);
-
-    assert_build_action_run_with_env_is_success(
+    test_build_action.expect_build_runner(
+        DEFAULT_DRIVER_NAME,
         &cwd,
-        profile,
         None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_locked_is_set_then_it_is_forwarded_to_cargo_invocations() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .with_locked(true)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
         None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_calling_makecert() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============Certificate # 1 ==========
-                    Subject::
-                    [0,0] 2.5.4.3 (CN) WDRLocalTestCert
-                    Issuer::
-                    [0,0] 2.5.4.3 (CN) WDRLocalTestCert
-                    SerialNumber::
-                    5E 04 0D 63 35 20 76 A5 4A E1 96 BF CF 01 0F 96
-                    SHA1 Thumbprint::
-                        FB972842 C63CD369 E07D0C71 88E17921 B5813C71
-                    MD5 Thumbprint::
-                        832B3F18 707EA3F6 54465207 345A93F1
-                    Provider Type:: 1 Provider Name:: Microsoft Strong Cryptographic Provider Container: 68f79a6e-6afa-4ec7-be5b-16d6656edd3f KeySpec: 2
-                    NotBefore::
-                    Tue Jan 28 13:51:04 2025
-                    NotAfter::
-                    Sun Jan 01 05:29:59 2040
-                    ==============No CTLs ==========
-                    ==============No CRLs ==========
-                    ==============================================
-                    CertMgr Succeeded".as_bytes().to_vec(),
-        stderr: vec![],
-    };
-
-    let expected_create_cert_output = Output {
-        status: ExitStatus::default(),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_certmgr_create_cert_from_store(&cwd, Some(expected_create_cert_output))
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None)
-        .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_verify_cat_file(driver_name, &cwd, None);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_creating_it() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-    let expected_certmgr_output = get_certmgr_success_output();
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, false)
-        .expect_dir_created(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_inx_file_exists(driver_name, &cwd, false);
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output = create_cargo_build_output_json(
-        driver_name,
-        driver_version,
-        &cwd,
-        Some(&to_target_triple(target_arch)),
-        profile,
-    );
-
-    let test_build_action =
-        &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
-            .set_up_standalone_driver_project((workspace_member, package))
-            .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-            .expect_final_package_dir_exists(driver_name, &cwd, true)
-            .expect_inx_file_exists(driver_name, &cwd, true)
-            .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-            .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, false);
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        Some(target_arch),
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let expected_stampinf_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(
-            driver_name,
+        Ok(cargo_build_messages(
+            DEFAULT_DRIVER_NAME,
+            DEFAULT_DRIVER_VERSION,
             &cwd,
-            target_arch,
-            Some(expected_stampinf_output),
-        );
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
+            None,
+            None,
+        )),
     );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let expected_inf2cat_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(
-            driver_name,
-            &cwd,
-            target_arch,
-            Some(expected_inf2cat_output),
-        );
-
-    let build_action = initialize_build_action(
+    test_build_action.expect_probe_target_arch_using_cargo_rustc(&cwd, CpuArchitecture::Amd64);
+    test_build_action.expect_package_runner(
+        DEFAULT_DRIVER_NAME,
         &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let expected_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_output));
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let expected_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(None)
-        .expect_makecert(&cwd, Some(expected_output));
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let expected_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(None)
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, Some(expected_output));
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package_should_fail() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let expected_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
-        .expect_inx_file_exists(driver_name, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-        .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-        .expect_stampinf(driver_name, &cwd, target_arch, None)
-        .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, Some(expected_output));
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-#[test]
-pub fn given_a_non_driver_project_when_default_values_are_provided_with_no_wdk_metadata_are_provided_then_build_should_be_successful()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_name = "non-driver";
-    let driver_version = "0.0.1";
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, None);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, None);
-
-    assert_build_action_run_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_default_values_are_provided_then_wdk_metadata_parse_should_fail()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp\\sample-driver");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_name = "sample-driver";
-    let cargo_toml_metadata = invalid_driver_cargo_toml();
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_with_custom_toml(&cargo_toml_metadata)
-        .expect_default_build_task_steps(driver_name, None);
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::WdkMetadataParse(TryFromCargoMetadataError::WdkMetadataDeserialization {
-            metadata_source: _,
-            error_source: _
-        })
-    ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo_rustc_fails_then_packaging_should_fail()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let verify_signature = false;
-    let sample_class = false;
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    let cargo_build_output =
-        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
-
-    let cargo_rustc_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(
-            &cwd,
-            CpuArchitecture::Amd64,
-            Some(cargo_rustc_output),
-        );
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-    assert!(matches!(
-        run_result.as_ref().expect_err("expected error"),
-        BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
-    ));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-/// Workspace tests
-////////////////////////////////////////////////////////////////////////////////
-#[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_default_values_are_provided_then_it_packages_successfully()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-
-    // Create artifact outputs for workspace packages
-    let artifact_1 = create_cargo_build_output_json_with_manifest(
-        driver_name_1,
-        driver_version_1,
-        &cwd,
-        &cwd.join(driver_name_1).join("Cargo.toml"),
-        None,
-        profile,
-        true,
-    );
-    let artifact_2 = create_cargo_build_output_json_with_manifest(
-        driver_name_2,
-        driver_version_2,
-        &cwd,
-        &cwd.join(driver_name_2).join("Cargo.toml"),
-        None,
-        profile,
-        true,
-    );
-    let artifact_non_driver = create_cargo_build_output_json_with_manifest(
-        non_driver,
-        non_driver_version,
-        &cwd,
-        &cwd.join(non_driver).join("Cargo.toml"),
-        None,
-        profile,
+        &target_dir,
+        CpuArchitecture::Amd64,
+        SignMode::Test {
+            verify_signature: false,
+        },
         false,
     );
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_3, package_3) =
-        get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
 
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_workspace_with_multiple_driver_projects(
-            &cwd,
-            Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-                (workspace_member_3, package_3),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), Some(artifact_1))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_1), target_arch, None)
-        .expect_default_package_task_steps_for_workspace(
-            driver_name_1,
-            driver_type,
-            target_arch,
-            verify_signature,
-        )
-        // Second driver project
-        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), Some(artifact_2))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_2), target_arch, None)
-        .expect_default_package_task_steps_for_workspace(
-            driver_name_2,
-            driver_type,
-            target_arch,
-            verify_signature,
-        )
-        // Non-driver project
-        .expect_cargo_build(non_driver, &cwd.join(non_driver), Some(artifact_non_driver));
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&cwd);
 
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_driver_project_then_it_packages_driver_project_successfully()
- {
-    // Input CLI args
-    let workspace_root_dir = PathBuf::from("C:\\tmp");
-    let cwd = workspace_root_dir.join("sample-kmdf-1");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &workspace_root_dir.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &workspace_root_dir.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_3, package_3) = get_cargo_metadata_package(
-        &workspace_root_dir.join(non_driver),
-        non_driver,
-        non_driver_version,
-        None,
-    );
-
-    let expected_certmgr_output = get_certmgr_success_output();
-
-    let cargo_build_output = create_cargo_build_output_json_with_manifest(
-        driver_name_1,
-        driver_version_1,
-        &workspace_root_dir,
-        &workspace_root_dir.join(driver_name_1).join("Cargo.toml"),
-        None,
-        profile,
-        true,
-    );
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class) // Even when cwd is changed to driver project inside the workspace, cargo metadata read
-        // is going to be for the whole workspace
-        .set_up_workspace_with_multiple_driver_projects(
-            &workspace_root_dir,
-            Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-                (workspace_member_3, package_3),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
-        .expect_inx_file_exists(driver_name_1, &cwd, true)
-        .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
-        .expect_copy_driver_binary_sys_to_package_folder(driver_name_1, &workspace_root_dir, true)
-        .expect_copy_pdb_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
-        .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd, true, &workspace_root_dir)
-        .expect_copy_map_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
-        .expect_stampinf(driver_name_1, &workspace_root_dir, target_arch, None)
-        .expect_inf2cat(driver_name_1, &workspace_root_dir, target_arch, None)
-        .expect_self_signed_cert_file_exists(&workspace_root_dir, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
-        .expect_makecert(&workspace_root_dir, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(
-            driver_name_1,
-            &workspace_root_dir,
-            true,
-        )
-        .expect_signtool_sign_driver_binary_sys_file(driver_name_1, &workspace_root_dir, None)
-        .expect_signtool_sign_cat_file(driver_name_1, &workspace_root_dir, None)
-        .expect_signtool_verify_driver_binary_sys_file(driver_name_1, &workspace_root_dir, None)
-        .expect_signtool_verify_cat_file(driver_name_1, &workspace_root_dir, None)
-        .expect_infverif(driver_name_1, &workspace_root_dir, "KMDF", None);
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verify_signature_is_false_then_it_skips_verify_tasks()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
-    let verify_signature = false;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-
-    // Create artifact outputs for workspace packages
-    let artifact_1 = create_cargo_build_output_json_with_manifest(
-        driver_name_1,
-        driver_version_1,
-        &cwd,
-        &cwd.join(driver_name_1).join("Cargo.toml"),
-        None,
-        profile,
-        true,
-    );
-    let artifact_2 = create_cargo_build_output_json_with_manifest(
-        driver_name_2,
-        driver_version_2,
-        &cwd,
-        &cwd.join(driver_name_2).join("Cargo.toml"),
-        None,
-        profile,
-        true,
-    );
-    let artifact_non_driver = create_cargo_build_output_json_with_manifest(
-        non_driver,
-        non_driver_version,
-        &cwd,
-        &cwd.join(non_driver).join("Cargo.toml"),
-        None,
-        profile,
-        false, // NOT a driver - will use "lib" instead of "cdylib"
-    );
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_3, package_3) =
-        get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_workspace_with_multiple_driver_projects(
-            &cwd,
-            Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-                (workspace_member_3, package_3),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), Some(artifact_1))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_1), target_arch, None)
-        .expect_default_package_task_steps_for_workspace(
-            driver_name_1,
-            driver_type,
-            target_arch,
-            verify_signature,
-        )
-        // Second driver project
-        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), Some(artifact_2))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_2), target_arch, None)
-        .expect_default_package_task_steps_for_workspace(
-            driver_name_2,
-            driver_type,
-            target_arch,
-            verify_signature,
-        )
-        // Non-driver project
-        .expect_cargo_build(non_driver, &cwd.join(non_driver), Some(artifact_non_driver));
-
-    assert_build_action_run_with_env_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_is_non_driver_project_then_it_builds_but_skips_packaging()
- {
-    // Input CLI args
-    let workspace_root_dir = PathBuf::from("C:\\tmp");
-    let cwd = workspace_root_dir.join("non-driver");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &workspace_root_dir.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &workspace_root_dir.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_3, package_3) = get_cargo_metadata_package(
-        &workspace_root_dir.join(non_driver),
-        non_driver,
-        non_driver_version,
-        None,
-    );
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class) // Even when cwd is changed to driver project inside the workspace, cargo metadata read
-        // is going to be for the whole workspace
-        .set_up_workspace_with_multiple_driver_projects(
-            &workspace_root_dir,
-            Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-                (workspace_member_3, package_3),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(non_driver, &cwd, None);
-
-    assert_build_action_run_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type_1 = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_type_2 = "UMDF";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let wdk_metadata_1 = get_cargo_metadata_wdk_metadata(driver_type_1, 1, 33);
-    let wdk_metadata_2 = get_cargo_metadata_wdk_metadata(driver_type_2, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata_1),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata_2),
-    );
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_workspace_with_multiple_driver_projects(
-            &cwd,
-            Some(wdk_metadata_1),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
-        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_each_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        BuildActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
-                wdk_metadata_configurations: _
-            }
-        )
-    ));
-}
-
-#[test]
-pub fn given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let driver_type_1 = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_type_2 = "UMDF";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let wdk_metadata_1 = get_cargo_metadata_wdk_metadata(driver_type_1, 1, 33);
-    let wdk_metadata_2 = get_cargo_metadata_wdk_metadata(driver_type_2, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata_1),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata_1),
-    );
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_workspace_with_multiple_driver_projects(
-            &cwd,
-            Some(wdk_metadata_2),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-            ],
-        )
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_cargo_build(driver_name_1, &cwd.join(driver_name_1), None)
-        .expect_cargo_build(driver_name_2, &cwd.join(driver_name_2), None);
-
-    let build_action = initialize_build_action(
-        &cwd,
-        profile.as_ref(),
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
-
-    assert!(matches!(
-        run_result.expect_err("run_result error in test: given_a_workspace_with_multiple_distinct_wdk_configurations_at_root_and_workspace_member_level_when_default_values_are_provided_then_wdk_metadata_parse_should_fail"),
-        BuildActionError::WdkMetadataParse(
-            TryFromCargoMetadataError::MultipleWdkConfigurationsDetected {
-                wdk_metadata_configurations: _
-            }
-        )
-    ));
-}
-
-#[test]
-pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_root_then_build_should_be_successful()
- {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-    let (workspace_member_3, package_3) =
-        get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class) // Even when cwd is changed to driver project inside the workspace, cargo metadata read
-        // is going to be for the whole workspace
-        .set_up_workspace_with_multiple_driver_projects(
-            &cwd,
-            None,
-            vec![(workspace_member_3, package_3)],
-        )
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_cargo_build(non_driver, &cwd.join(non_driver), None);
-
-    assert_build_action_run_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-#[test]
-pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_member_then_build_should_be_successful()
- {
-    // Input CLI args
-    let workspace_root_dir = PathBuf::from("C:\\tmp");
-    let cwd = workspace_root_dir.join("non-driver");
-    let profile = None;
-    let verify_signature = true;
-    let sample_class = false;
-
-    // Driver project data
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
-    let (workspace_member_3, package_3) = get_cargo_metadata_package(
-        &workspace_root_dir.join(non_driver),
-        non_driver,
-        non_driver_version,
-        None,
-    );
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class) // Even when cwd is changed to driver project inside the workspace, cargo metadata read
-        // is going to be for the whole workspace
-        .set_up_workspace_with_multiple_driver_projects(
-            &workspace_root_dir,
-            None,
-            vec![(workspace_member_3, package_3)],
-        )
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_cargo_build(non_driver, &cwd, None);
-
-    assert_build_action_run_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-}
-
-fn assert_build_action_run_is_success(
-    cwd: &PathBuf,
-    profile: Option<Profile>,
-    target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
-    sample_class: bool,
-    test_build_action: &TestBuildAction,
-) {
-    let build_action = initialize_build_action(
-        cwd,
-        profile.as_ref(),
-        target_arch,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = build_action.expect("Failed to init build action").run();
     assert!(
-        run_result.is_ok(),
-        "build action failed unexpectedly: {run_result:?}"
+        result.is_ok(),
+        "build action failed unexpectedly: {result:?}"
     );
 }
 
-fn initialize_build_action<'a>(
-    cwd: &'a PathBuf,
-    profile: Option<&'a Profile>,
-    target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
-    sample_class: bool,
-    test_build_action: &'a TestBuildAction,
-) -> Result<BuildAction<'a>, anyhow::Error> {
-    let sign_mode = match test_build_action.sign_mode {
-        SignMode::Off => SignMode::Off,
-        SignMode::Test { .. } => SignMode::Test { verify_signature },
-    };
-    BuildAction::new(
-        &BuildActionParams {
-            working_dir: cwd,
+#[test]
+fn given_explicit_target_arch_when_building_then_probe_is_skipped_and_package_runner_uses_it() {
+    let cwd = PathBuf::from(r"C:\tmp\sample-driver");
+    let profile = Some(Profile::Release);
+    let target_arch = CpuArchitecture::Arm64;
+    let target_dir = expected_target_dir(&cwd, Some(target_arch), profile);
+    let target_triple = to_target_triple(target_arch);
+    let mut test_build_action = TestBuildAction::new(
+        cwd.clone(),
+        profile,
+        Some(target_arch),
+        SignMode::Test {
+            verify_signature: true,
+        },
+        true,
+    )
+    .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
+
+    test_build_action.expect_build_runner(
+        DEFAULT_DRIVER_NAME,
+        &cwd,
+        profile,
+        Some(target_arch),
+        Ok(cargo_build_messages(
+            DEFAULT_DRIVER_NAME,
+            DEFAULT_DRIVER_VERSION,
+            &cwd,
+            Some(target_triple.as_str()),
             profile,
-            target_arch,
-            sign_mode,
-            is_sample_class: sample_class,
+        )),
+    );
+    test_build_action.expect_package_runner(
+        DEFAULT_DRIVER_NAME,
+        &cwd,
+        &target_dir,
+        target_arch,
+        SignMode::Test {
+            verify_signature: true,
+        },
+        true,
+    );
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&cwd);
+
+    assert!(
+        result.is_ok(),
+        "build action failed unexpectedly: {result:?}"
+    );
+}
+
+#[test]
+fn given_a_non_driver_package_when_building_then_package_runner_is_skipped() {
+    let cwd = PathBuf::from(r"C:\tmp\non-driver");
+    let mut test_build_action = TestBuildAction::new(
+        cwd.clone(),
+        None,
+        None,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    )
+    .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, None);
+
+    test_build_action.expect_build_runner(
+        DEFAULT_DRIVER_NAME,
+        &cwd,
+        None,
+        None,
+        Ok(cargo_build_messages(
+            DEFAULT_DRIVER_NAME,
+            DEFAULT_DRIVER_VERSION,
+            &cwd,
+            None,
+            None,
+        )),
+    );
+    test_build_action
+        .mock_package_task_runner
+        .expect_run()
+        .never();
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&cwd);
+
+    assert!(
+        result.is_ok(),
+        "build action failed unexpectedly: {result:?}"
+    );
+}
+
+#[test]
+fn given_a_driver_package_without_cdylib_when_building_then_package_runner_is_skipped() {
+    let cwd = PathBuf::from(r"C:\tmp\driver-lib");
+    let mut test_build_action = TestBuildAction::new(
+        cwd.clone(),
+        None,
+        None,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    )
+    .set_up_with_custom_toml(&get_cargo_metadata(
+        &cwd,
+        vec![
+            get_cargo_metadata_package_with_target(
+                &cwd,
+                DEFAULT_DRIVER_NAME,
+                DEFAULT_DRIVER_VERSION,
+                Some(default_wdk_metadata()),
+                "lib",
+                "lib",
+                "lib.rs",
+            )
+            .1,
+        ],
+        &[get_cargo_metadata_package_with_target(
+            &cwd,
+            DEFAULT_DRIVER_NAME,
+            DEFAULT_DRIVER_VERSION,
+            Some(default_wdk_metadata()),
+            "lib",
+            "lib",
+            "lib.rs",
+        )
+        .0],
+        None,
+    ));
+
+    test_build_action.expect_build_runner(DEFAULT_DRIVER_NAME, &cwd, None, None, Ok(Vec::new()));
+    test_build_action
+        .mock_package_task_runner
+        .expect_run()
+        .never();
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&cwd);
+
+    assert!(
+        result.is_ok(),
+        "build action failed unexpectedly: {result:?}"
+    );
+}
+
+#[test]
+fn given_a_workspace_root_when_one_member_fails_then_workspace_error_is_returned() {
+    let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_dir_1 = workspace_root.join(driver_name_1);
+    let driver_dir_2 = workspace_root.join(driver_name_2);
+    let target_arch = CpuArchitecture::Amd64;
+    let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
+    let target_triple = to_target_triple(target_arch);
+    let mut test_build_action = TestBuildAction::new(
+        workspace_root.clone(),
+        None,
+        Some(target_arch),
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    )
+    .set_up_workspace_with_multiple_driver_projects(
+        &workspace_root,
+        vec![
+            (
+                driver_name_1,
+                driver_dir_1.clone(),
+                Some(default_wdk_metadata()),
+                "cdylib",
+                "cdylib",
+                "main.rs",
+            ),
+            (
+                driver_name_2,
+                driver_dir_2.clone(),
+                Some(default_wdk_metadata()),
+                "cdylib",
+                "cdylib",
+                "main.rs",
+            ),
+        ],
+    );
+
+    test_build_action.expect_build_runner(
+        driver_name_1,
+        &driver_dir_1,
+        None,
+        Some(target_arch),
+        Ok(cargo_build_messages(
+            driver_name_1,
+            DEFAULT_DRIVER_VERSION,
+            &driver_dir_1,
+            Some(target_triple.as_str()),
+            None,
+        )),
+    );
+    test_build_action.expect_build_runner(
+        driver_name_2,
+        &driver_dir_2,
+        None,
+        Some(target_arch),
+        Err(build_task_error()),
+    );
+    test_build_action.expect_package_runner(
+        driver_name_1,
+        &driver_dir_1,
+        &target_dir_1,
+        target_arch,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    );
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&workspace_root);
+
+    assert!(matches!(
+        result,
+        Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(path))
+        if path == workspace_root
+    ));
+}
+
+#[test]
+fn given_a_workspace_member_directory_when_building_then_only_that_member_is_orchestrated() {
+    let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_dir_1 = workspace_root.join(driver_name_1);
+    let driver_dir_2 = workspace_root.join(driver_name_2);
+    let target_arch = CpuArchitecture::Amd64;
+    let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
+    let target_triple = to_target_triple(target_arch);
+    let mut test_build_action = TestBuildAction::new(
+        driver_dir_2.clone(),
+        None,
+        Some(target_arch),
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    )
+    .set_up_workspace_with_multiple_driver_projects(
+        &workspace_root,
+        vec![
+            (
+                driver_name_1,
+                driver_dir_1,
+                Some(default_wdk_metadata()),
+                "cdylib",
+                "cdylib",
+                "main.rs",
+            ),
+            (
+                driver_name_2,
+                driver_dir_2.clone(),
+                Some(default_wdk_metadata()),
+                "cdylib",
+                "cdylib",
+                "main.rs",
+            ),
+        ],
+    );
+
+    test_build_action.expect_build_runner(
+        driver_name_2,
+        &driver_dir_2,
+        None,
+        Some(target_arch),
+        Ok(cargo_build_messages(
+            driver_name_2,
+            DEFAULT_DRIVER_VERSION,
+            &driver_dir_2,
+            Some(target_triple.as_str()),
+            None,
+        )),
+    );
+    test_build_action.expect_package_runner(
+        driver_name_2,
+        &driver_dir_2,
+        &target_dir_2,
+        target_arch,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    );
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&driver_dir_2);
+
+    assert!(
+        result.is_ok(),
+        "build action failed unexpectedly: {result:?}"
+    );
+}
+
+#[test]
+fn given_an_emulated_workspace_when_running_then_each_valid_project_is_built() {
+    let emulated_workspace = TestWorkspaceRoot::new("build-action-emulated-workspace");
+    let driver_name_1 = "driver-a";
+    let driver_name_2 = "driver-b";
+    let ignored_dir = "docs";
+    let driver_dir_1 = emulated_workspace.root.join(driver_name_1);
+    let driver_dir_2 = emulated_workspace.root.join(driver_name_2);
+    let ignored_dir_path = emulated_workspace.root.join(ignored_dir);
+    fs::create_dir_all(&driver_dir_1).expect("failed to create driver-a directory");
+    fs::create_dir_all(&driver_dir_2).expect("failed to create driver-b directory");
+    fs::create_dir_all(&ignored_dir_path).expect("failed to create docs directory");
+
+    let target_arch = CpuArchitecture::Amd64;
+    let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
+    let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
+    let target_triple = to_target_triple(target_arch);
+    let mut test_build_action = TestBuildAction::new(
+        emulated_workspace.root.clone(),
+        None,
+        Some(target_arch),
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    );
+
+    test_build_action.expect_detect_wdk_build_number(25100);
+    test_build_action.expect_root_manifest_exists(&emulated_workspace.root, false);
+    test_build_action.expect_read_dir_entries(&emulated_workspace.root);
+    test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
+    test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
+    test_build_action.expect_dir_cargo_toml_exists(&driver_dir_2, true);
+    test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
+    test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
+    test_build_action.expect_metadata_for_paths(vec![
+        (
+            driver_dir_1.clone(),
+            metadata_from_packages(
+                &driver_dir_1,
+                vec![(
+                    driver_name_1,
+                    driver_dir_1.clone(),
+                    Some(default_wdk_metadata()),
+                    "cdylib",
+                    "cdylib",
+                    "main.rs",
+                )],
+            ),
+        ),
+        (
+            driver_dir_2.clone(),
+            metadata_from_packages(
+                &driver_dir_2,
+                vec![(
+                    driver_name_2,
+                    driver_dir_2.clone(),
+                    Some(default_wdk_metadata()),
+                    "cdylib",
+                    "cdylib",
+                    "main.rs",
+                )],
+            ),
+        ),
+    ]);
+    test_build_action.expect_build_runner(
+        driver_name_1,
+        &driver_dir_1,
+        None,
+        Some(target_arch),
+        Ok(cargo_build_messages(
+            driver_name_1,
+            DEFAULT_DRIVER_VERSION,
+            &driver_dir_1,
+            Some(target_triple.as_str()),
+            None,
+        )),
+    );
+    test_build_action.expect_build_runner(
+        driver_name_2,
+        &driver_dir_2,
+        None,
+        Some(target_arch),
+        Ok(cargo_build_messages(
+            driver_name_2,
+            DEFAULT_DRIVER_VERSION,
+            &driver_dir_2,
+            Some(target_triple.as_str()),
+            None,
+        )),
+    );
+    test_build_action.expect_package_runner(
+        driver_name_1,
+        &driver_dir_1,
+        &target_dir_1,
+        target_arch,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    );
+    test_build_action.expect_package_runner(
+        driver_name_2,
+        &driver_dir_2,
+        &target_dir_2,
+        target_arch,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    );
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = crate::test_utils::with_env::<&str, &str, _, _>(&[], || build_action.run());
+
+    assert!(
+        result.is_ok(),
+        "build action failed unexpectedly: {result:?}"
+    );
+}
+
+#[test]
+fn given_a_workspace_member_when_build_runner_fails_then_the_build_error_is_propagated() {
+    let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+    let cwd = workspace_root.join(DEFAULT_DRIVER_NAME);
+    let mut test_build_action = TestBuildAction::new(
+        cwd.clone(),
+        None,
+        None,
+        SignMode::Test {
+            verify_signature: false,
+        },
+        false,
+    )
+    .set_up_workspace_with_multiple_driver_projects(
+        &workspace_root,
+        vec![(
+            DEFAULT_DRIVER_NAME,
+            cwd.clone(),
+            Some(default_wdk_metadata()),
+            "cdylib",
+            "cdylib",
+            "main.rs",
+        )],
+    );
+
+    test_build_action.expect_build_runner(
+        DEFAULT_DRIVER_NAME,
+        &cwd,
+        None,
+        None,
+        Err(build_task_error()),
+    );
+
+    let build_action = initialize_build_action(&mut test_build_action);
+    let result = build_action.run_from_workspace_root(&cwd);
+
+    assert!(matches!(result, Err(BuildActionError::BuildTask(_))));
+}
+
+fn initialize_build_action(test_build_action: &mut TestBuildAction) -> BuildAction<'_> {
+    BuildAction::new_with_runners(
+        &BuildActionParams {
+            working_dir: &test_build_action.cwd,
+            profile: test_build_action.profile.as_ref(),
+            target_arch: test_build_action.target_arch,
+            sign_mode: test_build_action.sign_mode,
+            is_sample_class: test_build_action.sample_class,
             locked: test_build_action.locked,
             features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        test_build_action.mock_wdk_build_provider(),
-        test_build_action.mock_run_command(),
-        test_build_action.mock_fs_provider(),
-        test_build_action.mock_metadata_provider(),
+        &test_build_action.mock_wdk_build_provider,
+        &test_build_action.mock_run_command,
+        &test_build_action.mock_fs_provider,
+        &test_build_action.mock_metadata_provider,
+        std::mem::take(&mut test_build_action.mock_build_task_runner),
+        std::mem::take(&mut test_build_action.mock_package_task_runner),
     )
+    .expect("failed to initialize build action")
 }
 
-fn get_certmgr_success_output() -> Output {
-    Output {
-        status: ExitStatus::default(),
-        stdout: r"==============No Certificates ==========
-                            ==============No CTLs ==========
-                            ==============No CRLs ==========
-                            ==============================================
-                            CertMgr Succeeded"
-            .as_bytes()
-            .to_vec(),
-        stderr: vec![],
-    }
+fn default_wdk_metadata() -> TestWdkMetadata {
+    get_cargo_metadata_wdk_metadata("KMDF", 1, 33)
 }
 
-fn assert_build_action_run_with_env_is_success(
-    cwd: &PathBuf,
-    profile: Option<Profile>,
+fn expected_target_dir(
+    cwd: &Path,
     target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
-    sample_class: bool,
-    test_build_action: &TestBuildAction,
-) {
-    let build_action = initialize_build_action(
-        cwd,
-        profile.as_ref(),
-        target_arch,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
-    assert!(build_action.is_ok());
-    let run_result = run_build_action(build_action);
-    assert!(
-        run_result.is_ok(),
-        "build action with env failed unexpectedly: {run_result:?}"
-    );
+    profile: Option<Profile>,
+) -> PathBuf {
+    let mut target_dir = cwd.join("target");
+    if let Some(target_arch) = target_arch {
+        target_dir = target_dir.join(to_target_triple(target_arch));
+    }
+    target_dir.join(match profile {
+        Some(Profile::Release) => "release",
+        _ => "debug",
+    })
 }
 
-fn run_build_action(
-    build_action: Result<BuildAction<'_>, anyhow::Error>,
-) -> Result<(), BuildActionError> {
-    let build_action = build_action.expect("Failed to init build action");
-    crate::test_utils::with_env::<&str, &str, _, _>(&[], || build_action.run())
+fn cargo_build_messages(
+    package_name: &str,
+    package_version: &str,
+    cwd: &Path,
+    target_triple: Option<&str>,
+    profile: Option<Profile>,
+) -> Vec<Result<Message, io::Error>> {
+    let output =
+        create_cargo_build_output_json(package_name, package_version, cwd, target_triple, profile);
+    Message::parse_stream(io::Cursor::new(output.stdout)).collect()
 }
 
-/// Helper functions
-////////////////////////////////////////////////////////////////////////////////
+fn build_task_error() -> super::error::BuildTaskError {
+    super::error::BuildTaskError::CargoBuild(CommandError::from_output(
+        "cargo",
+        &["build"],
+        &Output {
+            status: ExitStatus::from_raw(1),
+            stdout: vec![],
+            stderr: b"cargo build failed".to_vec(),
+        },
+    ))
+}
+
 struct TestBuildAction {
     cwd: PathBuf,
     profile: Option<Profile>,
     target_arch: Option<CpuArchitecture>,
-    sample_class: bool,
     sign_mode: SignMode,
+    sample_class: bool,
     locked: bool,
     features: Features,
-
-    cargo_metadata: Option<CargoMetadata>,
-    // mocks
-    mock_run_command: CommandExec,
-    mock_wdk_build_provider: WdkBuild,
-    mock_fs_provider: Fs,
-    mock_metadata_provider: MetadataProvider,
+    mock_run_command: MockCommandExec,
+    mock_wdk_build_provider: MockWdkBuild,
+    mock_fs_provider: MockFs,
+    mock_metadata_provider: MockMetadata,
+    mock_build_task_runner: MockBuildTaskRunner,
+    mock_package_task_runner: MockPackageTaskRunner,
 }
 
 impl TestBuildAction {
@@ -1757,408 +647,216 @@ impl TestBuildAction {
         cwd: PathBuf,
         profile: Option<Profile>,
         target_arch: Option<CpuArchitecture>,
+        sign_mode: SignMode,
         sample_class: bool,
     ) -> Self {
-        let mock_run_command = CommandExec::default();
-        let mock_wdk_build_provider = WdkBuild::default();
-        let mock_fs_provider = Fs::default();
-        let mock_metadata_provider = MetadataProvider::default();
-
         Self {
             cwd,
             profile,
             target_arch,
+            sign_mode,
             sample_class,
-            sign_mode: SignMode::Test {
-                verify_signature: false,
-            },
             locked: false,
             features: Features::default(),
-            mock_run_command,
-            mock_wdk_build_provider,
-            mock_fs_provider,
-            mock_metadata_provider,
-            cargo_metadata: None,
+            mock_run_command: MockCommandExec::new(),
+            mock_wdk_build_provider: MockWdkBuild::new(),
+            mock_fs_provider: MockFs::new(),
+            mock_metadata_provider: MockMetadata::new(),
+            mock_build_task_runner: MockBuildTaskRunner::new(),
+            mock_package_task_runner: MockPackageTaskRunner::new(),
         }
-    }
-
-    fn with_sign_mode(mut self, sign_mode: SignMode) -> Self {
-        self.sign_mode = sign_mode;
-        self
-    }
-
-    fn with_locked(mut self, locked: bool) -> Self {
-        self.locked = locked;
-        self
-    }
-
-    fn with_features(mut self, features: Features) -> Self {
-        self.features = features;
-        self
     }
 
     fn set_up_standalone_driver_project(
         mut self,
-        package_metadata: (TestMetadataWorkspaceMemberId, TestMetadataPackage),
+        package_name: &str,
+        metadata: Option<TestWdkMetadata>,
     ) -> Self {
-        let cargo_toml_metadata = get_cargo_metadata(
+        let is_driver = metadata.is_some();
+        let cargo_toml_metadata = metadata_from_packages(
             &self.cwd,
-            vec![package_metadata.1],
-            &[package_metadata.0],
-            None,
+            vec![(
+                package_name,
+                self.cwd.clone(),
+                metadata,
+                if is_driver { "cdylib" } else { "lib" },
+                if is_driver { "cdylib" } else { "lib" },
+                if is_driver { "main.rs" } else { "lib.rs" },
+            )],
         );
-        let cargo_toml_metadata =
-            serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
-                .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
-        let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
-        let expected_options: Vec<String> = if self.locked {
-            vec!["--locked".to_string()]
-        } else {
-            vec![]
-        };
-        let expected_features = self.features.clone();
+        let cargo_toml_metadata_for_closure = cargo_toml_metadata;
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
-                    *other_options == expected_options && *features == expected_features
-                },
-            )
             .once()
-            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
-        self.cargo_metadata = Some(cargo_toml_metadata);
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
         self
     }
 
     fn set_up_workspace_with_multiple_driver_projects(
         mut self,
         workspace_root_dir: &Path,
-        workspace_additional_metadata: Option<TestWdkMetadata>,
-        package_metadata_list: Vec<(TestMetadataWorkspaceMemberId, TestMetadataPackage)>,
+        packages: Vec<PackageSpec<'_>>,
     ) -> Self {
-        let cargo_toml_metadata = get_cargo_metadata(
-            workspace_root_dir,
-            package_metadata_list.iter().map(|p| p.1.clone()).collect(),
-            package_metadata_list
-                .into_iter()
-                .map(|p| p.0)
-                .collect::<Vec<_>>()
-                .as_slice(),
-            workspace_additional_metadata,
-        );
-        let cargo_toml_metadata = serde_json::from_str::<cargo_metadata::Metadata>(
-            &cargo_toml_metadata,
-        )
-        .expect("Failed to parse cargo metadata in set_up_workspace_with_multiple_driver_projects");
-        let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
-        let expected_options: Vec<String> = if self.locked {
-            vec!["--locked".to_string()]
-        } else {
-            vec![]
-        };
-        let expected_features = self.features.clone();
+        let cargo_toml_metadata = metadata_from_packages(workspace_root_dir, packages);
+        let cargo_toml_metadata_for_closure = cargo_toml_metadata;
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
-                    *other_options == expected_options && *features == expected_features
-                },
-            )
             .once()
-            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
-        self.cargo_metadata = Some(cargo_toml_metadata);
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
         self
     }
 
     fn set_up_with_custom_toml(mut self, cargo_toml_metadata: &str) -> Self {
-        let cargo_toml_metadata =
-            serde_json::from_str::<cargo_metadata::Metadata>(cargo_toml_metadata)
-                .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
-        let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
-        let expected_options: Vec<String> = if self.locked {
-            vec!["--locked".to_string()]
-        } else {
-            vec![]
-        };
-        let expected_features = self.features.clone();
+        let cargo_toml_metadata = serde_json::from_str::<CargoMetadata>(cargo_toml_metadata)
+            .expect("failed to parse cargo metadata");
+        let cargo_toml_metadata_for_closure = cargo_toml_metadata;
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
-                    *other_options == expected_options && *features == expected_features
-                },
-            )
             .once()
-            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
-        self.cargo_metadata = Some(cargo_toml_metadata);
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
         self
     }
 
-    fn setup_target_dir(&self, dir_path: &Path) -> PathBuf {
-        let mut base = dir_path.join("target");
-        let profile_dir_name = match self.profile {
-            Some(Profile::Release) => "release",
-            _ => "debug",
-        };
-        if let Some(target_arch) = self.target_arch {
-            let triple = to_target_triple(target_arch);
-            base = base.join(triple);
-        }
-        base.join(profile_dir_name)
-    }
-}
-
-// Presence of method ensures specific mock expectation is set
-// Dir argument in any method means to operate on the relevant dir
-// Output argument in any method means to override return output from default
-// is_success boolean means success result of copy operation
-// does_exist boolean means existence of the file or dir
-// is_created boolean means whether the dir was created or not
-impl TestBuildAction {
-    fn expect_default_build_task_steps(
-        self,
-        driver_name: &str,
-        cargo_build_output: Option<Output>,
-    ) -> Self {
-        let cwd = self.cwd.clone();
-        self.expect_detect_wdk_build_number(25100u32)
-            .expect_root_manifest_exists(&cwd, true)
-            .expect_cargo_build(driver_name, &cwd, cargo_build_output)
+    fn expect_metadata_for_paths(&mut self, metadata_by_path: Vec<(PathBuf, CargoMetadata)>) {
+        self.mock_metadata_provider
+            .expect_get_cargo_metadata_at_path()
+            .times(metadata_by_path.len())
+            .returning(move |path, _other_options, _features| {
+                let requested_path = PathBuf::from(path);
+                metadata_by_path
+                    .iter()
+                    .find_map(|(expected_path, metadata)| {
+                        (requested_path == *expected_path).then_some(metadata.clone())
+                    })
+                    .ok_or_else(|| {
+                        cargo_metadata::Error::from(io::Error::new(
+                            io::ErrorKind::NotFound,
+                            format!("unexpected metadata path: {}", requested_path.display()),
+                        ))
+                    })
+            });
     }
 
-    fn expect_default_package_task_steps(
-        self,
-        driver_name: &str,
-        driver_type: &str,
-        target_arch: CpuArchitecture,
-        verify_signature: bool,
-    ) -> Self {
-        let cwd = self.cwd.clone();
-        let expected_certmgr_output = get_certmgr_success_output();
-        let expectations = self
-            .expect_final_package_dir_exists(driver_name, &cwd, true)
-            .expect_inx_file_exists(driver_name, &cwd, true)
-            .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-            .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-            .expect_stampinf(driver_name, &cwd, target_arch, None)
-            .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_self_signed_cert_file_exists(&cwd, false)
-            .expect_certmgr_exists_check(Some(expected_certmgr_output))
-            .expect_makecert(&cwd, None)
-            .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-            .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None);
-        if !verify_signature {
-            return expectations;
-        }
-        expectations
-            .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_verify_cat_file(driver_name, &cwd, None)
+    fn expect_detect_wdk_build_number(&mut self, build_number: u32) {
+        self.mock_wdk_build_provider
+            .expect_detect_wdk_build_number()
+            .once()
+            .returning(move || Ok(build_number));
     }
 
-    /// Sets up package-task expectations for `SignMode::Off`: stampinf,
-    /// inf2cat, and infverif are still expected, but all certificate
-    /// generation, signing, and signature-verification steps are skipped.
-    fn expect_package_task_steps_with_sign_mode_off(
-        self,
-        driver_name: &str,
-        driver_type: &str,
-        target_arch: CpuArchitecture,
-    ) -> Self {
-        let cwd = self.cwd.clone();
-        self.expect_final_package_dir_exists(driver_name, &cwd, true)
-            .expect_inx_file_exists(driver_name, &cwd, true)
-            .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-            .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-            .expect_stampinf(driver_name, &cwd, target_arch, None)
-            .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None)
-    }
-
-    fn expect_default_package_task_steps_for_workspace(
-        self,
-        driver_name: &str,
-        driver_type: &str,
-        target_arch: CpuArchitecture,
-        verify_signature: bool,
-    ) -> Self {
-        let cwd = self.cwd.clone();
-        let expected_certmgr_output = get_certmgr_success_output();
-        let expectations = self
-            .expect_final_package_dir_exists(driver_name, &cwd, true)
-            .expect_inx_file_exists(driver_name, &cwd.join(driver_name), true)
-            .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-            .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_inx_file_to_package_folder(driver_name, &cwd.join(driver_name), true, &cwd)
-            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
-            .expect_stampinf(driver_name, &cwd, target_arch, None)
-            .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_self_signed_cert_file_exists(&cwd, false)
-            .expect_certmgr_exists_check(Some(expected_certmgr_output))
-            .expect_makecert(&cwd, None)
-            .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-            .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None);
-        if !verify_signature {
-            return expectations;
-        }
-        expectations
-            .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_verify_cat_file(driver_name, &cwd, None)
-    }
-
-    fn expect_root_manifest_exists(mut self, root_dir: &Path, does_exist: bool) -> Self {
+    fn expect_root_manifest_exists(&mut self, root_dir: &Path, exists: bool) {
+        let cargo_toml_path = root_dir.join("Cargo.toml");
         self.mock_fs_provider
             .expect_exists()
-            .with(eq(root_dir.join("Cargo.toml")))
+            .with(eq(cargo_toml_path))
             .once()
-            .returning(move |_| does_exist);
-        self
+            .returning(move |_| exists);
     }
 
-    fn expect_self_signed_cert_file_exists(mut self, driver_dir: &Path, does_exist: bool) -> Self {
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
+    fn expect_read_dir_entries(&mut self, root_dir: &Path) {
+        let root_dir = root_dir.to_path_buf();
         self.mock_fs_provider
-            .expect_exists()
-            .with(eq(expected_src_driver_cert_path))
-            .once()
-            .returning(move |_| does_exist);
-        self
-    }
-
-    fn expect_final_package_dir_exists(
-        mut self,
-        driver_name: &str,
-        cwd: &Path,
-        does_exist: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(cwd);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        self.mock_fs_provider
-            .expect_exists()
-            .with(eq(expected_final_package_dir_path))
-            .once()
-            .returning(move |_| does_exist);
-        self
-    }
-
-    fn expect_dir_created(mut self, driver_name: &str, cwd: &Path, created: bool) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(cwd);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        self.mock_fs_provider
-            .expect_create_dir()
-            .with(eq(expected_final_package_dir_path.clone()))
+            .expect_read_dir_entries()
+            .with(eq(root_dir.clone()))
             .once()
             .returning(move |_| {
-                if created {
-                    Ok(())
-                } else {
-                    Err(FileError::CreateDirError(
-                        expected_final_package_dir_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "create error"),
-                    ))
-                }
+                let mut entries: Vec<crate::providers::fs::DirEntryInfo> = fs::read_dir(&root_dir)
+                    .map_err(|e| FileError::ReadDirError(root_dir.clone(), e))?
+                    .map(|entry_res| {
+                        let entry = entry_res
+                            .map_err(|e| FileError::ReadDirEntriesError(root_dir.clone(), e))?;
+                        let entry_path = entry.path();
+                        let is_dir = entry
+                            .file_type()
+                            .map_err(|e| FileError::DirFileTypeError(entry_path.clone(), e))?
+                            .is_dir();
+                        Ok(crate::providers::fs::DirEntryInfo {
+                            path: entry_path,
+                            is_dir,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                entries.sort_by(|a, b| a.path.cmp(&b.path));
+                Ok(entries)
             });
-        self
     }
 
-    fn expect_cargo_build(
-        mut self,
-        driver_name: &str,
-        cwd: &Path,
-        override_output: Option<Output>,
-    ) -> Self {
-        // cargo build on the package
-        let expected_cargo_command: &'static str = "cargo";
-        let manifest_path = cwd
-            .join("Cargo.toml")
-            .to_string_lossy()
-            .trim_start_matches("\\\\?\\")
-            .to_string();
-        let mut expected_cargo_build_args: Vec<String> = vec![
-            "build",
-            "--message-format=json-render-diagnostics",
-            "-p",
-            &driver_name,
-            "--manifest-path",
-            &manifest_path,
-        ]
-        .into_iter()
-        .map(ToString::to_string)
-        .collect();
-        if let Some(profile) = self.profile {
-            expected_cargo_build_args.push("--profile".to_string());
-            expected_cargo_build_args.push(profile.to_string());
-        }
-
-        if let Some(target_arch) = self.target_arch {
-            expected_cargo_build_args.push("--target".to_string());
-            expected_cargo_build_args.push(to_target_triple(target_arch));
-        }
-
-        if self.locked {
-            expected_cargo_build_args.push("--locked".to_string());
-        }
-
-        expected_cargo_build_args.push("-v".to_string());
-        let expected_output = override_output.unwrap_or_else(|| Output {
-            status: ExitStatus::default(),
-            stdout: vec![],
-            stderr: vec![],
-        });
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_cargo_command && args == expected_cargo_build_args
-                },
-            )
+    fn expect_dir_cargo_toml_exists(&mut self, dir: &Path, exists: bool) {
+        let cargo_toml_path = dir.join("Cargo.toml");
+        self.mock_fs_provider
+            .expect_exists()
+            .with(eq(cargo_toml_path))
             .once()
-            .returning(move |_, _, _, _| Ok(expected_output.clone()));
-        self
+            .returning(move |_| exists);
+    }
+
+    fn expect_build_runner(
+        &mut self,
+        package_name: &str,
+        working_dir: &Path,
+        profile: Option<Profile>,
+        target_arch: Option<CpuArchitecture>,
+        result: Result<Vec<Result<Message, io::Error>>, super::error::BuildTaskError>,
+    ) {
+        let expected_package_name = package_name.to_string();
+        let expected_working_dir = working_dir.to_path_buf();
+        let expected_profile = profile;
+        let expected_target_arch = target_arch;
+        let expected_locked = self.locked;
+        let expected_features = self.features.clone();
+        self.mock_build_task_runner
+            .expect_run()
+            .withf(move |params: &BuildTaskParams<'_>, _command_exec| {
+                params.package_name == expected_package_name
+                    && params.working_dir == expected_working_dir
+                    && params.profile.copied() == expected_profile
+                    && params.target_arch == expected_target_arch
+                    && params.locked == expected_locked
+                    && params.features.all_features == expected_features.all_features
+                    && params.features.no_default_features == expected_features.no_default_features
+                    && params.features.features == expected_features.features
+            })
+            .once()
+            .return_once(move |_, _| result);
+    }
+
+    fn expect_package_runner(
+        &mut self,
+        package_name: &str,
+        working_dir: &Path,
+        target_dir: &Path,
+        target_arch: CpuArchitecture,
+        sign_mode: SignMode,
+        sample_class: bool,
+    ) {
+        let expected_package_name = package_name.to_string();
+        let expected_working_dir = working_dir.to_path_buf();
+        let expected_target_dir = target_dir.to_path_buf();
+        self.mock_package_task_runner
+            .expect_run()
+            .withf(move |params: &PackageTaskParams<'_>, _, _, _| {
+                params.package_name == expected_package_name
+                    && params.working_dir == expected_working_dir
+                    && params.target_dir == expected_target_dir
+                    && *params.target_arch == target_arch
+                    && params.sign_mode == sign_mode
+                    && params.sample_class == sample_class
+                    && matches!(params.driver_model, DriverConfig::Kmdf(_))
+            })
+            .once()
+            .return_once(|_, _, _, _| Ok(()));
     }
 
     fn expect_probe_target_arch_using_cargo_rustc(
-        mut self,
-        driver_dir: &Path,
+        &mut self,
+        working_dir: &Path,
         detected_arch: CpuArchitecture,
-        override_output: Option<Output>,
-    ) -> Self {
-        if self.target_arch.is_some() {
-            println!("`cargo rustc` must not be probed when target architecture is already set");
-            return self;
-        }
-        let expected_working_dir = driver_dir.to_path_buf();
+    ) {
+        let expected_working_dir = working_dir.to_path_buf();
         let arch_str = match detected_arch {
             CpuArchitecture::Amd64 => "x86_64",
             CpuArchitecture::Arm64 => "aarch64",
         };
-        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
-        if self.locked {
-            expected_args.push("--locked".to_string());
-        }
-        expected_args.push("--".to_string());
-        expected_args.push("--print".to_string());
-        expected_args.push("cfg".to_string());
-        let expected_args_for_err = expected_args.clone();
         self.mock_run_command
             .expect_run()
             .withf(
@@ -2167,937 +865,83 @@ impl TestBuildAction {
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>| {
                     command == "cargo"
-                        && args == expected_args
-                        && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
+                        && args == ["rustc", "--", "--print", "cfg"]
+                        && working_dir.is_some_and(|dir| dir == expected_working_dir.as_path())
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => {
-                    if output.status.code() == Some(0) {
-                        Ok(Output {
-                            status: ExitStatus::from_raw(0),
-                            stdout: vec![],
-                            stderr: vec![],
-                        })
-                    } else {
-                        let err_args: Vec<&str> =
-                            expected_args_for_err.iter().map(String::as_str).collect();
-                        Err(CommandError::from_output("cargo", &err_args, &output))
-                    }
-                }
-                None => Ok(Output {
+            .returning(move |_, _, _, _| {
+                Ok(Output {
                     status: ExitStatus::default(),
-                    stdout: format!("target_arch=\"{arch_str}\"\n").as_bytes().to_vec(),
+                    stdout: format!("target_arch=\"{arch_str}\"\n").into_bytes(),
                     stderr: vec![],
-                }),
+                })
             });
-        self
-    }
-
-    fn expect_inx_file_exists(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        does_exist: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_inx_file_path =
-            driver_dir.join(format!("{expected_driver_name_underscored}.inx"));
-        self.mock_fs_provider
-            .expect_exists()
-            .with(eq(expected_inx_file_path))
-            .once()
-            .returning(move |_| does_exist);
-        self
-    }
-
-    fn expect_rename_driver_binary_dll_to_sys(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_src_driver_dll_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}.dll"));
-        let expected_src_driver_sys_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}.sys"));
-        self.mock_fs_provider
-            .expect_rename()
-            .with(
-                eq(expected_src_driver_dll_path),
-                eq(expected_src_driver_sys_path),
-            )
-            .once()
-            .returning(|_, _| Ok(()));
-        self
-    }
-
-    fn expect_copy_driver_binary_sys_to_package_folder(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let mock_non_zero_bytes_copied_size = 1000u64;
-
-        let expected_src_driver_sys_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}.sys"));
-        let expected_dest_driver_binary_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.sys"));
-        let expected_src_driver_binary_path = expected_src_driver_sys_path;
-        self.mock_fs_provider
-            .expect_copy()
-            .with(
-                eq(expected_src_driver_binary_path.clone()),
-                eq(expected_dest_driver_binary_path.clone()),
-            )
-            .once()
-            .returning(move |_, _| {
-                if is_success {
-                    Ok(mock_non_zero_bytes_copied_size)
-                } else {
-                    Err(FileError::CopyError(
-                        expected_src_driver_binary_path.clone(),
-                        expected_dest_driver_binary_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
-                    ))
-                }
-            });
-        self
-    }
-
-    fn expect_copy_pdb_file_to_package_folder(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let mock_non_zero_bytes_copied_size = 1000u64;
-
-        // copy pdb file to package directory
-        let expected_src_driver_pdb_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}.pdb"));
-        let expected_dest_driver_pdb_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.pdb"));
-        self.mock_fs_provider
-            .expect_copy()
-            .with(
-                eq(expected_src_driver_pdb_path.clone()),
-                eq(expected_dest_driver_pdb_path.clone()),
-            )
-            .once()
-            .returning(move |_, _| {
-                if is_success {
-                    Ok(mock_non_zero_bytes_copied_size)
-                } else {
-                    Err(FileError::CopyError(
-                        expected_src_driver_pdb_path.clone(),
-                        expected_dest_driver_pdb_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
-                    ))
-                }
-            });
-        self
-    }
-
-    fn expect_copy_inx_file_to_package_folder(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-        workspace_root_dir: &Path,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(workspace_root_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let mock_non_zero_bytes_copied_size = 1000u64;
-
-        // copy inx file to package directory
-        let expected_src_driver_inx_path =
-            driver_dir.join(format!("{expected_driver_name_underscored}.inx"));
-        let expected_dest_driver_inf_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.inf"));
-        self.mock_fs_provider
-            .expect_copy()
-            .with(
-                eq(expected_src_driver_inx_path.clone()),
-                eq(expected_dest_driver_inf_path.clone()),
-            )
-            .once()
-            .returning(move |_, _| {
-                if is_success {
-                    Ok(mock_non_zero_bytes_copied_size)
-                } else {
-                    Err(FileError::CopyError(
-                        expected_src_driver_inx_path.clone(),
-                        expected_dest_driver_inf_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
-                    ))
-                }
-            });
-        self
-    }
-
-    fn expect_copy_map_file_to_package_folder(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let mock_non_zero_bytes_copied_size = 1000u64;
-
-        // copy map file to package directory
-        let expected_src_driver_map_path = expected_target_dir
-            .join("deps")
-            .join(format!("{expected_driver_name_underscored}.map"));
-        let expected_dest_driver_map_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.map"));
-        self.mock_fs_provider
-            .expect_copy()
-            .with(
-                eq(expected_src_driver_map_path.clone()),
-                eq(expected_dest_driver_map_path.clone()),
-            )
-            .once()
-            .returning(move |_, _| {
-                if is_success {
-                    Ok(mock_non_zero_bytes_copied_size)
-                } else {
-                    Err(FileError::CopyError(
-                        expected_src_driver_map_path.clone(),
-                        expected_dest_driver_map_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
-                    ))
-                }
-            });
-        self
-    }
-
-    fn expect_copy_self_signed_cert_file_to_package_folder(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let mock_non_zero_bytes_copied_size = 1000u64;
-
-        // copy self signed certificate to package directory
-        let expected_src_cert_file_path = expected_target_dir.join("WDRLocalTestCert.cer");
-        let expected_dest_driver_cert_path =
-            expected_final_package_dir_path.join("WDRLocalTestCert.cer");
-        self.mock_fs_provider
-            .expect_copy()
-            .with(
-                eq(expected_src_cert_file_path.clone()),
-                eq(expected_dest_driver_cert_path.clone()),
-            )
-            .once()
-            .returning(move |_, _| {
-                if is_success {
-                    Ok(mock_non_zero_bytes_copied_size)
-                } else {
-                    Err(FileError::CopyError(
-                        expected_src_cert_file_path.clone(),
-                        expected_dest_driver_cert_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
-                    ))
-                }
-            });
-        self
-    }
-
-    fn expect_stampinf(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        target_arch: CpuArchitecture,
-        override_output: Option<Output>,
-    ) -> Self {
-        // Run stampinf command
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let expected_dest_driver_inf_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.inf"));
-
-        let expected_stampinf_command: &'static str = "stampinf";
-        let wdk_metadata = Wdk::try_from(
-            self.cargo_metadata
-                .as_ref()
-                .expect("cargo metadata must be available"),
-        )
-        .expect("Wdk metadata must be available");
-
-        if let DriverConfig::Kmdf(kmdf_config) = wdk_metadata.driver_model {
-            let expected_cat_file_name = format!("{expected_driver_name_underscored}.cat");
-            let expected_stampinf_args: Vec<String> = vec![
-                "-f".to_string(),
-                expected_dest_driver_inf_path.to_string_lossy().to_string(),
-                "-d".to_string(),
-                "*".to_string(),
-                "-a".to_string(),
-                target_arch.to_string(),
-                "-c".to_string(),
-                expected_cat_file_name,
-                "-v".to_string(),
-                "*".to_string(),
-                "-k".to_string(),
-                format!(
-                    "{}.{}",
-                    kmdf_config.kmdf_version_major, kmdf_config.target_kmdf_version_minor
-                ),
-            ];
-
-            self.mock_run_command
-                .expect_run()
-                .withf(
-                    move |command: &str,
-                          args: &[&str],
-                          _env_vars: &Option<&HashMap<&str, &str>>,
-                          _working_dir: &Option<&Path>|
-                          -> bool {
-                        println!("command: {command}, args: {args:?}");
-                        println!(
-                            "expected_command: {expected_stampinf_command}, expected_args: \
-                             {expected_stampinf_args:?}"
-                        );
-                        command == expected_stampinf_command && args == expected_stampinf_args
-                    },
-                )
-                .once()
-                .returning(move |_, _, _, _| match override_output.clone() {
-                    Some(output) => match output.status.code() {
-                        Some(0) => Ok(Output {
-                            status: ExitStatus::from_raw(0),
-                            stdout: vec![],
-                            stderr: vec![],
-                        }),
-                        _ => Err(CommandError::from_output("stampinf", &[], &output)),
-                    },
-                    None => Ok(Output {
-                        status: ExitStatus::default(),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                });
-        }
-        self
-    }
-
-    fn expect_inf2cat(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        target_arch: CpuArchitecture,
-        override_output: Option<Output>,
-    ) -> Self {
-        // Run inf2cat command
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-
-        let expected_inf2cat_command: &'static str = "inf2cat";
-
-        let expected_inf2cat_arg = match target_arch {
-            CpuArchitecture::Amd64 => "10_x64",
-            CpuArchitecture::Arm64 => "Server10_arm64",
-        };
-        let expected_inf2cat_args: Vec<String> = vec![
-            format!(
-                "/driver:{}",
-                expected_final_package_dir_path.to_string_lossy()
-            ),
-            format!("/os:{}", expected_inf2cat_arg),
-            "/uselocaltime".to_string(),
-        ];
-
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    println!("command: {command}, args: {args:?}");
-                    println!(
-                        "expected_command: {expected_inf2cat_command}, expected_args: \
-                         {expected_inf2cat_args:?}"
-                    );
-                    command == expected_inf2cat_command && args == expected_inf2cat_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("inf2cat", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_certmgr_exists_check(mut self, override_output: Option<Output>) -> Self {
-        // check for cert in cert store using certmgr
-        let expected_certmgr_command: &'static str = "certmgr.exe";
-        let expected_certmgr_args: Vec<String> =
-            vec!["-s".to_string(), "WDRTestCertStore".to_string()];
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
-                },
-            )
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: output.stdout,
-                        stderr: output.stderr,
-                    }),
-                    _ => Err(CommandError::from_output("certmgr", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_certmgr_create_cert_from_store(
-        mut self,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self {
-        // create cert from store using certmgr
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_self_signed_cert_file_path = expected_target_dir.join("WDRLocalTestCert.cer");
-
-        let expected_certmgr_command: &'static str = "certmgr.exe";
-        let expected_certmgr_args: Vec<String> = vec![
-            "-put".to_string(),
-            "-s".to_string(),
-            "WDRTestCertStore".to_string(),
-            "-c".to_string(),
-            "-n".to_string(),
-            "WDRLocalTestCert".to_string(),
-            expected_self_signed_cert_file_path
-                .to_string_lossy()
-                .to_string(),
-        ];
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("certmgr", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_makecert(mut self, driver_dir: &Path, override_output: Option<Output>) -> Self {
-        // create self signed certificate using makecert
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_makecert_command: &'static str = "makecert";
-        let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
-        let expected_makecert_args: Vec<String> = vec![
-            "-r".to_string(),
-            "-pe".to_string(),
-            "-a".to_string(),
-            "SHA256".to_string(),
-            "-eku".to_string(),
-            "1.3.6.1.5.5.7.3.3".to_string(),
-            "-ss".to_string(),
-            "WDRTestCertStore".to_string(),
-            "-n".to_string(),
-            "CN=WDRLocalTestCert".to_string(),
-            expected_src_driver_cert_path.to_string_lossy().to_string(),
-        ];
-
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_makecert_command && args == expected_makecert_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("makecert", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_signtool_sign_driver_binary_sys_file(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let expected_signtool_command: &'static str = "signtool";
-
-        // sign driver binary using signtool
-        let expected_dest_driver_binary_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.sys"));
-        let expected_signtool_args: Vec<String> = vec![
-            "sign".to_string(),
-            "/v".to_string(),
-            "/s".to_string(),
-            "WDRTestCertStore".to_string(),
-            "/n".to_string(),
-            "WDRLocalTestCert".to_string(),
-            "/t".to_string(),
-            "http://timestamp.digicert.com".to_string(),
-            "/fd".to_string(),
-            "SHA256".to_string(),
-            expected_dest_driver_binary_path
-                .to_string_lossy()
-                .to_string(),
-        ];
-
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("signtool", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_signtool_sign_cat_file(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let expected_signtool_command: &'static str = "signtool";
-
-        // sign driver cat file using signtool
-        let expected_dest_driver_cat_file_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.cat"));
-        let expected_signtool_args: Vec<String> = vec![
-            "sign".to_string(),
-            "/v".to_string(),
-            "/s".to_string(),
-            "WDRTestCertStore".to_string(),
-            "/n".to_string(),
-            "WDRLocalTestCert".to_string(),
-            "/t".to_string(),
-            "http://timestamp.digicert.com".to_string(),
-            "/fd".to_string(),
-            "SHA256".to_string(),
-            expected_dest_driver_cat_file_path
-                .to_string_lossy()
-                .to_string(),
-        ];
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("signtool", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_signtool_verify_driver_binary_sys_file(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let expected_signtool_command: &'static str = "signtool";
-
-        // verify signed driver binary using signtool
-        let expected_dest_driver_binary_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.sys"));
-        let expected_signtool_verify_args: Vec<String> = vec![
-            "verify".to_string(),
-            "/v".to_string(),
-            "/pa".to_string(),
-            expected_dest_driver_binary_path
-                .to_string_lossy()
-                .to_string(),
-        ];
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("signtool", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_signtool_verify_cat_file(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        override_output: Option<Output>,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let expected_signtool_command: &'static str = "signtool";
-
-        // verify signed driver cat file using signtool
-        let expected_dest_driver_cat_file_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.cat"));
-        let expected_signtool_verify_args: Vec<String> = vec![
-            "verify".to_string(),
-            "/v".to_string(),
-            "/pa".to_string(),
-            expected_dest_driver_cat_file_path
-                .to_string_lossy()
-                .to_string(),
-        ];
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("stampinf", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    fn expect_detect_wdk_build_number(mut self, expected_wdk_build_number: u32) -> Self {
-        self.mock_wdk_build_provider
-            .expect_detect_wdk_build_number()
-            .once()
-            .returning(move || Ok(expected_wdk_build_number));
-        self
-    }
-
-    fn expect_infverif(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        driver_type: &str,
-        override_output: Option<Output>,
-    ) -> Self {
-        let mut expected_infverif_args = vec!["/v".to_string()];
-        if driver_type.eq_ignore_ascii_case("KMDF") || driver_type.eq_ignore_ascii_case("WDM") {
-            expected_infverif_args.push("/w".to_string());
-        } else {
-            expected_infverif_args.push("/u".to_string());
-        }
-        if self.sample_class {
-            expected_infverif_args.push("/msft".to_string());
-        }
-        let expected_infverif_command: &'static str = "infverif";
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let expected_dest_inf_file_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.inf"));
-        expected_infverif_args.push(expected_dest_inf_file_path.to_string_lossy().to_string());
-
-        self.mock_run_command
-            .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_infverif_command && args == expected_infverif_args
-                },
-            )
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output("infverif", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
-            });
-        self
-    }
-
-    const fn mock_wdk_build_provider(&self) -> &WdkBuild {
-        &self.mock_wdk_build_provider
-    }
-
-    const fn mock_run_command(&self) -> &CommandExec {
-        &self.mock_run_command
-    }
-
-    const fn mock_fs_provider(&self) -> &Fs {
-        &self.mock_fs_provider
-    }
-
-    const fn mock_metadata_provider(&self) -> &MetadataProvider {
-        &self.mock_metadata_provider
     }
 }
 
-fn invalid_driver_cargo_toml() -> String {
-    r#"
-        {
-            "packages": [
-                {
-                    "name": "sample-driver",
-                    "version": "0.0.1",
-                    "id": "path+file:///C:/tmp/sample-driver#0.0.1",
-                    "license": "MIT OR Apache-2.0",
-                    "license_file": null,
-                    "description": null,
-                    "source": null,
-                    "dependencies": [],
-                    "targets": [
-                        {
-                            "kind": [
-                                "cdylib"
-                            ],
-                            "crate_types": [
-                                "cdylib"
-                            ],
-                            "name": "sample_driver",
-                            "src_path": "C:\\tmp\\sample-driver\\src\\lib.rs",
-                            "edition": "2021",
-                            "doc": true,
-                            "doctest": false,
-                            "test": false
-                        },
-                        {
-                            "kind": [
-                                "custom-build"
-                            ],
-                            "crate_types": [
-                                "bin"
-                            ],
-                            "name": "build-script-build",
-                            "src_path": "C:\\tmp\\sample-driver\\build.rs",
-                            "edition": "2021",
-                            "doc": false,
-                            "doctest": false,
-                            "test": false
-                        }
-                    ],
-                    "features": {
-                        "default": [],
-                        "nightly": [
-                            "wdk/nightly",
-                            "wdk-sys/nightly"
-                        ]
-                    },
-                    "manifest_path": "C:\\tmp\\sample-driver\\Cargo.toml",
-                    "metadata": {
-                        "wdk": {}
-                    },
-                    "publish": [],
-                    "authors": [],
-                    "categories": [],
-                    "keywords": [],
-                    "readme": null,
-                    "repository": null,
-                    "homepage": null,
-                    "documentation": null,
-                    "edition": "2021",
-                    "links": null,
-                    "default_run": null,
-                    "rust_version": null
-                }
-            ],
-            "workspace_members": [
-                "path+file:///C:/tmp/sample-driver#0.0.1"
-            ],
-            "target_directory": "C:\\tmp\\sample-driver\\target",
-            "version": 1,
-            "workspace_root": "C:\\tmp\\sample-driver",
-            "metadata": {
-                "wdk": {
-                    "driver-model": {
-                        "driver-type": "KMDF"
-                    }
-                }
-            }
+struct TestWorkspaceRoot {
+    root: PathBuf,
+}
+
+impl TestWorkspaceRoot {
+    fn new(prefix: &str) -> Self {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        let unique_id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test-artifacts")
+            .join(format!("{prefix}-{unique_id}"));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("failed to remove stale test workspace");
         }
-    "#
-    .to_string()
+        fs::create_dir_all(&root).expect("failed to create test workspace");
+        Self { root }
+    }
+}
+
+impl Drop for TestWorkspaceRoot {
+    fn drop(&mut self) {
+        if self.root.exists() {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+}
+
+fn metadata_from_packages(
+    workspace_root_dir: &Path,
+    packages: Vec<PackageSpec<'_>>,
+) -> CargoMetadata {
+    let mut package_json = Vec::new();
+    let mut workspace_member_ids = Vec::new();
+    for (package_name, package_dir, metadata, target_kind, crate_type, source_file) in packages {
+        let (workspace_member_id, package) = get_cargo_metadata_package_with_target(
+            &package_dir,
+            package_name,
+            DEFAULT_DRIVER_VERSION,
+            metadata,
+            target_kind,
+            crate_type,
+            source_file,
+        );
+        workspace_member_ids.push(workspace_member_id);
+        package_json.push(package);
+    }
+    serde_json::from_str::<CargoMetadata>(&get_cargo_metadata(
+        workspace_root_dir,
+        package_json,
+        &workspace_member_ids,
+        None,
+    ))
+    .expect("failed to parse cargo metadata")
 }
 
 #[derive(Clone)]
 struct TestMetadataPackage(String);
+
 #[derive(Clone)]
 struct TestMetadataWorkspaceMemberId(String);
+
 #[derive(Clone)]
 struct TestWdkMetadata(String);
 
@@ -3130,7 +974,6 @@ fn get_cargo_metadata(
             .map(|p| p.0)
             .collect::<Vec<String>>()
             .join(", "),
-        // Require quotes around each member
         workspace_member_list
             .iter()
             .map(|s| format!("\"{}\"", s.0))
@@ -3140,25 +983,19 @@ fn get_cargo_metadata(
     )
 }
 
-fn get_cargo_metadata_package(
+fn get_cargo_metadata_package_with_target(
     root_dir: &Path,
-    default_package_name: &str,
-    default_package_version: &str,
-    metadata: Option<&TestWdkMetadata>,
+    package_name: &str,
+    package_version: &str,
+    metadata: Option<TestWdkMetadata>,
+    target_kind: &str,
+    crate_type: &str,
+    source_file: &str,
 ) -> (TestMetadataWorkspaceMemberId, TestMetadataPackage) {
     let normalized_root = root_dir.to_string_lossy().replace('\\', "/");
     let normalized_root = normalized_root.trim_start_matches("//?/");
-    let package_id =
-        format!("path+file:///{normalized_root}#{default_package_name}@{default_package_version}");
-    let (metadata_section, has_metadata) = metadata.map_or_else(
-        || (String::from("null"), false),
-        |metadata| ((metadata.0).clone(), true),
-    );
-    let (target_kind, crate_type, source_file) = if has_metadata {
-        ("cdylib", "cdylib", "main.rs")
-    } else {
-        ("lib", "lib", "lib.rs")
-    };
+    let package_id = format!("path+file:///{normalized_root}#{package_name}@{package_version}");
+    let metadata_section = metadata.map_or_else(|| String::from("null"), |metadata| metadata.0);
     let manifest_path = root_dir
         .join("Cargo.toml")
         .to_string_lossy()
@@ -3175,8 +1012,8 @@ fn get_cargo_metadata_package(
         TestMetadataPackage(format!(
             r#"
             {{
-            "name": "{default_package_name}",
-            "version": "{default_package_version}",
+            "name": "{package_name}",
+            "version": "{package_version}",
             "id": "{package_id}",
             "dependencies": [],
             "targets": [
@@ -3187,7 +1024,7 @@ fn get_cargo_metadata_package(
                     "crate_types": [
                         "{crate_type}"
                     ],
-                    "name": "{default_package_name}",
+                    "name": "{package_name}",
                     "src_path": "{source_path}",
                     "edition": "2021",
                     "doc": true,
@@ -3233,9 +1070,6 @@ fn get_cargo_metadata_wdk_metadata(
     ))
 }
 
-/// Creates a valid cargo compiler-artifact JSON message for testing.
-/// This simulates the JSON output that `cargo build --message-format=json`
-/// produces.
 fn create_cargo_build_output_json(
     package_name: &str,
     package_version: &str,
@@ -3260,7 +1094,6 @@ fn strip_windows_extended_prefix(path: &Path) -> String {
         return path_str.into_owned();
     };
 
-    // Handle UNC paths
     without_prefix.strip_prefix("UNC\\").map_or_else(
         || without_prefix.to_string(),
         |unc_rest| format!(r"\\{unc_rest}"),
@@ -3277,22 +1110,16 @@ fn create_cargo_build_output_json_with_manifest(
     is_driver: bool,
 ) -> Output {
     let normalized_name = package_name.replace('-', "_");
-
-    // Determine profile directory name
     let profile_dir = match profile {
         Some(Profile::Release) => "release",
         _ => "debug",
     };
-
-    // For non-driver projects, use "lib" instead of "cdylib" to ensure BuildTask
-    // returns DllNotFound
     let (kind, crate_types, file_ext) = if is_driver {
         ("cdylib", "cdylib", "dll")
     } else {
         ("lib", "lib", "rlib")
     };
 
-    // Build the artifact path based on target_triple and profile
     let mut artifact_path = workspace_root.join("target");
     if let Some(target) = target_triple {
         artifact_path = artifact_path.join(target);
@@ -3306,7 +1133,6 @@ fn create_cargo_build_output_json_with_manifest(
     let package_id = format!("path+file:///{package_dir}#{package_name}@{package_version}");
     let manifest_path = strip_windows_extended_prefix(manifest_path);
     let artifact_path = strip_windows_extended_prefix(&artifact_path);
-
     let pdb_path = Path::new(&artifact_path)
         .with_extension("pdb")
         .to_string_lossy()
@@ -3361,11 +1187,14 @@ mod get_target_dir_from_output {
     fn unparsable_output_fails() {
         let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
         let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
-        let (_workspace_member, package_json) = super::get_cargo_metadata_package(
+        let (_workspace_member, package_json) = super::get_cargo_metadata_package_with_target(
             &workspace_root_dir,
             "sample-kmdf",
             "0.0.1",
-            Some(&wdk_metadata),
+            Some(wdk_metadata),
+            "cdylib",
+            "cdylib",
+            "main.rs",
         );
         let package = serde_json::from_str::<cargo_metadata::Package>(&package_json.0)
             .expect("Failed to parse package json");
@@ -3389,11 +1218,14 @@ mod get_target_dir_from_output {
     fn no_matching_artifact_fails() {
         let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
         let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
-        let (_workspace_member, package_json) = super::get_cargo_metadata_package(
+        let (_workspace_member, package_json) = super::get_cargo_metadata_package_with_target(
             &workspace_root_dir,
             "sample-kmdf",
             "0.0.1",
-            Some(&wdk_metadata),
+            Some(wdk_metadata),
+            "cdylib",
+            "cdylib",
+            "main.rs",
         );
         let package = serde_json::from_str::<cargo_metadata::Package>(&package_json.0)
             .expect("Failed to parse package json");
@@ -3424,11 +1256,14 @@ mod get_target_dir_from_output {
     fn matching_artifact_without_dll_fails() {
         let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
         let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
-        let (_workspace_member, package_json) = super::get_cargo_metadata_package(
+        let (_workspace_member, package_json) = super::get_cargo_metadata_package_with_target(
             &workspace_root_dir,
             "sample-kmdf",
             "0.0.1",
-            Some(&wdk_metadata),
+            Some(wdk_metadata),
+            "cdylib",
+            "cdylib",
+            "main.rs",
         );
         let package = serde_json::from_str::<cargo_metadata::Package>(&package_json.0)
             .expect("Failed to parse package json");
@@ -3474,11 +1309,14 @@ mod get_target_dir_from_output {
     fn matching_dll_resolves_target_dir() {
         let workspace_root_dir = PathBuf::from(r"C:\tmp\sample-kmdf");
         let wdk_metadata = super::get_cargo_metadata_wdk_metadata("KMDF", 1, 0);
-        let (_workspace_member, package_json) = super::get_cargo_metadata_package(
+        let (_workspace_member, package_json) = super::get_cargo_metadata_package_with_target(
             &workspace_root_dir,
             "sample-kmdf",
             "0.0.1",
-            Some(&wdk_metadata),
+            Some(wdk_metadata),
+            "cdylib",
+            "cdylib",
+            "main.rs",
         );
         let package = serde_json::from_str::<cargo_metadata::Package>(&package_json.0)
             .expect("Failed to parse package json");
@@ -3525,20 +1363,24 @@ mod get_target_arch_from_cargo_rustc {
         process::{ExitStatus, Output},
     };
 
-    use clap_cargo::Features;
     use wdk_build::CpuArchitecture;
 
-    use super::{super::features_to_cargo_args, BuildActionError, TestBuildAction};
+    use super::{BuildActionError, SignMode, TestBuildAction, initialize_build_action};
 
     fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
         expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), cfg_output);
 
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
+        let build_action = initialize_build_action(&mut test_build_action);
         let arch = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect("Expected target arch to be detected");
@@ -3567,43 +1409,24 @@ mod get_target_arch_from_cargo_rustc {
     }
 
     #[test]
-    fn parses_target_when_features_specified() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut features = Features::default();
-        features.no_default_features = true;
-        features.features = vec!["foo".to_string(), "bar".to_string()];
-        let mut test_build_action =
-            TestBuildAction::new(cwd.clone(), None, None, false).with_features(features);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
-            b"target_arch=\"x86_64\"\n".to_vec(),
-        );
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let arch = build_action
-            .get_target_arch_from_cargo_rustc(&cwd)
-            .expect("Expected target arch to be detected");
-        assert_eq!(arch, CpuArchitecture::Amd64);
-    }
-
-    #[test]
     fn unsupported_arch_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
         expect_cargo_rustc_print_cfg(
             &mut test_build_action,
             cwd.clone(),
             b"target_arch=\"mips\"\n".to_vec(),
         );
 
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
+        let build_action = initialize_build_action(&mut test_build_action);
         let err = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected UnsupportedArchitecture error");
@@ -3613,17 +1436,22 @@ mod get_target_arch_from_cargo_rustc {
     #[test]
     fn missing_target_arch_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
         expect_cargo_rustc_print_cfg(
             &mut test_build_action,
             cwd.clone(),
             b"some_other_cfg=\"value\"\n".to_vec(),
         );
 
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
+        let build_action = initialize_build_action(&mut test_build_action);
         let err = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected CannotDetectTargetArch error");
@@ -3633,13 +1461,18 @@ mod get_target_arch_from_cargo_rustc {
     #[test]
     fn invalid_utf8_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
         expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), vec![0xFF, 0xFE]);
 
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
+        let build_action = initialize_build_action(&mut test_build_action);
         let err = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected CannotDetectTargetArch error");
@@ -3651,12 +1484,6 @@ mod get_target_arch_from_cargo_rustc {
         cwd: PathBuf,
         stdout: Vec<u8>,
     ) {
-        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
-        if test_build_action.locked {
-            expected_args.push("--locked".to_string());
-        }
-        expected_args.extend(features_to_cargo_args(&test_build_action.features));
-        expected_args.extend(["--", "--print", "cfg"].map(String::from));
         test_build_action
             .mock_run_command
             .expect_run()
@@ -3664,10 +1491,9 @@ mod get_target_arch_from_cargo_rustc {
                 move |command: &str,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
-                      working_dir: &Option<&Path>|
-                      -> bool {
+                      working_dir: &Option<&Path>| {
                     command == "cargo"
-                        && args == expected_args
+                        && args == ["rustc", "--", "--print", "cfg"]
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
                 },
             )
