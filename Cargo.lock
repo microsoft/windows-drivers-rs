@@ -260,7 +260,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d546f0e84ff2bfa4da1ce9b54be42285767ba39c688572ca32412a09a73851e5"
 dependencies = [
  "anstyle",
+ "cargo_metadata",
  "clap",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1183,6 +1186,12 @@ dependencies = [
 [[package]]
 name = "wdk-panic"
 version = "0.4.1"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wdk",
+ "wdk-build",
+]
 
 [[package]]
 name = "wdk-sys"

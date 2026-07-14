@@ -18,10 +18,12 @@ use std::{
 };
 
 use anyhow::Result;
-use build_task::BuildTask;
+use build_task::{BuildTask, BuildTaskParams};
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
+use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
+pub use package_task::SignMode;
 use package_task::{PackageTask, PackageTaskParams};
 use tracing::{debug, error as err, info, trace, warn};
 use wdk_build::{
@@ -37,8 +39,10 @@ pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
     pub profile: Option<&'a Profile>,
     pub target_arch: Option<CpuArchitecture>,
-    pub verify_signature: bool,
+    pub sign_mode: SignMode,
     pub is_sample_class: bool,
+    pub locked: bool,
+    pub features: &'a Features,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
@@ -48,8 +52,10 @@ pub struct BuildAction<'a> {
     working_dir: PathBuf,
     profile: Option<&'a Profile>,
     target_arch: Option<CpuArchitecture>,
-    verify_signature: bool,
+    sign_mode: SignMode,
     is_sample_class: bool,
+    locked: bool,
+    features: &'a Features,
     verbosity_level: clap_verbosity_flag::Verbosity,
 
     // Injected deps
@@ -93,8 +99,10 @@ impl<'a> BuildAction<'a> {
             working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
-            verify_signature: params.verify_signature,
+            sign_mode: params.sign_mode,
             is_sample_class: params.is_sample_class,
+            locked: params.locked,
+            features: params.features,
             verbosity_level: params.verbosity_level,
             wdk_build,
             command_exec,
@@ -315,9 +323,15 @@ impl<'a> BuildAction<'a> {
             .to_string_lossy()
             .trim_start_matches("\\\\?\\")
             .into();
-        let cargo_metadata = self
-            .metadata
-            .get_cargo_metadata_at_path(&working_dir_path_trimmed)?;
+        let mut other_options: Vec<String> = Vec::new();
+        if self.locked {
+            other_options.push("--locked".to_string());
+        }
+        let cargo_metadata = self.metadata.get_cargo_metadata_at_path(
+            &working_dir_path_trimmed,
+            other_options,
+            self.features,
+        )?;
         Ok(cargo_metadata)
     }
 
@@ -332,11 +346,15 @@ impl<'a> BuildAction<'a> {
         info!("Building package {package_name}");
 
         let build_task = BuildTask::new(
-            package_name,
-            working_dir,
-            self.profile,
-            self.target_arch,
-            self.verbosity_level,
+            BuildTaskParams {
+                package_name,
+                working_dir,
+                profile: self.profile,
+                target_arch: self.target_arch,
+                locked: self.locked,
+                features: self.features,
+                verbosity_level: self.verbosity_level,
+            },
             self.command_exec,
         );
         let output_message_iter = build_task.run()?;
@@ -386,7 +404,7 @@ impl<'a> BuildAction<'a> {
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
-                verify_signature: self.verify_signature,
+                sign_mode: self.sign_mode,
                 sample_class: self.is_sample_class,
                 driver_model,
             },
@@ -503,7 +521,13 @@ impl<'a> BuildAction<'a> {
         &self,
         working_dir: &Path,
     ) -> Result<CpuArchitecture, BuildActionError> {
-        let args = ["rustc", "--", "--print", "cfg"];
+        let mut args: Vec<&str> = vec!["rustc"];
+        if self.locked {
+            args.push("--locked");
+        }
+        let feature_args = features_to_cargo_args(self.features);
+        args.extend(feature_args.iter().map(String::as_str));
+        args.extend(["--", "--print", "cfg"]);
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(working_dir))?;
@@ -525,4 +549,22 @@ impl<'a> BuildAction<'a> {
             None => Err(BuildActionError::CannotDetectTargetArch),
         }
     }
+}
+
+/// Returns the `cargo` CLI arguments equivalent to the given
+/// [`clap_cargo::Features`] selection.
+#[must_use]
+fn features_to_cargo_args(features: &Features) -> Vec<String> {
+    let mut args = Vec::new();
+    if features.all_features {
+        args.push("--all-features".to_string());
+    }
+    if features.no_default_features {
+        args.push("--no-default-features".to_string());
+    }
+    for feature in &features.features {
+        args.push("--features".to_string());
+        args.push(feature.clone());
+    }
+    args
 }

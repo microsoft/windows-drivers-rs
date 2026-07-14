@@ -77,6 +77,10 @@ impl BuilderExt for Builder {
             // Building in eWDK can pollute system search path when clang-sys tries to detect
             // c_search_paths
             .detect_include_paths(false)
+            // Disable clang's builtin function declarations so that `size_t` in the signatures of
+            // functions like `memcpy`, `strlen`, etc. is mapped to `usize` instead of `u64`/
+            // `c_ulonglong`.
+            .clang_arg("-fno-builtin")
             .clang_args(config.include_paths()?.map(|include_path| {
                 format!(
                     "--include-directory={}",

@@ -11,6 +11,7 @@ use std::{
 };
 
 use cargo_metadata::Metadata as CargoMetadata;
+use clap_cargo::Features;
 use mockall::predicate::eq;
 use mockall_double::double;
 use wdk_build::{
@@ -29,7 +30,7 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{BuildAction, BuildActionParams, error::BuildActionError},
+        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -250,6 +251,80 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
+        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
+pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verification_steps_are_skipped()
+ {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_build_output =
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_sign_mode(SignMode::Off)
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
+        .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
+        .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch);
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
+pub fn given_a_driver_project_when_locked_is_set_then_it_is_forwarded_to_cargo_invocations() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    let cargo_build_output =
+        create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
+
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_locked(true)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
@@ -657,6 +732,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
+        .expect_infverif(driver_name, &cwd, driver_type, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_output));
 
@@ -716,6 +792,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
+        .expect_infverif(driver_name, &cwd, driver_type, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, Some(expected_output));
@@ -776,6 +853,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
+        .expect_infverif(driver_name, &cwd, driver_type, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, None)
@@ -838,13 +916,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(None)
-        .expect_makecert(&cwd, None)
-        .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-        .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-        .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", Some(expected_output));
+        .expect_infverif(driver_name, &cwd, driver_type, Some(expected_output));
 
     let build_action = initialize_build_action(
         &cwd,
@@ -1594,13 +1666,19 @@ fn initialize_build_action<'a>(
     sample_class: bool,
     test_build_action: &'a TestBuildAction,
 ) -> Result<BuildAction<'a>, anyhow::Error> {
+    let sign_mode = match test_build_action.sign_mode {
+        SignMode::Off => SignMode::Off,
+        SignMode::Test { .. } => SignMode::Test { verify_signature },
+    };
     BuildAction::new(
         &BuildActionParams {
             working_dir: cwd,
             profile,
             target_arch,
-            verify_signature,
+            sign_mode,
             is_sample_class: sample_class,
+            locked: test_build_action.locked,
+            features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
         test_build_action.mock_wdk_build_provider(),
@@ -1662,6 +1740,9 @@ struct TestBuildAction {
     profile: Option<Profile>,
     target_arch: Option<CpuArchitecture>,
     sample_class: bool,
+    sign_mode: SignMode,
+    locked: bool,
+    features: Features,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -1688,12 +1769,32 @@ impl TestBuildAction {
             profile,
             target_arch,
             sample_class,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+            },
+            locked: false,
+            features: Features::default(),
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
             mock_metadata_provider,
             cargo_metadata: None,
         }
+    }
+
+    fn with_sign_mode(mut self, sign_mode: SignMode) -> Self {
+        self.sign_mode = sign_mode;
+        self
+    }
+
+    fn with_locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
+        self
+    }
+
+    fn with_features(mut self, features: Features) -> Self {
+        self.features = features;
+        self
     }
 
     fn set_up_standalone_driver_project(
@@ -1710,10 +1811,21 @@ impl TestBuildAction {
             serde_json::from_str::<cargo_metadata::Metadata>(&cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_standalone_driver_project");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = if self.locked {
+            vec!["--locked".to_string()]
+        } else {
+            vec![]
+        };
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
+                    *other_options == expected_options && *features == expected_features
+                },
+            )
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1739,10 +1851,21 @@ impl TestBuildAction {
         )
         .expect("Failed to parse cargo metadata in set_up_workspace_with_multiple_driver_projects");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = if self.locked {
+            vec!["--locked".to_string()]
+        } else {
+            vec![]
+        };
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
+                    *other_options == expected_options && *features == expected_features
+                },
+            )
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1752,10 +1875,21 @@ impl TestBuildAction {
             serde_json::from_str::<cargo_metadata::Metadata>(cargo_toml_metadata)
                 .expect("Failed to parse cargo metadata in set_up_with_custom_toml");
         let cargo_toml_metadata_clone = cargo_toml_metadata.clone();
+        let expected_options: Vec<String> = if self.locked {
+            vec!["--locked".to_string()]
+        } else {
+            vec![]
+        };
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(
+                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
+                    *other_options == expected_options && *features == expected_features
+                },
+            )
             .once()
-            .returning(move |_| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -1824,6 +1958,28 @@ impl TestBuildAction {
         expectations
             .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
             .expect_signtool_verify_cat_file(driver_name, &cwd, None)
+    }
+
+    /// Sets up package-task expectations for `SignMode::Off`: stampinf,
+    /// inf2cat, and infverif are still expected, but all certificate
+    /// generation, signing, and signature-verification steps are skipped.
+    fn expect_package_task_steps_with_sign_mode_off(
+        self,
+        driver_name: &str,
+        driver_type: &str,
+        target_arch: CpuArchitecture,
+    ) -> Self {
+        let cwd = self.cwd.clone();
+        self.expect_final_package_dir_exists(driver_name, &cwd, true)
+            .expect_inx_file_exists(driver_name, &cwd, true)
+            .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
+            .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+            .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
+            .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
+            .expect_stampinf(driver_name, &cwd, target_arch, None)
+            .expect_inf2cat(driver_name, &cwd, target_arch, None)
+            .expect_infverif(driver_name, &cwd, driver_type, None)
     }
 
     fn expect_default_package_task_steps_for_workspace(
@@ -1954,6 +2110,10 @@ impl TestBuildAction {
             expected_cargo_build_args.push(to_target_triple(target_arch));
         }
 
+        if self.locked {
+            expected_cargo_build_args.push("--locked".to_string());
+        }
+
         expected_cargo_build_args.push("-v".to_string());
         let expected_output = override_output.unwrap_or_else(|| Output {
             status: ExitStatus::default(),
@@ -1991,6 +2151,14 @@ impl TestBuildAction {
             CpuArchitecture::Amd64 => "x86_64",
             CpuArchitecture::Arm64 => "aarch64",
         };
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if self.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.push("--".to_string());
+        expected_args.push("--print".to_string());
+        expected_args.push("cfg".to_string());
+        let expected_args_for_err = expected_args.clone();
         self.mock_run_command
             .expect_run()
             .withf(
@@ -1999,24 +2167,25 @@ impl TestBuildAction {
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>| {
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args == expected_args
                         && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
                 },
             )
             .once()
             .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
-                    Some(0) => Ok(Output {
-                        status: ExitStatus::from_raw(0),
-                        stdout: vec![],
-                        stderr: vec![],
-                    }),
-                    _ => Err(CommandError::from_output(
-                        "cargo",
-                        &["rustc", "--", "--print", "cfg"],
-                        &output,
-                    )),
-                },
+                Some(output) => {
+                    if output.status.code() == Some(0) {
+                        Ok(Output {
+                            status: ExitStatus::from_raw(0),
+                            stdout: vec![],
+                            stderr: vec![],
+                        })
+                    } else {
+                        let err_args: Vec<&str> =
+                            expected_args_for_err.iter().map(String::as_str).collect();
+                        Err(CommandError::from_output("cargo", &err_args, &output))
+                    }
+                }
                 None => Ok(Output {
                     status: ExitStatus::default(),
                     stdout: format!("target_arch=\"{arch_str}\"\n").as_bytes().to_vec(),
@@ -3356,9 +3525,10 @@ mod get_target_arch_from_cargo_rustc {
         process::{ExitStatus, Output},
     };
 
+    use clap_cargo::Features;
     use wdk_build::CpuArchitecture;
 
-    use super::{BuildActionError, TestBuildAction};
+    use super::{super::features_to_cargo_args, BuildActionError, TestBuildAction};
 
     fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
@@ -3394,6 +3564,30 @@ mod get_target_arch_from_cargo_rustc {
             b"target_arch=  \"aarch64\"\n".to_vec(),
             CpuArchitecture::Arm64,
         );
+    }
+
+    #[test]
+    fn parses_target_when_features_specified() {
+        let cwd = PathBuf::from(r"C:\tmp");
+        let mut features = Features::default();
+        features.no_default_features = true;
+        features.features = vec!["foo".to_string(), "bar".to_string()];
+        let mut test_build_action =
+            TestBuildAction::new(cwd.clone(), None, None, false).with_features(features);
+        expect_cargo_rustc_print_cfg(
+            &mut test_build_action,
+            cwd.clone(),
+            b"target_arch=\"x86_64\"\n".to_vec(),
+        );
+
+        let build_action =
+            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
+                .expect("Failed to init build action");
+
+        let arch = build_action
+            .get_target_arch_from_cargo_rustc(&cwd)
+            .expect("Expected target arch to be detected");
+        assert_eq!(arch, CpuArchitecture::Amd64);
     }
 
     #[test]
@@ -3457,6 +3651,12 @@ mod get_target_arch_from_cargo_rustc {
         cwd: PathBuf,
         stdout: Vec<u8>,
     ) {
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if test_build_action.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.extend(features_to_cargo_args(&test_build_action.features));
+        expected_args.extend(["--", "--print", "cfg"].map(String::from));
         test_build_action
             .mock_run_command
             .expect_run()
@@ -3467,7 +3667,7 @@ mod get_target_arch_from_cargo_rustc {
                       working_dir: &Option<&Path>|
                       -> bool {
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args == expected_args
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
                 },
             )
