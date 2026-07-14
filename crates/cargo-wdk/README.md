@@ -111,7 +111,7 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
 #### Customizing `inf2cat` arguments
 
-To target a specific set of Windows versions or pass any additional switches other than `/driver`, you can use `--inf2cat-args` with a string of the arguments to passthrough to `inf2cat` (e.g '/os:10_x64,10_CO_X64'). Supplying `/driver:` (or its `/drv:` alias) yourself is rejected since `cargo-wdk` provides it.
+To target a specific set of Windows versions or pass any additional switches other than `/driver`, you can use `--inf2cat-args` with a string of the arguments to passthrough to `inf2cat` (e.g '/os:10_x64,10_CO_X64 /verbose'). Supplying `/driver:` (or its `/drv:` alias) yourself is rejected since `cargo-wdk` provides it.
 
 #### Examples
 

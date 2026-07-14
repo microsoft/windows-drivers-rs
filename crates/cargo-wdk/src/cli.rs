@@ -5,7 +5,7 @@
 //! subcommands.
 use std::path::{Path, PathBuf};
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use clap_cargo::Features;
 use clap_verbosity_flag::Verbosity;
@@ -168,7 +168,7 @@ pub struct Inf2catArgs(pub Vec<String>);
 /// - Unterminated quotes are rejected with an error
 /// - The `/driver:` (or its `/drv:` alias) switch is rejected because
 ///   `cargo-wdk` supplies that argument itself
-fn parse_inf2cat_args(raw: &str) -> std::result::Result<Inf2catArgs, String> {
+fn parse_inf2cat_args(raw: &str) -> Result<Inf2catArgs, String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut in_arg = false;
@@ -220,7 +220,7 @@ fn parse_inf2cat_args(raw: &str) -> std::result::Result<Inf2catArgs, String> {
         ));
     }
 
-    std::result::Result::Ok(Inf2catArgs(args))
+    Ok(Inf2catArgs(args))
 }
 
 /// Subcommands
