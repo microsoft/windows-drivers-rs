@@ -62,17 +62,14 @@ pub struct PackageTask<'a> {
     src_map_file_path: PathBuf,
     src_cert_file_path: PathBuf,
 
-    // staging folder and related paths
-    stage_root_folder: PathBuf,
-    stage_inf_file_path: PathBuf,
-    stage_driver_binary_path: PathBuf,
-    stage_cert_file_path: PathBuf,
-    stage_cat_file_path: PathBuf,
-
-    // final package folder and related paths
-    final_package_folder: PathBuf,
-    final_pdb_file_path: PathBuf,
-    final_map_file_path: PathBuf,
+    // destination paths
+    dest_root_package_folder: PathBuf,
+    dest_inf_file_path: PathBuf,
+    dest_driver_binary_path: PathBuf,
+    dest_pdb_file_path: PathBuf,
+    dest_map_file_path: PathBuf,
+    dest_cert_file_path: PathBuf,
+    dest_cat_file_path: PathBuf,
 
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
@@ -146,18 +143,16 @@ impl<'a> PackageTask<'a> {
         let src_renamed_driver_binary_file_path = params
             .target_dir
             .join(format!("{package_name}.{dest_driver_binary_extension}"));
-        let stage_root_folder: PathBuf = params
-            .target_dir
-            .join(format!("{package_name}_package_stage"));
-        let stage_inf_file_path = stage_root_folder.join(format!("{package_name}.inf"));
-        let stage_driver_binary_path =
-            stage_root_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
-        let stage_cert_file_path = stage_root_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
-        let stage_cat_file_path = stage_root_folder.join(format!("{package_name}.cat"));
-        let final_package_folder: PathBuf =
+        let dest_root_package_folder: PathBuf =
             params.target_dir.join(format!("{package_name}_package"));
-        let final_pdb_file_path = final_package_folder.join(format!("{package_name}.pdb"));
-        let final_map_file_path = final_package_folder.join(format!("{package_name}.map"));
+        let dest_inf_file_path = dest_root_package_folder.join(format!("{package_name}.inf"));
+        let dest_driver_binary_path =
+            dest_root_package_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
+        let dest_pdb_file_path = dest_root_package_folder.join(format!("{package_name}.pdb"));
+        let dest_map_file_path = dest_root_package_folder.join(format!("{package_name}.map"));
+        let dest_cert_file_path =
+            dest_root_package_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
+        let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
 
         let os_mapping = match params.target_arch {
             CpuArchitecture::Amd64 => "10_x64",
@@ -174,14 +169,13 @@ impl<'a> PackageTask<'a> {
             src_pdb_file_path,
             src_map_file_path,
             src_cert_file_path,
-            stage_root_folder,
-            stage_inf_file_path,
-            stage_driver_binary_path,
-            stage_cert_file_path,
-            stage_cat_file_path,
-            final_package_folder,
-            final_pdb_file_path,
-            final_map_file_path,
+            dest_root_package_folder,
+            dest_inf_file_path,
+            dest_driver_binary_path,
+            dest_pdb_file_path,
+            dest_map_file_path,
+            dest_cert_file_path,
+            dest_cat_file_path,
             arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
@@ -224,44 +218,28 @@ impl<'a> PackageTask<'a> {
     /// * `PackageTaskError::Io` - Wraps all possible IO errors.
     pub fn run(&self) -> Result<(), PackageTaskError> {
         self.check_inx_exists()?;
-        self.prepare_staging_dir()?;
+        if self.fs.exists(&self.dest_root_package_folder) {
+            debug!("Removing existing package folder");
+            self.fs.remove_dir_all(&self.dest_root_package_folder)?;
+        }
+        debug!("Creating package folder");
+        self.fs.create_dir(&self.dest_root_package_folder)?;
+        info!(
+            "Copying files to package folder: {}",
+            self.dest_root_package_folder.to_string_lossy()
+        );
+        self.rename_driver_binary_extension()?;
+        self.copy(
+            &self.src_renamed_driver_binary_file_path,
+            &self.dest_driver_binary_path,
+        )?;
+        self.copy(&self.src_pdb_file_path, &self.dest_pdb_file_path)?;
+        self.copy(&self.src_inx_file_path, &self.dest_inf_file_path)?;
+        self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
         self.run_infverif()?;
         self.sign_and_verify()?;
-        self.create_final_package_dir()?;
-        Ok(())
-    }
-
-    fn prepare_staging_dir(&self) -> Result<(), PackageTaskError> {
-        if self.fs.exists(&self.stage_root_folder) {
-            debug!("Removing stale staging directory before packaging");
-            self.fs.remove_dir_all(&self.stage_root_folder)?;
-        }
-        debug!("Creating staging directory");
-        self.fs.create_dir(&self.stage_root_folder)?;
-        self.rename_driver_binary_extension()?;
-        self.copy(
-            &self.src_renamed_driver_binary_file_path,
-            &self.stage_driver_binary_path,
-        )?;
-        self.copy(&self.src_inx_file_path, &self.stage_inf_file_path)?;
-        Ok(())
-    }
-
-    fn create_final_package_dir(&self) -> Result<(), PackageTaskError> {
-        debug!(
-            "Assembling final package folder: {}",
-            self.final_package_folder.to_string_lossy()
-        );
-        if self.fs.exists(&self.final_package_folder) {
-            debug!("Removing previous package folder");
-            self.fs.remove_dir_all(&self.final_package_folder)?;
-        }
-        self.fs
-            .rename(&self.stage_root_folder, &self.final_package_folder)?;
-        self.copy(&self.src_pdb_file_path, &self.final_pdb_file_path)?;
-        self.copy(&self.src_map_file_path, &self.final_map_file_path)?;
         Ok(())
     }
 
@@ -276,14 +254,14 @@ impl<'a> PackageTask<'a> {
         };
         if signtool_args.is_empty() {
             self.generate_certificate()?;
-            self.copy(&self.src_cert_file_path, &self.stage_cert_file_path)?;
+            self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
         }
-        self.run_signtool_sign(&self.stage_driver_binary_path, signtool_args)?;
-        self.run_signtool_sign(&self.stage_cat_file_path, signtool_args)?;
+        self.run_signtool_sign(&self.dest_driver_binary_path, signtool_args)?;
+        self.run_signtool_sign(&self.dest_cat_file_path, signtool_args)?;
         if *verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
-            self.run_signtool_verify(&self.stage_driver_binary_path)?;
-            self.run_signtool_verify(&self.stage_cat_file_path)?;
+            self.run_signtool_verify(&self.dest_driver_binary_path)?;
+            self.run_signtool_verify(&self.dest_cat_file_path)?;
         }
         Ok(())
     }
@@ -342,7 +320,7 @@ impl<'a> PackageTask<'a> {
         // TODO: Does it generate cat file relative to inf file path or we need to
         // provide the absolute path?
         let cat_file_path = format!("{}.cat", self.package_name);
-        let dest_inf_file_path = self.stage_inf_file_path.to_string_lossy();
+        let dest_inf_file_path = self.dest_inf_file_path.to_string_lossy();
         let arch = self.arch.to_string();
         let mut args: Vec<&str> = vec![
             "-f",
@@ -384,7 +362,7 @@ impl<'a> PackageTask<'a> {
         let args = [
             &format!(
                 "/driver:{}",
-                self.stage_root_folder
+                self.dest_root_package_folder
                     .to_string_lossy()
                     .trim_start_matches("\\\\?\\")
             ),
@@ -599,7 +577,7 @@ impl<'a> PackageTask<'a> {
                 DriverConfig::Umdf(_) => "/u",
             },
         ];
-        let inf_path = self.stage_inf_file_path.to_string_lossy();
+        let inf_path = self.dest_inf_file_path.to_string_lossy();
 
         if self.sample_class {
             args.push(additional_args);
@@ -719,8 +697,7 @@ mod tests {
                 signtool_args: Vec::new(),
             },
         };
-        let stage_root = target_dir.join(format!("{package_name}_package_stage"));
-        let final_root = target_dir.join(format!("{package_name}_package"));
+        let dest_root = target_dir.join(format!("{package_name}_package"));
 
         let command_exec = CommandExec::default();
         let wdk_build = WdkBuild::default();
@@ -753,32 +730,19 @@ mod tests {
             task.src_cert_file_path,
             target_dir.join("WDRLocalTestCert.cer")
         );
-        assert_eq!(task.stage_root_folder, stage_root);
+        assert_eq!(task.dest_root_package_folder, dest_root);
+        assert_eq!(task.dest_inf_file_path, dest_root.join("test_package.inf"));
         assert_eq!(
-            task.stage_inf_file_path,
-            stage_root.join("test_package.inf")
+            task.dest_driver_binary_path,
+            dest_root.join("test_package.sys")
         );
+        assert_eq!(task.dest_pdb_file_path, dest_root.join("test_package.pdb"));
+        assert_eq!(task.dest_map_file_path, dest_root.join("test_package.map"));
         assert_eq!(
-            task.stage_driver_binary_path,
-            stage_root.join("test_package.sys")
+            task.dest_cert_file_path,
+            dest_root.join("WDRLocalTestCert.cer")
         );
-        assert_eq!(
-            task.stage_cert_file_path,
-            stage_root.join("WDRLocalTestCert.cer")
-        );
-        assert_eq!(
-            task.stage_cat_file_path,
-            stage_root.join("test_package.cat")
-        );
-        assert_eq!(task.final_package_folder, final_root);
-        assert_eq!(
-            task.final_pdb_file_path,
-            final_root.join("test_package.pdb")
-        );
-        assert_eq!(
-            task.final_map_file_path,
-            final_root.join("test_package.map")
-        );
+        assert_eq!(task.dest_cat_file_path, dest_root.join("test_package.cat"));
         assert_eq!(*task.arch, arch);
         assert_eq!(task.os_mapping, "10_x64");
         assert!(matches!(task.driver_model, DriverConfig::Kmdf(_)));

@@ -406,7 +406,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_certmgr_output))
         .expect_certmgr_create_cert_from_store(&cwd, Some(expected_create_cert_output))
-        .expect_package_folder_assembled(driver_name, &cwd, true)
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
@@ -425,7 +424,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
 }
 
 #[test]
-pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_creating_it() {
+pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_recreated() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -449,8 +448,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, false)
-        .expect_package_folder_assembled(driver_name, &cwd, false)
+        .expect_final_package_dir_exists(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -605,7 +603,9 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(
             driver_name,
             &cwd,
@@ -664,7 +664,9 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(
             driver_name,
@@ -724,7 +726,9 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, driver_type, None)
@@ -782,7 +786,9 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, driver_type, None)
@@ -841,7 +847,9 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, driver_type, None)
@@ -902,7 +910,9 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
+        .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
+        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, driver_type, Some(expected_output));
@@ -1234,7 +1244,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_signtool_sign_cat_file(driver_name_1, &workspace_root_dir, None)
         .expect_signtool_verify_driver_binary_sys_file(driver_name_1, &workspace_root_dir, None)
         .expect_signtool_verify_cat_file(driver_name_1, &workspace_root_dir, None)
-        .expect_package_folder_assembled(driver_name_1, &workspace_root_dir, true)
         .expect_infverif(driver_name_1, &workspace_root_dir, "KMDF", None);
 
     assert_build_action_run_with_env_is_success(
@@ -1930,8 +1939,7 @@ impl TestBuildAction {
         let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
-            .expect_stage_dir_prepared(driver_name, &cwd)
-            .expect_package_folder_assembled(driver_name, &cwd, true)
+            .expect_final_package_dir_exists(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -1965,8 +1973,7 @@ impl TestBuildAction {
         target_arch: CpuArchitecture,
     ) -> Self {
         let cwd = self.cwd.clone();
-        self.expect_stage_dir_prepared(driver_name, &cwd)
-            .expect_package_folder_assembled(driver_name, &cwd, true)
+        self.expect_final_package_dir_exists(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -1988,8 +1995,7 @@ impl TestBuildAction {
         let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
-            .expect_stage_dir_prepared(driver_name, &cwd)
-            .expect_package_folder_assembled(driver_name, &cwd, true)
+            .expect_final_package_dir_exists(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd.join(driver_name), true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -2033,72 +2039,34 @@ impl TestBuildAction {
         self
     }
 
-    /// Expects the staging directory to be prepared fresh: it does not
-    /// pre-exist (so nothing is removed) and is created.
-    fn expect_stage_dir_prepared(mut self, driver_name: &str, cwd: &Path) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(cwd);
-        let expected_stage_dir =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
-        self.mock_fs_provider
-            .expect_exists()
-            .with(eq(expected_stage_dir.clone()))
-            .once()
-            .returning(move |_| false);
-        self.mock_fs_provider
-            .expect_create_dir()
-            .with(eq(expected_stage_dir))
-            .once()
-            .returning(move |_| Ok(()));
-        self
-    }
-
-    /// Expects the final package folder to be assembled last: if it already
-    /// exists it is removed, then the staging directory is renamed into place.
-    fn expect_package_folder_assembled(
+    fn expect_final_package_dir_exists(
         mut self,
         driver_name: &str,
         cwd: &Path,
-        final_exists: bool,
+        does_exist: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(cwd);
-        let expected_stage_dir =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
-        let expected_final_dir =
+        let expected_package_dir =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         self.mock_fs_provider
             .expect_exists()
-            .with(eq(expected_final_dir.clone()))
+            .with(eq(expected_package_dir.clone()))
             .once()
-            .returning(move |_| final_exists);
-        if final_exists {
+            .returning(move |_| does_exist);
+        if does_exist {
             self.mock_fs_provider
                 .expect_remove_dir_all()
-                .with(eq(expected_final_dir.clone()))
+                .with(eq(expected_package_dir.clone()))
                 .once()
                 .returning(move |_| Ok(()));
         }
         self.mock_fs_provider
-            .expect_rename()
-            .with(eq(expected_stage_dir), eq(expected_final_dir))
+            .expect_create_dir()
+            .with(eq(expected_package_dir))
             .once()
-            .returning(move |_, _| Ok(()));
+            .returning(move |_| Ok(()));
         self
-    }
-
-    /// Compatibility wrapper: every packaging run now recreates a fresh
-    /// staging directory (the tools operate there, and the final package folder
-    /// is assembled last). The historical `does_exist` argument is ignored
-    /// because the staging directory is always created fresh. Success-path
-    /// tests additionally call [`Self::expect_package_folder_assembled`].
-    fn expect_final_package_dir_exists(
-        self,
-        driver_name: &str,
-        cwd: &Path,
-        _does_exist: bool,
-    ) -> Self {
-        self.expect_stage_dir_prepared(driver_name, cwd)
     }
 
     fn expect_cargo_build(
@@ -2270,7 +2238,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
 
         let expected_src_driver_sys_path =
@@ -2347,7 +2315,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(workspace_root_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
 
         // copy inx file to package directory
@@ -2424,7 +2392,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let mock_non_zero_bytes_copied_size = 1000u64;
 
         // copy self signed certificate to package directory
@@ -2463,7 +2431,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_dest_driver_inf_path =
             expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.inf"));
 
@@ -2543,7 +2511,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
 
         let expected_inf2cat_command: &'static str = "inf2cat";
 
@@ -2742,7 +2710,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
 
         // sign driver binary using signtool
@@ -2802,7 +2770,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
 
         // sign driver cat file using signtool
@@ -2861,7 +2829,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
 
         // verify signed driver binary using signtool
@@ -2915,7 +2883,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_signtool_command: &'static str = "signtool";
 
         // verify signed driver cat file using signtool
@@ -2988,7 +2956,7 @@ impl TestBuildAction {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(driver_dir);
         let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package_stage"));
+            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
         let expected_dest_inf_file_path =
             expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.inf"));
         expected_infverif_args.push(expected_dest_inf_file_path.to_string_lossy().to_string());
