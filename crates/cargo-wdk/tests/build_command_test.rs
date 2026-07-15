@@ -322,102 +322,100 @@ mod kmdf_driver_with_target_override {
     }
 }
 
-#[test]
-fn kmdf_driver_builds_successfully_with_sign_mode_off() {
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    with_mutex(&project_path, || {
-        run_clean_cmd(&project_path);
+/// Functional tests for the `--sign-mode` flag.
+mod sign_mode {
+    use super::*;
 
-        let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-        assert!(stderr.contains(&format!("Building package {driver}")));
-        assert!(stderr.contains(&format!("Finished building {driver}")));
+    #[test]
+    fn kmdf_driver_builds_successfully_with_sign_mode_off() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            run_clean_cmd(&project_path);
 
-        let driver_name = driver.replace('-', "_");
-        let target_dir = format!("{project_path}/target/debug");
-        let package_dir = format!("{target_dir}/{driver_name}_package");
+            let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+            assert!(stderr.contains(&format!("Building package {driver}")));
+            assert!(stderr.contains(&format!("Finished building {driver}")));
 
-        assert_dir_exists(&package_dir);
-        for ext in ["cat", "inf", "map", "pdb", "sys"] {
-            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
-        }
+            let driver_name = driver.replace('-', "_");
+            let target_dir = format!("{project_path}/target/debug");
+            let package_dir = format!("{target_dir}/{driver_name}_package");
 
-        let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
-        assert!(
-            !cert_in_package.exists(),
-            "Cert file must not be present in the final package folder when --sign-mode=off, but \
-             found {}",
-            cert_in_package.display()
+            assert_dir_exists(&package_dir);
+            for ext in ["cat", "inf", "map", "pdb", "sys"] {
+                assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+            }
+
+            let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+            assert!(
+                !cert_in_package.exists(),
+                "Cert file must not be present in the final package folder when --sign-mode=off, \
+                 but found {}",
+                cert_in_package.display()
+            );
+
+            let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
+            assert!(
+                !staged_cert.exists(),
+                "Cert file must not be present in the `target` dir when --sign-mode=off, but \
+                 found {}",
+                staged_cert.display()
+            );
+        });
+    }
+
+    #[test]
+    fn rebuild_with_sign_mode_off_drops_stale_test_cert() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            run_clean_cmd(&project_path);
+
+            let driver_name = driver.replace('-', "_");
+            let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
+            let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+
+            // First build test-signs, so the package folder contains the cert.
+            run_build_cmd(&project_path, Some(&["--sign-mode", "test"]), None);
+            assert!(
+                cert_in_package.exists(),
+                "test-sign build should place the cert in the package folder: {}",
+                cert_in_package.display()
+            );
+
+            // Rebuild with signing off (no clean in between). The package folder is
+            // reassembled fresh, so the stale cert must not be present.
+            run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+            assert!(
+                !cert_in_package.exists(),
+                "stale cert must be removed after rebuilding with --sign-mode=off, but found {}",
+                cert_in_package.display()
+            );
+
+            assert_dir_exists(&package_dir);
+            for ext in ["cat", "inf", "map", "pdb", "sys"] {
+                assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+            }
+        });
+    }
+
+    #[test]
+    fn sign_mode_off_with_verify_signature_is_rejected() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        let mut cmd = create_cargo_wdk_cmd(
+            "build",
+            Some(&["--sign-mode", "off", "--verify-signature"]),
+            None,
+            Some(&project_path),
         );
-
-        let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
         assert!(
-            !staged_cert.exists(),
-            "Cert file must not be present in the `target` dir when --sign-mode=off, but found {}",
-            staged_cert.display()
+            stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
+            "expected validation error mentioning both flags, got: {stderr}"
         );
-    });
-}
-
-/// Regression test for issue #660: because the package folder is assembled
-/// fresh (the tools run in a staging dir and the folder is replaced last),
-/// switching from `--sign-mode=test` to `--sign-mode=off` on a subsequent build
-/// (without cleaning) must drop the stale `WDRLocalTestCert.cer` from the
-/// package folder.
-#[test]
-fn rebuild_with_sign_mode_off_drops_stale_test_cert() {
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    with_mutex(&project_path, || {
-        run_clean_cmd(&project_path);
-
-        let driver_name = driver.replace('-', "_");
-        let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
-        let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
-
-        // First build test-signs, so the package folder contains the cert.
-        run_build_cmd(&project_path, Some(&["--sign-mode", "test"]), None);
-        assert!(
-            cert_in_package.exists(),
-            "test-sign build should place the cert in the package folder: {}",
-            cert_in_package.display()
-        );
-
-        // Rebuild with signing off (no clean in between). The package folder is
-        // reassembled fresh, so the stale cert must be gone.
-        run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-        assert!(
-            !cert_in_package.exists(),
-            "stale cert must be removed after rebuilding with --sign-mode=off, but found {}",
-            cert_in_package.display()
-        );
-
-        // The rest of the package is still assembled.
-        assert_dir_exists(&package_dir);
-        for ext in ["cat", "inf", "map", "pdb", "sys"] {
-            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
-        }
-    });
-}
-
-/// `--sign-mode=off` together with `--verify-signature` is rejected at the CLI
-/// layer
-#[test]
-fn sign_mode_off_with_verify_signature_is_rejected() {
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    let mut cmd = create_cargo_wdk_cmd(
-        "build",
-        Some(&["--sign-mode", "off", "--verify-signature"]),
-        None,
-        Some(&project_path),
-    );
-    let assertion = cmd.assert().failure();
-    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-    assert!(
-        stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
-        "expected validation error mentioning both flags, got: {stderr}"
-    );
+    }
 }
 
 /// Functional tests for the `--signtool-args` passthrough.
@@ -449,13 +447,11 @@ mod signtool_args {
             for ext in ["cat", "inf", "sys"] {
                 assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
             }
-            // Passthrough signing does not generate/copy the WDR test cert file.
             assert!(
                 !PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer")).exists(),
                 "passthrough signing should not emit WDRLocalTestCert.cer"
             );
 
-            // The freshly built driver binary must carry the custom cert's signature.
             let sys = format!("{package_dir}/{driver_name}.sys");
             let signer = authenticode_signer_subject(Path::new(&sys))
                 .expect("driver binary should be signed");
@@ -485,8 +481,6 @@ mod signtool_args {
             let built = format!("{package_dir}/{driver_name}.dll");
             assert_file_exists(&built);
 
-            // Copy it out and strip the signature, so a passing assertion proves
-            // THIS build signed it (not a pre-existing signature).
             let extra = env::current_dir()
                 .expect("cwd")
                 .join(&project_path)
@@ -571,24 +565,6 @@ mod signtool_args {
                 "expected a signtool failure from the duplicate `sign` verb, got: {stderr}"
             );
         });
-    }
-
-    #[test]
-    fn sign_mode_off_with_signtool_args_is_rejected() {
-        let driver = "kmdf-driver";
-        let project_path = format!("tests/{driver}");
-        let mut cmd = create_cargo_wdk_cmd(
-            "build",
-            Some(&["--sign-mode", "off", "--signtool-args", "/fd SHA256"]),
-            None,
-            Some(&project_path),
-        );
-        let assertion = cmd.assert().failure();
-        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-        assert!(
-            stderr.contains("`--signtool-args` cannot be used with `--sign-mode=off`."),
-            "expected validation error mentioning both flags, got: {stderr}"
-        );
     }
 
     #[test]

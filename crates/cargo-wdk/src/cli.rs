@@ -424,6 +424,19 @@ mod tests {
     }
 
     #[test]
+    fn build_rejects_empty_signtool_args_with_sign_mode_off() {
+        for value in ["", "   ", "\t"] {
+            let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", value])
+                .expect("args should parse");
+            let err = SignMode::try_from(&args).expect_err("should be rejected");
+            assert!(
+                err.to_string().contains("`--sign-mode=off`"),
+                "value {value:?} should be rejected, got: {err}"
+            );
+        }
+    }
+
+    #[test]
     fn build_off_mode_maps_to_off() {
         let args = parse_build_args(&["--sign-mode", "off"]).expect("args should parse");
         assert_eq!(
