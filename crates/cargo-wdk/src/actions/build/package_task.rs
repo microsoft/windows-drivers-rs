@@ -979,10 +979,6 @@ mod tests {
 
     #[test]
     fn sign_and_verify_fails_when_signtool_fails() {
-        // Custom signtool args avoid the makecert/certmgr path. When signtool
-        // fails, sign_and_verify propagates the error. There is no cleanup: the
-        // package folder is only assembled (in `run`) after signing succeeds,
-        // so a failure never leaves unsigned output behind.
         let arch = CpuArchitecture::Amd64;
         let mut command_exec = CommandExec::default();
         command_exec
