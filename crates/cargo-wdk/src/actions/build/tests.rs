@@ -857,6 +857,12 @@ impl TestBuildAction {
             CpuArchitecture::Amd64 => "x86_64",
             CpuArchitecture::Arm64 => "aarch64",
         };
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if self.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.extend(super::features_to_cargo_args(&self.features));
+        expected_args.extend(["--".to_string(), "--print".to_string(), "cfg".to_string()]);
         self.mock_run_command
             .expect_run()
             .withf(
@@ -864,8 +870,10 @@ impl TestBuildAction {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>| {
+                    let expected_refs: Vec<&str> =
+                        expected_args.iter().map(String::as_str).collect();
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args == expected_refs.as_slice()
                         && working_dir.is_some_and(|dir| dir == expected_working_dir.as_path())
                 },
             )
@@ -1484,6 +1492,14 @@ mod get_target_arch_from_cargo_rustc {
         cwd: PathBuf,
         stdout: Vec<u8>,
     ) {
+        let mut expected_args: Vec<String> = vec!["rustc".to_string()];
+        if test_build_action.locked {
+            expected_args.push("--locked".to_string());
+        }
+        expected_args.extend(super::super::features_to_cargo_args(
+            &test_build_action.features,
+        ));
+        expected_args.extend(["--".to_string(), "--print".to_string(), "cfg".to_string()]);
         test_build_action
             .mock_run_command
             .expect_run()
@@ -1492,8 +1508,10 @@ mod get_target_arch_from_cargo_rustc {
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       working_dir: &Option<&Path>| {
+                    let expected_refs: Vec<&str> =
+                        expected_args.iter().map(String::as_str).collect();
                     command == "cargo"
-                        && args == ["rustc", "--", "--print", "cfg"]
+                        && args == expected_refs.as_slice()
                         && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
                 },
             )
