@@ -63,11 +63,12 @@ pub struct PackageTaskParams<'a> {
 }
 
 #[derive(Debug, Default)]
-#[allow(dead_code)]
+#[cfg_attr(test, allow(dead_code))]
 pub struct PackageTaskRunner {}
 
 #[automock]
-#[allow(dead_code, clippy::unused_self, clippy::elidable_lifetime_names)]
+#[allow(clippy::unused_self, clippy::elidable_lifetime_names)]
+#[cfg_attr(test, allow(dead_code))]
 impl PackageTaskRunner {
     pub fn run<'a>(
         &self,

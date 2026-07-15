@@ -44,11 +44,12 @@ pub struct BuildTaskParams<'a> {
 }
 
 #[derive(Debug, Default)]
-#[allow(dead_code)]
+#[cfg_attr(test, allow(dead_code))]
 pub struct BuildTaskRunner {}
 
 #[automock]
-#[allow(dead_code, clippy::unused_self, clippy::elidable_lifetime_names)]
+#[allow(clippy::unused_self, clippy::elidable_lifetime_names)]
+#[cfg_attr(test, allow(dead_code))]
 impl BuildTaskRunner {
     // Returns `Box<dyn Iterator<...>>` rather than `impl Iterator<...>` because
     // this method is `#[automock]`ed. mockall must be able to *name* the return
