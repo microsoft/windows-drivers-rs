@@ -40,6 +40,10 @@ pub enum SignModeArg {
     Test,
 }
 
+/// Arguments to `signtool sign` for signing the driver binary and catalog file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SigntoolArgs(pub Vec<String>);
+
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
 #[clap(
@@ -168,10 +172,6 @@ impl TryFrom<&BuildArgs> for SignMode {
 fn build_error(message: impl std::fmt::Display) -> clap::Error {
     Cli::command().error(ErrorKind::ArgumentConflict, message)
 }
-
-/// Arguments to `signtool sign` for signing the driver binary and catalog file.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SigntoolArgs(pub Vec<String>);
 
 /// `value_parser` for `--signtool-args`: tokenizes the raw string into
 /// individual `signtool` arguments.
@@ -333,17 +333,6 @@ mod tests {
         cli::{BuildArgs, Cli, NewArgs, Subcmd},
     };
 
-    // Parses `cargo wdk build <extra args>` and returns the parsed `BuildArgs`,
-    // or the clap error if parsing/validation fails.
-    fn parse_build_args(extra: &[&str]) -> Result<BuildArgs, clap::Error> {
-        let mut command_line = vec!["cargo-wdk", "wdk", "build"];
-        command_line.extend_from_slice(extra);
-        match Cli::try_parse_from(command_line)?.sub_cmd {
-            Subcmd::Build(build_args) => std::result::Result::Ok(build_args),
-            _ => unreachable!("build subcommand was requested"),
-        }
-    }
-
     #[test]
     fn new_args_driver_type_kmdf() {
         let args = NewArgs {
@@ -400,134 +389,154 @@ mod tests {
         );
     }
 
-    #[test]
-    fn build_rejects_verify_signature_when_sign_mode_is_off() {
-        let args =
-            parse_build_args(&["--sign-mode", "off", "--verify-signature"]).expect("args parse");
-        let err = SignMode::try_from(&args).expect_err("should be rejected");
-        assert!(
-            err.to_string()
-                .contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
-            "unexpected error: {err}"
-        );
-    }
+    mod build {
+        use super::*;
 
-    #[test]
-    fn build_rejects_signtool_args_with_sign_mode_off() {
-        let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", "/fd SHA256"])
-            .expect("args parse");
-        let err = SignMode::try_from(&args).expect_err("should be rejected");
-        assert!(
-            err.to_string().contains("`--sign-mode=off`"),
-            "unexpected error: {err}"
-        );
-    }
+        // Parses `cargo wdk build <extra args>` and returns the parsed `BuildArgs`,
+        // or the clap error if parsing/validation fails.
+        fn parse_build_args(extra: &[&str]) -> Result<BuildArgs, clap::Error> {
+            let mut command_line = vec!["cargo-wdk", "wdk", "build"];
+            command_line.extend_from_slice(extra);
+            match Cli::try_parse_from(command_line)?.sub_cmd {
+                Subcmd::Build(build_args) => std::result::Result::Ok(build_args),
+                _ => unreachable!("build subcommand was requested"),
+            }
+        }
 
-    #[test]
-    fn build_rejects_empty_signtool_args_with_sign_mode_off() {
-        for value in ["", "   ", "\t"] {
-            let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", value])
-                .expect("args should parse");
+        #[test]
+        fn rejects_verify_signature_when_sign_mode_is_off() {
+            let args = parse_build_args(&["--sign-mode", "off", "--verify-signature"])
+                .expect("args parse");
             let err = SignMode::try_from(&args).expect_err("should be rejected");
             assert!(
-                err.to_string().contains("`--sign-mode=off`"),
-                "value {value:?} should be rejected, got: {err}"
+                err.to_string()
+                    .contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
+                "unexpected error: {err}"
             );
         }
-    }
 
-    #[test]
-    fn build_off_mode_maps_to_off() {
-        let args = parse_build_args(&["--sign-mode", "off"]).expect("args should parse");
-        assert_eq!(
-            SignMode::try_from(&args).expect("mapping should succeed"),
-            SignMode::Off
-        );
-    }
+        #[test]
+        fn rejects_signtool_args_with_sign_mode_off() {
+            let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", "/fd SHA256"])
+                .expect("args parse");
+            let err = SignMode::try_from(&args).expect_err("should be rejected");
+            assert!(
+                err.to_string()
+                    .contains("`--signtool-args` cannot be used with `--sign-mode=off`."),
+                "unexpected error: {err}"
+            );
+        }
 
-    #[test]
-    fn build_default_maps_to_test_with_no_signtool_args() {
-        let args = parse_build_args(&[]).expect("args should parse");
-        assert_eq!(
-            SignMode::try_from(&args).expect("mapping should succeed"),
-            SignMode::Test {
-                verify_signature: false,
-                signtool_args: Vec::new(),
+        #[test]
+        fn rejects_empty_signtool_args_with_sign_mode_off() {
+            for value in ["", "   ", "\t"] {
+                let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", value])
+                    .expect("args should parse");
+                let err = SignMode::try_from(&args).expect_err("should be rejected");
+                assert!(
+                    err.to_string()
+                        .contains("`--signtool-args` cannot be used with `--sign-mode=off`."),
+                    "value {value:?} should be rejected, got: {err}"
+                );
             }
-        );
-    }
+        }
 
-    #[test]
-    fn build_tokenizes_signtool_args() {
-        let args = parse_build_args(&["--signtool-args", "/fd SHA384 /f cert.pfx"])
-            .expect("args should parse");
-        assert_eq!(
-            SignMode::try_from(&args).expect("mapping should succeed"),
-            SignMode::Test {
-                verify_signature: false,
-                signtool_args: vec![
-                    "/fd".to_string(),
-                    "SHA384".to_string(),
-                    "/f".to_string(),
-                    "cert.pfx".to_string(),
-                ],
-            }
-        );
-    }
+        #[test]
+        fn sign_mode_off_maps_correctly() {
+            let args = parse_build_args(&["--sign-mode", "off"]).expect("args should parse");
+            assert_eq!(
+                SignMode::try_from(&args).expect("mapping should succeed"),
+                SignMode::Off
+            );
+        }
 
-    #[test]
-    fn build_tokenizes_signtool_args_preserving_quoted_spans() {
-        let args = parse_build_args(&["--signtool-args", "/n \"CN=Contoso Root\" /fd SHA256"])
-            .expect("args should parse");
-        assert_eq!(
-            SignMode::try_from(&args).expect("mapping should succeed"),
-            SignMode::Test {
-                verify_signature: false,
-                signtool_args: vec![
-                    "/n".to_string(),
-                    "CN=Contoso Root".to_string(),
-                    "/fd".to_string(),
-                    "SHA256".to_string(),
-                ],
-            }
-        );
-    }
-
-    #[test]
-    fn build_rejects_unterminated_quote_in_signtool_args() {
-        let err = parse_build_args(&["--signtool-args", "/n \"CN=Contoso"])
-            .expect_err("unterminated quote should be rejected");
-        assert!(
-            err.to_string().contains("unterminated"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn build_treats_empty_or_whitespace_signtool_args_as_not_provided() {
-        for value in ["", "   ", "\t"] {
-            let args = parse_build_args(&["--signtool-args", value]).expect("args should parse");
+        #[test]
+        fn default_options_maps_to_test_sign_mode_with_no_signtool_args() {
+            let args = parse_build_args(&[]).expect("args should parse");
             assert_eq!(
                 SignMode::try_from(&args).expect("mapping should succeed"),
                 SignMode::Test {
                     verify_signature: false,
                     signtool_args: Vec::new(),
-                },
-                "value {value:?} should map to no signtool args"
+                }
             );
         }
-    }
 
-    #[test]
-    fn build_signtool_args_with_verify_signature_maps_both() {
-        let args = parse_build_args(&["--verify-signature", "--signtool-args", "/fd SHA256"])
-            .expect("args should parse");
-        assert_eq!(
-            SignMode::try_from(&args).expect("mapping should succeed"),
-            SignMode::Test {
-                verify_signature: true,
-                signtool_args: vec!["/fd".to_string(), "SHA256".to_string()],
+        #[test]
+        fn tokenizes_signtool_args() {
+            let args = parse_build_args(&["--signtool-args", "/fd SHA384 /f cert.pfx"])
+                .expect("args should parse");
+            assert_eq!(
+                SignMode::try_from(&args).expect("mapping should succeed"),
+                SignMode::Test {
+                    verify_signature: false,
+                    signtool_args: vec![
+                        "/fd".to_string(),
+                        "SHA384".to_string(),
+                        "/f".to_string(),
+                        "cert.pfx".to_string(),
+                    ],
+                }
+            );
+        }
+
+        #[test]
+        fn tokenizes_signtool_args_preserving_quoted_spans() {
+            let args = parse_build_args(&["--signtool-args", "/n \"CN=Contoso Root\" /fd SHA256"])
+                .expect("args should parse");
+            assert_eq!(
+                SignMode::try_from(&args).expect("mapping should succeed"),
+                SignMode::Test {
+                    verify_signature: false,
+                    signtool_args: vec![
+                        "/n".to_string(),
+                        "CN=Contoso Root".to_string(),
+                        "/fd".to_string(),
+                        "SHA256".to_string(),
+                    ],
+                }
+            );
+        }
+
+        #[test]
+        fn rejects_unterminated_quote_in_signtool_args() {
+            let err = parse_build_args(&["--signtool-args", "/n \"CN=Contoso"])
+                .expect_err("unterminated quote should be rejected");
+            assert!(
+                err.to_string().contains(
+                    "unterminated `\"` quote in `--signtool-args`; make sure every quote is closed"
+                ),
+                "unexpected error: {err}"
+            );
+        }
+
+        #[test]
+        fn treats_empty_or_whitespace_signtool_args_as_not_provided() {
+            for value in ["", "   ", "\t"] {
+                let args =
+                    parse_build_args(&["--signtool-args", value]).expect("args should parse");
+                assert_eq!(
+                    SignMode::try_from(&args).expect("mapping should succeed"),
+                    SignMode::Test {
+                        verify_signature: false,
+                        signtool_args: Vec::new(),
+                    },
+                    "value {value:?} should map to no signtool args"
+                );
             }
-        );
+        }
+
+        #[test]
+        fn verify_signature_works_with_signtool_args() {
+            let args = parse_build_args(&["--verify-signature", "--signtool-args", "/fd SHA256"])
+                .expect("args should parse");
+            assert_eq!(
+                SignMode::try_from(&args).expect("mapping should succeed"),
+                SignMode::Test {
+                    verify_signature: true,
+                    signtool_args: vec!["/fd".to_string(), "SHA256".to_string()],
+                }
+            );
+        }
     }
 }
