@@ -14,7 +14,7 @@ version = "0.1.1"
 anyhow.workspace = true
 cargo_metadata.workspace = true
 clap = { features = ["derive"], workspace = true }
-clap-cargo.workspace = true
+clap-cargo = { features = ["cargo_metadata"], workspace = true }
 clap-verbosity-flag.workspace = true
 include_dir.workspace = true
 mockall.workspace = true

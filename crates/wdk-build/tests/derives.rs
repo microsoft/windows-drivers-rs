@@ -98,11 +98,11 @@ fn parses_representative_bindgen_output() {
         &[Copy, Debug, Default, Hash, PartialEqOrPartialOrd],
     );
 
-    // Alias chain resolves through to Pod's derives.
+    // Type alias chain resolves through to Pod's derives.
     assert_derives(&map, "PodAlias", &[Copy, Debug, Default]);
     assert_derives(&map, "PodAliasChain", &[Copy, Debug, Default]);
 
-    // Primitive-target aliases: terminal shapes get the full standard derive
+    // Primitive-target type aliases: terminal shapes get the full standard derive
     // set directly, without chain resolution.
     for name in ["UCHAR", "ULONG", "PVOID", "PULONG"] {
         assert_derives(&map, name, ALL_TRAITS);
@@ -142,5 +142,17 @@ fn from_file_invalid_rust_returns_parse_error() {
     assert!(
         matches!(err, DerivesError::Parse(_)),
         "expected Parse, got {err:?}"
+    );
+}
+
+#[test]
+fn from_file_foreign_mod_returns_unsupported_error() {
+    let tmp = NamedTempFile::new("foreign.rs").expect("create temp file");
+    tmp.write_str("extern \"C\" { pub fn f(); }")
+        .expect("write temp file");
+    let err = DerivesMap::from_file(tmp.path()).expect_err("foreign mod must error");
+    assert!(
+        matches!(err, DerivesError::UnsupportedSynNode { .. }),
+        "expected UnsupportedSynNode, got {err:?}"
     );
 }

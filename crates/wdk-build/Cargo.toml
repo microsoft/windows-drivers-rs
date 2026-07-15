@@ -21,7 +21,6 @@ nightly = []
 [dependencies]
 anyhow.workspace = true
 bindgen.workspace = true
-bitflags.workspace = true
 camino.workspace = true
 cargo_metadata.workspace = true
 cfg-if.workspace = true

@@ -11,7 +11,8 @@ mod cli;
 mod providers;
 mod trace;
 
-use anyhow::{Ok, Result};
+use std::process::ExitCode;
+
 use clap::Parser;
 use cli::Cli;
 use tracing::error;
@@ -27,15 +28,14 @@ mod test_utils;
 ///
 /// # Returns
 ///
-/// `Result<()>`, which is `Ok` on success or an `anyhow::Error` on failure.
-///
-/// # Errors
-///
-/// This function will return an error if tracing initialization fails or if the
-/// CLI command execution fails.
-fn main() -> Result<()> {
+/// * [`ExitCode::SUCCESS`] on success,
+/// * [`ExitCode::FAILURE`] on error.
+fn main() -> ExitCode {
     let cli: Cli = Cli::parse();
     trace::init_tracing(cli.verbose);
-    cli.run().inspect_err(|e| error!("{}", e))?;
-    Ok(())
+    if let Err(e) = cli.run() {
+        error!("{e:#}");
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
 }
