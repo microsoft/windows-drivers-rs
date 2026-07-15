@@ -51,7 +51,7 @@ const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
     pub working_dir: &'a Path,
@@ -76,21 +76,7 @@ impl PackageTaskRunner {
         command_exec: &CommandExec,
         fs: &Fs,
     ) -> Result<(), PackageTaskError> {
-        PackageTask::new(
-            PackageTaskParams {
-                package_name: params.package_name,
-                working_dir: params.working_dir,
-                target_dir: params.target_dir,
-                target_arch: params.target_arch,
-                sign_mode: params.sign_mode,
-                sample_class: params.sample_class,
-                driver_model: params.driver_model.clone(),
-            },
-            wdk_build,
-            command_exec,
-            fs,
-        )
-        .run()
+        PackageTask::new(params.clone(), wdk_build, command_exec, fs).run()
     }
 }
 
