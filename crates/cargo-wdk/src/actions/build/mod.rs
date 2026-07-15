@@ -418,8 +418,7 @@ impl<'a> BuildAction<'a> {
             self.get_target_arch_from_cargo_rustc(working_dir)?
         };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
-        let target_dir =
-            Self::get_target_dir_from_output(package, output_message_iter.into_iter())?;
+        let target_dir = Self::get_target_dir_from_output(package, output_message_iter)?;
         debug!(
             "Target directory for package: {} is: {}",
             package_name,

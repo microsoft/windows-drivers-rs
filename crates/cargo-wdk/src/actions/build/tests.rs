@@ -822,7 +822,12 @@ impl BuildActionHarness {
                     && params.features.features == expected_features.features
             })
             .once()
-            .return_once(move |_, _| result);
+            .return_once(move |_, _| {
+                result.map(|messages| {
+                    Box::new(messages.into_iter())
+                        as Box<dyn Iterator<Item = Result<Message, io::Error>>>
+                })
+            });
     }
 
     fn expect_package_runner(

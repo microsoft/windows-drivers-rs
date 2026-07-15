@@ -50,14 +50,21 @@ pub struct BuildTaskRunner {}
 #[automock]
 #[allow(dead_code, clippy::unused_self, clippy::elidable_lifetime_names)]
 impl BuildTaskRunner {
+    // Returns `Box<dyn Iterator<...>>` rather than `impl Iterator<...>` because
+    // this method is `#[automock]`ed. mockall must be able to *name* the return
+    // type to generate the mock's expectation storage, and it cannot mock an
+    // opaque `impl Trait` return. Boxing into a trait object gives mockall a
+    // concrete, nameable type while still forwarding `BuildTask::run`'s lazy
+    // message stream, so consumers like `get_target_dir_from_output` can
+    // short-circuit instead of parsing/allocating every cargo message up front.
     pub fn run<'a>(
         &self,
         params: &BuildTaskParams<'a>,
         command_exec: &CommandExec,
-    ) -> Result<Vec<Result<Message, std::io::Error>>, BuildTaskError> {
-        BuildTask::new(*params, command_exec)
-            .run()
-            .map(Iterator::collect)
+    ) -> Result<Box<dyn Iterator<Item = Result<Message, std::io::Error>>>, BuildTaskError> {
+        BuildTask::new(*params, command_exec).run().map(|messages| {
+            Box::new(messages) as Box<dyn Iterator<Item = Result<Message, std::io::Error>>>
+        })
     }
 }
 
@@ -110,9 +117,14 @@ impl<'a> BuildTask<'a> {
     ///   not a valid unicode
     /// * `BuildTaskError::CargoBuild` - If there is an error running the `cargo
     ///   build` command
+    // `+ use<>` opts this RPIT out of capturing the `&self` lifetime (edition
+    // 2024 captures in-scope lifetimes by default). The returned iterator owns
+    // its buffer (`Cursor<Vec<u8>>`), so it is effectively `'static`; opting out
+    // of the capture lets `BuildTaskRunner::run` move it out of the temporary
+    // `BuildTask` and box it as a `'static` trait object.
     pub fn run(
         &self,
-    ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
+    ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>> + use<>, BuildTaskError> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json-render-diagnostics".to_string());
