@@ -208,7 +208,10 @@ fn parse_signtool_args(raw: &str) -> std::result::Result<SigntoolArgs, String> {
             }
             None if c.is_whitespace() => {
                 if in_arg {
-                    args.push(std::mem::take(&mut current));
+                    let token = std::mem::take(&mut current);
+                    if !token.is_empty() {
+                        args.push(token);
+                    }
                     in_arg = false;
                 }
             }
@@ -224,7 +227,7 @@ fn parse_signtool_args(raw: &str) -> std::result::Result<SigntoolArgs, String> {
             "unterminated `{q}` quote in `--signtool-args`; make sure every quote is closed"
         ));
     }
-    if in_arg {
+    if in_arg && !current.is_empty() {
         args.push(current);
     }
 
@@ -519,7 +522,7 @@ mod tests {
 
         #[test]
         fn treats_empty_or_whitespace_signtool_args_as_not_provided() {
-            for value in ["", "   ", "\t"] {
+            for value in ["", "   ", "\t", "\"\"", "''", "  \"\"  "] {
                 let args =
                     parse_build_args(&["--signtool-args", value]).expect("args should parse");
                 assert_eq!(
