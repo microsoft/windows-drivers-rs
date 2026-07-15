@@ -49,164 +49,178 @@ type PackageSpec<'a> = (
     &'a str,
 );
 
-#[test]
-fn given_a_driver_project_when_target_arch_is_detected_then_build_action_orchestrates_build_and_package()
- {
-    let cwd = PathBuf::from(r"C:\tmp\sample-driver");
-    let target_dir = expected_target_dir(&cwd, None, None);
-    let mut test_build_action = TestBuildAction::new(
-        cwd.clone(),
-        None,
-        None,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    )
-    .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
+mod standalone_driver_project {
+    use super::*;
 
-    test_build_action.expect_build_runner(
-        DEFAULT_DRIVER_NAME,
-        &cwd,
-        None,
-        None,
-        Ok(cargo_build_messages(
+    #[test]
+    fn given_a_driver_project_when_target_arch_is_detected_then_build_action_orchestrates_build_and_package()
+     {
+        let cwd = PathBuf::from(r"C:\tmp\sample-driver");
+        let target_dir = expected_target_dir(&cwd, None, None);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
+
+        test_build_action.expect_build_runner(
             DEFAULT_DRIVER_NAME,
-            DEFAULT_DRIVER_VERSION,
             &cwd,
             None,
             None,
-        )),
-    );
-    test_build_action.expect_probe_target_arch_using_cargo_rustc(&cwd, CpuArchitecture::Amd64);
-    test_build_action.expect_package_runner(
-        DEFAULT_DRIVER_NAME,
-        &cwd,
-        &target_dir,
-        CpuArchitecture::Amd64,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    );
-
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&cwd);
-
-    assert!(
-        result.is_ok(),
-        "build action failed unexpectedly: {result:?}"
-    );
-}
-
-#[test]
-fn given_explicit_target_arch_when_building_then_probe_is_skipped_and_package_runner_uses_it() {
-    let cwd = PathBuf::from(r"C:\tmp\sample-driver");
-    let profile = Some(Profile::Release);
-    let target_arch = CpuArchitecture::Arm64;
-    let target_dir = expected_target_dir(&cwd, Some(target_arch), profile);
-    let target_triple = to_target_triple(target_arch);
-    let mut test_build_action = TestBuildAction::new(
-        cwd.clone(),
-        profile,
-        Some(target_arch),
-        SignMode::Test {
-            verify_signature: true,
-        },
-        true,
-    )
-    .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
-
-    test_build_action.expect_build_runner(
-        DEFAULT_DRIVER_NAME,
-        &cwd,
-        profile,
-        Some(target_arch),
-        Ok(cargo_build_messages(
+            Ok(cargo_build_messages(
+                DEFAULT_DRIVER_NAME,
+                DEFAULT_DRIVER_VERSION,
+                &cwd,
+                None,
+                None,
+            )),
+        );
+        test_build_action.expect_probe_target_arch_using_cargo_rustc(&cwd, CpuArchitecture::Amd64);
+        test_build_action.expect_package_runner(
             DEFAULT_DRIVER_NAME,
-            DEFAULT_DRIVER_VERSION,
             &cwd,
-            Some(target_triple.as_str()),
+            &target_dir,
+            CpuArchitecture::Amd64,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
+
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&cwd);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
+
+    #[test]
+    fn given_explicit_target_arch_when_building_then_probe_is_skipped_and_package_runner_uses_it() {
+        let cwd = PathBuf::from(r"C:\tmp\sample-driver");
+        let profile = Some(Profile::Release);
+        let target_arch = CpuArchitecture::Arm64;
+        let target_dir = expected_target_dir(&cwd, Some(target_arch), profile);
+        let target_triple = to_target_triple(target_arch);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
             profile,
-        )),
-    );
-    test_build_action.expect_package_runner(
-        DEFAULT_DRIVER_NAME,
-        &cwd,
-        &target_dir,
-        target_arch,
-        SignMode::Test {
-            verify_signature: true,
-        },
-        true,
-    );
+            Some(target_arch),
+            SignMode::Test {
+                verify_signature: true,
+            },
+            true,
+        )
+        .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
 
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&cwd);
-
-    assert!(
-        result.is_ok(),
-        "build action failed unexpectedly: {result:?}"
-    );
-}
-
-#[test]
-fn given_a_non_driver_package_when_building_then_package_runner_is_skipped() {
-    let cwd = PathBuf::from(r"C:\tmp\non-driver");
-    let mut test_build_action = TestBuildAction::new(
-        cwd.clone(),
-        None,
-        None,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    )
-    .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, None);
-
-    test_build_action.expect_build_runner(
-        DEFAULT_DRIVER_NAME,
-        &cwd,
-        None,
-        None,
-        Ok(cargo_build_messages(
+        test_build_action.expect_build_runner(
             DEFAULT_DRIVER_NAME,
-            DEFAULT_DRIVER_VERSION,
+            &cwd,
+            profile,
+            Some(target_arch),
+            Ok(cargo_build_messages(
+                DEFAULT_DRIVER_NAME,
+                DEFAULT_DRIVER_VERSION,
+                &cwd,
+                Some(target_triple.as_str()),
+                profile,
+            )),
+        );
+        test_build_action.expect_package_runner(
+            DEFAULT_DRIVER_NAME,
+            &cwd,
+            &target_dir,
+            target_arch,
+            SignMode::Test {
+                verify_signature: true,
+            },
+            true,
+        );
+
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&cwd);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
+
+    #[test]
+    fn given_a_non_driver_package_when_building_then_package_runner_is_skipped() {
+        let cwd = PathBuf::from(r"C:\tmp\non-driver");
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, None);
+
+        test_build_action.expect_build_runner(
+            DEFAULT_DRIVER_NAME,
             &cwd,
             None,
             None,
-        )),
-    );
-    test_build_action
-        .mock_package_task_runner
-        .expect_run()
-        .never();
+            Ok(cargo_build_messages(
+                DEFAULT_DRIVER_NAME,
+                DEFAULT_DRIVER_VERSION,
+                &cwd,
+                None,
+                None,
+            )),
+        );
+        test_build_action
+            .mock_package_task_runner
+            .expect_run()
+            .never();
 
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&cwd);
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&cwd);
 
-    assert!(
-        result.is_ok(),
-        "build action failed unexpectedly: {result:?}"
-    );
-}
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
 
-#[test]
-fn given_a_driver_package_without_cdylib_when_building_then_package_runner_is_skipped() {
-    let cwd = PathBuf::from(r"C:\tmp\driver-lib");
-    let mut test_build_action = TestBuildAction::new(
-        cwd.clone(),
-        None,
-        None,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    )
-    .set_up_with_custom_toml(&get_cargo_metadata(
-        &cwd,
-        vec![
-            get_cargo_metadata_package_with_target(
+    #[test]
+    fn given_a_driver_package_without_cdylib_when_building_then_package_runner_is_skipped() {
+        let cwd = PathBuf::from(r"C:\tmp\driver-lib");
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_with_custom_toml(&get_cargo_metadata(
+            &cwd,
+            vec![
+                get_cargo_metadata_package_with_target(
+                    &cwd,
+                    DEFAULT_DRIVER_NAME,
+                    DEFAULT_DRIVER_VERSION,
+                    Some(default_wdk_metadata()),
+                    "lib",
+                    "lib",
+                    "lib.rs",
+                )
+                .1,
+            ],
+            &[get_cargo_metadata_package_with_target(
                 &cwd,
                 DEFAULT_DRIVER_NAME,
                 DEFAULT_DRIVER_VERSION,
@@ -215,350 +229,354 @@ fn given_a_driver_package_without_cdylib_when_building_then_package_runner_is_sk
                 "lib",
                 "lib.rs",
             )
-            .1,
-        ],
-        &[get_cargo_metadata_package_with_target(
-            &cwd,
+            .0],
+            None,
+        ));
+
+        test_build_action.expect_build_runner(
             DEFAULT_DRIVER_NAME,
-            DEFAULT_DRIVER_VERSION,
-            Some(default_wdk_metadata()),
-            "lib",
-            "lib",
-            "lib.rs",
+            &cwd,
+            None,
+            None,
+            Ok(Vec::new()),
+        );
+        test_build_action
+            .mock_package_task_runner
+            .expect_run()
+            .never();
+
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&cwd);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
+}
+
+mod driver_workspace {
+    use super::*;
+
+    #[test]
+    fn given_a_workspace_root_when_one_member_fails_then_workspace_error_is_returned() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let driver_name_1 = "sample-kmdf-1";
+        let driver_name_2 = "sample-kmdf-2";
+        let driver_dir_1 = workspace_root.join(driver_name_1);
+        let driver_dir_2 = workspace_root.join(driver_name_2);
+        let target_arch = CpuArchitecture::Amd64;
+        let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
+        let target_triple = to_target_triple(target_arch);
+        let mut test_build_action = TestBuildAction::new(
+            workspace_root.clone(),
+            None,
+            Some(target_arch),
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
         )
-        .0],
-        None,
-    ));
-
-    test_build_action.expect_build_runner(DEFAULT_DRIVER_NAME, &cwd, None, None, Ok(Vec::new()));
-    test_build_action
-        .mock_package_task_runner
-        .expect_run()
-        .never();
-
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&cwd);
-
-    assert!(
-        result.is_ok(),
-        "build action failed unexpectedly: {result:?}"
-    );
-}
-
-#[test]
-fn given_a_workspace_root_when_one_member_fails_then_workspace_error_is_returned() {
-    let workspace_root = PathBuf::from(r"C:\tmp\workspace");
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_dir_1 = workspace_root.join(driver_name_1);
-    let driver_dir_2 = workspace_root.join(driver_name_2);
-    let target_arch = CpuArchitecture::Amd64;
-    let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
-    let target_triple = to_target_triple(target_arch);
-    let mut test_build_action = TestBuildAction::new(
-        workspace_root.clone(),
-        None,
-        Some(target_arch),
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    )
-    .set_up_workspace_with_multiple_driver_projects(
-        &workspace_root,
-        vec![
-            (
-                driver_name_1,
-                driver_dir_1.clone(),
-                Some(default_wdk_metadata()),
-                "cdylib",
-                "cdylib",
-                "main.rs",
-            ),
-            (
-                driver_name_2,
-                driver_dir_2.clone(),
-                Some(default_wdk_metadata()),
-                "cdylib",
-                "cdylib",
-                "main.rs",
-            ),
-        ],
-    );
-
-    test_build_action.expect_build_runner(
-        driver_name_1,
-        &driver_dir_1,
-        None,
-        Some(target_arch),
-        Ok(cargo_build_messages(
-            driver_name_1,
-            DEFAULT_DRIVER_VERSION,
-            &driver_dir_1,
-            Some(target_triple.as_str()),
-            None,
-        )),
-    );
-    test_build_action.expect_build_runner(
-        driver_name_2,
-        &driver_dir_2,
-        None,
-        Some(target_arch),
-        Err(build_task_error()),
-    );
-    test_build_action.expect_package_runner(
-        driver_name_1,
-        &driver_dir_1,
-        &target_dir_1,
-        target_arch,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    );
-
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&workspace_root);
-
-    assert!(matches!(
-        result,
-        Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(path))
-        if path == workspace_root
-    ));
-}
-
-#[test]
-fn given_a_workspace_member_directory_when_building_then_only_that_member_is_orchestrated() {
-    let workspace_root = PathBuf::from(r"C:\tmp\workspace");
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_dir_1 = workspace_root.join(driver_name_1);
-    let driver_dir_2 = workspace_root.join(driver_name_2);
-    let target_arch = CpuArchitecture::Amd64;
-    let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
-    let target_triple = to_target_triple(target_arch);
-    let mut test_build_action = TestBuildAction::new(
-        driver_dir_2.clone(),
-        None,
-        Some(target_arch),
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    )
-    .set_up_workspace_with_multiple_driver_projects(
-        &workspace_root,
-        vec![
-            (
-                driver_name_1,
-                driver_dir_1,
-                Some(default_wdk_metadata()),
-                "cdylib",
-                "cdylib",
-                "main.rs",
-            ),
-            (
-                driver_name_2,
-                driver_dir_2.clone(),
-                Some(default_wdk_metadata()),
-                "cdylib",
-                "cdylib",
-                "main.rs",
-            ),
-        ],
-    );
-
-    test_build_action.expect_build_runner(
-        driver_name_2,
-        &driver_dir_2,
-        None,
-        Some(target_arch),
-        Ok(cargo_build_messages(
-            driver_name_2,
-            DEFAULT_DRIVER_VERSION,
-            &driver_dir_2,
-            Some(target_triple.as_str()),
-            None,
-        )),
-    );
-    test_build_action.expect_package_runner(
-        driver_name_2,
-        &driver_dir_2,
-        &target_dir_2,
-        target_arch,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    );
-
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&driver_dir_2);
-
-    assert!(
-        result.is_ok(),
-        "build action failed unexpectedly: {result:?}"
-    );
-}
-
-#[test]
-fn given_an_emulated_workspace_when_running_then_each_valid_project_is_built() {
-    let emulated_workspace = TestWorkspaceRoot::new("build-action-emulated-workspace");
-    let driver_name_1 = "driver-a";
-    let driver_name_2 = "driver-b";
-    let ignored_dir = "docs";
-    let driver_dir_1 = emulated_workspace.root.join(driver_name_1);
-    let driver_dir_2 = emulated_workspace.root.join(driver_name_2);
-    let ignored_dir_path = emulated_workspace.root.join(ignored_dir);
-    fs::create_dir_all(&driver_dir_1).expect("failed to create driver-a directory");
-    fs::create_dir_all(&driver_dir_2).expect("failed to create driver-b directory");
-    fs::create_dir_all(&ignored_dir_path).expect("failed to create docs directory");
-
-    let target_arch = CpuArchitecture::Amd64;
-    let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
-    let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
-    let target_triple = to_target_triple(target_arch);
-    let mut test_build_action = TestBuildAction::new(
-        emulated_workspace.root.clone(),
-        None,
-        Some(target_arch),
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    );
-
-    test_build_action.expect_detect_wdk_build_number(25100);
-    test_build_action.expect_root_manifest_exists(&emulated_workspace.root, false);
-    test_build_action.expect_read_dir_entries(&emulated_workspace.root);
-    test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
-    test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
-    test_build_action.expect_dir_cargo_toml_exists(&driver_dir_2, true);
-    test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
-    test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
-    test_build_action.expect_metadata_for_paths(vec![
-        (
-            driver_dir_1.clone(),
-            metadata_from_packages(
-                &driver_dir_1,
-                vec![(
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            vec![
+                (
                     driver_name_1,
                     driver_dir_1.clone(),
                     Some(default_wdk_metadata()),
                     "cdylib",
                     "cdylib",
                     "main.rs",
-                )],
-            ),
-        ),
-        (
-            driver_dir_2.clone(),
-            metadata_from_packages(
-                &driver_dir_2,
-                vec![(
+                ),
+                (
                     driver_name_2,
                     driver_dir_2.clone(),
                     Some(default_wdk_metadata()),
                     "cdylib",
                     "cdylib",
                     "main.rs",
-                )],
-            ),
-        ),
-    ]);
-    test_build_action.expect_build_runner(
-        driver_name_1,
-        &driver_dir_1,
-        None,
-        Some(target_arch),
-        Ok(cargo_build_messages(
+                ),
+            ],
+        );
+
+        test_build_action.expect_build_runner(
             driver_name_1,
-            DEFAULT_DRIVER_VERSION,
             &driver_dir_1,
-            Some(target_triple.as_str()),
             None,
-        )),
-    );
-    test_build_action.expect_build_runner(
-        driver_name_2,
-        &driver_dir_2,
-        None,
-        Some(target_arch),
-        Ok(cargo_build_messages(
+            Some(target_arch),
+            Ok(cargo_build_messages(
+                driver_name_1,
+                DEFAULT_DRIVER_VERSION,
+                &driver_dir_1,
+                Some(target_triple.as_str()),
+                None,
+            )),
+        );
+        test_build_action.expect_build_runner(
             driver_name_2,
-            DEFAULT_DRIVER_VERSION,
             &driver_dir_2,
-            Some(target_triple.as_str()),
             None,
-        )),
-    );
-    test_build_action.expect_package_runner(
-        driver_name_1,
-        &driver_dir_1,
-        &target_dir_1,
-        target_arch,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    );
-    test_build_action.expect_package_runner(
-        driver_name_2,
-        &driver_dir_2,
-        &target_dir_2,
-        target_arch,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    );
+            Some(target_arch),
+            Err(build_task_error()),
+        );
+        test_build_action.expect_package_runner(
+            driver_name_1,
+            &driver_dir_1,
+            &target_dir_1,
+            target_arch,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
 
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = crate::test_utils::with_env::<&str, &str, _, _>(&[], || build_action.run());
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&workspace_root);
 
-    assert!(
-        result.is_ok(),
-        "build action failed unexpectedly: {result:?}"
-    );
+        assert!(matches!(
+            result,
+            Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(path))
+            if path == workspace_root
+        ));
+    }
+
+    #[test]
+    fn given_a_workspace_member_directory_when_building_then_only_that_member_is_orchestrated() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let driver_name_1 = "sample-kmdf-1";
+        let driver_name_2 = "sample-kmdf-2";
+        let driver_dir_1 = workspace_root.join(driver_name_1);
+        let driver_dir_2 = workspace_root.join(driver_name_2);
+        let target_arch = CpuArchitecture::Amd64;
+        let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
+        let target_triple = to_target_triple(target_arch);
+        let mut test_build_action = TestBuildAction::new(
+            driver_dir_2.clone(),
+            None,
+            Some(target_arch),
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            vec![
+                (
+                    driver_name_1,
+                    driver_dir_1,
+                    Some(default_wdk_metadata()),
+                    "cdylib",
+                    "cdylib",
+                    "main.rs",
+                ),
+                (
+                    driver_name_2,
+                    driver_dir_2.clone(),
+                    Some(default_wdk_metadata()),
+                    "cdylib",
+                    "cdylib",
+                    "main.rs",
+                ),
+            ],
+        );
+
+        test_build_action.expect_build_runner(
+            driver_name_2,
+            &driver_dir_2,
+            None,
+            Some(target_arch),
+            Ok(cargo_build_messages(
+                driver_name_2,
+                DEFAULT_DRIVER_VERSION,
+                &driver_dir_2,
+                Some(target_triple.as_str()),
+                None,
+            )),
+        );
+        test_build_action.expect_package_runner(
+            driver_name_2,
+            &driver_dir_2,
+            &target_dir_2,
+            target_arch,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
+
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&driver_dir_2);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
+
+    #[test]
+    fn given_a_workspace_member_when_build_runner_fails_then_the_build_error_is_propagated() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let cwd = workspace_root.join(DEFAULT_DRIVER_NAME);
+        let mut test_build_action = TestBuildAction::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            vec![(
+                DEFAULT_DRIVER_NAME,
+                cwd.clone(),
+                Some(default_wdk_metadata()),
+                "cdylib",
+                "cdylib",
+                "main.rs",
+            )],
+        );
+
+        test_build_action.expect_build_runner(
+            DEFAULT_DRIVER_NAME,
+            &cwd,
+            None,
+            None,
+            Err(build_task_error()),
+        );
+
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = build_action.run_from_workspace_root(&cwd);
+
+        assert!(matches!(result, Err(BuildActionError::BuildTask(_))));
+    }
 }
 
-#[test]
-fn given_a_workspace_member_when_build_runner_fails_then_the_build_error_is_propagated() {
-    let workspace_root = PathBuf::from(r"C:\tmp\workspace");
-    let cwd = workspace_root.join(DEFAULT_DRIVER_NAME);
-    let mut test_build_action = TestBuildAction::new(
-        cwd.clone(),
-        None,
-        None,
-        SignMode::Test {
-            verify_signature: false,
-        },
-        false,
-    )
-    .set_up_workspace_with_multiple_driver_projects(
-        &workspace_root,
-        vec![(
-            DEFAULT_DRIVER_NAME,
-            cwd.clone(),
-            Some(default_wdk_metadata()),
-            "cdylib",
-            "cdylib",
-            "main.rs",
-        )],
-    );
+mod emulated_workspace {
+    use super::*;
 
-    test_build_action.expect_build_runner(
-        DEFAULT_DRIVER_NAME,
-        &cwd,
-        None,
-        None,
-        Err(build_task_error()),
-    );
+    #[test]
+    fn given_an_emulated_workspace_when_running_then_each_valid_project_is_built() {
+        let emulated_workspace = TestWorkspaceRoot::new("build-action-emulated-workspace");
+        let driver_name_1 = "driver-a";
+        let driver_name_2 = "driver-b";
+        let ignored_dir = "docs";
+        let driver_dir_1 = emulated_workspace.root.join(driver_name_1);
+        let driver_dir_2 = emulated_workspace.root.join(driver_name_2);
+        let ignored_dir_path = emulated_workspace.root.join(ignored_dir);
+        fs::create_dir_all(&driver_dir_1).expect("failed to create driver-a directory");
+        fs::create_dir_all(&driver_dir_2).expect("failed to create driver-b directory");
+        fs::create_dir_all(&ignored_dir_path).expect("failed to create docs directory");
 
-    let build_action = initialize_build_action(&mut test_build_action);
-    let result = build_action.run_from_workspace_root(&cwd);
+        let target_arch = CpuArchitecture::Amd64;
+        let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
+        let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
+        let target_triple = to_target_triple(target_arch);
+        let mut test_build_action = TestBuildAction::new(
+            emulated_workspace.root.clone(),
+            None,
+            Some(target_arch),
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
 
-    assert!(matches!(result, Err(BuildActionError::BuildTask(_))));
+        test_build_action.expect_detect_wdk_build_number(25100);
+        test_build_action.expect_root_manifest_exists(&emulated_workspace.root, false);
+        test_build_action.expect_read_dir_entries(&emulated_workspace.root);
+        test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
+        test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
+        test_build_action.expect_dir_cargo_toml_exists(&driver_dir_2, true);
+        test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
+        test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
+        test_build_action.expect_metadata_for_paths(vec![
+            (
+                driver_dir_1.clone(),
+                metadata_from_packages(
+                    &driver_dir_1,
+                    vec![(
+                        driver_name_1,
+                        driver_dir_1.clone(),
+                        Some(default_wdk_metadata()),
+                        "cdylib",
+                        "cdylib",
+                        "main.rs",
+                    )],
+                ),
+            ),
+            (
+                driver_dir_2.clone(),
+                metadata_from_packages(
+                    &driver_dir_2,
+                    vec![(
+                        driver_name_2,
+                        driver_dir_2.clone(),
+                        Some(default_wdk_metadata()),
+                        "cdylib",
+                        "cdylib",
+                        "main.rs",
+                    )],
+                ),
+            ),
+        ]);
+        test_build_action.expect_build_runner(
+            driver_name_1,
+            &driver_dir_1,
+            None,
+            Some(target_arch),
+            Ok(cargo_build_messages(
+                driver_name_1,
+                DEFAULT_DRIVER_VERSION,
+                &driver_dir_1,
+                Some(target_triple.as_str()),
+                None,
+            )),
+        );
+        test_build_action.expect_build_runner(
+            driver_name_2,
+            &driver_dir_2,
+            None,
+            Some(target_arch),
+            Ok(cargo_build_messages(
+                driver_name_2,
+                DEFAULT_DRIVER_VERSION,
+                &driver_dir_2,
+                Some(target_triple.as_str()),
+                None,
+            )),
+        );
+        test_build_action.expect_package_runner(
+            driver_name_1,
+            &driver_dir_1,
+            &target_dir_1,
+            target_arch,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
+        test_build_action.expect_package_runner(
+            driver_name_2,
+            &driver_dir_2,
+            &target_dir_2,
+            target_arch,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
+
+        let build_action = initialize_build_action(&mut test_build_action);
+        let result = crate::test_utils::with_env::<&str, &str, _, _>(&[], || build_action.run());
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
 }
 
 fn initialize_build_action(test_build_action: &mut TestBuildAction) -> BuildAction<'_> {
