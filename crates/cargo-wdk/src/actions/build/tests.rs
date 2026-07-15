@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::ref_option_ref)]
+#![allow(clippy::too_many_lines)] // Package tests are longer and splitting them into sub functions can make the code less readable
+#![allow(clippy::ref_option_ref)] // This is suppressed for mockall as it generates mocks with env_vars: &Option
 
 use std::{
     collections::HashMap,
@@ -53,11 +53,10 @@ mod standalone_driver_project {
     use super::*;
 
     #[test]
-    fn given_a_driver_project_when_target_arch_is_detected_then_build_action_orchestrates_build_and_package()
-     {
+    fn run_orchestrates_build_and_package_when_target_arch_is_detected() {
         let cwd = PathBuf::from(r"C:\tmp\sample-driver");
         let target_dir = expected_target_dir(&cwd, None, None);
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -68,7 +67,7 @@ mod standalone_driver_project {
         )
         .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
 
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             DEFAULT_DRIVER_NAME,
             &cwd,
             None,
@@ -81,8 +80,8 @@ mod standalone_driver_project {
                 None,
             )),
         );
-        test_build_action.expect_probe_target_arch_using_cargo_rustc(&cwd, CpuArchitecture::Amd64);
-        test_build_action.expect_package_runner(
+        harness.expect_probe_target_arch_using_cargo_rustc(&cwd, CpuArchitecture::Amd64);
+        harness.expect_package_runner(
             DEFAULT_DRIVER_NAME,
             &cwd,
             &target_dir,
@@ -93,7 +92,7 @@ mod standalone_driver_project {
             false,
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&cwd);
 
         assert!(
@@ -103,13 +102,13 @@ mod standalone_driver_project {
     }
 
     #[test]
-    fn given_explicit_target_arch_when_building_then_probe_is_skipped_and_package_runner_uses_it() {
+    fn run_skips_probe_and_uses_explicit_target_arch() {
         let cwd = PathBuf::from(r"C:\tmp\sample-driver");
         let profile = Some(Profile::Release);
         let target_arch = CpuArchitecture::Arm64;
         let target_dir = expected_target_dir(&cwd, Some(target_arch), profile);
         let target_triple = to_target_triple(target_arch);
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             profile,
             Some(target_arch),
@@ -120,7 +119,7 @@ mod standalone_driver_project {
         )
         .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
 
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             DEFAULT_DRIVER_NAME,
             &cwd,
             profile,
@@ -133,7 +132,7 @@ mod standalone_driver_project {
                 profile,
             )),
         );
-        test_build_action.expect_package_runner(
+        harness.expect_package_runner(
             DEFAULT_DRIVER_NAME,
             &cwd,
             &target_dir,
@@ -144,7 +143,7 @@ mod standalone_driver_project {
             true,
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&cwd);
 
         assert!(
@@ -154,9 +153,9 @@ mod standalone_driver_project {
     }
 
     #[test]
-    fn given_a_non_driver_package_when_building_then_package_runner_is_skipped() {
+    fn run_skips_package_runner_for_non_driver_package() {
         let cwd = PathBuf::from(r"C:\tmp\non-driver");
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -167,7 +166,7 @@ mod standalone_driver_project {
         )
         .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, None);
 
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             DEFAULT_DRIVER_NAME,
             &cwd,
             None,
@@ -180,12 +179,9 @@ mod standalone_driver_project {
                 None,
             )),
         );
-        test_build_action
-            .mock_package_task_runner
-            .expect_run()
-            .never();
+        harness.mock_package_task_runner.expect_run().never();
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&cwd);
 
         assert!(
@@ -195,9 +191,9 @@ mod standalone_driver_project {
     }
 
     #[test]
-    fn given_a_driver_package_without_cdylib_when_building_then_package_runner_is_skipped() {
+    fn run_skips_package_runner_when_no_cdylib_target() {
         let cwd = PathBuf::from(r"C:\tmp\driver-lib");
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -233,19 +229,10 @@ mod standalone_driver_project {
             None,
         ));
 
-        test_build_action.expect_build_runner(
-            DEFAULT_DRIVER_NAME,
-            &cwd,
-            None,
-            None,
-            Ok(Vec::new()),
-        );
-        test_build_action
-            .mock_package_task_runner
-            .expect_run()
-            .never();
+        harness.expect_build_runner(DEFAULT_DRIVER_NAME, &cwd, None, None, Ok(Vec::new()));
+        harness.mock_package_task_runner.expect_run().never();
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&cwd);
 
         assert!(
@@ -259,7 +246,7 @@ mod driver_workspace {
     use super::*;
 
     #[test]
-    fn given_a_workspace_root_when_one_member_fails_then_workspace_error_is_returned() {
+    fn run_returns_workspace_error_when_one_member_fails() {
         let workspace_root = PathBuf::from(r"C:\tmp\workspace");
         let driver_name_1 = "sample-kmdf-1";
         let driver_name_2 = "sample-kmdf-2";
@@ -268,7 +255,7 @@ mod driver_workspace {
         let target_arch = CpuArchitecture::Amd64;
         let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
         let target_triple = to_target_triple(target_arch);
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             workspace_root.clone(),
             None,
             Some(target_arch),
@@ -299,7 +286,7 @@ mod driver_workspace {
             ],
         );
 
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             driver_name_1,
             &driver_dir_1,
             None,
@@ -312,14 +299,14 @@ mod driver_workspace {
                 None,
             )),
         );
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             driver_name_2,
             &driver_dir_2,
             None,
             Some(target_arch),
             Err(build_task_error()),
         );
-        test_build_action.expect_package_runner(
+        harness.expect_package_runner(
             driver_name_1,
             &driver_dir_1,
             &target_dir_1,
@@ -330,7 +317,7 @@ mod driver_workspace {
             false,
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&workspace_root);
 
         assert!(matches!(
@@ -341,7 +328,7 @@ mod driver_workspace {
     }
 
     #[test]
-    fn given_a_workspace_member_directory_when_building_then_only_that_member_is_orchestrated() {
+    fn run_orchestrates_only_targeted_member() {
         let workspace_root = PathBuf::from(r"C:\tmp\workspace");
         let driver_name_1 = "sample-kmdf-1";
         let driver_name_2 = "sample-kmdf-2";
@@ -350,7 +337,7 @@ mod driver_workspace {
         let target_arch = CpuArchitecture::Amd64;
         let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
         let target_triple = to_target_triple(target_arch);
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             driver_dir_2.clone(),
             None,
             Some(target_arch),
@@ -381,7 +368,7 @@ mod driver_workspace {
             ],
         );
 
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             driver_name_2,
             &driver_dir_2,
             None,
@@ -394,7 +381,7 @@ mod driver_workspace {
                 None,
             )),
         );
-        test_build_action.expect_package_runner(
+        harness.expect_package_runner(
             driver_name_2,
             &driver_dir_2,
             &target_dir_2,
@@ -405,7 +392,7 @@ mod driver_workspace {
             false,
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&driver_dir_2);
 
         assert!(
@@ -415,10 +402,10 @@ mod driver_workspace {
     }
 
     #[test]
-    fn given_a_workspace_member_when_build_runner_fails_then_the_build_error_is_propagated() {
+    fn run_propagates_build_error_on_failure() {
         let workspace_root = PathBuf::from(r"C:\tmp\workspace");
         let cwd = workspace_root.join(DEFAULT_DRIVER_NAME);
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -439,7 +426,7 @@ mod driver_workspace {
             )],
         );
 
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             DEFAULT_DRIVER_NAME,
             &cwd,
             None,
@@ -447,7 +434,7 @@ mod driver_workspace {
             Err(build_task_error()),
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = build_action.run_from_workspace_root(&cwd);
 
         assert!(matches!(result, Err(BuildActionError::BuildTask(_))));
@@ -458,7 +445,7 @@ mod emulated_workspace {
     use super::*;
 
     #[test]
-    fn given_an_emulated_workspace_when_running_then_each_valid_project_is_built() {
+    fn run_builds_each_valid_project() {
         let emulated_workspace = TestWorkspaceRoot::new("build-action-emulated-workspace");
         let driver_name_1 = "driver-a";
         let driver_name_2 = "driver-b";
@@ -474,7 +461,7 @@ mod emulated_workspace {
         let target_dir_1 = expected_target_dir(&driver_dir_1, Some(target_arch), None);
         let target_dir_2 = expected_target_dir(&driver_dir_2, Some(target_arch), None);
         let target_triple = to_target_triple(target_arch);
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             emulated_workspace.root.clone(),
             None,
             Some(target_arch),
@@ -484,15 +471,15 @@ mod emulated_workspace {
             false,
         );
 
-        test_build_action.expect_detect_wdk_build_number(25100);
-        test_build_action.expect_root_manifest_exists(&emulated_workspace.root, false);
-        test_build_action.expect_read_dir_entries(&emulated_workspace.root);
-        test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
-        test_build_action.expect_dir_cargo_toml_exists(&driver_dir_1, true);
-        test_build_action.expect_dir_cargo_toml_exists(&driver_dir_2, true);
-        test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
-        test_build_action.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
-        test_build_action.expect_metadata_for_paths(vec![
+        harness.expect_detect_wdk_build_number(25100);
+        harness.expect_root_manifest_exists(&emulated_workspace.root, false);
+        harness.expect_read_dir_entries(&emulated_workspace.root);
+        harness.expect_dir_cargo_toml_exists(&driver_dir_1, true);
+        harness.expect_dir_cargo_toml_exists(&driver_dir_1, true);
+        harness.expect_dir_cargo_toml_exists(&driver_dir_2, true);
+        harness.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
+        harness.expect_dir_cargo_toml_exists(&ignored_dir_path, false);
+        harness.expect_metadata_for_paths(vec![
             (
                 driver_dir_1.clone(),
                 metadata_from_packages(
@@ -522,7 +509,7 @@ mod emulated_workspace {
                 ),
             ),
         ]);
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             driver_name_1,
             &driver_dir_1,
             None,
@@ -535,7 +522,7 @@ mod emulated_workspace {
                 None,
             )),
         );
-        test_build_action.expect_build_runner(
+        harness.expect_build_runner(
             driver_name_2,
             &driver_dir_2,
             None,
@@ -548,7 +535,7 @@ mod emulated_workspace {
                 None,
             )),
         );
-        test_build_action.expect_package_runner(
+        harness.expect_package_runner(
             driver_name_1,
             &driver_dir_1,
             &target_dir_1,
@@ -558,7 +545,7 @@ mod emulated_workspace {
             },
             false,
         );
-        test_build_action.expect_package_runner(
+        harness.expect_package_runner(
             driver_name_2,
             &driver_dir_2,
             &target_dir_2,
@@ -569,7 +556,7 @@ mod emulated_workspace {
             false,
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let result = crate::test_utils::with_env::<&str, &str, _, _>(&[], || build_action.run());
 
         assert!(
@@ -579,24 +566,24 @@ mod emulated_workspace {
     }
 }
 
-fn initialize_build_action(test_build_action: &mut TestBuildAction) -> BuildAction<'_> {
+fn initialize_build_action(harness: &mut BuildActionHarness) -> BuildAction<'_> {
     BuildAction::new_with_runners(
         &BuildActionParams {
-            working_dir: &test_build_action.cwd,
-            profile: test_build_action.profile.as_ref(),
-            target_arch: test_build_action.target_arch,
-            sign_mode: test_build_action.sign_mode,
-            is_sample_class: test_build_action.sample_class,
-            locked: test_build_action.locked,
-            features: &test_build_action.features,
+            working_dir: &harness.cwd,
+            profile: harness.profile.as_ref(),
+            target_arch: harness.target_arch,
+            sign_mode: harness.sign_mode,
+            is_sample_class: harness.sample_class,
+            locked: harness.locked,
+            features: &harness.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
-        &test_build_action.mock_wdk_build_provider,
-        &test_build_action.mock_run_command,
-        &test_build_action.mock_fs_provider,
-        &test_build_action.mock_metadata_provider,
-        std::mem::take(&mut test_build_action.mock_build_task_runner),
-        std::mem::take(&mut test_build_action.mock_package_task_runner),
+        &harness.mock_wdk_build_provider,
+        &harness.mock_run_command,
+        &harness.mock_fs_provider,
+        &harness.mock_metadata_provider,
+        std::mem::take(&mut harness.mock_build_task_runner),
+        std::mem::take(&mut harness.mock_package_task_runner),
     )
     .expect("failed to initialize build action")
 }
@@ -644,7 +631,7 @@ fn build_task_error() -> super::error::BuildTaskError {
     ))
 }
 
-struct TestBuildAction {
+struct BuildActionHarness {
     cwd: PathBuf,
     profile: Option<Profile>,
     target_arch: Option<CpuArchitecture>,
@@ -660,7 +647,7 @@ struct TestBuildAction {
     mock_package_task_runner: MockPackageTaskRunner,
 }
 
-impl TestBuildAction {
+impl BuildActionHarness {
     fn new(
         cwd: PathBuf,
         profile: Option<Profile>,
@@ -1000,6 +987,7 @@ fn get_cargo_metadata(
             .map(|p| p.0)
             .collect::<Vec<String>>()
             .join(", "),
+        // Require quotes around each member
         workspace_member_list
             .iter()
             .map(|s| format!("\"{}\"", s.0))
@@ -1096,6 +1084,9 @@ fn get_cargo_metadata_wdk_metadata(
     ))
 }
 
+/// Creates a valid cargo compiler-artifact JSON message for testing.
+/// This simulates the JSON output that `cargo build --message-format=json`
+/// produces.
 fn create_cargo_build_output_json(
     package_name: &str,
     package_version: &str,
@@ -1120,6 +1111,7 @@ fn strip_windows_extended_prefix(path: &Path) -> String {
         return path_str.into_owned();
     };
 
+    // Handle UNC paths
     without_prefix.strip_prefix("UNC\\").map_or_else(
         || without_prefix.to_string(),
         |unc_rest| format!(r"\\{unc_rest}"),
@@ -1136,16 +1128,20 @@ fn create_cargo_build_output_json_with_manifest(
     is_driver: bool,
 ) -> Output {
     let normalized_name = package_name.replace('-', "_");
+    // Determine profile directory name
     let profile_dir = match profile {
         Some(Profile::Release) => "release",
         _ => "debug",
     };
+    // For non-driver projects, use "lib" instead of "cdylib" to ensure BuildTask
+    // returns DllNotFound
     let (kind, crate_types, file_ext) = if is_driver {
         ("cdylib", "cdylib", "dll")
     } else {
         ("lib", "lib", "rlib")
     };
 
+    // Build the artifact path based on target_triple and profile
     let mut artifact_path = workspace_root.join("target");
     if let Some(target) = target_triple {
         artifact_path = artifact_path.join(target);
@@ -1391,11 +1387,11 @@ mod get_target_arch_from_cargo_rustc {
 
     use wdk_build::CpuArchitecture;
 
-    use super::{BuildActionError, SignMode, TestBuildAction, initialize_build_action};
+    use super::{BuildActionError, BuildActionHarness, SignMode, initialize_build_action};
 
     fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -1404,9 +1400,9 @@ mod get_target_arch_from_cargo_rustc {
             },
             false,
         );
-        expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), cfg_output);
+        expect_cargo_rustc_print_cfg(&mut harness, cwd.clone(), cfg_output);
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let arch = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect("Expected target arch to be detected");
@@ -1437,7 +1433,7 @@ mod get_target_arch_from_cargo_rustc {
     #[test]
     fn unsupported_arch_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -1447,12 +1443,12 @@ mod get_target_arch_from_cargo_rustc {
             false,
         );
         expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
+            &mut harness,
             cwd.clone(),
             b"target_arch=\"mips\"\n".to_vec(),
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let err = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected UnsupportedArchitecture error");
@@ -1462,7 +1458,7 @@ mod get_target_arch_from_cargo_rustc {
     #[test]
     fn missing_target_arch_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -1472,12 +1468,12 @@ mod get_target_arch_from_cargo_rustc {
             false,
         );
         expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
+            &mut harness,
             cwd.clone(),
             b"some_other_cfg=\"value\"\n".to_vec(),
         );
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let err = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected CannotDetectTargetArch error");
@@ -1487,7 +1483,7 @@ mod get_target_arch_from_cargo_rustc {
     #[test]
     fn invalid_utf8_returns_error() {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(
+        let mut harness = BuildActionHarness::new(
             cwd.clone(),
             None,
             None,
@@ -1496,9 +1492,9 @@ mod get_target_arch_from_cargo_rustc {
             },
             false,
         );
-        expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), vec![0xFF, 0xFE]);
+        expect_cargo_rustc_print_cfg(&mut harness, cwd.clone(), vec![0xFF, 0xFE]);
 
-        let build_action = initialize_build_action(&mut test_build_action);
+        let build_action = initialize_build_action(&mut harness);
         let err = build_action
             .get_target_arch_from_cargo_rustc(&cwd)
             .expect_err("Expected CannotDetectTargetArch error");
@@ -1506,19 +1502,17 @@ mod get_target_arch_from_cargo_rustc {
     }
 
     fn expect_cargo_rustc_print_cfg(
-        test_build_action: &mut TestBuildAction,
+        harness: &mut BuildActionHarness,
         cwd: PathBuf,
         stdout: Vec<u8>,
     ) {
         let mut expected_args: Vec<String> = vec!["rustc".to_string()];
-        if test_build_action.locked {
+        if harness.locked {
             expected_args.push("--locked".to_string());
         }
-        expected_args.extend(super::super::features_to_cargo_args(
-            &test_build_action.features,
-        ));
+        expected_args.extend(super::super::features_to_cargo_args(&harness.features));
         expected_args.extend(["--".to_string(), "--print".to_string(), "cfg".to_string()]);
-        test_build_action
+        harness
             .mock_run_command
             .expect_run()
             .withf(
