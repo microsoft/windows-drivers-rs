@@ -65,21 +65,19 @@ Usage: cargo wdk build [OPTIONS]
 Options:
       --profile <PROFILE>          Build artifacts with the specified profile
       --target-arch <TARGET_ARCH>  Build for the target architecture
-      --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
-      --verify-signature           Verify the signature
       --sample                     Build sample class driver project
       --locked                     Assert that `Cargo.lock` will remain unchanged
-  -h, --help                       Print help
+  -h, --help                       Print help (see more with '--help')
 
 Driver Signing:
-      --signtool-args <ARGS>       Additional arguments forwarded verbatim to
-                                   `signtool sign`, as a single quoted string
-                                   (e.g. `--signtool-args "/fd SHA256 /f cert.pfx"`)
+      --sign-mode <SIGN_MODE>  Signing mode [default: test] [possible values: off, test]
+      --signtool-args <ARGS>   Additional arguments to pass to `signtool sign` when signing the driver binary and the catalog file, e.g. `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`
+      --verify-signature       Verify the signatures of the driver binary and catalog file after signing
 
 Feature Selection:
-      --all-features               Activate all available features
-      --no-default-features        Do not activate the `default` feature
-  -F, --features <FEATURES>        Space-separated list of features to activate
+      --all-features         Activate all available features
+      --no-default-features  Do not activate the `default` feature
+  -F, --features <FEATURES>  Space-separated list of features to activate
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity
