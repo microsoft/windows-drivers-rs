@@ -102,13 +102,15 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
-    /// Driver signing mode.
-    #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
+    /// Signing mode.
+    #[arg(
+        long,
+        value_enum,
+        ignore_case = true,
+        default_value_t = SignModeArg::Test,
+        help_heading = "Driver Signing"
+    )]
     pub sign_mode: SignModeArg,
-
-    /// Verify the signature
-    #[arg(long)]
-    pub verify_signature: bool,
 
     /// Additional arguments to pass to `signtool sign` when signing the driver
     /// binary and the catalog file, e.g.
@@ -120,6 +122,11 @@ pub struct BuildArgs {
         help_heading = "Driver Signing"
     )]
     pub signtool_args: Option<SigntoolArgs>,
+
+    /// Verify the signatures of the driver binary and catalog file after
+    /// signing.
+    #[arg(long, help_heading = "Driver Signing")]
+    pub verify_signature: bool,
 
     /// Build sample class driver project
     #[arg(long)]
