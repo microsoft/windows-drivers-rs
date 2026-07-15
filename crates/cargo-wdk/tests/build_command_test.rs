@@ -493,7 +493,7 @@ mod signtool_args {
             );
 
             // Pass the extra file as an additional operand inside --signtool-args.
-            let args_with_extra = format!("{common_args} {}", extra.to_string_lossy());
+            let args_with_extra = format!("{common_args} \"{}\"", extra.to_string_lossy());
             let stderr = run_build_cmd(
                 &project_path,
                 Some(&["--signtool-args", &args_with_extra]),

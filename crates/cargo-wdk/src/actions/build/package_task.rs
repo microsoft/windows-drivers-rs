@@ -524,9 +524,9 @@ impl<'a> PackageTask<'a> {
         args.push(file_path);
 
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        if let Err(e) = self
-            .command_exec
-            .run("signtool", &arg_refs, true, None, None)
+        if let Err(e) =
+            self.command_exec
+                .run("signtool", &arg_refs, !signtool_args.is_empty(), None, None)
         {
             return Err(PackageTaskError::DriverBinarySignCommand(e));
         }
