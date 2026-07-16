@@ -16,7 +16,7 @@ use std::{
 use cargo_metadata::{Message, Metadata as CargoMetadata};
 use clap_cargo::Features;
 use mockall::predicate::eq;
-use wdk_build::{CpuArchitecture, DriverConfig};
+use wdk_build::{CpuArchitecture, DriverConfig, metadata::TryFromCargoMetadataError};
 
 use super::{
     BuildAction,
@@ -294,6 +294,36 @@ mod standalone_driver_project {
             "build action failed unexpectedly: {result:?}"
         );
     }
+
+    #[test]
+    fn run_returns_wdk_metadata_parse_error_for_invalid_metadata() {
+        let cwd = PathBuf::from(r"C:\tmp\sample-driver");
+        let mut harness = BuildActionHarness::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_with_custom_toml(&invalid_driver_cargo_toml());
+
+        // The package still builds; packaging is skipped because the WDK metadata is
+        // invalid, and the parse error is surfaced after the build.
+        harness.expect_build_runner(DEFAULT_DRIVER_NAME, &cwd, None, None, Ok(Vec::new()));
+        harness.mock_package_task_runner.expect_run().never();
+
+        let build_action = initialize_build_action(&mut harness);
+        let result = build_action.run_from_workspace_root(&cwd);
+
+        assert!(matches!(
+            result,
+            Err(BuildActionError::WdkMetadataParse(
+                TryFromCargoMetadataError::WdkMetadataDeserialization { .. }
+            ))
+        ));
+    }
 }
 
 mod driver_workspace {
@@ -492,6 +522,185 @@ mod driver_workspace {
         let result = build_action.run_from_workspace_root(&cwd);
 
         assert!(matches!(result, Err(BuildActionError::BuildTask(_))));
+    }
+
+    #[test]
+    fn run_returns_wdk_metadata_parse_error_for_conflicting_member_configs() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let driver_name_1 = "sample-kmdf-1";
+        let driver_name_2 = "sample-kmdf-2";
+        let driver_dir_1 = workspace_root.join(driver_name_1);
+        let driver_dir_2 = workspace_root.join(driver_name_2);
+        let mut harness = BuildActionHarness::new(
+            workspace_root.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            vec![
+                (
+                    driver_name_1,
+                    driver_dir_1.clone(),
+                    Some(get_cargo_metadata_wdk_metadata("KMDF", 1, 33)),
+                    "cdylib",
+                    "cdylib",
+                    "main.rs",
+                ),
+                (
+                    driver_name_2,
+                    driver_dir_2.clone(),
+                    Some(get_cargo_metadata_wdk_metadata("KMDF", 1, 35)),
+                    "cdylib",
+                    "cdylib",
+                    "main.rs",
+                ),
+            ],
+        );
+
+        // Each member still builds; packaging is skipped for all of them because the
+        // distinct WDK configurations can't be reconciled, and the parse error is
+        // surfaced after the build loop.
+        harness.expect_build_runner(driver_name_1, &driver_dir_1, None, None, Ok(Vec::new()));
+        harness.expect_build_runner(driver_name_2, &driver_dir_2, None, None, Ok(Vec::new()));
+        harness.mock_package_task_runner.expect_run().never();
+
+        let build_action = initialize_build_action(&mut harness);
+        let result = build_action.run_from_workspace_root(&workspace_root);
+
+        assert!(matches!(
+            result,
+            Err(BuildActionError::WdkMetadataParse(
+                TryFromCargoMetadataError::MultipleWdkConfigurationsDetected { .. }
+            ))
+        ));
+    }
+
+    #[test]
+    fn run_returns_wdk_metadata_parse_error_for_conflicting_root_and_member_configs() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let driver_name = "sample-kmdf-1";
+        let driver_dir = workspace_root.join(driver_name);
+        let mut harness = BuildActionHarness::new(
+            workspace_root.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_workspace_with_root_metadata(
+            &workspace_root,
+            Some(get_cargo_metadata_wdk_metadata("UMDF", 2, 33)),
+            vec![(
+                driver_name,
+                driver_dir.clone(),
+                Some(get_cargo_metadata_wdk_metadata("KMDF", 1, 33)),
+                "cdylib",
+                "cdylib",
+                "main.rs",
+            )],
+        );
+
+        // The member builds; packaging is skipped because the root and member WDK
+        // configurations conflict, and the parse error is surfaced after the build.
+        harness.expect_build_runner(driver_name, &driver_dir, None, None, Ok(Vec::new()));
+        harness.mock_package_task_runner.expect_run().never();
+
+        let build_action = initialize_build_action(&mut harness);
+        let result = build_action.run_from_workspace_root(&workspace_root);
+
+        assert!(matches!(
+            result,
+            Err(BuildActionError::WdkMetadataParse(
+                TryFromCargoMetadataError::MultipleWdkConfigurationsDetected { .. }
+            ))
+        ));
+    }
+
+    #[test]
+    fn run_builds_non_driver_only_workspace_from_root() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let non_driver_name = "non-driver";
+        let non_driver_dir = workspace_root.join(non_driver_name);
+        let mut harness = BuildActionHarness::new(
+            workspace_root.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            vec![(
+                non_driver_name,
+                non_driver_dir.clone(),
+                None,
+                "lib",
+                "lib",
+                "lib.rs",
+            )],
+        );
+
+        // No WDK configuration anywhere; the non-driver member builds and packaging
+        // is skipped, so the run succeeds.
+        harness.expect_build_runner(non_driver_name, &non_driver_dir, None, None, Ok(Vec::new()));
+        harness.mock_package_task_runner.expect_run().never();
+
+        let build_action = initialize_build_action(&mut harness);
+        let result = build_action.run_from_workspace_root(&workspace_root);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
+
+    #[test]
+    fn run_builds_non_driver_only_workspace_from_member() {
+        let workspace_root = PathBuf::from(r"C:\tmp\workspace");
+        let non_driver_name = "non-driver";
+        let non_driver_dir = workspace_root.join(non_driver_name);
+        let mut harness = BuildActionHarness::new(
+            non_driver_dir.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            vec![(
+                non_driver_name,
+                non_driver_dir.clone(),
+                None,
+                "lib",
+                "lib",
+                "lib.rs",
+            )],
+        );
+
+        // cwd is the non-driver member; it builds, packaging is skipped, and the run
+        // succeeds.
+        harness.expect_build_runner(non_driver_name, &non_driver_dir, None, None, Ok(Vec::new()));
+        harness.mock_package_task_runner.expect_run().never();
+
+        let build_action = initialize_build_action(&mut harness);
+        let result = build_action.run_from_workspace_root(&non_driver_dir);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
     }
 }
 
@@ -807,6 +1016,28 @@ impl BuildActionHarness {
         self
     }
 
+    fn set_up_workspace_with_root_metadata(
+        mut self,
+        workspace_root_dir: &Path,
+        root_metadata: Option<TestWdkMetadata>,
+        packages: Vec<PackageSpec<'_>>,
+    ) -> Self {
+        let cargo_toml_metadata =
+            metadata_from_packages_with_root(workspace_root_dir, root_metadata, packages);
+        let cargo_toml_metadata_for_closure = cargo_toml_metadata;
+        let expected_locked = self.locked;
+        let expected_features = self.features.clone();
+        self.mock_metadata_provider
+            .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir, other_options, features| {
+                forwards_locked(other_options, expected_locked)
+                    && features_match(&expected_features, features)
+            })
+            .once()
+            .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
+        self
+    }
+
     fn set_up_with_custom_toml(mut self, cargo_toml_metadata: &str) -> Self {
         let cargo_toml_metadata = serde_json::from_str::<CargoMetadata>(cargo_toml_metadata)
             .expect("failed to parse cargo metadata");
@@ -1038,6 +1269,67 @@ fn metadata_from_packages(
     workspace_root_dir: &Path,
     packages: Vec<PackageSpec<'_>>,
 ) -> CargoMetadata {
+    metadata_from_packages_with_root(workspace_root_dir, None, packages)
+}
+
+fn invalid_driver_cargo_toml() -> String {
+    // A single cdylib driver package whose workspace-level `wdk.driver-model` is
+    // missing required fields (e.g. `kmdf-version-major`), so `Wdk::try_from`
+    // fails with `WdkMetadataDeserialization`.
+    r#"
+        {
+            "target_directory": "C:\\tmp\\sample-driver\\target",
+            "workspace_root": "C:\\tmp\\sample-driver",
+            "version": 1,
+            "packages": [
+                {
+                    "name": "sample-driver",
+                    "version": "0.0.1",
+                    "id": "path+file:///C:/tmp/sample-driver#0.0.1",
+                    "dependencies": [],
+                    "targets": [
+                        {
+                            "kind": ["cdylib"],
+                            "crate_types": ["cdylib"],
+                            "name": "sample_driver",
+                            "src_path": "C:\\tmp\\sample-driver\\src\\lib.rs",
+                            "edition": "2021",
+                            "doc": true,
+                            "doctest": false,
+                            "test": false
+                        }
+                    ],
+                    "features": {},
+                    "manifest_path": "C:\\tmp\\sample-driver\\Cargo.toml",
+                    "authors": [],
+                    "categories": [],
+                    "keywords": [],
+                    "edition": "2021",
+                    "metadata": {
+                        "wdk": {}
+                    }
+                }
+            ],
+            "workspace_members": [
+                "path+file:///C:/tmp/sample-driver#0.0.1"
+            ],
+            "metadata": {
+                "wdk": {
+                    "driver-model": {
+                        "driver-type": "KMDF"
+                    }
+                }
+            }
+        }
+    "#
+    .to_string()
+}
+
+fn metadata_from_packages_with_root(
+    workspace_root_dir: &Path,
+    root_metadata: Option<TestWdkMetadata>,
+    packages: Vec<PackageSpec<'_>>,
+) -> CargoMetadata {
     let mut package_json = Vec::new();
     let mut workspace_member_ids = Vec::new();
     for (package_name, package_dir, metadata, target_kind, crate_type, source_file) in packages {
@@ -1057,7 +1349,7 @@ fn metadata_from_packages(
         workspace_root_dir,
         package_json,
         &workspace_member_ids,
-        None,
+        root_metadata,
     ))
     .expect("failed to parse cargo metadata")
 }

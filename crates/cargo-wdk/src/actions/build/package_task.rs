@@ -1130,6 +1130,201 @@ mod tests {
     }
 
     #[test]
+    fn run_returns_error_when_infverif_fails() {
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        harness
+            .expect_exists(paths.src_inx_file_path.clone(), true)
+            .expect_exists(paths.dest_root_package_folder.clone(), true)
+            .expect_rename(
+                paths.src_driver_binary_file_path,
+                paths.src_renamed_driver_binary_file_path.clone(),
+                Ok(()),
+            )
+            .expect_copy(
+                paths.src_renamed_driver_binary_file_path,
+                paths.dest_driver_binary_path,
+                Ok(1),
+            )
+            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
+            .expect_copy(
+                paths.src_inx_file_path,
+                paths.dest_inf_file_path.clone(),
+                Ok(1),
+            )
+            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+            .expect_stampinf(
+                paths.dest_inf_file_path.clone(),
+                CpuArchitecture::Amd64,
+                Some(String::from("1.33")),
+            )
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_infverif_error(paths.dest_inf_file_path, "/w", None);
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(
+            result,
+            Err(PackageTaskError::InfVerificationCommand(_))
+        ));
+    }
+
+    #[test]
+    fn run_returns_error_when_certmgr_fails() {
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        // Packaging succeeds up to infverif; certificate generation then queries the
+        // store via certmgr, which fails here.
+        harness
+            .expect_exists(paths.src_inx_file_path.clone(), true)
+            .expect_exists(paths.dest_root_package_folder.clone(), true)
+            .expect_rename(
+                paths.src_driver_binary_file_path,
+                paths.src_renamed_driver_binary_file_path.clone(),
+                Ok(()),
+            )
+            .expect_copy(
+                paths.src_renamed_driver_binary_file_path,
+                paths.dest_driver_binary_path,
+                Ok(1),
+            )
+            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
+            .expect_copy(
+                paths.src_inx_file_path,
+                paths.dest_inf_file_path.clone(),
+                Ok(1),
+            )
+            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+            .expect_stampinf(
+                paths.dest_inf_file_path.clone(),
+                CpuArchitecture::Amd64,
+                Some(String::from("1.33")),
+            )
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_infverif(paths.dest_inf_file_path, "/w", None)
+            .expect_exists(paths.src_cert_file_path, false)
+            .expect_certmgr_exists_check_error();
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(
+            result,
+            Err(PackageTaskError::VerifyCertExistsInStoreCommand(_))
+        ));
+    }
+
+    #[test]
+    fn run_returns_error_when_makecert_fails() {
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        // No cert on disk and none in the store, so the task falls through to
+        // makecert, which fails here.
+        harness
+            .expect_exists(paths.src_inx_file_path.clone(), true)
+            .expect_exists(paths.dest_root_package_folder.clone(), true)
+            .expect_rename(
+                paths.src_driver_binary_file_path,
+                paths.src_renamed_driver_binary_file_path.clone(),
+                Ok(()),
+            )
+            .expect_copy(
+                paths.src_renamed_driver_binary_file_path,
+                paths.dest_driver_binary_path,
+                Ok(1),
+            )
+            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
+            .expect_copy(
+                paths.src_inx_file_path,
+                paths.dest_inf_file_path.clone(),
+                Ok(1),
+            )
+            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+            .expect_stampinf(
+                paths.dest_inf_file_path.clone(),
+                CpuArchitecture::Amd64,
+                Some(String::from("1.33")),
+            )
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_infverif(paths.dest_inf_file_path, "/w", None)
+            .expect_exists(paths.src_cert_file_path.clone(), false)
+            .expect_certmgr_exists_check(false)
+            .expect_certmgr_exists_check(false)
+            .expect_makecert_error(paths.src_cert_file_path);
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(
+            result,
+            Err(PackageTaskError::CertGenerationInStoreCommand(_))
+        ));
+    }
+
+    #[test]
+    fn run_returns_error_when_signtool_fails() {
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut harness = PackageTaskHarness::new();
+        let paths = harness.paths();
+
+        // Certificate already on disk, so signing proceeds directly; signtool fails
+        // on the driver binary.
+        harness
+            .expect_exists(paths.src_inx_file_path.clone(), true)
+            .expect_exists(paths.dest_root_package_folder.clone(), true)
+            .expect_rename(
+                paths.src_driver_binary_file_path,
+                paths.src_renamed_driver_binary_file_path.clone(),
+                Ok(()),
+            )
+            .expect_copy(
+                paths.src_renamed_driver_binary_file_path,
+                paths.dest_driver_binary_path.clone(),
+                Ok(1),
+            )
+            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
+            .expect_copy(
+                paths.src_inx_file_path,
+                paths.dest_inf_file_path.clone(),
+                Ok(1),
+            )
+            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+            .expect_stampinf(
+                paths.dest_inf_file_path.clone(),
+                CpuArchitecture::Amd64,
+                Some(String::from("1.33")),
+            )
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_infverif(paths.dest_inf_file_path, "/w", None)
+            .expect_exists(paths.src_cert_file_path.clone(), true)
+            .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
+            .expect_signtool_sign_error(paths.dest_driver_binary_path);
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(matches!(
+            result,
+            Err(PackageTaskError::DriverBinarySignCommand(_))
+        ));
+    }
+
+    #[test]
     fn run_skips_infverif_for_samples_when_wdk_build_is_in_bugged_range() {
         let _lock = TEST_MUTEX
             .lock()
@@ -1745,6 +1940,101 @@ mod tests {
                 })
                 .once()
                 .return_once(|_, _, _, _| Ok(success_output()));
+            self
+        }
+
+        fn expect_certmgr_exists_check_error(&mut self) -> &mut Self {
+            self.command_exec
+                .expect_run()
+                .withf(|command, args, _, _| {
+                    command == "certmgr.exe" && args == ["-s", WDR_TEST_CERT_STORE]
+                })
+                .once()
+                .return_once(|_, _, _, _| Err(command_error("certmgr.exe")));
+            self
+        }
+
+        fn expect_makecert_error(&mut self, cert_path: PathBuf) -> &mut Self {
+            let cert_path = cert_path.to_string_lossy().to_string();
+            self.command_exec
+                .expect_run()
+                .withf(move |command, args, _, _| {
+                    command == "makecert"
+                        && args
+                            == [
+                                "-r",
+                                "-pe",
+                                "-a",
+                                "SHA256",
+                                "-eku",
+                                "1.3.6.1.5.5.7.3.3",
+                                "-ss",
+                                WDR_TEST_CERT_STORE,
+                                "-n",
+                                "CN=WDRLocalTestCert",
+                                cert_path.as_str(),
+                            ]
+                })
+                .once()
+                .return_once(|_, _, _, _| Err(command_error("makecert")));
+            self
+        }
+
+        fn expect_signtool_sign_error(&mut self, file_path: PathBuf) -> &mut Self {
+            let file_path = file_path.to_string_lossy().to_string();
+            self.command_exec
+                .expect_run()
+                .withf(move |command, args, _, _| {
+                    command == "signtool"
+                        && args
+                            == [
+                                "sign",
+                                "/v",
+                                "/s",
+                                WDR_TEST_CERT_STORE,
+                                "/n",
+                                WDR_LOCAL_TEST_CERT,
+                                "/t",
+                                "http://timestamp.digicert.com",
+                                "/fd",
+                                "SHA256",
+                                file_path.as_str(),
+                            ]
+                })
+                .once()
+                .return_once(|_, _, _, _| Err(command_error("signtool")));
+            self
+        }
+
+        fn expect_infverif_error(
+            &mut self,
+            inf_path: PathBuf,
+            driver_flag: &str,
+            sample_flag: Option<&'static str>,
+        ) -> &mut Self {
+            let inf_path = inf_path.to_string_lossy().to_string();
+            let expected_args = if let Some(sample_flag) = sample_flag {
+                vec![
+                    "/v".to_string(),
+                    driver_flag.to_string(),
+                    sample_flag.to_string(),
+                    inf_path,
+                ]
+            } else {
+                vec!["/v".to_string(), driver_flag.to_string(), inf_path]
+            };
+            self.command_exec
+                .expect_run()
+                .withf(move |command, args, _, _| {
+                    command == "infverif"
+                        && args.len() == expected_args.len()
+                        && args
+                            .iter()
+                            .zip(expected_args.iter())
+                            .all(|(actual, expected)| actual == expected)
+                })
+                .once()
+                .return_once(|_, _, _, _| Err(command_error("infverif")));
             self
         }
 
