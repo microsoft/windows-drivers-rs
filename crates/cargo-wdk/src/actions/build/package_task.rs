@@ -684,6 +684,11 @@ mod tests {
     // Other tests that call `run_stampinf()` read the same env var, so parallel
     // execution causes non-deterministic failures when the env var is
     // unexpectedly set.
+    //
+    // Lock acquisition recovers from poisoning
+    // (`unwrap_or_else(PoisonError::into_inner)`) so that a panic in one test does
+    // not cascade into unrelated failures across every other test that takes this
+    // lock.
     static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
@@ -812,7 +817,9 @@ mod tests {
 
     #[test]
     fn run_packages_driver_with_expected_operations() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
@@ -863,7 +870,9 @@ mod tests {
 
     #[test]
     fn run_verifies_signatures_when_enabled() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new().with_sign_mode(SignMode::Test {
             verify_signature: true,
         });
@@ -885,7 +894,9 @@ mod tests {
 
     #[test]
     fn run_exports_certificate_from_store_when_it_already_exists() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
@@ -934,7 +945,9 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_inx_file_is_missing() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
         harness.expect_exists(paths.src_inx_file_path.clone(), false);
@@ -951,7 +964,9 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_copying_driver_binary_fails() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
@@ -986,7 +1001,9 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_stampinf_fails() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
@@ -1024,7 +1041,9 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_inf2cat_fails() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
@@ -1063,7 +1082,9 @@ mod tests {
 
     #[test]
     fn run_skips_infverif_for_samples_when_wdk_build_is_in_bugged_range() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut harness = PackageTaskHarness::new().with_sample_class(true);
         let paths = harness.paths();
 
@@ -1113,7 +1134,9 @@ mod tests {
 
     #[test]
     fn stampinf_version_overrides_with_env_var() {
-        let _lock = TEST_MUTEX.lock().unwrap();
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // verify both with and without the env var set scenarios
         let scenarios = [
             ("env_set", Some("1.2.3.4"), true),

@@ -240,6 +240,60 @@ mod standalone_driver_project {
             "build action failed unexpectedly: {result:?}"
         );
     }
+
+    #[test]
+    fn run_forwards_locked_and_features_to_metadata() {
+        let cwd = PathBuf::from(r"C:\tmp\sample-driver");
+        let target_dir = expected_target_dir(&cwd, None, None);
+        let mut harness = BuildActionHarness::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .with_locked(true)
+        .with_features(non_default_features())
+        .set_up_standalone_driver_project(DEFAULT_DRIVER_NAME, Some(default_wdk_metadata()));
+
+        harness.expect_build_runner(
+            DEFAULT_DRIVER_NAME,
+            &cwd,
+            None,
+            None,
+            Ok(cargo_build_messages(
+                DEFAULT_DRIVER_NAME,
+                DEFAULT_DRIVER_VERSION,
+                &cwd,
+                None,
+                None,
+            )),
+        );
+        harness.expect_probe_target_arch_using_cargo_rustc(&cwd, CpuArchitecture::Amd64);
+        harness.expect_package_runner(
+            DEFAULT_DRIVER_NAME,
+            &cwd,
+            &target_dir,
+            CpuArchitecture::Amd64,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        );
+
+        // The metadata, build-runner and cargo-rustc-probe expectations all assert
+        // that `--locked` and the selected features are forwarded; the run only
+        // succeeds if `BuildAction` forwards them to every downstream call.
+        let build_action = initialize_build_action(&mut harness);
+        let result = build_action.run_from_workspace_root(&cwd);
+
+        assert!(
+            result.is_ok(),
+            "build action failed unexpectedly: {result:?}"
+        );
+    }
 }
 
 mod driver_workspace {
@@ -592,6 +646,26 @@ fn default_wdk_metadata() -> TestWdkMetadata {
     get_cargo_metadata_wdk_metadata("KMDF", 1, 33)
 }
 
+fn features_match(expected: &Features, actual: &Features) -> bool {
+    expected.all_features == actual.all_features
+        && expected.no_default_features == actual.no_default_features
+        && expected.features == actual.features
+}
+
+fn forwards_locked(other_options: &[String], expected_locked: bool) -> bool {
+    other_options.iter().any(|opt| opt.as_str() == "--locked") == expected_locked
+}
+
+#[allow(clippy::field_reassign_with_default)]
+fn non_default_features() -> Features {
+    // `Features` is `#[non_exhaustive]`, so it can't be built with a struct
+    // literal; mutate a default instead.
+    let mut features = Features::default();
+    features.no_default_features = true;
+    features.features = vec!["sample-feature".to_string()];
+    features
+}
+
 fn expected_target_dir(
     cwd: &Path,
     target_arch: Option<CpuArchitecture>,
@@ -672,6 +746,16 @@ impl BuildActionHarness {
         }
     }
 
+    fn with_locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
+        self
+    }
+
+    fn with_features(mut self, features: Features) -> Self {
+        self.features = features;
+        self
+    }
+
     fn set_up_standalone_driver_project(
         mut self,
         package_name: &str,
@@ -690,8 +774,14 @@ impl BuildActionHarness {
             )],
         );
         let cargo_toml_metadata_for_closure = cargo_toml_metadata;
+        let expected_locked = self.locked;
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir, other_options, features| {
+                forwards_locked(other_options, expected_locked)
+                    && features_match(&expected_features, features)
+            })
             .once()
             .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
         self
@@ -704,8 +794,14 @@ impl BuildActionHarness {
     ) -> Self {
         let cargo_toml_metadata = metadata_from_packages(workspace_root_dir, packages);
         let cargo_toml_metadata_for_closure = cargo_toml_metadata;
+        let expected_locked = self.locked;
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir, other_options, features| {
+                forwards_locked(other_options, expected_locked)
+                    && features_match(&expected_features, features)
+            })
             .once()
             .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
         self
@@ -715,16 +811,28 @@ impl BuildActionHarness {
         let cargo_toml_metadata = serde_json::from_str::<CargoMetadata>(cargo_toml_metadata)
             .expect("failed to parse cargo metadata");
         let cargo_toml_metadata_for_closure = cargo_toml_metadata;
+        let expected_locked = self.locked;
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir, other_options, features| {
+                forwards_locked(other_options, expected_locked)
+                    && features_match(&expected_features, features)
+            })
             .once()
             .returning(move |_, _, _| Ok(cargo_toml_metadata_for_closure.clone()));
         self
     }
 
     fn expect_metadata_for_paths(&mut self, metadata_by_path: Vec<(PathBuf, CargoMetadata)>) {
+        let expected_locked = self.locked;
+        let expected_features = self.features.clone();
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
+            .withf(move |_working_dir, other_options, features| {
+                forwards_locked(other_options, expected_locked)
+                    && features_match(&expected_features, features)
+            })
             .times(metadata_by_path.len())
             .returning(move |path, _other_options, _features| {
                 let requested_path = PathBuf::from(path);
@@ -1540,5 +1648,34 @@ mod get_target_arch_from_cargo_rustc {
                     stderr: vec![],
                 })
             });
+    }
+
+    #[test]
+    fn probe_forwards_features() {
+        let cwd = PathBuf::from(r"C:\tmp");
+        let mut harness = BuildActionHarness::new(
+            cwd.clone(),
+            None,
+            None,
+            SignMode::Test {
+                verify_signature: false,
+            },
+            false,
+        )
+        .with_features(super::non_default_features());
+        // `expect_cargo_rustc_print_cfg` derives the expected args from
+        // `harness.features`, so this only matches if the selected features are
+        // forwarded into the `cargo rustc` probe invocation.
+        expect_cargo_rustc_print_cfg(
+            &mut harness,
+            cwd.clone(),
+            b"target_arch=\"x86_64\"\n".to_vec(),
+        );
+
+        let build_action = initialize_build_action(&mut harness);
+        let arch = build_action
+            .get_target_arch_from_cargo_rustc(&cwd)
+            .expect("Expected target arch to be detected");
+        assert_eq!(arch, CpuArchitecture::Amd64);
     }
 }
