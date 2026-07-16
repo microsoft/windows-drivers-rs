@@ -893,6 +893,55 @@ mod tests {
     }
 
     #[test]
+    fn run_skips_signing_and_verification_when_sign_mode_is_off() {
+        let _lock = TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut harness = PackageTaskHarness::new().with_sign_mode(SignMode::Off);
+        let paths = harness.paths();
+
+        // With SignMode::Off, certificate generation and signtool sign/verify are
+        // skipped. No expectations are set for those commands, so any attempt to
+        // run them would fail the test as an unmatched mock expectation.
+        harness
+            .expect_exists(paths.src_inx_file_path.clone(), true)
+            .expect_exists(paths.dest_root_package_folder.clone(), false)
+            .expect_create_dir_ok(paths.dest_root_package_folder.clone())
+            .expect_rename(
+                paths.src_driver_binary_file_path,
+                paths.src_renamed_driver_binary_file_path.clone(),
+                Ok(()),
+            )
+            .expect_copy(
+                paths.src_renamed_driver_binary_file_path,
+                paths.dest_driver_binary_path,
+                Ok(1),
+            )
+            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
+            .expect_copy(
+                paths.src_inx_file_path,
+                paths.dest_inf_file_path.clone(),
+                Ok(1),
+            )
+            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+            .expect_stampinf(
+                paths.dest_inf_file_path.clone(),
+                CpuArchitecture::Amd64,
+                Some(String::from("1.33")),
+            )
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_infverif(paths.dest_inf_file_path, "/w", None);
+
+        let task = harness.task();
+        let result = task.run();
+
+        assert!(
+            result.is_ok(),
+            "package task failed unexpectedly: {result:?}"
+        );
+    }
+
+    #[test]
     fn run_exports_certificate_from_store_when_it_already_exists() {
         let _lock = TEST_MUTEX
             .lock()
