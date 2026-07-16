@@ -824,7 +824,7 @@ mod tests {
         harness
             .expect_prepare_inf(false)
             .expect_generate_self_signed_cert_and_sign()
-            .expect_infverif(paths.dest_inf_file_path, "/w", None);
+            .expect_infverif(paths.dest_inf_file_path, "/w", None, true);
 
         harness.run_and_expect_success();
     }
@@ -854,9 +854,12 @@ mod tests {
         // With SignMode::Off, certificate generation and signtool sign/verify are
         // skipped. No expectations are set for those commands, so any attempt to
         // run them would fail the test as an unmatched mock expectation.
-        harness
-            .expect_prepare_inf(false)
-            .expect_infverif(paths.dest_inf_file_path, "/w", None);
+        harness.expect_prepare_inf(false).expect_infverif(
+            paths.dest_inf_file_path,
+            "/w",
+            None,
+            true,
+        );
 
         harness.run_and_expect_success();
     }
@@ -870,12 +873,12 @@ mod tests {
         harness
             .expect_prepare_inf(true)
             .expect_exists(paths.src_cert_file_path.clone(), false)
-            .expect_certmgr_exists_check(true)
+            .expect_certmgr_exists_check(Ok(certmgr_store_output(true)))
             .expect_certmgr_create_cert_from_store(paths.src_cert_file_path.clone())
             .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
-            .expect_signtool_sign(paths.dest_driver_binary_path)
-            .expect_signtool_sign(paths.dest_cat_file_path)
-            .expect_infverif(paths.dest_inf_file_path, "/w", None);
+            .expect_signtool_sign(paths.dest_driver_binary_path, true)
+            .expect_signtool_sign(paths.dest_cat_file_path, true)
+            .expect_infverif(paths.dest_inf_file_path, "/w", None, true);
 
         harness.run_and_expect_success();
     }
@@ -938,10 +941,11 @@ mod tests {
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
-        harness.expect_copy_artifacts(true).expect_stampinf_error(
+        harness.expect_copy_artifacts(true).expect_stampinf(
             paths.dest_inf_file_path,
             CpuArchitecture::Amd64,
             Some(String::from("1.33")),
+            false,
         );
 
         let task = harness.task();
@@ -962,8 +966,9 @@ mod tests {
                 paths.dest_inf_file_path,
                 CpuArchitecture::Amd64,
                 Some(String::from("1.33")),
+                true,
             )
-            .expect_inf2cat_error(paths.dest_root_package_folder, "10_x64");
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64", false);
 
         let task = harness.task();
         let result = task.run();
@@ -977,10 +982,11 @@ mod tests {
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
-        harness.expect_prepare_inf(true).expect_infverif_error(
+        harness.expect_prepare_inf(true).expect_infverif(
             paths.dest_inf_file_path,
             "/w",
             None,
+            false,
         );
 
         let task = harness.task();
@@ -1002,9 +1008,9 @@ mod tests {
         // store via certmgr, which fails here.
         harness
             .expect_prepare_inf(true)
-            .expect_infverif(paths.dest_inf_file_path, "/w", None)
+            .expect_infverif(paths.dest_inf_file_path, "/w", None, true)
             .expect_exists(paths.src_cert_file_path, false)
-            .expect_certmgr_exists_check_error();
+            .expect_certmgr_exists_check(Err(command_error("certmgr.exe")));
 
         let task = harness.task();
         let result = task.run();
@@ -1025,11 +1031,11 @@ mod tests {
         // makecert, which fails here.
         harness
             .expect_prepare_inf(true)
-            .expect_infverif(paths.dest_inf_file_path, "/w", None)
+            .expect_infverif(paths.dest_inf_file_path, "/w", None, true)
             .expect_exists(paths.src_cert_file_path.clone(), false)
-            .expect_certmgr_exists_check(false)
-            .expect_certmgr_exists_check(false)
-            .expect_makecert_error(paths.src_cert_file_path);
+            .expect_certmgr_exists_check(Ok(certmgr_store_output(false)))
+            .expect_certmgr_exists_check(Ok(certmgr_store_output(false)))
+            .expect_makecert(paths.src_cert_file_path, false);
 
         let task = harness.task();
         let result = task.run();
@@ -1050,10 +1056,10 @@ mod tests {
         // on the driver binary.
         harness
             .expect_prepare_inf(true)
-            .expect_infverif(paths.dest_inf_file_path, "/w", None)
+            .expect_infverif(paths.dest_inf_file_path, "/w", None, true)
             .expect_exists(paths.src_cert_file_path.clone(), true)
             .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
-            .expect_signtool_sign_error(paths.dest_driver_binary_path);
+            .expect_signtool_sign(paths.dest_driver_binary_path, false);
 
         let task = harness.task();
         let result = task.run();
@@ -1350,8 +1356,9 @@ mod tests {
                 paths.dest_inf_file_path,
                 CpuArchitecture::Amd64,
                 Some(String::from("1.33")),
+                true,
             )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64", true)
         }
 
         /// Expects the full inf-preparation pipeline: artifact copies,
@@ -1367,12 +1374,12 @@ mod tests {
         fn expect_generate_self_signed_cert_and_sign(&mut self) -> &mut Self {
             let paths = self.paths();
             self.expect_exists(paths.src_cert_file_path.clone(), false)
-                .expect_certmgr_exists_check(false)
-                .expect_certmgr_exists_check(false)
-                .expect_makecert(paths.src_cert_file_path.clone())
+                .expect_certmgr_exists_check(Ok(certmgr_store_output(false)))
+                .expect_certmgr_exists_check(Ok(certmgr_store_output(false)))
+                .expect_makecert(paths.src_cert_file_path.clone(), true)
                 .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
-                .expect_signtool_sign(paths.dest_driver_binary_path)
-                .expect_signtool_sign(paths.dest_cat_file_path)
+                .expect_signtool_sign(paths.dest_driver_binary_path, true)
+                .expect_signtool_sign(paths.dest_cat_file_path, true)
         }
 
         /// Runs the packaging task and asserts it succeeds.
@@ -1389,9 +1396,9 @@ mod tests {
             self.expect_prepare_inf(true)
                 .expect_exists(paths.src_cert_file_path.clone(), true)
                 .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
-                .expect_signtool_sign(paths.dest_driver_binary_path)
-                .expect_signtool_sign(paths.dest_cat_file_path)
-                .expect_infverif(paths.dest_inf_file_path, "/w", None)
+                .expect_signtool_sign(paths.dest_driver_binary_path, true)
+                .expect_signtool_sign(paths.dest_cat_file_path, true)
+                .expect_infverif(paths.dest_inf_file_path, "/w", None, true)
         }
 
         fn expect_exists(&mut self, path: PathBuf, exists: bool) -> &mut Self {
@@ -1440,11 +1447,37 @@ mod tests {
             self
         }
 
+        /// Sets a single `command_exec.run` expectation matching `command` with
+        /// an exact argument list, returning `result`. The success and
+        /// failure cases share this one matcher, differing only in
+        /// `result`.
+        fn expect_command(
+            &mut self,
+            command: &'static str,
+            expected_args: Vec<String>,
+            result: Result<Output, CommandError>,
+        ) -> &mut Self {
+            self.command_exec
+                .expect_run()
+                .withf(move |cmd, args, _, _| {
+                    cmd == command
+                        && args.len() == expected_args.len()
+                        && args
+                            .iter()
+                            .zip(&expected_args)
+                            .all(|(a, e)| *a == e.as_str())
+                })
+                .once()
+                .return_once(move |_, _, _, _| result);
+            self
+        }
+
         fn expect_stampinf(
             &mut self,
             dest_inf_file_path: PathBuf,
             arch: CpuArchitecture,
             wdf_version: Option<String>,
+            succeeds: bool,
         ) -> &mut Self {
             self.command_exec
                 .expect_run()
@@ -1466,195 +1499,113 @@ mod tests {
                         })
                 })
                 .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
+                .return_once(move |_, _, _, _| command_outcome("stampinf", succeeds));
             self
         }
 
-        fn expect_stampinf_error(
+        fn expect_inf2cat(
             &mut self,
-            dest_inf_file_path: PathBuf,
-            arch: CpuArchitecture,
-            wdf_version: Option<String>,
+            dest_root: PathBuf,
+            os_mapping: &str,
+            succeeds: bool,
         ) -> &mut Self {
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    let dest_inf = dest_inf_file_path.to_string_lossy().to_string();
-                    command == "stampinf"
-                        && args.len() >= 8
-                        && args[0] == "-f"
-                        && args[1] == dest_inf
-                        && args[4] == "-a"
-                        && args[5] == arch.to_string()
-                        && wdf_version.as_deref().is_none_or(|version| {
-                            args.windows(2).any(|window| window == ["-k", version])
-                        })
-                })
-                .once()
-                .return_once(|_, _, _, _| Err(command_error("stampinf")));
-            self
-        }
-
-        fn expect_inf2cat(&mut self, dest_root: PathBuf, os_mapping: &str) -> &mut Self {
             let trimmed_dest_root = dest_root
                 .to_string_lossy()
                 .trim_start_matches("\\\\?\\")
                 .to_string();
-            let expected_driver_arg = format!("/driver:{trimmed_dest_root}");
-            let expected_os_arg = format!("/os:{os_mapping}");
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "inf2cat"
-                        && args
-                            == [
-                                expected_driver_arg.as_str(),
-                                expected_os_arg.as_str(),
-                                "/uselocaltime",
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
-            self
+            self.expect_command(
+                "inf2cat",
+                vec![
+                    format!("/driver:{trimmed_dest_root}"),
+                    format!("/os:{os_mapping}"),
+                    "/uselocaltime".to_string(),
+                ],
+                command_outcome("inf2cat", succeeds),
+            )
         }
 
-        fn expect_inf2cat_error(&mut self, dest_root: PathBuf, os_mapping: &str) -> &mut Self {
-            let trimmed_dest_root = dest_root
-                .to_string_lossy()
-                .trim_start_matches("\\\\?\\")
-                .to_string();
-            let expected_driver_arg = format!("/driver:{trimmed_dest_root}");
-            let expected_os_arg = format!("/os:{os_mapping}");
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "inf2cat"
-                        && args
-                            == [
-                                expected_driver_arg.as_str(),
-                                expected_os_arg.as_str(),
-                                "/uselocaltime",
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Err(command_error("inf2cat")));
-            self
-        }
-
-        fn expect_certmgr_exists_check(&mut self, has_cert: bool) -> &mut Self {
-            let stdout = if has_cert {
-                r"==============Certificate # 1 ==========
-                Subject::
-                [0,0] 2.5.4.3 (CN) WDRLocalTestCert
-                CertMgr Succeeded"
-                    .as_bytes()
-                    .to_vec()
-            } else {
-                r"==============No Certificates ==========
-                CertMgr Succeeded"
-                    .as_bytes()
-                    .to_vec()
-            };
-            self.command_exec
-                .expect_run()
-                .withf(|command, args, _, _| {
-                    command == "certmgr.exe" && args == ["-s", WDR_TEST_CERT_STORE]
-                })
-                .once()
-                .return_once(move |_, _, _, _| {
-                    Ok(Output {
-                        status: ExitStatus::default(),
-                        stdout,
-                        stderr: vec![],
-                    })
-                });
-            self
+        fn expect_certmgr_exists_check(
+            &mut self,
+            result: Result<Output, CommandError>,
+        ) -> &mut Self {
+            self.expect_command(
+                "certmgr.exe",
+                vec!["-s".to_string(), WDR_TEST_CERT_STORE.to_string()],
+                result,
+            )
         }
 
         fn expect_certmgr_create_cert_from_store(&mut self, cert_path: PathBuf) -> &mut Self {
             let cert_path = cert_path.to_string_lossy().to_string();
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "certmgr.exe"
-                        && args
-                            == [
-                                "-put",
-                                "-s",
-                                WDR_TEST_CERT_STORE,
-                                "-c",
-                                "-n",
-                                WDR_LOCAL_TEST_CERT,
-                                cert_path.as_str(),
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
-            self
+            self.expect_command(
+                "certmgr.exe",
+                vec![
+                    "-put".to_string(),
+                    "-s".to_string(),
+                    WDR_TEST_CERT_STORE.to_string(),
+                    "-c".to_string(),
+                    "-n".to_string(),
+                    WDR_LOCAL_TEST_CERT.to_string(),
+                    cert_path,
+                ],
+                Ok(success_output()),
+            )
         }
 
-        fn expect_makecert(&mut self, cert_path: PathBuf) -> &mut Self {
+        fn expect_makecert(&mut self, cert_path: PathBuf, succeeds: bool) -> &mut Self {
             let cert_path = cert_path.to_string_lossy().to_string();
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "makecert"
-                        && args
-                            == [
-                                "-r",
-                                "-pe",
-                                "-a",
-                                "SHA256",
-                                "-eku",
-                                "1.3.6.1.5.5.7.3.3",
-                                "-ss",
-                                WDR_TEST_CERT_STORE,
-                                "-n",
-                                "CN=WDRLocalTestCert",
-                                cert_path.as_str(),
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
-            self
+            self.expect_command(
+                "makecert",
+                vec![
+                    "-r".to_string(),
+                    "-pe".to_string(),
+                    "-a".to_string(),
+                    "SHA256".to_string(),
+                    "-eku".to_string(),
+                    "1.3.6.1.5.5.7.3.3".to_string(),
+                    "-ss".to_string(),
+                    WDR_TEST_CERT_STORE.to_string(),
+                    "-n".to_string(),
+                    "CN=WDRLocalTestCert".to_string(),
+                    cert_path,
+                ],
+                command_outcome("makecert", succeeds),
+            )
         }
 
-        fn expect_signtool_sign(&mut self, file_path: PathBuf) -> &mut Self {
+        fn expect_signtool_sign(&mut self, file_path: PathBuf, succeeds: bool) -> &mut Self {
             let file_path = file_path.to_string_lossy().to_string();
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "signtool"
-                        && args
-                            == [
-                                "sign",
-                                "/v",
-                                "/s",
-                                WDR_TEST_CERT_STORE,
-                                "/n",
-                                WDR_LOCAL_TEST_CERT,
-                                "/t",
-                                "http://timestamp.digicert.com",
-                                "/fd",
-                                "SHA256",
-                                file_path.as_str(),
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
-            self
+            self.expect_command(
+                "signtool",
+                vec![
+                    "sign".to_string(),
+                    "/v".to_string(),
+                    "/s".to_string(),
+                    WDR_TEST_CERT_STORE.to_string(),
+                    "/n".to_string(),
+                    WDR_LOCAL_TEST_CERT.to_string(),
+                    "/t".to_string(),
+                    "http://timestamp.digicert.com".to_string(),
+                    "/fd".to_string(),
+                    "SHA256".to_string(),
+                    file_path,
+                ],
+                command_outcome("signtool", succeeds),
+            )
         }
 
         fn expect_signtool_verify(&mut self, file_path: PathBuf) -> &mut Self {
             let file_path = file_path.to_string_lossy().to_string();
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "signtool" && args == ["verify", "/v", "/pa", file_path.as_str()]
-                })
-                .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
-            self
+            self.expect_command(
+                "signtool",
+                vec![
+                    "verify".to_string(),
+                    "/v".to_string(),
+                    "/pa".to_string(),
+                    file_path,
+                ],
+                Ok(success_output()),
+            )
         }
 
         fn expect_infverif(
@@ -1662,126 +1613,19 @@ mod tests {
             inf_path: PathBuf,
             driver_flag: &str,
             sample_flag: Option<&'static str>,
+            succeeds: bool,
         ) -> &mut Self {
             let inf_path = inf_path.to_string_lossy().to_string();
-            let expected_args = if let Some(sample_flag) = sample_flag {
-                vec![
-                    "/v".to_string(),
-                    driver_flag.to_string(),
-                    sample_flag.to_string(),
-                    inf_path,
-                ]
-            } else {
-                vec!["/v".to_string(), driver_flag.to_string(), inf_path]
-            };
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "infverif"
-                        && args.len() == expected_args.len()
-                        && args
-                            .iter()
-                            .zip(expected_args.iter())
-                            .all(|(actual, expected)| actual == expected)
-                })
-                .once()
-                .return_once(|_, _, _, _| Ok(success_output()));
-            self
-        }
-
-        fn expect_certmgr_exists_check_error(&mut self) -> &mut Self {
-            self.command_exec
-                .expect_run()
-                .withf(|command, args, _, _| {
-                    command == "certmgr.exe" && args == ["-s", WDR_TEST_CERT_STORE]
-                })
-                .once()
-                .return_once(|_, _, _, _| Err(command_error("certmgr.exe")));
-            self
-        }
-
-        fn expect_makecert_error(&mut self, cert_path: PathBuf) -> &mut Self {
-            let cert_path = cert_path.to_string_lossy().to_string();
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "makecert"
-                        && args
-                            == [
-                                "-r",
-                                "-pe",
-                                "-a",
-                                "SHA256",
-                                "-eku",
-                                "1.3.6.1.5.5.7.3.3",
-                                "-ss",
-                                WDR_TEST_CERT_STORE,
-                                "-n",
-                                "CN=WDRLocalTestCert",
-                                cert_path.as_str(),
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Err(command_error("makecert")));
-            self
-        }
-
-        fn expect_signtool_sign_error(&mut self, file_path: PathBuf) -> &mut Self {
-            let file_path = file_path.to_string_lossy().to_string();
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "signtool"
-                        && args
-                            == [
-                                "sign",
-                                "/v",
-                                "/s",
-                                WDR_TEST_CERT_STORE,
-                                "/n",
-                                WDR_LOCAL_TEST_CERT,
-                                "/t",
-                                "http://timestamp.digicert.com",
-                                "/fd",
-                                "SHA256",
-                                file_path.as_str(),
-                            ]
-                })
-                .once()
-                .return_once(|_, _, _, _| Err(command_error("signtool")));
-            self
-        }
-
-        fn expect_infverif_error(
-            &mut self,
-            inf_path: PathBuf,
-            driver_flag: &str,
-            sample_flag: Option<&'static str>,
-        ) -> &mut Self {
-            let inf_path = inf_path.to_string_lossy().to_string();
-            let expected_args = if let Some(sample_flag) = sample_flag {
-                vec![
-                    "/v".to_string(),
-                    driver_flag.to_string(),
-                    sample_flag.to_string(),
-                    inf_path,
-                ]
-            } else {
-                vec!["/v".to_string(), driver_flag.to_string(), inf_path]
-            };
-            self.command_exec
-                .expect_run()
-                .withf(move |command, args, _, _| {
-                    command == "infverif"
-                        && args.len() == expected_args.len()
-                        && args
-                            .iter()
-                            .zip(expected_args.iter())
-                            .all(|(actual, expected)| actual == expected)
-                })
-                .once()
-                .return_once(|_, _, _, _| Err(command_error("infverif")));
-            self
+            let mut expected_args = vec!["/v".to_string(), driver_flag.to_string()];
+            if let Some(sample_flag) = sample_flag {
+                expected_args.push(sample_flag.to_string());
+            }
+            expected_args.push(inf_path);
+            self.expect_command(
+                "infverif",
+                expected_args,
+                command_outcome("infverif", succeeds),
+            )
         }
 
         fn expect_wdk_build_number(&mut self, build_number: u32) -> &mut Self {
@@ -1803,6 +1647,40 @@ mod tests {
         Output {
             status: ExitStatus::default(),
             stdout: vec![],
+            stderr: vec![],
+        }
+    }
+
+    /// Builds the `command_exec.run` result for a command expectation: a
+    /// success output when `succeeds`, otherwise a `CommandError` for
+    /// `command`.
+    fn command_outcome(command: &'static str, succeeds: bool) -> Result<Output, CommandError> {
+        if succeeds {
+            Ok(success_output())
+        } else {
+            Err(command_error(command))
+        }
+    }
+
+    /// Builds the `certmgr.exe -s` stdout indicating whether the test cert is
+    /// present in the store.
+    fn certmgr_store_output(has_cert: bool) -> Output {
+        let stdout = if has_cert {
+            r"==============Certificate # 1 ==========
+                Subject::
+                [0,0] 2.5.4.3 (CN) WDRLocalTestCert
+                CertMgr Succeeded"
+                .as_bytes()
+                .to_vec()
+        } else {
+            r"==============No Certificates ==========
+                CertMgr Succeeded"
+                .as_bytes()
+                .to_vec()
+        };
+        Output {
+            status: ExitStatus::default(),
+            stdout,
             stderr: vec![],
         }
     }
