@@ -817,62 +817,21 @@ mod tests {
 
     #[test]
     fn run_packages_driver_with_expected_operations() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), false)
-            .expect_create_dir_ok(paths.dest_root_package_folder.clone())
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
-            .expect_exists(paths.src_cert_file_path.clone(), false)
-            .expect_certmgr_exists_check(false)
-            .expect_certmgr_exists_check(false)
-            .expect_makecert(paths.src_cert_file_path.clone())
-            .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
-            .expect_signtool_sign(paths.dest_driver_binary_path)
-            .expect_signtool_sign(paths.dest_cat_file_path)
+            .expect_prepare_inf(false)
+            .expect_generate_self_signed_cert_and_sign()
             .expect_infverif(paths.dest_inf_file_path, "/w", None);
 
-        let task = harness.task();
-        let result = task.run();
-
-        assert!(
-            result.is_ok(),
-            "package task failed unexpectedly: {result:?}"
-        );
+        harness.run_and_expect_success();
     }
 
     #[test]
     fn run_verifies_signatures_when_enabled() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new().with_sign_mode(SignMode::Test {
             verify_signature: true,
         });
@@ -883,20 +842,12 @@ mod tests {
             .expect_signtool_verify(paths.dest_driver_binary_path)
             .expect_signtool_verify(paths.dest_cat_file_path);
 
-        let task = harness.task();
-        let result = task.run();
-
-        assert!(
-            result.is_ok(),
-            "package task failed unexpectedly: {result:?}"
-        );
+        harness.run_and_expect_success();
     }
 
     #[test]
     fn run_skips_signing_and_verification_when_sign_mode_is_off() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new().with_sign_mode(SignMode::Off);
         let paths = harness.paths();
 
@@ -904,77 +855,20 @@ mod tests {
         // skipped. No expectations are set for those commands, so any attempt to
         // run them would fail the test as an unmatched mock expectation.
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), false)
-            .expect_create_dir_ok(paths.dest_root_package_folder.clone())
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path,
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_prepare_inf(false)
             .expect_infverif(paths.dest_inf_file_path, "/w", None);
 
-        let task = harness.task();
-        let result = task.run();
-
-        assert!(
-            result.is_ok(),
-            "package task failed unexpectedly: {result:?}"
-        );
+        harness.run_and_expect_success();
     }
 
     #[test]
     fn run_exports_certificate_from_store_when_it_already_exists() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_prepare_inf(true)
             .expect_exists(paths.src_cert_file_path.clone(), false)
             .expect_certmgr_exists_check(true)
             .expect_certmgr_create_cert_from_store(paths.src_cert_file_path.clone())
@@ -983,20 +877,12 @@ mod tests {
             .expect_signtool_sign(paths.dest_cat_file_path)
             .expect_infverif(paths.dest_inf_file_path, "/w", None);
 
-        let task = harness.task();
-        let result = task.run();
-
-        assert!(
-            result.is_ok(),
-            "package task failed unexpectedly: {result:?}"
-        );
+        harness.run_and_expect_success();
     }
 
     #[test]
     fn run_returns_error_when_inx_file_is_missing() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
         harness.expect_exists(paths.src_inx_file_path.clone(), false);
@@ -1013,9 +899,7 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_copying_driver_binary_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
@@ -1050,37 +934,15 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_stampinf_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
-        harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder, true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path,
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf_error(
-                paths.dest_inf_file_path,
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            );
+        harness.expect_copy_artifacts(true).expect_stampinf_error(
+            paths.dest_inf_file_path,
+            CpuArchitecture::Amd64,
+            Some(String::from("1.33")),
+        );
 
         let task = harness.task();
         let result = task.run();
@@ -1090,32 +952,12 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_inf2cat_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path,
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+            .expect_copy_artifacts(true)
             .expect_stampinf(
                 paths.dest_inf_file_path,
                 CpuArchitecture::Amd64,
@@ -1131,39 +973,15 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_infverif_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
-        harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path,
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
-            .expect_infverif_error(paths.dest_inf_file_path, "/w", None);
+        harness.expect_prepare_inf(true).expect_infverif_error(
+            paths.dest_inf_file_path,
+            "/w",
+            None,
+        );
 
         let task = harness.task();
         let result = task.run();
@@ -1176,40 +994,14 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_certmgr_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
         // Packaging succeeds up to infverif; certificate generation then queries the
         // store via certmgr, which fails here.
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path,
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_prepare_inf(true)
             .expect_infverif(paths.dest_inf_file_path, "/w", None)
             .expect_exists(paths.src_cert_file_path, false)
             .expect_certmgr_exists_check_error();
@@ -1225,40 +1017,14 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_makecert_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
         // No cert on disk and none in the store, so the task falls through to
         // makecert, which fails here.
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path,
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_prepare_inf(true)
             .expect_infverif(paths.dest_inf_file_path, "/w", None)
             .expect_exists(paths.src_cert_file_path.clone(), false)
             .expect_certmgr_exists_check(false)
@@ -1276,40 +1042,14 @@ mod tests {
 
     #[test]
     fn run_returns_error_when_signtool_fails() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new();
         let paths = harness.paths();
 
         // Certificate already on disk, so signing proceeds directly; signtool fails
         // on the driver binary.
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path.clone(),
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+            .expect_prepare_inf(true)
             .expect_infverif(paths.dest_inf_file_path, "/w", None)
             .expect_exists(paths.src_cert_file_path.clone(), true)
             .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
@@ -1326,61 +1066,22 @@ mod tests {
 
     #[test]
     fn run_skips_infverif_for_samples_when_wdk_build_is_in_bugged_range() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         let mut harness = PackageTaskHarness::new().with_sample_class(true);
-        let paths = harness.paths();
 
+        // infverif calls detect_wdk_build_number and skips for samples in the bugged
+        // range, so no infverif command is expected.
         harness
-            .expect_exists(paths.src_inx_file_path.clone(), true)
-            .expect_exists(paths.dest_root_package_folder.clone(), true)
-            .expect_rename(
-                paths.src_driver_binary_file_path,
-                paths.src_renamed_driver_binary_file_path.clone(),
-                Ok(()),
-            )
-            .expect_copy(
-                paths.src_renamed_driver_binary_file_path,
-                paths.dest_driver_binary_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-            .expect_copy(
-                paths.src_inx_file_path,
-                paths.dest_inf_file_path.clone(),
-                Ok(1),
-            )
-            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-            .expect_stampinf(
-                paths.dest_inf_file_path,
-                CpuArchitecture::Amd64,
-                Some(String::from("1.33")),
-            )
-            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
-            .expect_exists(paths.src_cert_file_path.clone(), false)
-            .expect_certmgr_exists_check(false)
-            .expect_certmgr_exists_check(false)
-            .expect_makecert(paths.src_cert_file_path.clone())
-            .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
-            .expect_signtool_sign(paths.dest_driver_binary_path)
-            .expect_signtool_sign(paths.dest_cat_file_path)
+            .expect_prepare_inf(true)
+            .expect_generate_self_signed_cert_and_sign()
             .expect_wdk_build_number(25798);
 
-        let task = harness.task();
-        let result = task.run();
-
-        assert!(
-            result.is_ok(),
-            "package task failed unexpectedly: {result:?}"
-        );
+        harness.run_and_expect_success();
     }
 
     #[test]
     fn stampinf_version_overrides_with_env_var() {
-        let _lock = TEST_MUTEX
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _lock = lock_test();
         // verify both with and without the env var set scenarios
         let scenarios = [
             ("env_set", Some("1.2.3.4"), true),
@@ -1614,33 +1315,78 @@ mod tests {
     }
 
     impl PackageTaskHarness {
-        fn expect_successful_packaging_without_verification(&mut self) -> &mut Self {
+        /// Expects the `.inx` check, the destination-folder check (and its
+        /// creation when `dest_root_exists` is false), the driver-binary
+        /// rename, and the copies of every packaged artifact (driver
+        /// binary, pdb, inf, map). This is the common prefix of every
+        /// successful packaging run up to (but not including)
+        /// `stampinf`.
+        fn expect_copy_artifacts(&mut self, dest_root_exists: bool) -> &mut Self {
             let paths = self.paths();
             self.expect_exists(paths.src_inx_file_path.clone(), true)
-                .expect_exists(paths.dest_root_package_folder.clone(), true)
-                .expect_rename(
-                    paths.src_driver_binary_file_path,
-                    paths.src_renamed_driver_binary_file_path.clone(),
-                    Ok(()),
-                )
-                .expect_copy(
-                    paths.src_renamed_driver_binary_file_path,
-                    paths.dest_driver_binary_path.clone(),
-                    Ok(1),
-                )
-                .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
-                .expect_copy(
-                    paths.src_inx_file_path,
-                    paths.dest_inf_file_path.clone(),
-                    Ok(1),
-                )
-                .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
-                .expect_stampinf(
-                    paths.dest_inf_file_path.clone(),
-                    CpuArchitecture::Amd64,
-                    Some(String::from("1.33")),
-                )
-                .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+                .expect_exists(paths.dest_root_package_folder.clone(), dest_root_exists);
+            if !dest_root_exists {
+                self.expect_create_dir_ok(paths.dest_root_package_folder);
+            }
+            self.expect_rename(
+                paths.src_driver_binary_file_path,
+                paths.src_renamed_driver_binary_file_path.clone(),
+                Ok(()),
+            )
+            .expect_copy(
+                paths.src_renamed_driver_binary_file_path,
+                paths.dest_driver_binary_path,
+                Ok(1),
+            )
+            .expect_copy(paths.src_pdb_file_path, paths.dest_pdb_file_path, Ok(1))
+            .expect_copy(paths.src_inx_file_path, paths.dest_inf_file_path, Ok(1))
+            .expect_copy(paths.src_map_file_path, paths.dest_map_file_path, Ok(1))
+        }
+
+        /// Expects a successful `stampinf` followed by a successful `inf2cat`.
+        fn expect_stampinf_and_inf2cat(&mut self) -> &mut Self {
+            let paths = self.paths();
+            self.expect_stampinf(
+                paths.dest_inf_file_path,
+                CpuArchitecture::Amd64,
+                Some(String::from("1.33")),
+            )
+            .expect_inf2cat(paths.dest_root_package_folder, "10_x64")
+        }
+
+        /// Expects the full inf-preparation pipeline: artifact copies,
+        /// `stampinf`, and `inf2cat`.
+        fn expect_prepare_inf(&mut self, dest_root_exists: bool) -> &mut Self {
+            self.expect_copy_artifacts(dest_root_exists)
+                .expect_stampinf_and_inf2cat()
+        }
+
+        /// Expects the self-signed-certificate path (no cert on disk or in the
+        /// store, so `makecert` generates one) followed by signing the driver
+        /// binary and catalog file.
+        fn expect_generate_self_signed_cert_and_sign(&mut self) -> &mut Self {
+            let paths = self.paths();
+            self.expect_exists(paths.src_cert_file_path.clone(), false)
+                .expect_certmgr_exists_check(false)
+                .expect_certmgr_exists_check(false)
+                .expect_makecert(paths.src_cert_file_path.clone())
+                .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
+                .expect_signtool_sign(paths.dest_driver_binary_path)
+                .expect_signtool_sign(paths.dest_cat_file_path)
+        }
+
+        /// Runs the packaging task and asserts it succeeds.
+        fn run_and_expect_success(&self) {
+            let result = self.task().run();
+            assert!(
+                result.is_ok(),
+                "package task failed unexpectedly: {result:?}"
+            );
+        }
+
+        fn expect_successful_packaging_without_verification(&mut self) -> &mut Self {
+            let paths = self.paths();
+            self.expect_prepare_inf(true)
                 .expect_exists(paths.src_cert_file_path.clone(), true)
                 .expect_copy(paths.src_cert_file_path, paths.dest_cert_file_path, Ok(1))
                 .expect_signtool_sign(paths.dest_driver_binary_path)
@@ -2045,6 +1791,12 @@ mod tests {
                 .return_once(move || Ok(build_number));
             self
         }
+    }
+
+    fn lock_test() -> std::sync::MutexGuard<'static, ()> {
+        TEST_MUTEX
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn success_output() -> Output {
