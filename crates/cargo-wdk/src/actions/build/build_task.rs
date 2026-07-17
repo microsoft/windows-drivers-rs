@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use cargo_metadata::Message;
 use clap_cargo::Features;
+use mockall::automock;
 use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
@@ -24,6 +25,7 @@ use crate::{
 };
 
 /// Parameters for constructing a [`BuildTask`].
+#[derive(Clone, Copy)]
 pub struct BuildTaskParams<'a> {
     /// The name of the package to build
     pub package_name: &'a str,
@@ -39,6 +41,32 @@ pub struct BuildTaskParams<'a> {
     pub features: &'a Features,
     /// The verbosity level for logging
     pub verbosity_level: clap_verbosity_flag::Verbosity,
+}
+
+#[derive(Debug, Default)]
+#[cfg_attr(test, allow(dead_code))]
+pub struct BuildTaskRunner {}
+
+#[automock]
+#[allow(clippy::unused_self, clippy::elidable_lifetime_names)]
+#[cfg_attr(test, allow(dead_code))]
+impl BuildTaskRunner {
+    // Returns `Box<dyn Iterator<...>>` rather than `impl Iterator<...>` because
+    // this method is `#[automock]`ed. mockall must be able to *name* the return
+    // type to generate the mock's expectation storage, and it cannot mock an
+    // opaque `impl Trait` return. Boxing into a trait object gives mockall a
+    // concrete, nameable type while still forwarding `BuildTask::run`'s lazy
+    // message stream, so consumers like `get_target_dir_from_output` can
+    // short-circuit instead of parsing/allocating every cargo message up front.
+    pub fn run<'a>(
+        &self,
+        params: &BuildTaskParams<'a>,
+        command_exec: &CommandExec,
+    ) -> Result<Box<dyn Iterator<Item = Result<Message, std::io::Error>>>, BuildTaskError> {
+        BuildTask::new(*params, command_exec).run().map(|messages| {
+            Box::new(messages) as Box<dyn Iterator<Item = Result<Message, std::io::Error>>>
+        })
+    }
 }
 
 /// Builds specified package by running `cargo build`  
@@ -90,9 +118,14 @@ impl<'a> BuildTask<'a> {
     ///   not a valid unicode
     /// * `BuildTaskError::CargoBuild` - If there is an error running the `cargo
     ///   build` command
+    // `+ use<>` opts this RPIT out of capturing the `&self` lifetime (edition
+    // 2024 captures in-scope lifetimes by default). The returned iterator owns
+    // its buffer (`Cursor<Vec<u8>>`), so it is effectively `'static`; opting out
+    // of the capture lets `BuildTaskRunner::run` move it out of the temporary
+    // `BuildTask` and box it as a `'static` trait object.
     pub fn run(
         &self,
-    ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
+    ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>> + use<>, BuildTaskError> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json-render-diagnostics".to_string());
