@@ -359,8 +359,6 @@ fn kmdf_driver_builds_successfully_with_sign_mode_off() {
     });
 }
 
-/// `--sign-mode=off` together with `--verify-signature` is rejected at the CLI
-/// layer
 #[test]
 fn sign_mode_off_with_verify_signature_is_rejected() {
     let driver = "kmdf-driver";
@@ -377,6 +375,47 @@ fn sign_mode_off_with_verify_signature_is_rejected() {
         stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
         "expected validation error mentioning both flags, got: {stderr}"
     );
+}
+
+#[test]
+fn kmdf_driver_with_inf2cat_args_os_override_builds_successfully() {
+    let driver = "kmdf-driver";
+    let os_arg = format!("/os:{}", host_matching_os_id());
+    clean_build_and_verify_project(
+        "kmdf",
+        driver,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&["--inf2cat-args", os_arg.as_str()]),
+    );
+}
+
+#[test]
+fn kmdf_driver_with_inf2cat_args_arch_os_mismatch_fails() {
+    wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        run_clean_cmd(&project_path);
+        let os_arg = format!("/os:{}", host_mismatching_os_id());
+        let mut cmd = create_cargo_wdk_cmd(
+            "build",
+            Some(&["--inf2cat-args", os_arg.as_str()]),
+            None,
+            Some(&project_path),
+        );
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+        assert!(
+            stderr.to_lowercase().contains("inf2cat"),
+            "expected an inf2cat failure for an arch/OS mismatch, got: {stderr}"
+        );
+        run_clean_cmd(&project_path);
+    });
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -691,5 +730,21 @@ fn cross_compile_target_arch() -> &'static str {
             "Unsupported host architecture '{other}' for cross-compilation tests. Expected \
              'x86_64' or 'aarch64'."
         ),
+    }
+}
+
+fn host_matching_os_id() -> &'static str {
+    match env::consts::ARCH {
+        "x86_64" => "10_x64",
+        "aarch64" => "Server10_arm64",
+        other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
+    }
+}
+
+fn host_mismatching_os_id() -> &'static str {
+    match env::consts::ARCH {
+        "x86_64" => "Server10_arm64",
+        "aarch64" => "10_x64",
+        other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
     }
 }

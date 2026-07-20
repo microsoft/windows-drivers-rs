@@ -44,6 +44,7 @@ pub struct BuildActionParams<'a> {
     pub locked: bool,
     pub features: &'a Features,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
+    pub inf2cat_args: Vec<String>,
 }
 
 /// Action that orchestrates the build and package of a driver project. Build is
@@ -57,6 +58,7 @@ pub struct BuildAction<'a> {
     locked: bool,
     features: &'a Features,
     verbosity_level: clap_verbosity_flag::Verbosity,
+    inf2cat_args: Vec<String>,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -104,6 +106,7 @@ impl<'a> BuildAction<'a> {
             locked: params.locked,
             features: params.features,
             verbosity_level: params.verbosity_level,
+            inf2cat_args: params.inf2cat_args.clone(),
             wdk_build,
             command_exec,
             fs,
@@ -407,6 +410,7 @@ impl<'a> BuildAction<'a> {
                 sign_mode: self.sign_mode,
                 sample_class: self.is_sample_class,
                 driver_model,
+                inf2cat_args: self.inf2cat_args.clone(),
             },
             self.wdk_build,
             self.command_exec,
