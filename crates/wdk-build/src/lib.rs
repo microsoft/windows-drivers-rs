@@ -1060,10 +1060,6 @@ impl Config {
     /// Returns the formatted `#[link]` raw lines for the given [`ApiSubset`],
     /// ready to be passed to bindgen's `raw_line`.
     ///
-    /// Each generated bindings file requests only the native libraries
-    /// introduced by its own [`ApiSubset`]. This avoids duplicate `#[link]`
-    /// directives across generated files.
-    ///
     /// Each emitted directive is gated behind
     /// `#[cfg(not(any(test, feature = "test-stubs")))]`, evaluated in the crate
     /// that compiles the generated bindings (`wdk-sys`). The directives are
@@ -2250,7 +2246,7 @@ mod tests {
         }
 
         #[test]
-        fn render_static_directive_includes_no_bundle_modifier() {
+        fn render_static_directive_disables_bundle() {
             assert_eq!(
                 LinkDirective::new("Foo", LinkKind::Static).render(),
                 format!(
@@ -2370,7 +2366,7 @@ mod tests {
         }
 
         #[test]
-        fn base_directives_are_all_static_no_bundle() {
+        fn base_directives_are_all_static_disables_bundle() {
             let config = config_for("aarch64", DriverConfig::Kmdf(KmdfConfig::new()));
 
             let directives = config.base_libraries();

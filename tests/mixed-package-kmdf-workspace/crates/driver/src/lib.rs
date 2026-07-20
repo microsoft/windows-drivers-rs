@@ -5,7 +5,7 @@
 //!
 //! This is a sample KMDF driver that demonstrates how to use the crates in
 //! windows-driver-rs to create a skeleton of a kmdf driver.
-//! 
+//!
 //! Running `cargo test` the crate is built as a std test harness with
 //! `wdk-sys`'s `test-stubs` feature enabled (see dev-dependencies): that
 //! suppresses the generated WDK `#[link]` directives and `wdk_sys::test_stubs`
