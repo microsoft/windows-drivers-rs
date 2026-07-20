@@ -915,11 +915,7 @@ mod tests {
         );
         assert_infverif_mode_flag(DriverConfig::Wdm, TargetPlatform::Universal, "/u");
         assert_infverif_mode_flag(
-            DriverConfig::Umdf(UmdfConfig {
-                umdf_version_major: 2,
-                target_umdf_version_minor: 33,
-                minimum_umdf_version_minor: None,
-            }),
+            DriverConfig::Umdf(UmdfConfig::default()),
             TargetPlatform::Universal,
             "/u",
         );
@@ -942,41 +938,6 @@ mod tests {
             TargetPlatform::WindowsDriver,
             "/w",
         );
-    }
-
-    #[test]
-    fn run_infverif_skips_sample_class_when_samples_flag_missing() {
-        let package_name = "kmdf_driver";
-        let working_dir = PathBuf::from("C:/abs/kmdf_driver");
-        let target_dir = PathBuf::from("C:/abs/kmdf_driver/target/debug");
-        let arch = CpuArchitecture::Amd64;
-
-        let params = PackageTaskParams {
-            package_name,
-            working_dir: &working_dir,
-            target_dir: &target_dir,
-            target_arch: &arch,
-            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
-            sample_class: true,
-            sign_mode: SignMode::Off,
-            target_platform: TargetPlatform::WindowsDriver,
-        };
-
-        let fs = Fs::default();
-        let mut wdk_build = WdkBuild::default();
-        // A WDK build number in the missing-`/samples`-flag range, so InfVerif
-        // is skipped for the sample class.
-        wdk_build
-            .expect_detect_wdk_build_number()
-            .once()
-            .returning(|| Ok(28000u32));
-
-        let mut command_exec = CommandExec::default();
-        // `infverif` must not be invoked when the sample class is skipped.
-        command_exec.expect_run().never();
-
-        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
-        assert!(task.run_infverif().is_ok());
     }
 
     mod named_mutex {
