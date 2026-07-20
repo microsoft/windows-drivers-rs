@@ -85,6 +85,35 @@ fn kmdf_driver_builds_successfully_with_locked_flag() {
 }
 
 #[test]
+fn kmdf_driver_builds_successfully_with_windows_driver_target_platform() {
+    let driver = "kmdf-driver";
+    let project_path = format!("tests/{driver}");
+    with_mutex(&project_path, || {
+        run_clean_cmd(&project_path);
+        assert_target_dir_does_not_exist(&project_path);
+
+        let stderr = run_build_cmd(
+            &project_path,
+            Some(&["--target-platform", "windows-driver", "-v"]),
+            None,
+        );
+
+        assert!(stderr.contains(&format!("Building package {driver}")));
+        assert!(stderr.contains(&format!("Finished building {driver}")));
+        assert!(
+            stderr.contains("Running: infverif [\"/v\", \"/w\""),
+            "expected infverif to run with the Windows Driver mode flag (/w); stderr:\n{stderr}"
+        );
+
+        verify_driver_package_files(&project_path, driver, "sys", None, None, None);
+
+        run_clean_cmd(&project_path);
+        assert_target_dir_does_not_exist(&project_path);
+        assert_package_dir_does_not_exist(&project_path, driver, None, "debug");
+    });
+}
+
+#[test]
 fn kmdf_driver_cross_compiles_with_cli_option_successfully() {
     let driver = "kmdf-driver";
     let target_arch = cross_compile_target_arch();
