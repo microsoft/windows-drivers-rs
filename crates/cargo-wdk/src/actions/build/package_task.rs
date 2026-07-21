@@ -43,7 +43,7 @@ pub enum SignMode {
     },
 }
 
-// InfVerif in WDK builds in this range is bugged and does not contain the
+// InfVerif in WDK builds in this range is buggy and does not contain the
 // /samples flag.
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
@@ -547,7 +547,7 @@ impl<'a> PackageTask<'a> {
             match wdk_build_number {
                 n if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&n) => {
                     debug!(
-                        "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain \
+                        "InfVerif in WDK Build {wdk_build_number} is buggy and does not contain \
                          the /samples flag."
                     );
                     warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
