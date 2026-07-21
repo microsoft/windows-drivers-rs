@@ -5,14 +5,6 @@
 //!
 //! This is a sample KMDF driver that demonstrates how to use the crates in
 //! windows-driver-rs to create a skeleton of a kmdf driver.
-//!
-//! Running `cargo test` the crate is built as a std test harness with
-//! `wdk-sys`'s `test-stubs` feature enabled (see dev-dependencies): that
-//! suppresses the generated WDK `#[link]` directives and `wdk_sys::test_stubs`
-//! supplies the `DriverEntry`/`WdfFunctions` symbols. The harness links and
-//! runs in user mode without pulling in KM libs. The driver's
-//! own `DriverEntry` MUST be `#[cfg(not(test))]`, otherwise
-//! it collides with the stub's `DriverEntry`.
 
 #![cfg_attr(not(test), no_std)]
 
@@ -201,17 +193,13 @@ extern "C" fn evt_driver_device_add(
 mod tests {
     use wdk_sys::{ULONG, WDF_DRIVER_CONFIG};
 
-    /// Checks a real invariant the driver's `DriverEntry` relies on: it stores
-    /// `size_of::<WDF_DRIVER_CONFIG>()` into the `ULONG` `Size` field (see the
-    /// `const assert!` in `driver_entry`), so the size must fit in a `ULONG`
-    /// for the KMDF configuration this crate is built against.
+    /// Checks a real invariant the driver's `DriverEntry` relies on.
+    /// It references a bindgen generated type so the test actually links
+    /// generated bindings while touching only a type (never a KM function
+    /// binding that is unlinked).
     ///
-    /// The value is that this *builds, links, and runs*, proving a
-    /// `wdk-sys`-dependent driver cdylib can host unit tests. The driver's
-    /// `[dev-dependencies]` enable `wdk-sys`'s `test-stubs` feature, whose arm of
-    /// the `#[cfg(not(any(test, feature = "test-stubs")))]` gate suppresses the
-    /// generated WDK `#[link]` directives, so this user-mode exe links without
-    /// kernel-mode libraries.
+    /// The value is that this **builds, links, and runs**, proving a
+    /// `wdk-sys`-dependent driver cdylib can host unit tests.
     #[test]
     fn wdf_driver_config_size_fits_ulong() {
         // Checks a type generated from bindgen and not an FFI

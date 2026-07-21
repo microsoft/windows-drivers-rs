@@ -6,10 +6,6 @@
 //!
 //! These stubs can be brought into scope by introducing `wdk-sys` with the
 //! `test-stubs` feature in the `dev-dependencies` of the crate's `Cargo.toml`
-//!
-//! This feature is intended for test builds only. It also suppresses generated
-//! WDK native library link directives, so tests must not call real WDK APIs
-//! unless those APIs are separately stubbed, mocked, or otherwise provided.
 
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 pub use wdf::*;

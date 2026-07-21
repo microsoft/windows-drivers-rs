@@ -1057,22 +1057,11 @@ impl Config {
             .collect())
     }
 
-    /// Returns the formatted `#[link]` raw lines for the given [`ApiSubset`],
-    /// ready to be passed to bindgen's `raw_line`.
+    /// Returns the formatted `#[link]` raw Strings for the given [`ApiSubset`].
+    /// Returns [`None`] if the [`ApiSubset`] does not define any libraries to
+    /// link.
     ///
-    /// Each emitted directive is gated behind
-    /// `#[cfg(not(any(test, feature = "test-stubs")))]`, evaluated in the crate
-    /// that compiles the generated bindings (`wdk-sys`). The directives are
-    /// therefore suppressed when `wdk-sys` is built with its `test-stubs`
-    /// feature, or when `wdk-sys` is itself compiled as a test target (e.g.
-    /// `cargo test -p wdk-sys`).
-    ///
-    /// Downstream test executables that depend on `wdk-sys` enable its
-    /// `test-stubs` feature to provide stubbed symbols. These executables are
-    /// not driver binaries, so they do not receive the WDK
-    /// `rustc-link-search` paths that [`Config::configure_binary_build`] emits
-    /// and must not link the real WDK libraries. The `test` predicate covers
-    /// the case where `wdk-sys` itself is compiled as a test target.
+    /// Each emitted directive is gated behind [`NOT_TEST_CFG`].
     #[must_use]
     pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
         let libraries = self.libraries(api_subset);
@@ -1577,14 +1566,12 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
 }
 
+/// Logic for the `cfg` attribute of a rendered [`LinkDirective`]
 const NOT_TEST_CFG: &str = r#"not(any(test, feature = "test-stubs"))"#;
 
 /// The `kind` of a `#[link]` attribute (i.e. how the library is linked).
 ///
-/// Only the kinds actually emitted by [`Config`] are modelled; see the
-/// [rustc reference][1] for the full set.
-///
-/// [1]: https://doc.rust-lang.org/reference/items/external-blocks.html#the-link-attribute
+/// [Rust Reference - Link Attribute](https://doc.rust-lang.org/reference/items/external-blocks.html#the-link-attribute)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LinkKind {
     /// `kind = "static"`
@@ -1594,8 +1581,6 @@ enum LinkKind {
 }
 
 impl LinkKind {
-    /// Returns the string used in the `kind = "..."` field of a `#[link]`
-    /// attribute.
     const fn as_str(self) -> &'static str {
         match self {
             Self::Static => "static",
@@ -1607,29 +1592,21 @@ impl LinkKind {
 /// A native library to link into the generated bindings.
 ///
 /// Rendered by [`LinkDirective::render`] as a `#[link(...)]` attribute on an
-/// (empty) `extern` block and emitted into the bindgen output via bindgen's
-/// `raw_line`. Every directive is gated behind [`NOT_TEST_CFG`] so that
-/// non-driver test consumers don't link the real WDK libraries. Static
-/// libraries are emitted with `modifiers = "-bundle"` so they are linked into
-/// the final driver binary instead of bundled into the `wdk-sys` rlib.
+/// empty `extern` block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LinkDirective {
-    /// `name = "..."` — the library to link.
     name: &'static str,
-    /// `kind = "..."` — how the library is linked.
     kind: LinkKind,
 }
 
 impl LinkDirective {
-    /// Creates a link directive.
     const fn new(name: &'static str, kind: LinkKind) -> Self {
         Self { name, kind }
     }
 
     /// Renders this directive into a self-contained block of Rust source.
     ///
-    /// Emitted as a single block so the attributes always stay attached to the
-    /// following `extern` block, regardless of where bindgen places raw lines.
+    /// # Returns a raw String
     fn render(&self) -> String {
         let modifiers = match self.kind {
             LinkKind::Static => r#", modifiers = "-bundle""#,
