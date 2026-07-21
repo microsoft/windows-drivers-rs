@@ -37,6 +37,26 @@ const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
+/// Signing mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignMode {
+    /// Skip signing entirely.
+    Off,
+    /// Test-sign the driver artifacts.
+    Test {
+        /// When `true`, run `signtool verify` on the signed driver binary and
+        /// catalog file after signing.
+        verify_signature: bool,
+        /// Additional `signtool sign` arguments.
+        ///
+        /// When empty, run `signtool sign` with the auto-generated WDR test
+        /// certificate and default switches. When non-empty, auto generation
+        /// is skipped and the caller owns the full signtool command line
+        /// (certificate selection, digest, etc.).
+        signtool_args: Vec<String>,
+    },
+}
+
 #[derive(Debug)]
 pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
@@ -476,20 +496,16 @@ impl<'a> PackageTask<'a> {
     /// `sign /v /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256 <file>`
     ///
     /// When `signtool_args` is non-empty, the caller owns the full signtool
-    /// option set; cargo-wdk only wraps their (already tokenized) arguments
-    /// with the `sign` verb and the trailing file operand:
+    /// command line; cargo-wdk only prepends the `sign` verb to those arguments
+    /// and adds the trailing file operand:
     ///
     /// `sign <signtool_args...> <file>`
-    ///
-    /// Test signing does not timestamp (matching the WDK `MSBuild` `TestSign`
-    /// target); timestamping is a production-signing concern handled by a
-    /// follow-up.
     ///
     /// # Arguments
     ///
     /// * `file_path` - The path to the file to be signed.
-    /// * `signtool_args` - Tokenized user-supplied `signtool sign` arguments,
-    ///   or empty to use the default WDR test-cert flow.
+    /// * `signtool_args` - Additional `signtool sign` arguments, or empty to
+    ///   use the default WDR test-cert flow.
     fn run_signtool_sign(
         &self,
         file_path: &Path,
@@ -590,26 +606,6 @@ impl<'a> PackageTask<'a> {
 
         Ok(())
     }
-}
-
-/// Signing mode.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SignMode {
-    /// Skip signing entirely.
-    Off,
-    /// Test-sign the driver artifacts.
-    Test {
-        /// When `true`, run `signtool verify` on the signed driver binary and
-        /// catalog file after signing.
-        verify_signature: bool,
-        /// Tokenized `signtool sign` arguments.
-        ///
-        /// When empty, run `signtool sign` with the auto-generated WDR test
-        /// certificate and default switches. When non-empty, auto generation
-        /// is skipped and the caller owns the full signtool option set
-        /// (certificate selection, digest, etc.).
-        signtool_args: Vec<String>,
-    },
 }
 
 /// An RAII wrapper over a Win API named mutex
