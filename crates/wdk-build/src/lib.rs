@@ -1061,7 +1061,7 @@ impl Config {
     /// Returns [`None`] if the [`ApiSubset`] does not define any libraries to
     /// link.
     ///
-    /// Each emitted directive is gated behind [`NOT_TEST_CFG`].
+    /// Each emitted directive is gated behind the `NOT_TEST_CFG` logic.
     #[must_use]
     pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
         let libraries = self.libraries(api_subset);
