@@ -299,6 +299,8 @@ fn generate_wdf(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
             let mut builder = bindgen::Builder::wdk_default(config)?
                 .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
                 .header_contents("wdf-input.h", &header_contents)
+                // Only generate for files that are prefixed with (case-insensitive) wdf (ie.
+                // /some/path/WdfSomeHeader.h), to prevent duplication of code in ntddk.rs
                 .allowlist_file("(?i).*wdf.*");
             if let Some(raw_lines) = config.bindgen_library_link_raw_lines(ApiSubset::Wdf) {
                 builder = builder.raw_line(raw_lines);
