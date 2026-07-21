@@ -117,7 +117,7 @@ impl<'a> NewAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        if let Err(e) = self.command_exec.run("cargo", &args, false, None, None) {
+        if let Err(e) = self.command_exec.run("cargo", &args, None, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }
         Ok(())
@@ -673,7 +673,7 @@ mod tests {
             let expected_path = self.path.to_string_lossy().to_string();
             self.mock_exec
                 .expect_run()
-                .withf(move |cmd, args, _, _, _| {
+                .withf(move |cmd, args, _, _| {
                     let matched = cmd == "cargo"
                         && args.len() >= 3
                         && args[0] == "new"
@@ -684,7 +684,7 @@ mod tests {
                         matched && args.len() > 3 && args[3] == flag.as_str()
                     })
                 })
-                .returning(move |_, _, _, _, _| match override_output.clone() {
+                .returning(move |_, _, _, _| match override_output.clone() {
                     Some(output) => match output.status.code() {
                         Some(0) => Ok(Output {
                             status: ExitStatus::from_raw(0),

@@ -118,7 +118,7 @@ pub struct BuildArgs {
     #[arg(
         long,
         value_name = "ARGS",
-        value_parser = parse_signtool_args,
+        value_parser = parse_passthrough_args,
         help_heading = "Driver Signing"
     )]
     pub signtool_args: Option<SigntoolArgs>,
@@ -187,7 +187,7 @@ fn build_error(message: impl std::fmt::Display) -> clap::Error {
 /// - Whitespace separates arguments
 /// - Quoted spans (single or double quotes) are preserved as a single argument
 /// - Unterminated quotes are rejected with an error
-fn parse_signtool_args(raw: &str) -> std::result::Result<SigntoolArgs, String> {
+fn parse_passthrough_args(raw: &str) -> std::result::Result<SigntoolArgs, String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut in_arg = false;
@@ -473,70 +473,6 @@ mod tests {
         }
 
         #[test]
-        fn tokenizes_signtool_args() {
-            let args = parse_build_args(&["--signtool-args", "/fd SHA384 /f cert.pfx"])
-                .expect("args should parse");
-            assert_eq!(
-                SignMode::try_from(&args).expect("mapping should succeed"),
-                SignMode::Test {
-                    verify_signature: false,
-                    signtool_args: vec![
-                        "/fd".to_string(),
-                        "SHA384".to_string(),
-                        "/f".to_string(),
-                        "cert.pfx".to_string(),
-                    ],
-                }
-            );
-        }
-
-        #[test]
-        fn tokenizes_signtool_args_preserving_quoted_spans() {
-            let args = parse_build_args(&["--signtool-args", "/n \"CN=Contoso Root\" /fd SHA256"])
-                .expect("args should parse");
-            assert_eq!(
-                SignMode::try_from(&args).expect("mapping should succeed"),
-                SignMode::Test {
-                    verify_signature: false,
-                    signtool_args: vec![
-                        "/n".to_string(),
-                        "CN=Contoso Root".to_string(),
-                        "/fd".to_string(),
-                        "SHA256".to_string(),
-                    ],
-                }
-            );
-        }
-
-        #[test]
-        fn rejects_unterminated_quote_in_signtool_args() {
-            let err = parse_build_args(&["--signtool-args", "/n \"CN=Contoso"])
-                .expect_err("unterminated quote should be rejected");
-            assert!(
-                err.to_string().contains(
-                    "unterminated `\"` quote in `--signtool-args`; make sure every quote is closed"
-                ),
-                "unexpected error: {err}"
-            );
-        }
-
-        #[test]
-        fn treats_empty_or_whitespace_signtool_args_as_not_provided() {
-            for value in ["", "   ", "\t", "\"\"", "''", "  \"\"  "] {
-                let args =
-                    parse_build_args(&["--signtool-args", value]).expect("args should parse");
-                assert_eq!(
-                    SignMode::try_from(&args).expect("mapping should succeed"),
-                    SignMode::Test {
-                        verify_signature: false,
-                        signtool_args: Vec::new(),
-                    },
-                    "value {value:?} should map to no signtool args"
-                );
-            }
-        }
-
-        #[test]
         fn verify_signature_works_with_signtool_args() {
             let args = parse_build_args(&["--verify-signature", "--signtool-args", "/fd SHA256"])
                 .expect("args should parse");
@@ -547,6 +483,46 @@ mod tests {
                     signtool_args: vec!["/fd".to_string(), "SHA256".to_string()],
                 }
             );
+        }
+    }
+
+    mod parse_passthrough_args {
+        use super::super::parse_passthrough_args;
+
+        #[test]
+        fn tokenizes_whitespace_separated_args() {
+            let parsed = parse_passthrough_args("/fd SHA384 /f cert.pfx").expect("should parse");
+            assert_eq!(parsed.0, vec!["/fd", "SHA384", "/f", "cert.pfx"]);
+        }
+
+        #[test]
+        fn preserves_quoted_spans() {
+            let parsed =
+                parse_passthrough_args("/n \"CN=Contoso Root\" /fd SHA256").expect("should parse");
+            assert_eq!(parsed.0, vec!["/n", "CN=Contoso Root", "/fd", "SHA256"]);
+        }
+
+        #[test]
+        fn rejects_unterminated_quote() {
+            let err = parse_passthrough_args("/n \"CN=Contoso")
+                .expect_err("unterminated quote should be rejected");
+            assert!(
+                err.contains(
+                    "unterminated `\"` quote in `--signtool-args`; make sure every quote is closed"
+                ),
+                "unexpected error: {err}"
+            );
+        }
+
+        #[test]
+        fn treats_empty_or_whitespace_as_no_args() {
+            for value in ["", "   ", "\t", "\"\"", "''", "  \"\"  "] {
+                let parsed = parse_passthrough_args(value).expect("should parse");
+                assert!(
+                    parsed.0.is_empty(),
+                    "value {value:?} should parse to no args"
+                );
+            }
         }
     }
 }
