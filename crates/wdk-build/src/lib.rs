@@ -1226,7 +1226,7 @@ impl Config {
 
         // TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
         // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be moved to
-        // the wdk-sys build script
+        // their respective functions collected by `libraries`
         match &self.driver_config {
             DriverConfig::Wdm => {
                 // Emit WDM-specific linker args
