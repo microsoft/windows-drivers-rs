@@ -1058,7 +1058,7 @@ impl Config {
     }
 
     /// Returns the formatted `#[link]` raw Strings for the given [`ApiSubset`].
-    /// Returns [`None`] if the [`ApiSubset`] does not define any libraries to
+    /// Returns `None` if the [`ApiSubset`] does not define any libraries to
     /// link.
     ///
     /// Each emitted directive is gated behind the `NOT_TEST_CFG` logic.
