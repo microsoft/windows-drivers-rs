@@ -30,7 +30,13 @@ use crate::providers::{
 use crate::{
     actions::{
         Profile,
-        build::{BuildAction, BuildActionParams, SignMode, error::BuildActionError},
+        build::{
+            BuildAction,
+            BuildActionParams,
+            SignMode,
+            TargetPlatform,
+            error::BuildActionError,
+        },
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -66,7 +72,7 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
+        .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -101,7 +107,7 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
+        .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -141,7 +147,7 @@ pub fn given_a_driver_project_when_target_arch_is_arm64_then_it_builds_successfu
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
             .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-            .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
+            .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -183,7 +189,7 @@ pub fn given_a_driver_project_when_profile_is_release_and_target_arch_is_arm64_t
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
             .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
-            .expect_default_package_task_steps(driver_name, "KMDF", target_arch, verify_signature);
+            .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -218,7 +224,7 @@ pub fn given_a_driver_project_when_sample_class_is_true_then_it_builds_successfu
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature)
+        .expect_default_package_task_steps(driver_name, target_arch, verify_signature)
         .expect_detect_wdk_build_number(25100u32);
 
     assert_build_action_run_with_env_is_success(
@@ -254,7 +260,7 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
+        .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -291,7 +297,7 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_package_task_steps_with_sign_mode_off(driver_name, driver_type, target_arch);
+        .expect_package_task_steps_with_sign_mode_off(driver_name, target_arch);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -328,7 +334,7 @@ pub fn given_a_driver_project_when_locked_is_set_then_it_is_forwarded_to_cargo_i
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_default_package_task_steps(driver_name, driver_type, target_arch, verify_signature);
+        .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -409,7 +415,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None)
+        .expect_infverif(driver_name, &cwd, None)
         .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
         .expect_signtool_verify_cat_file(driver_name, &cwd, None);
 
@@ -463,7 +469,7 @@ pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_rec
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-        .expect_infverif(driver_name, &cwd, "KMDF", None);
+        .expect_infverif(driver_name, &cwd, None);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -731,7 +737,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, None)
+        .expect_infverif(driver_name, &cwd, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(Some(expected_output));
 
@@ -791,7 +797,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, None)
+        .expect_infverif(driver_name, &cwd, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, Some(expected_output));
@@ -852,7 +858,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, None)
+        .expect_infverif(driver_name, &cwd, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
         .expect_certmgr_exists_check(None)
         .expect_makecert(&cwd, None)
@@ -915,7 +921,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_infverif(driver_name, &cwd, driver_type, Some(expected_output));
+        .expect_infverif(driver_name, &cwd, Some(expected_output));
 
     let build_action = initialize_build_action(
         &cwd,
@@ -1131,7 +1137,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_1), target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
-            driver_type,
             target_arch,
             verify_signature,
         )
@@ -1140,7 +1145,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_2), target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_2,
-            driver_type,
             target_arch,
             verify_signature,
         )
@@ -1244,7 +1248,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_signtool_sign_cat_file(driver_name_1, &workspace_root_dir, None)
         .expect_signtool_verify_driver_binary_sys_file(driver_name_1, &workspace_root_dir, None)
         .expect_signtool_verify_cat_file(driver_name_1, &workspace_root_dir, None)
-        .expect_infverif(driver_name_1, &workspace_root_dir, "KMDF", None);
+        .expect_infverif(driver_name_1, &workspace_root_dir, None);
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -1335,7 +1339,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_1), target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
-            driver_type,
             target_arch,
             verify_signature,
         )
@@ -1344,7 +1347,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_2), target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_2,
-            driver_type,
             target_arch,
             verify_signature,
         )
@@ -1680,6 +1682,7 @@ fn initialize_build_action<'a>(
             sign_mode,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
+            target_platform: TargetPlatform::Universal,
             features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
         },
@@ -1932,7 +1935,6 @@ impl TestBuildAction {
     fn expect_default_package_task_steps(
         self,
         driver_name: &str,
-        driver_type: &str,
         target_arch: CpuArchitecture,
         verify_signature: bool,
     ) -> Self {
@@ -1954,7 +1956,7 @@ impl TestBuildAction {
             .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
             .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
             .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None);
+            .expect_infverif(driver_name, &cwd, None);
         if !verify_signature {
             return expectations;
         }
@@ -1969,7 +1971,6 @@ impl TestBuildAction {
     fn expect_package_task_steps_with_sign_mode_off(
         self,
         driver_name: &str,
-        driver_type: &str,
         target_arch: CpuArchitecture,
     ) -> Self {
         let cwd = self.cwd.clone();
@@ -1982,13 +1983,12 @@ impl TestBuildAction {
             .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
             .expect_stampinf(driver_name, &cwd, target_arch, None)
             .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None)
+            .expect_infverif(driver_name, &cwd, None)
     }
 
     fn expect_default_package_task_steps_for_workspace(
         self,
         driver_name: &str,
-        driver_type: &str,
         target_arch: CpuArchitecture,
         verify_signature: bool,
     ) -> Self {
@@ -2010,7 +2010,7 @@ impl TestBuildAction {
             .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
             .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
             .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-            .expect_infverif(driver_name, &cwd, driver_type, None);
+            .expect_infverif(driver_name, &cwd, None);
         if !verify_signature {
             return expectations;
         }
@@ -2931,15 +2931,9 @@ impl TestBuildAction {
         mut self,
         driver_name: &str,
         driver_dir: &Path,
-        driver_type: &str,
         override_output: Option<Output>,
     ) -> Self {
-        let mut expected_infverif_args = vec!["/v".to_string()];
-        if driver_type.eq_ignore_ascii_case("KMDF") || driver_type.eq_ignore_ascii_case("WDM") {
-            expected_infverif_args.push("/w".to_string());
-        } else {
-            expected_infverif_args.push("/u".to_string());
-        }
+        let mut expected_infverif_args = vec!["/v".to_string(), "/u".to_string()];
         if self.sample_class {
             expected_infverif_args.push("/msft".to_string());
         }

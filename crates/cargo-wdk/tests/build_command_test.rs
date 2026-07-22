@@ -71,7 +71,7 @@ fn kmdf_driver_builds_successfully() {
 #[test]
 fn kmdf_driver_builds_successfully_with_locked_flag() {
     let driver = "kmdf-driver";
-    clean_build_and_verify_project(
+    let stderr = clean_build_and_verify_project(
         "kmdf",
         driver,
         None,
@@ -80,7 +80,41 @@ fn kmdf_driver_builds_successfully_with_locked_flag() {
         None,
         None,
         None,
-        Some(&["--locked"]),
+        Some(&["--locked", "-v"]),
+    );
+
+    // `--locked` must be forwarded to the `cargo rustc` (target-arch probe) and
+    // `cargo build` invocations.
+    for subcommand in ["rustc", "build"] {
+        let invocation = stderr
+            .lines()
+            .find(|line| line.contains(&format!("Running: cargo [\"{subcommand}\"")))
+            .unwrap_or_else(|| {
+                panic!("no `cargo {subcommand}` invocation found in stderr:\n{stderr}")
+            });
+        assert!(
+            invocation.contains("--locked"),
+            "expected `--locked` to be forwarded to `cargo {subcommand}`, but got:\n{invocation}"
+        );
+    }
+}
+
+#[test]
+fn kmdf_driver_builds_successfully_with_windows_driver_target_platform() {
+    let stderr = clean_build_and_verify_project(
+        "kmdf",
+        "kmdf-driver",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&["--target-platform", "windows-driver", "-v"]),
+    );
+    assert!(
+        stderr.contains("Running: infverif [\"/v\", \"/w\""),
+        "expected infverif to run with the Windows Driver mode flag (/w); stderr:\n{stderr}"
     );
 }
 
@@ -699,7 +733,7 @@ fn clean_build_and_verify_project(
     env_overrides: Option<&[(&str, Option<String>)]>,
     target_arch_for_verification: Option<&str>,
     additional_build_args: Option<&[&str]>,
-) {
+) -> String {
     let project_path =
         project_path.map_or_else(|| format!("tests/{driver_name}"), ToString::to_string);
     let mutex_name = project_path.clone();
@@ -754,7 +788,8 @@ fn clean_build_and_verify_project(
             target_triple,
             profile.unwrap_or("debug"),
         );
-    });
+        stderr
+    })
 }
 
 fn to_target_triple(target_arch: &str) -> Option<&'static str> {

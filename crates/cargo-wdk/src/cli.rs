@@ -18,7 +18,7 @@ use crate::actions::{
     Profile,
     UMDF_STR,
     WDM_STR,
-    build::{BuildAction, BuildActionParams, SignMode},
+    build::{BuildAction, BuildActionParams, SignMode, TargetPlatform},
     clean::CleanAction,
     new::NewAction,
 };
@@ -43,6 +43,28 @@ pub enum SignModeArg {
 /// Arguments to `signtool sign` for signing the driver binary and catalog file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SigntoolArgs(pub Vec<String>);
+
+/// Platform at which the device driver is targeted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum TargetPlatformArg {
+    /// Validates that the INF meets Universal driver requirements.
+    Universal,
+    /// Validates that the INF meets Desktop driver requirements.
+    Desktop,
+    /// Validates that the INF meets Windows driver requirements.
+    WindowsDriver,
+}
+
+impl From<TargetPlatformArg> for TargetPlatform {
+    fn from(value: TargetPlatformArg) -> Self {
+        match value {
+            TargetPlatformArg::Universal => Self::Universal,
+            TargetPlatformArg::Desktop => Self::Desktop,
+            TargetPlatformArg::WindowsDriver => Self::WindowsDriver,
+        }
+    }
+}
 
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
@@ -102,7 +124,15 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
-    /// Signing mode.
+    /// Driver target platform
+    #[arg(long, value_enum, ignore_case = true, default_value_t = TargetPlatformArg::Universal)]
+    pub target_platform: TargetPlatformArg,
+
+    /// Build sample class driver project
+    #[arg(long)]
+    pub sample: bool,
+
+    /// Signing mode
     #[arg(
         long,
         value_enum,
@@ -127,10 +157,6 @@ pub struct BuildArgs {
     /// signing.
     #[arg(long, help_heading = "Driver Signing")]
     pub verify_signature: bool,
-
-    /// Build sample class driver project
-    #[arg(long)]
-    pub sample: bool,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
@@ -315,6 +341,7 @@ impl Cli {
                         sign_mode,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
+                        target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
                     },
@@ -402,8 +429,6 @@ mod tests {
     mod build {
         use super::*;
 
-        // Parses `cargo wdk build <extra args>` and returns the parsed `BuildArgs`,
-        // or the clap error if parsing/validation fails.
         fn parse_build_args(extra: &[&str]) -> Result<BuildArgs, clap::Error> {
             let mut command_line = vec!["cargo-wdk", "wdk", "build"];
             command_line.extend_from_slice(extra);
@@ -524,5 +549,23 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn target_platform_arg_maps_to_target_platform() {
+        use crate::{actions::build::TargetPlatform, cli::TargetPlatformArg};
+
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Universal),
+            TargetPlatform::Universal
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Desktop),
+            TargetPlatform::Desktop
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::WindowsDriver),
+            TargetPlatform::WindowsDriver
+        );
     }
 }

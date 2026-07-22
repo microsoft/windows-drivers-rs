@@ -30,8 +30,8 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
-// FIXME: This range is inclusive of 25798. Update with range end after /sample
-// flag is added to InfVerif CLI
+// FIXME: This range is inclusive of 25798. Update with range end after
+// `/samples` flag is added to InfVerif CLI
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
@@ -57,6 +57,25 @@ pub enum SignMode {
     },
 }
 
+/// Platform at which the device driver is targeted. See <https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/target-platforms>
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetPlatform {
+    Universal,
+    Desktop,
+    WindowsDriver,
+}
+
+impl TargetPlatform {
+    /// Returns the `InfVerif` mode flag for this target platform.
+    const fn as_infverif_flag(self) -> &'static str {
+        match self {
+            Self::Universal => "/u",
+            Self::Desktop => "/h",
+            Self::WindowsDriver => "/w",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct PackageTaskParams<'a> {
     pub package_name: &'a str,
@@ -66,6 +85,7 @@ pub struct PackageTaskParams<'a> {
     pub sign_mode: SignMode,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
+    pub target_platform: TargetPlatform,
 }
 
 /// Supports low level driver packaging operations
@@ -94,6 +114,7 @@ pub struct PackageTask<'a> {
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
     driver_model: DriverConfig,
+    target_platform: TargetPlatform,
 
     // Injected deps
     wdk_build: &'a WdkBuild,
@@ -199,6 +220,7 @@ impl<'a> PackageTask<'a> {
             arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
+            target_platform: params.target_platform,
             wdk_build,
             command_exec,
             fs,
@@ -591,15 +613,10 @@ impl<'a> PackageTask<'a> {
         };
 
         info!("Running infverif");
-        let mut args = vec![
-            "/v",
-            match self.driver_model {
-                DriverConfig::Kmdf(_) | DriverConfig::Wdm => "/w",
-                // TODO: This should be /u if WDK <= GE && DRIVER_MODEL == UMDF, otherwise it should
-                // be /w
-                DriverConfig::Umdf(_) => "/u",
-            },
-        ];
+
+        let mode_flag = self.target_platform.as_infverif_flag();
+
+        let mut args = vec!["/v", mode_flag];
         let inf_path = self.dest_inf_file_path.to_string_lossy();
 
         if self.sample_class {
@@ -699,6 +716,7 @@ mod tests {
                 verify_signature: false,
                 signtool_args: Vec::new(),
             },
+            target_platform: TargetPlatform::Universal,
         };
         let dest_root = target_dir.join(format!("{package_name}_package"));
 
@@ -771,6 +789,7 @@ mod tests {
                 verify_signature: false,
                 signtool_args: Vec::new(),
             },
+            target_platform: TargetPlatform::Universal,
         };
 
         let command_exec = CommandExec::default();
@@ -800,6 +819,7 @@ mod tests {
                 verify_signature: false,
                 signtool_args: Vec::new(),
             },
+            target_platform: TargetPlatform::Universal,
         };
 
         let command_exec = CommandExec::default();
@@ -838,6 +858,7 @@ mod tests {
                             verify_signature: false,
                             signtool_args: Vec::new(),
                         },
+                        target_platform: TargetPlatform::Universal,
                     };
 
                     let wdk_build = WdkBuild::default();
@@ -898,6 +919,7 @@ mod tests {
                 driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
                 sample_class: false,
                 sign_mode: SignMode::Off,
+                target_platform: TargetPlatform::Universal,
             };
             PackageTask::new(params, wdk_build, command_exec, fs)
         }
@@ -1066,6 +1088,7 @@ mod tests {
                         "SHA256".to_string(),
                     ],
                 },
+                target_platform: TargetPlatform::Universal,
             };
             let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
 

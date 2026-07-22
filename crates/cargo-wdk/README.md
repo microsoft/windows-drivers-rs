@@ -63,11 +63,18 @@ The last component of `PATH` is used as the name of the crate.
 Usage: cargo wdk build [OPTIONS]
 
 Options:
-      --profile <PROFILE>          Build artifacts with the specified profile
-      --target-arch <TARGET_ARCH>  Build for the target architecture
-      --sample                     Build sample class driver project
-      --locked                     Assert that `Cargo.lock` will remain unchanged
-  -h, --help                       Print help (see more with '--help')
+      --profile <PROFILE>
+          Build artifacts with the specified profile
+      --target-arch <TARGET_ARCH>
+          Build for the target architecture
+      --target-platform <TARGET_PLATFORM>
+          Driver target platform [default: universal] [possible values: universal, desktop, windows-driver]
+      --sample
+          Build sample class driver project
+      --locked
+          Assert that `Cargo.lock` will remain unchanged
+  -h, --help
+          Print help (see more with '--help')
 
 Driver Signing:
       --sign-mode <SIGN_MODE>  Signing mode [default: test] [possible values: off, test]
