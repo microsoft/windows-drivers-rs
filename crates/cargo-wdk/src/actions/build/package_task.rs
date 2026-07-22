@@ -216,8 +216,8 @@ impl<'a> PackageTask<'a> {
     ///   error generating a certificate in the store.
     /// * `PackageTaskError::CreateCertFileFromStoreCommand` - If there is an
     ///   error creating a certificate file from the store.
-    /// * `PackageTaskError::DriverBinarySignCommand` - If there is an error
-    ///   signing the driver binary.
+    /// * `PackageTaskError::SigntoolSignCommand` - If there is an error signing
+    ///   the driver binary or catalog file.
     /// * `PackageTaskError::DriverBinarySignVerificationCommand` - If there is
     ///   an error verifying the driver binary signature.
     /// * `PackageTaskError::Inf2CatCommand` - If there is an error running the
@@ -512,6 +512,7 @@ impl<'a> PackageTask<'a> {
                 .expect("Unable to read file name from the path")
                 .to_string_lossy()
         );
+        let file_path_buf = file_path.to_path_buf();
         let file_path = file_path.to_string_lossy().into_owned();
 
         let mut args: Vec<String> = vec!["sign".to_string()];
@@ -547,7 +548,10 @@ impl<'a> PackageTask<'a> {
             None,
             None,
         ) {
-            return Err(PackageTaskError::DriverBinarySignCommand(e));
+            return Err(PackageTaskError::SigntoolSignCommand {
+                file: file_path_buf,
+                source: e,
+            });
         }
         Ok(())
     }

@@ -656,10 +656,12 @@ mod signtool_args {
     }
 
     fn authenticode_signer_subject(path: &Path) -> Option<String> {
+        // Escape single quotes for the PowerShell single-quoted string literal so
+        // paths containing `'` don't break the generated `-Command` script.
+        let literal_path = path.display().to_string().replace('\'', "''");
         let script = format!(
-            "$s = Get-AuthenticodeSignature -LiteralPath '{}'; if ($s.SignerCertificate) {{ \
-             Write-Output $s.SignerCertificate.Subject }}",
-            path.display()
+            "$s = Get-AuthenticodeSignature -LiteralPath '{literal_path}'; if \
+             ($s.SignerCertificate) {{ Write-Output $s.SignerCertificate.Subject }}",
         );
         let out = Command::new("powershell")
             // Clear PSModulePath so Windows PowerShell uses its default module path.
