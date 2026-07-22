@@ -557,11 +557,12 @@ impl<'a> PackageTask<'a> {
         args.push(file_path);
 
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // Redact the value following a `/p` (password) switch.
         let redaction_indices: Vec<usize> = arg_refs
             .iter()
             .enumerate()
-            .filter_map(|(i, arg)| (*arg == "/p" && i + 1 < arg_refs.len()).then_some(i + 1))
+            .filter_map(|(i, arg)| {
+                (arg.eq_ignore_ascii_case("/p") && i + 1 < arg_refs.len()).then_some(i + 1)
+            })
             .collect();
         if let Err(e) = self.command_exec.run_with_redaction(
             "signtool",
@@ -1046,6 +1047,41 @@ mod tests {
                 "/f".to_string(),
                 "cert.pfx".to_string(),
                 "/p".to_string(),
+                "secret".to_string(),
+                "/fd".to_string(),
+                "SHA256".to_string(),
+            ];
+            task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &signtool_args)
+                .expect("signing should succeed");
+        }
+
+        #[test]
+        fn sign_redacts_password_value_case_insensitively() {
+            let arch = CpuArchitecture::Amd64;
+            let command_exec = expect_signtool_args(
+                [
+                    "sign",
+                    "/f",
+                    "cert.pfx",
+                    "/P",
+                    "secret",
+                    "/fd",
+                    "SHA256",
+                    "C:/pkg/driver.sys",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+                vec![4],
+            );
+            let wdk_build = WdkBuild::default();
+            let fs = Fs::default();
+            let task = create_package_task(&wdk_build, &command_exec, &fs, &arch);
+
+            let signtool_args = [
+                "/f".to_string(),
+                "cert.pfx".to_string(),
+                "/P".to_string(),
                 "secret".to_string(),
                 "/fd".to_string(),
                 "SHA256".to_string(),
