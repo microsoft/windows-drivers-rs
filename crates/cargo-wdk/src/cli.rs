@@ -18,7 +18,7 @@ use crate::actions::{
     Profile,
     UMDF_STR,
     WDM_STR,
-    build::{BuildAction, BuildActionParams, SignMode},
+    build::{BuildAction, BuildActionParams, SignMode, TargetPlatform},
     clean::CleanAction,
     new::NewAction,
 };
@@ -38,6 +38,28 @@ pub enum SignModeArg {
     /// Sign with an auto-generated self-signed certificate.
     #[default]
     Test,
+}
+
+/// Platform at which the device driver is targeted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum TargetPlatformArg {
+    /// Validates that the INF meets Universal driver requirements.
+    Universal,
+    /// Validates that the INF meets Desktop driver requirements.
+    Desktop,
+    /// Validates that the INF meets Windows driver requirements.
+    WindowsDriver,
+}
+
+impl From<TargetPlatformArg> for TargetPlatform {
+    fn from(value: TargetPlatformArg) -> Self {
+        match value {
+            TargetPlatformArg::Universal => Self::Universal,
+            TargetPlatformArg::Desktop => Self::Desktop,
+            TargetPlatformArg::WindowsDriver => Self::WindowsDriver,
+        }
+    }
 }
 
 /// Arguments for the `new` subcommand
@@ -98,16 +120,21 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
-    /// Driver signing mode.
+    /// Driver target platform
+    #[arg(long, value_enum, ignore_case = true, default_value_t = TargetPlatformArg::Universal)]
+    pub target_platform: TargetPlatformArg,
+
+    /// Build sample class driver project
+    #[arg(long)]
+    pub sample: bool,
+
+    /// Driver signing mode
     #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
     pub sign_mode: SignModeArg,
 
     /// Verify the signature
     #[arg(long)]
     pub verify_signature: bool,
-    /// Build sample class driver project
-    #[arg(long)]
-    pub sample: bool,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
@@ -218,6 +245,7 @@ impl Cli {
                         sign_mode,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
+                        target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
                     },
@@ -243,7 +271,7 @@ mod tests {
 
     use crate::{
         actions::DriverType,
-        cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd},
+        cli::{BuildArgs, Cli, NewArgs, SignModeArg, Subcmd, TargetPlatformArg},
     };
 
     #[test]
@@ -312,6 +340,7 @@ mod tests {
                 verify_signature: true,
                 sign_mode: SignModeArg::Off,
                 sample: false,
+                target_platform: TargetPlatformArg::Universal,
                 locked: false,
                 features: Features::default(),
             }),
@@ -323,6 +352,24 @@ mod tests {
         assert_eq!(
             result.err().unwrap().to_string(),
             "`--verify-signature` cannot be used with `--sign-mode=off`."
+        );
+    }
+
+    #[test]
+    fn target_platform_arg_maps_to_target_platform() {
+        use crate::{actions::build::TargetPlatform, cli::TargetPlatformArg};
+
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Universal),
+            TargetPlatform::Universal
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Desktop),
+            TargetPlatform::Desktop
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::WindowsDriver),
+            TargetPlatform::WindowsDriver
         );
     }
 }

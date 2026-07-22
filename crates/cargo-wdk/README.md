@@ -65,9 +65,11 @@ Usage: cargo wdk build [OPTIONS]
 Options:
       --profile <PROFILE>          Build artifacts with the specified profile
       --target-arch <TARGET_ARCH>  Build for the target architecture
+      --target-platform <TARGET_PLATFORM>
+                                   Driver target platform [default: universal] [possible values: desktop, universal, windows-driver]
+      --sample                     Build sample class driver project
       --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
       --verify-signature           Verify the signature
-      --sample                     Build sample class driver project
       --locked                     Assert that `Cargo.lock` will remain unchanged
   -h, --help                       Print help
 
