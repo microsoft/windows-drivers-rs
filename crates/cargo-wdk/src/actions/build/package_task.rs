@@ -898,6 +898,13 @@ mod tests {
         }
     }
 
+    #[test]
+    fn target_platform_maps_to_infverif_flag() {
+        assert_eq!(TargetPlatform::Universal.as_infverif_flag(), "/u");
+        assert_eq!(TargetPlatform::Desktop.as_infverif_flag(), "/h");
+        assert_eq!(TargetPlatform::WindowsDriver.as_infverif_flag(), "/w");
+    }
+
     mod signtool {
         use super::*;
 
