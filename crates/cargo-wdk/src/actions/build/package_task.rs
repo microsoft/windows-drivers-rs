@@ -10,7 +10,7 @@
 use std::{
     ffi::{CStr, CString},
     marker::PhantomData,
-    ops::RangeFrom,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     result::Result,
 };
@@ -30,9 +30,9 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
-// FIXME: This range is inclusive of 25798. Update with range end after
-// `/samples` flag is added to InfVerif CLI
-const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
+// InfVerif in WDK builds in this range is buggy and does not contain the
+// /samples flag.
+const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
@@ -566,15 +566,19 @@ impl<'a> PackageTask<'a> {
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
-            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
-                debug!(
-                    "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
-                     /samples flag."
-                );
-                warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
-                return Ok(());
+            match wdk_build_number {
+                n if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&n) => {
+                    debug!(
+                        "InfVerif in WDK Build {wdk_build_number} is buggy and does not contain \
+                         the /samples flag."
+                    );
+                    warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
+                    return Ok(());
+                }
+                // Use the `/samples` flag after the range and the `/msft` flag before the range
+                n if n > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() => "/samples",
+                _ => "/msft",
             }
-            "/msft"
         } else {
             ""
         };
