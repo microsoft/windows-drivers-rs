@@ -1057,6 +1057,107 @@ impl Config {
             .collect())
     }
 
+    /// Returns the formatted `#[link]` Strings for the given [`ApiSubset`],
+    /// or `None` if the [`ApiSubset`] does not define any libraries to
+    /// link.
+    ///
+    /// Each emitted directive is gated behind `#[cfg(not(any(test, feature =
+    /// "test-stubs")))]`.
+    #[must_use]
+    pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
+        let libraries = self.libraries(api_subset);
+        if libraries.is_empty() {
+            None
+        } else {
+            Some(libraries.iter().map(LinkDirective::render).collect())
+        }
+    }
+
+    /// Returns a [`Vec`] of [`LinkDirective`]s based on the provided
+    /// [`ApiSubset`]. An [`ApiSubset`] that contributes no extra libraries
+    /// returns an empty [`Vec`].
+    ///
+    /// This is the link-directive analogue of [`Config::headers`].
+    fn libraries(&self, api_subset: ApiSubset) -> Vec<LinkDirective> {
+        match api_subset {
+            ApiSubset::Base => self.base_libraries(),
+            ApiSubset::Hid => self.hid_libraries(),
+            ApiSubset::Wdf
+            | ApiSubset::Gpio
+            | ApiSubset::ParallelPorts
+            | ApiSubset::Spb
+            | ApiSubset::Storage
+            | ApiSubset::Usb => Vec::new(),
+        }
+    }
+
+    /// Returns a [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
+    /// [`ApiSubset::Base`].
+    ///
+    /// Base libraries are derived from WindowsDriver.KernelMode.props
+    /// (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni(22H2) WDK.
+    /// ARM64 WDM/KMDF builds also link `arm64rt`, derived from
+    /// WindowsDriver.arm64.props.
+    ///
+    /// TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
+    /// stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives emitted by
+    /// [`wdk_build::Config::configure_binary_build`] will be moved here too.
+    fn base_libraries(&self) -> Vec<LinkDirective> {
+        const fn static_lib(name: &'static str) -> LinkDirective {
+            LinkDirective::new(name, LinkKind::Static)
+        }
+
+        let mut directives = Vec::new();
+
+        match &self.driver_config {
+            DriverConfig::Wdm => {
+                directives.extend([
+                    static_lib("BufferOverflowFastFailK"),
+                    static_lib("ntoskrnl"),
+                    static_lib("hal"),
+                    static_lib("wmilib"),
+                ]);
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    directives.push(static_lib("arm64rt"));
+                }
+            }
+            DriverConfig::Kmdf(_) => {
+                directives.extend([
+                    static_lib("BufferOverflowFastFailK"),
+                    static_lib("ntoskrnl"),
+                    static_lib("hal"),
+                    static_lib("wmilib"),
+                    static_lib("WdfLdr"),
+                    static_lib("WdfDriverEntry"),
+                ]);
+                if self.cpu_architecture == CpuArchitecture::Arm64 {
+                    directives.push(static_lib("arm64rt"));
+                }
+            }
+            DriverConfig::Umdf(umdf_config) => {
+                if umdf_config.umdf_version_major >= 2 {
+                    directives.extend([static_lib("WdfDriverStubUm"), static_lib("ntdll")]);
+                }
+                directives.push(static_lib("OneCoreUAP"));
+            }
+        }
+
+        directives
+    }
+
+    /// Returns a [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
+    /// [`ApiSubset::Hid`].
+    ///
+    /// WDM/KMDF drivers link `VhfKm`, while UMDF drivers link `VhfUm`.
+    fn hid_libraries(&self) -> Vec<LinkDirective> {
+        match &self.driver_config {
+            DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
+                vec![LinkDirective::new("VhfKm", LinkKind::Static)]
+            }
+            DriverConfig::Umdf(_) => vec![LinkDirective::new("VhfUm", LinkKind::Dylib)],
+        }
+    }
+
     /// Configure a Cargo build of a library that depends on the WDK. This
     /// emits specially formatted prints to Cargo based on this [`Config`].
     ///
@@ -1125,20 +1226,12 @@ impl Config {
             println!("cargo::rustc-link-search={}", path.display());
         }
 
+        // TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
+        // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be moved to
+        // their respective functions collected by `libraries`
         match &self.driver_config {
             DriverConfig::Wdm => {
-                // Emit WDM-specific libraries to link to
-                println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
-                println!("cargo::rustc-link-lib=static=ntoskrnl");
-                println!("cargo::rustc-link-lib=static=hal");
-                println!("cargo::rustc-link-lib=static=wmilib");
-
-                // Emit ARM64-specific libraries to link to derived from
-                // WindowsDriver.arm64.props
-                if self.cpu_architecture == CpuArchitecture::Arm64 {
-                    println!("cargo::rustc-link-lib=static=arm64rt");
-                }
-
+                // Emit WDM-specific linker args
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -1159,20 +1252,7 @@ impl Config {
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
             }
             DriverConfig::Kmdf(_) => {
-                // Emit KMDF-specific libraries to link to
-                println!("cargo::rustc-link-lib=static=BufferOverflowFastFailK");
-                println!("cargo::rustc-link-lib=static=ntoskrnl");
-                println!("cargo::rustc-link-lib=static=hal");
-                println!("cargo::rustc-link-lib=static=wmilib");
-                println!("cargo::rustc-link-lib=static=WdfLdr");
-                println!("cargo::rustc-link-lib=static=WdfDriverEntry");
-
-                // Emit ARM64-specific libraries to link to derived from
-                // WindowsDriver.arm64.props
-                if self.cpu_architecture == CpuArchitecture::Arm64 {
-                    println!("cargo::rustc-link-lib=static=arm64rt");
-                }
-
+                // Emit KMDF-specific linker args
                 // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
@@ -1187,16 +1267,9 @@ impl Config {
                 // might not run` since `rustc` has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
             }
-            DriverConfig::Umdf(umdf_config) => {
-                // Emit UMDF-specific libraries to link to
-                if umdf_config.umdf_version_major >= 2 {
-                    println!("cargo::rustc-link-lib=static=WdfDriverStubUm");
-                    println!("cargo::rustc-link-lib=static=ntdll");
-                }
-
+            DriverConfig::Umdf(_) => {
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:kernel32.lib");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:user32.lib");
-                println!("cargo::rustc-link-lib=static=OneCoreUAP");
 
                 // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
@@ -1493,6 +1566,70 @@ where
 #[tracing::instrument(level = "debug")]
 pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
     Config::from_env_auto()?.configure_binary_build()
+}
+
+/// Logic for the `cfg` attribute of a rendered [`LinkDirective`]
+const NOT_TEST_CFG: &str = r#"not(any(test, feature = "test-stubs"))"#;
+
+/// The `kind` of a `#[link]` attribute (i.e. how the library is linked).
+///
+/// [Rust Reference - Link Attribute](https://doc.rust-lang.org/reference/items/external-blocks.html#the-link-attribute)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkKind {
+    /// `kind = "static"`
+    Static,
+    /// `kind = "dylib"`
+    Dylib,
+}
+
+impl LinkKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Static => "static",
+            Self::Dylib => "dylib",
+        }
+    }
+}
+
+/// A native library to link into the generated bindings.
+///
+/// Rendered by [`LinkDirective::render`] as a `#[link(...)]` attribute on an
+/// empty `extern` block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LinkDirective {
+    name: &'static str,
+    kind: LinkKind,
+}
+
+impl LinkDirective {
+    const fn new(name: &'static str, kind: LinkKind) -> Self {
+        Self { name, kind }
+    }
+
+    /// Formats this [`LinkDirective`] as a self-contained block of Rust
+    /// source.
+    ///
+    /// # Returns
+    ///
+    /// Returns a formatted [`String`] containing the cfg-gate
+    /// `#[cfg(not(any(test, feature = "test-stubs")))]`, the `#[link]`
+    /// attribute, and an empty `unsafe extern "C" {}` block.
+    fn render(&self) -> String {
+        let modifiers = match self.kind {
+            LinkKind::Static => r#", modifiers = "-bundle""#,
+            LinkKind::Dylib => "",
+        };
+
+        format!(
+            r#"#[cfg({cfg})]
+#[link(name = "{name}", kind = "{kind}"{modifiers})]
+unsafe extern "C" {{}}
+"#,
+            cfg = NOT_TEST_CFG,
+            name = self.name,
+            kind = self.kind.as_str(),
+        )
+    }
 }
 
 /// This currently only exports the driver type, but may export more metadata in
@@ -2047,6 +2184,268 @@ mod tests {
             let result = config.compute_wdffunctions_symbol_name();
 
             assert_eq!(result, None);
+        }
+    }
+
+    mod link_directive_contents {
+        use super::*;
+        use crate::{KmdfConfig, UmdfConfig};
+
+        /// Returns the linked library names from a slice of
+        /// [`LinkDirective`]s, in order.
+        ///
+        /// # Returns
+        ///
+        /// Returns a [`Vec`] of the linked library names.
+        fn lib_names(directives: &[LinkDirective]) -> Vec<&str> {
+            directives.iter().map(|directive| directive.name).collect()
+        }
+
+        /// Returns a [`Config`] for the given target architecture and driver
+        /// model.
+        ///
+        /// Constructs [`Config`] directly (rather than via
+        /// `..Config::default()`) so these pure link-directive tests
+        /// don't require a real WDK/eWDK to be
+        /// present; `wdk_content_root` is irrelevant to the logic under test.
+        fn config_for(target_arch: &str, driver_config: DriverConfig) -> Config {
+            Config {
+                wdk_content_root: std::path::PathBuf::new(),
+                driver_config,
+                cpu_architecture: CpuArchitecture::try_from_cargo_str(target_arch)
+                    .expect("test target_arch should be a recognized CpuArchitecture"),
+            }
+        }
+
+        #[test]
+        fn link_directives_are_disabled_for_tests_and_test_stubs() {
+            assert_eq!(NOT_TEST_CFG, r#"not(any(test, feature = "test-stubs"))"#);
+        }
+
+        #[test]
+        fn render_minimal_directive() {
+            assert_eq!(
+                LinkDirective::new("Foo", LinkKind::Dylib).render(),
+                format!(
+                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"dylib\")]\nunsafe \
+                     extern \"C\" {{}}\n"
+                )
+            );
+        }
+
+        #[test]
+        fn render_static_directive_disables_bundle() {
+            assert_eq!(
+                LinkDirective::new("Foo", LinkKind::Static).render(),
+                format!(
+                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", modifiers \
+                     = \"-bundle\")]\nunsafe extern \"C\" {{}}\n"
+                )
+            );
+        }
+
+        #[test]
+        fn base_wdm_amd64() {
+            let config = config_for("x86_64", DriverConfig::Wdm);
+
+            assert_eq!(
+                lib_names(&config.base_libraries()),
+                ["BufferOverflowFastFailK", "ntoskrnl", "hal", "wmilib"]
+            );
+        }
+
+        #[test]
+        fn base_wdm_arm64_appends_arm64rt() {
+            let config = config_for("aarch64", DriverConfig::Wdm);
+
+            assert_eq!(
+                lib_names(&config.base_libraries()),
+                [
+                    "BufferOverflowFastFailK",
+                    "ntoskrnl",
+                    "hal",
+                    "wmilib",
+                    "arm64rt"
+                ]
+            );
+        }
+
+        #[test]
+        fn base_kmdf_amd64() {
+            let config = config_for("x86_64", DriverConfig::Kmdf(KmdfConfig::new()));
+
+            assert_eq!(
+                lib_names(&config.base_libraries()),
+                [
+                    "BufferOverflowFastFailK",
+                    "ntoskrnl",
+                    "hal",
+                    "wmilib",
+                    "WdfLdr",
+                    "WdfDriverEntry"
+                ]
+            );
+        }
+
+        #[test]
+        fn base_kmdf_arm64_appends_arm64rt() {
+            let config = config_for("aarch64", DriverConfig::Kmdf(KmdfConfig::new()));
+
+            assert_eq!(
+                lib_names(&config.base_libraries()),
+                [
+                    "BufferOverflowFastFailK",
+                    "ntoskrnl",
+                    "hal",
+                    "wmilib",
+                    "WdfLdr",
+                    "WdfDriverEntry",
+                    "arm64rt"
+                ]
+            );
+        }
+
+        #[test]
+        fn base_umdf_v2_includes_wdf_stub_libs() {
+            let config = config_for("x86_64", DriverConfig::Umdf(UmdfConfig::new()));
+
+            assert_eq!(
+                lib_names(&config.base_libraries()),
+                ["WdfDriverStubUm", "ntdll", "OneCoreUAP"]
+            );
+        }
+
+        #[test]
+        fn base_umdf_v1_omits_wdf_stub_libs() {
+            let config = config_for(
+                "x86_64",
+                DriverConfig::Umdf(UmdfConfig {
+                    umdf_version_major: 1,
+                    target_umdf_version_minor: 15,
+                    minimum_umdf_version_minor: None,
+                }),
+            );
+
+            assert_eq!(lib_names(&config.base_libraries()), ["OneCoreUAP"]);
+        }
+
+        #[test]
+        fn base_umdf_v2_arm64_omits_arm64rt() {
+            let config = config_for("aarch64", DriverConfig::Umdf(UmdfConfig::new()));
+
+            assert_eq!(
+                lib_names(&config.base_libraries()),
+                ["WdfDriverStubUm", "ntdll", "OneCoreUAP"]
+            );
+        }
+
+        #[test]
+        fn base_umdf_v1_arm64_omits_arm64rt_and_stub_libs() {
+            let config = config_for(
+                "aarch64",
+                DriverConfig::Umdf(UmdfConfig {
+                    umdf_version_major: 1,
+                    target_umdf_version_minor: 15,
+                    minimum_umdf_version_minor: None,
+                }),
+            );
+
+            assert_eq!(lib_names(&config.base_libraries()), ["OneCoreUAP"]);
+        }
+
+        #[test]
+        fn base_directives_are_all_static_disables_bundle() {
+            let config = config_for("aarch64", DriverConfig::Kmdf(KmdfConfig::new()));
+
+            let directives = config.base_libraries();
+            assert!(
+                !directives.is_empty(),
+                "expected base libraries to assert on"
+            );
+            for directive in &directives {
+                assert_eq!(directive.kind, LinkKind::Static);
+                assert!(
+                    directive.render().contains(r#"modifiers = "-bundle""#),
+                    "static directive should render with -bundle"
+                );
+            }
+        }
+
+        #[test]
+        fn hid_wdm_and_kmdf_link_vhfkm_static() {
+            for driver_config in [DriverConfig::Wdm, DriverConfig::Kmdf(KmdfConfig::new())] {
+                let config = config_for("x86_64", driver_config);
+
+                assert_eq!(
+                    config.hid_libraries(),
+                    vec![LinkDirective::new("VhfKm", LinkKind::Static)]
+                );
+            }
+        }
+
+        #[test]
+        fn hid_umdf_links_vhfum_dylib_without_modifiers() {
+            let config = config_for("x86_64", DriverConfig::Umdf(UmdfConfig::new()));
+
+            assert_eq!(
+                config.hid_libraries(),
+                vec![LinkDirective::new("VhfUm", LinkKind::Dylib)]
+            );
+        }
+
+        #[test]
+        fn libraries_non_contributing_subsets_are_empty() {
+            let config = config_for("x86_64", DriverConfig::Kmdf(KmdfConfig::new()));
+
+            for subset in [
+                ApiSubset::Wdf,
+                ApiSubset::Gpio,
+                ApiSubset::ParallelPorts,
+                ApiSubset::Spb,
+                ApiSubset::Storage,
+                ApiSubset::Usb,
+            ] {
+                assert!(
+                    config.libraries(subset).is_empty(),
+                    "{subset:?} should contribute no libraries"
+                );
+                assert_eq!(config.bindgen_library_link_raw_lines(subset), None);
+            }
+        }
+
+        #[test]
+        fn libraries_base_subset_matches_base() {
+            let config = config_for("aarch64", DriverConfig::Kmdf(KmdfConfig::new()));
+
+            assert_eq!(config.libraries(ApiSubset::Base), config.base_libraries());
+        }
+
+        #[test]
+        fn libraries_hid_subset_matches_hid() {
+            let config = config_for("x86_64", DriverConfig::Umdf(UmdfConfig::new()));
+
+            assert_eq!(config.libraries(ApiSubset::Hid), config.hid_libraries());
+        }
+
+        #[test]
+        fn raw_lines_concatenate_all_libraries_in_subset() {
+            let config = config_for("x86_64", DriverConfig::Wdm);
+
+            // `bindgen_library_link_raw_lines` is the plain concatenation of each
+            // library's rendered `#[link]` block (no separators or wrapping), so
+            // it stays correct regardless of which libraries a subset contributes.
+            // The exact rendered format is locked by the `render_*` tests, and the
+            // per-subset library set by the `base_*`/`hid_*` tests.
+            assert_eq!(
+                config.bindgen_library_link_raw_lines(ApiSubset::Base),
+                Some(
+                    config
+                        .base_libraries()
+                        .iter()
+                        .map(LinkDirective::render)
+                        .collect::<String>()
+                )
+            );
         }
     }
 
