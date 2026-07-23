@@ -194,9 +194,8 @@ mod tests {
     use wdk_sys::{ULONG, WDF_DRIVER_CONFIG};
 
     /// Checks a real invariant the driver's `DriverEntry` relies on.
-    /// It references a bindgen generated type so the test actually links
-    /// generated bindings while touching only a type (never a KM function
-    /// binding that is unlinked).
+    /// It references a bindgen generated type so the test links
+    /// bindgen generated bindings without referencing KM functions.
     ///
     /// The value is that this **builds, links, and runs**, proving a
     /// `wdk-sys`-dependent driver cdylib can host unit tests.

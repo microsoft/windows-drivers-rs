@@ -9,9 +9,8 @@
 //! The generated `#[link]` directives are cfg-suppressed, so the
 //! doctest links and runs without pulling libraries into it.
 //!
-//! This references a bindgen generated type so the doctest actually links
-//! generated bindings while touching only a type (never a KM function
-//! binding that is unlinked).
+//! This references a bindgen generated type so the doctest links
+//! bindgen generated bindings without referencing KM functions.
 //!
 //! ```
 //! use wdk_sys::{DRIVER_OBJECT, NT_SUCCESS, STATUS_SUCCESS, ULONG};

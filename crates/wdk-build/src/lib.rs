@@ -1057,11 +1057,12 @@ impl Config {
             .collect())
     }
 
-    /// Returns the formatted `#[link]` raw Strings for the given [`ApiSubset`].
-    /// Returns `None` if the [`ApiSubset`] does not define any libraries to
+    /// Returns the formatted `#[link]` Strings for the given [`ApiSubset`],
+    /// or `None` if the [`ApiSubset`] does not define any libraries to
     /// link.
     ///
-    /// Each emitted directive is gated behind the `NOT_TEST_CFG` logic.
+    /// Each emitted directive is gated behind `#[cfg(not(any(test, feature =
+    /// "test-stubs")))]`.
     #[must_use]
     pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
         let libraries = self.libraries(api_subset);
@@ -1072,9 +1073,9 @@ impl Config {
         }
     }
 
-    /// Returns the native libraries that must be linked for a given
-    /// [`ApiSubset`], based off this [`Config`]. Subsets that contribute no
-    /// extra libraries return an empty [`Vec`].
+    /// Returns a [`Vec`] of [`LinkDirective`]s based on the provided
+    /// [`ApiSubset`]. An [`ApiSubset`] that contributes no extra libraries
+    /// returns an empty [`Vec`].
     ///
     /// This is the link-directive analogue of [`Config::headers`].
     fn libraries(&self, api_subset: ApiSubset) -> Vec<LinkDirective> {
@@ -1090,7 +1091,8 @@ impl Config {
         }
     }
 
-    /// Builds the static library link directives for the base bindings.
+    /// Returns a [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
+    /// [`ApiSubset::Base`].
     ///
     /// Base libraries are derived from WindowsDriver.KernelMode.props
     /// (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni(22H2) WDK.
@@ -1143,8 +1145,8 @@ impl Config {
         directives
     }
 
-    /// Builds the Virtual HID Framework library link directives for HID
-    /// bindings.
+    /// Returns a [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
+    /// [`ApiSubset::Hid`].
     ///
     /// WDM/KMDF drivers link `VhfKm`, while UMDF drivers link `VhfUm`.
     fn hid_libraries(&self) -> Vec<LinkDirective> {
@@ -1604,9 +1606,14 @@ impl LinkDirective {
         Self { name, kind }
     }
 
-    /// Renders this directive into a self-contained block of Rust source.
+    /// Formats this [`LinkDirective`] as a self-contained block of Rust
+    /// source.
     ///
-    /// # Returns a raw String
+    /// # Returns
+    ///
+    /// Returns a formatted [`String`] containing the cfg-gate
+    /// `#[cfg(not(any(test, feature = "test-stubs")))]`, the `#[link]`
+    /// attribute, and an empty `unsafe extern "C" {}` block.
     fn render(&self) -> String {
         let modifiers = match self.kind {
             LinkKind::Static => r#", modifiers = "-bundle""#,
@@ -2184,13 +2191,17 @@ mod tests {
         use super::*;
         use crate::{KmdfConfig, UmdfConfig};
 
-        /// Collects the linked library names from a slice of
+        /// Returns the linked library names from a slice of
         /// [`LinkDirective`]s, in order.
+        ///
+        /// # Returns
+        ///
+        /// Returns a [`Vec`] of the linked library names.
         fn lib_names(directives: &[LinkDirective]) -> Vec<&str> {
             directives.iter().map(|directive| directive.name).collect()
         }
 
-        /// Builds a [`Config`] for the given target architecture and driver
+        /// Returns a [`Config`] for the given target architecture and driver
         /// model.
         ///
         /// Constructs [`Config`] directly (rather than via
