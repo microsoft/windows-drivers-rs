@@ -49,7 +49,7 @@ pub enum TargetPlatformArg {
     /// Validates that the INF meets Desktop driver requirements.
     Desktop,
     /// Validates that the INF meets Windows driver requirements.
-    WindowsDriver,
+    Windows,
 }
 
 impl From<TargetPlatformArg> for TargetPlatform {
@@ -57,7 +57,7 @@ impl From<TargetPlatformArg> for TargetPlatform {
         match value {
             TargetPlatformArg::Universal => Self::Universal,
             TargetPlatformArg::Desktop => Self::Desktop,
-            TargetPlatformArg::WindowsDriver => Self::WindowsDriver,
+            TargetPlatformArg::Windows => Self::Windows,
         }
     }
 }
@@ -368,8 +368,8 @@ mod tests {
             TargetPlatform::Desktop
         );
         assert_eq!(
-            TargetPlatform::from(TargetPlatformArg::WindowsDriver),
-            TargetPlatform::WindowsDriver
+            TargetPlatform::from(TargetPlatformArg::Windows),
+            TargetPlatform::Windows
         );
     }
 }
