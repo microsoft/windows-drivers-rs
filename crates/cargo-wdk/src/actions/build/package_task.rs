@@ -30,7 +30,7 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
-// InfVerif in WDK builds in this range is bugged and does not contain the
+// InfVerif in WDK builds in this range is buggy and does not contain the
 // /samples flag.
 const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
