@@ -55,7 +55,7 @@ pub enum SignMode {
 pub enum TargetPlatform {
     Universal,
     Desktop,
-    WindowsDriver,
+    Windows,
 }
 
 impl TargetPlatform {
@@ -64,7 +64,7 @@ impl TargetPlatform {
         match self {
             Self::Universal => "/u",
             Self::Desktop => "/h",
-            Self::WindowsDriver => "/w",
+            Self::Windows => "/w",
         }
     }
 }
@@ -935,7 +935,7 @@ mod tests {
         );
         assert_infverif_mode_flag(
             DriverConfig::Kmdf(KmdfConfig::default()),
-            TargetPlatform::WindowsDriver,
+            TargetPlatform::Windows,
             "/w",
         );
     }

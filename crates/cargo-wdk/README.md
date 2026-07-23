@@ -66,7 +66,7 @@ Options:
       --profile <PROFILE>          Build artifacts with the specified profile
       --target-arch <TARGET_ARCH>  Build for the target architecture
       --target-platform <TARGET_PLATFORM>
-                                   Driver target platform [default: universal] [possible values: desktop, universal, windows-driver]
+                                   Driver target platform [default: universal] [possible values: desktop, universal, windows]
       --sample                     Build sample class driver project
       --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
       --verify-signature           Verify the signature
