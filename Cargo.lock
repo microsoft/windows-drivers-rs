@@ -1149,7 +1149,6 @@ dependencies = [
  "anyhow",
  "assert_fs",
  "bindgen",
- "bitflags",
  "camino",
  "cargo_metadata",
  "cfg-if",
