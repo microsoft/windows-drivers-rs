@@ -10,3 +10,10 @@ version = "0.1.0"
 driver-type = "WDM"
 
 [lib]
+
+[dev-dependencies]
+wdk.path = "../../crates/wdk"
+wdk-sys = { features = ["test-stubs"], path = "../../crates/wdk-sys" }
+
+[features]
+nightly = ["wdk-sys/nightly", "wdk/nightly"]
