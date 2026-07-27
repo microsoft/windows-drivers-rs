@@ -13,6 +13,8 @@ use crate::providers::error::{CommandError, FileError};
 pub enum CleanActionError {
     #[error(transparent)]
     FileIo(#[from] FileError),
+    #[error("Provided path is not absolute: {0}")]
+    NotAbsolute(PathBuf, #[source] std::io::Error),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more projects failed to clean in the emulated workspace: {0}")]

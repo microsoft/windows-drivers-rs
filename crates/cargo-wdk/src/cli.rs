@@ -258,7 +258,8 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Clean => {
-                CleanAction::new(Path::new("."), self.verbose, &command_exec, &fs)?.run()?;
+                CleanAction::new(Path::new("."), self.verbose, &command_exec, &fs, &metadata)?
+                    .run()?;
                 Ok(())
             }
         }

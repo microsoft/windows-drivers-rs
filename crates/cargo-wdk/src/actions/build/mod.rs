@@ -158,6 +158,32 @@ impl<'a> BuildAction<'a> {
             return self.run_from_workspace_root(&self.working_dir);
         }
 
+        if let Ok(cargo_metadata) = self.get_cargo_metadata(&self.working_dir) {
+            let owns_working_dir = cargo_metadata.workspace_packages().iter().any(|p| {
+                p.manifest_path
+                    .parent()
+                    .and_then(|path| absolute(path.as_std_path()).ok())
+                    .is_some_and(|package_dir| package_dir.starts_with(&self.working_dir))
+            });
+
+            if owns_working_dir {
+                let workspace_root = absolute(cargo_metadata.workspace_root.as_std_path())
+                    .map_err(|e| {
+                        BuildActionError::NotAbsolute(
+                            cargo_metadata.workspace_root.clone().into(),
+                            e,
+                        )
+                    })?;
+                debug!(
+                    "Working directory {} lies inside the workspace rooted at {}; running build \
+                     from workspace root",
+                    self.working_dir.display(),
+                    workspace_root.display()
+                );
+                return self.run_from_workspace_root(&workspace_root);
+            }
+        }
+
         // Emulated workspaces support
         let dirs = self.fs.read_dir_entries(&self.working_dir)?;
         debug!(
