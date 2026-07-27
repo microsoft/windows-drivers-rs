@@ -1057,9 +1057,9 @@ impl Config {
             .collect())
     }
 
-    /// Returns the formatted `#[link]` Strings for the given [`ApiSubset`],
-    /// or `None` if the [`ApiSubset`] does not define any libraries to
-    /// link.
+    /// Returns the formatted `#[link]` directives (as raw Rust source) for the
+    /// given [`ApiSubset`], or `None` if the [`ApiSubset`] does not define any
+    /// libraries to link.
     ///
     /// Each emitted directive is gated behind `#[cfg(not(any(test, feature =
     /// "test-stubs")))]`.
