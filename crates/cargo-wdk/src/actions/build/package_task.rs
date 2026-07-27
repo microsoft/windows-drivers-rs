@@ -10,7 +10,7 @@
 use std::{
     ffi::{CStr, CString},
     marker::PhantomData,
-    ops::RangeFrom,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     result::Result,
 };
@@ -30,9 +30,9 @@ use windows::{
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 
-// FIXME: This range is inclusive of 25798. Update with range end after
-// `/samples` flag is added to InfVerif CLI
-const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeFrom<u32> = 25798..;
+// InfVerif in WDK builds in this range is buggy and does not contain the
+// /samples flag.
+const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=26100;
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
@@ -62,7 +62,7 @@ pub enum SignMode {
 pub enum TargetPlatform {
     Universal,
     Desktop,
-    WindowsDriver,
+    Windows,
 }
 
 impl TargetPlatform {
@@ -71,7 +71,7 @@ impl TargetPlatform {
         match self {
             Self::Universal => "/u",
             Self::Desktop => "/h",
-            Self::WindowsDriver => "/w",
+            Self::Windows => "/w",
         }
     }
 }
@@ -600,15 +600,19 @@ impl<'a> PackageTask<'a> {
     fn run_infverif(&self) -> Result<(), PackageTaskError> {
         let additional_args = if self.sample_class {
             let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
-            if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&wdk_build_number) {
-                debug!(
-                    "InfVerif in WDK Build {wdk_build_number} is bugged and does not contain the \
-                     /samples flag."
-                );
-                warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
-                return Ok(());
+            match wdk_build_number {
+                n if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&n) => {
+                    debug!(
+                        "InfVerif in WDK Build {wdk_build_number} is buggy and does not contain \
+                         the /samples flag."
+                    );
+                    warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
+                    return Ok(());
+                }
+                // Use the `/samples` flag after the range and the `/msft` flag before the range
+                n if n > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() => "/samples",
+                _ => "/msft",
             }
-            "/msft"
         } else {
             ""
         };
@@ -695,7 +699,7 @@ mod tests {
         process::{ExitStatus, Output},
     };
 
-    use wdk_build::{CpuArchitecture, KmdfConfig};
+    use wdk_build::{CpuArchitecture, KmdfConfig, UmdfConfig};
 
     use super::*;
 
@@ -903,7 +907,7 @@ mod tests {
     fn target_platform_maps_to_infverif_flag() {
         assert_eq!(TargetPlatform::Universal.as_infverif_flag(), "/u");
         assert_eq!(TargetPlatform::Desktop.as_infverif_flag(), "/h");
-        assert_eq!(TargetPlatform::WindowsDriver.as_infverif_flag(), "/w");
+        assert_eq!(TargetPlatform::Windows.as_infverif_flag(), "/w");
     }
 
     mod signtool {
@@ -1137,6 +1141,86 @@ mod tests {
 
             assert!(task.sign_and_verify().is_err());
         }
+    }
+
+    fn assert_infverif_mode_flag(
+        driver_model: DriverConfig,
+        target_platform: TargetPlatform,
+        expected_mode_flag: &'static str,
+    ) {
+        let package_name = "driver";
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name,
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model,
+            sample_class: false,
+            sign_mode: SignMode::Off,
+            target_platform,
+        };
+
+        let fs = Fs::default();
+        let wdk_build = WdkBuild::default();
+
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "infverif"
+                    && args.len() >= 2
+                    && args[0] == "/v"
+                    && args[1] == expected_mode_flag
+            })
+            .once()
+            .returning(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_infverif().is_ok());
+    }
+
+    #[test]
+    fn run_infverif_defaults_to_universal_for_all_driver_models() {
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Universal,
+            "/u",
+        );
+        assert_infverif_mode_flag(DriverConfig::Wdm, TargetPlatform::Universal, "/u");
+        assert_infverif_mode_flag(
+            DriverConfig::Umdf(UmdfConfig::default()),
+            TargetPlatform::Universal,
+            "/u",
+        );
+    }
+
+    #[test]
+    fn run_infverif_uses_target_platform_mode_flag() {
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Universal,
+            "/u",
+        );
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Desktop,
+            "/h",
+        );
+        assert_infverif_mode_flag(
+            DriverConfig::Kmdf(KmdfConfig::default()),
+            TargetPlatform::Windows,
+            "/w",
+        );
     }
 
     mod named_mutex {

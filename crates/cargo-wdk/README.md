@@ -68,7 +68,7 @@ Options:
       --target-arch <TARGET_ARCH>
           Build for the target architecture
       --target-platform <TARGET_PLATFORM>
-          Driver target platform [default: universal] [possible values: universal, desktop, windows-driver]
+          Driver target platform [default: universal] [possible values: universal, desktop, windows]
       --sample
           Build sample class driver project
       --locked

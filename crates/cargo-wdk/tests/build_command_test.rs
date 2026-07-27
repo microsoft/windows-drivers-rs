@@ -100,7 +100,7 @@ fn kmdf_driver_builds_successfully_with_locked_flag() {
 }
 
 #[test]
-fn kmdf_driver_builds_successfully_with_windows_driver_target_platform() {
+fn kmdf_driver_builds_successfully_with_windows_target_platform() {
     let stderr = clean_build_and_verify_project(
         "kmdf",
         "kmdf-driver",
@@ -110,7 +110,7 @@ fn kmdf_driver_builds_successfully_with_windows_driver_target_platform() {
         None,
         None,
         None,
-        Some(&["--target-platform", "windows-driver", "-v"]),
+        Some(&["--target-platform", "windows", "-v"]),
     );
     assert!(
         stderr.contains("Running: infverif [\"/v\", \"/w\""),
