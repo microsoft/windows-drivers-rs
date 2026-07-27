@@ -36,6 +36,7 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+const DEFAULT_TIMESTAMP_URL: &str = "http://timestamp.digicert.com";
 
 /// Signing mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -509,7 +510,7 @@ impl<'a> PackageTask<'a> {
     /// When `signtool_args` is empty, cargo-wdk signs with the auto-generated
     /// WDR test certificate and its default switches:
     ///
-    /// `sign /v /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256 <file>`
+    /// `sign /v /s WDRTestCertStore /n WDRLocalTestCert /t http://timestamp.digicert.com /fd SHA256 <file>`
     ///
     /// When `signtool_args` is non-empty, the caller owns the full signtool
     /// command line; cargo-wdk only prepends the `sign` verb to those arguments
@@ -546,6 +547,8 @@ impl<'a> PackageTask<'a> {
             args.push(WDR_TEST_CERT_STORE.to_string());
             args.push("/n".to_string());
             args.push(WDR_LOCAL_TEST_CERT.to_string());
+            args.push("/t".to_string());
+            args.push(DEFAULT_TIMESTAMP_URL.to_string());
             args.push("/fd".to_string());
             args.push("SHA256".to_string());
         } else {
@@ -972,6 +975,8 @@ mod tests {
                     "WDRTestCertStore",
                     "/n",
                     "WDRLocalTestCert",
+                    "/t",
+                    "http://timestamp.digicert.com",
                     "/fd",
                     "SHA256",
                     "C:/pkg/driver.sys",
