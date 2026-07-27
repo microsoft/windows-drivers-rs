@@ -1091,17 +1091,17 @@ impl Config {
         }
     }
 
-    /// Returns a [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
-    /// [`ApiSubset::Base`].
-    ///
-    /// Base libraries are derived from WindowsDriver.KernelMode.props
-    /// (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni(22H2) WDK.
-    /// ARM64 WDM/KMDF builds also link `arm64rt`, derived from
-    /// WindowsDriver.arm64.props.
+    /// Returns the base libraries that need to be linked based on the
+    /// configured driver model and target architecture.
     ///
     /// TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
     /// stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives emitted by
     /// [`wdk_build::Config::configure_binary_build`] will be moved here too.
+    ///
+    /// # Returns
+    ///
+    /// A [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
+    /// [`ApiSubset::Base`].
     fn base_libraries(&self) -> Vec<LinkDirective> {
         const fn static_lib(name: &'static str) -> LinkDirective {
             LinkDirective::new(name, LinkKind::Static)
@@ -1109,6 +1109,10 @@ impl Config {
 
         let mut directives = Vec::new();
 
+        // Base libraries are derived from WindowsDriver.KernelMode.props
+        // (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni (22H2) WDK.
+        // ARM64 WDM/KMDF builds also link `arm64rt`, derived from
+        // WindowsDriver.arm64.props.
         match &self.driver_config {
             DriverConfig::Wdm => {
                 directives.extend([
