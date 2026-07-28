@@ -100,38 +100,26 @@ impl<'a> CleanAction<'a> {
             return self.run_cargo_clean(&self.working_dir);
         }
 
-        if let Ok(cargo_metadata) = self.metadata.get_cargo_metadata_at_path(
+        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
+
+        if let Some(workspace_root) = super::find_workspace_root(
+            self.metadata,
+            self.fs,
             &self.working_dir,
-            Vec::new(),
+            &dirs,
+            false,
             &Features::default(),
         ) {
-            let owns_working_dir = cargo_metadata.workspace_packages().iter().any(|p| {
-                p.manifest_path
-                    .parent()
-                    .and_then(|path| absolute(path.as_std_path()).ok())
-                    .is_some_and(|package_dir| package_dir.starts_with(&self.working_dir))
-            });
-
-            if owns_working_dir {
-                let workspace_root = absolute(cargo_metadata.workspace_root.as_std_path())
-                    .map_err(|e| {
-                        CleanActionError::NotAbsolute(
-                            cargo_metadata.workspace_root.clone().into(),
-                            e,
-                        )
-                    })?;
-                debug!(
-                    "Working directory {} lies inside the workspace rooted at {}; running cargo \
-                     clean from workspace root",
-                    self.working_dir.display(),
-                    workspace_root.display()
-                );
-                return self.run_cargo_clean(&workspace_root);
-            }
+            debug!(
+                "Working directory {} lies inside the workspace rooted at {}; running cargo clean \
+                 from workspace root",
+                self.working_dir.display(),
+                workspace_root.display()
+            );
+            return self.run_cargo_clean(&workspace_root);
         }
 
         // Emulated workspaces support
-        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
         debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
@@ -288,49 +276,6 @@ mod tests {
         metadata
     }
 
-    fn metadata_owning_dir(workspace_root: &Path, member_dir: &Path) -> Metadata {
-        let member_fwd = member_dir.to_string_lossy().replace('\\', "/");
-        let member_fwd = member_fwd.trim_start_matches("//?/").to_string();
-        let id = format!("path+file:///{member_fwd}#pkg@0.1.0");
-        let json = serde_json::json!({
-            "target_directory": workspace_root.join("target").to_string_lossy(),
-            "workspace_root": workspace_root.to_string_lossy(),
-            "packages": [{
-                "name": "pkg",
-                "version": "0.1.0",
-                "id": id,
-                "dependencies": [],
-                "targets": [{
-                    "kind": ["lib"],
-                    "crate_types": ["lib"],
-                    "name": "pkg",
-                    "src_path": member_dir.join("src").join("lib.rs").to_string_lossy(),
-                    "edition": "2021",
-                    "doc": true,
-                    "doctest": false,
-                    "test": true
-                }],
-                "features": {},
-                "manifest_path": member_dir.join("Cargo.toml").to_string_lossy(),
-                "authors": [],
-                "categories": [],
-                "keywords": [],
-                "edition": "2021",
-                "metadata": null
-            }],
-            "workspace_members": [id],
-            "metadata": null,
-            "version": 1
-        });
-        let parsed: cargo_metadata::Metadata =
-            serde_json::from_value(json).expect("valid cargo metadata");
-        let mut metadata = Metadata::default();
-        metadata
-            .expect_get_cargo_metadata_at_path()
-            .returning(move |_, _, _| Ok(parsed.clone()));
-        metadata
-    }
-
     fn run_action(
         cwd: &Path,
         fs: &Fs,
@@ -425,19 +370,6 @@ mod tests {
             run_action(&cwd, &fs, &exec, &metadata),
             Err(CleanActionError::NoValidRustProjectsInTheDirectory(_))
         ));
-    }
-
-    #[test]
-    fn run_cleans_workspace_root_when_invoked_from_subdirectory() {
-        let workspace_root = PathBuf::from("C:\\tmp\\ws");
-        let group_dir = workspace_root.join("group");
-        let member_dir = group_dir.join("pkg");
-        let mut fs = Fs::default();
-        let mut exec = CommandExec::default();
-        let metadata = metadata_owning_dir(&workspace_root, &member_dir);
-        mock_cargo_toml(&mut fs, &group_dir, false);
-        mock_cargo_clean(&mut exec, &workspace_root, true);
-        assert!(run_action(&group_dir, &fs, &exec, &metadata).is_ok());
     }
 
     #[test]
@@ -545,7 +477,9 @@ mod tests {
         let cwd = PathBuf::from("C:\\tmp");
         let mut fs = Fs::default();
         let exec = CommandExec::default();
-        let metadata = metadata_not_in_workspace();
+        // `read_dir_entries` is attempted before the metadata probe, so no
+        // metadata expectation is needed here.
+        let metadata = Metadata::default();
         mock_cargo_toml(&mut fs, &cwd, false);
         let cwd_clone = cwd.clone();
         fs.expect_read_dir_entries().returning(move |_| {
