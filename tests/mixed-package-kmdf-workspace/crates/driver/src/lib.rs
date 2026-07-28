@@ -8,24 +8,20 @@
 
 #![cfg_attr(not(test), no_std)]
 
-#[cfg(not(test))]
 extern crate alloc;
 
 #[cfg(not(test))]
 extern crate wdk_panic;
 
-#[cfg(not(test))]
 use alloc::{
     ffi::CString,
     slice,
     string::String,
 };
 
-#[cfg(not(test))]
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
-#[cfg(not(test))]
 use wdk_sys::{
     call_unsafe_wdf_function_binding,
     ntddk::DbgPrint,
@@ -57,8 +53,7 @@ static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
 // SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
 // No other function in this compilation unit exports this name, preventing symbol conflicts.
-#[cfg(not(test))]
-#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
+#[cfg_attr(not(test), unsafe(export_name = "DriverEntry"))] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
@@ -161,7 +156,6 @@ pub unsafe extern "system" fn driver_entry(
     wdf_driver_create_ntstatus
 }
 
-#[cfg(not(test))]
 extern "C" fn evt_driver_device_add(
     _driver: WDFDRIVER,
     mut device_init: *mut WDFDEVICE_INIT,

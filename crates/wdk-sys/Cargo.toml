@@ -27,7 +27,9 @@ storage = []
 usb = []
 
 nightly = ["wdk-build/nightly", "wdk-macros/nightly"]
-test-stubs = []
+test-stubs = ["no-link"]
+
+no-link = []
 
 [dependencies]
 rustversion.workspace = true

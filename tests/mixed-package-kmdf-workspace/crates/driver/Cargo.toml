@@ -20,4 +20,7 @@ wdk-panic.workspace = true
 wdk-sys.workspace = true
 
 [dev-dependencies]
-wdk-sys = { features = ["test-stubs"], workspace = true }
+# The feature "test-stubs" isn't needed since gating the DriverEntry export_name keeps
+# driver_entry from being codegen'd, so nothing references WDF functions. Switch to "test-stubs"
+# if a test ever reaches a call_unsafe_wdf_function_binding! call site.
+wdk-sys = { features = ["no-link"], workspace = true }

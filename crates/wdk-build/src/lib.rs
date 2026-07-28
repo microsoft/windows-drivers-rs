@@ -1062,7 +1062,7 @@ impl Config {
     /// libraries to link.
     ///
     /// Each emitted directive is gated behind `#[cfg(not(any(test, feature =
-    /// "test-stubs")))]`.
+    /// "no-link")))]`.
     #[must_use]
     pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
         let libraries = self.libraries(api_subset);
@@ -1104,7 +1104,7 @@ impl Config {
     /// [`ApiSubset::Base`].
     fn base_libraries(&self) -> Vec<LinkDirective> {
         const fn static_lib(name: &'static str) -> LinkDirective {
-            LinkDirective::new(name, LinkKind::Static)
+            LinkDirective::new(name)
         }
 
         let mut directives = Vec::new();
@@ -1156,9 +1156,9 @@ impl Config {
     fn hid_libraries(&self) -> Vec<LinkDirective> {
         match &self.driver_config {
             DriverConfig::Wdm | DriverConfig::Kmdf(_) => {
-                vec![LinkDirective::new("VhfKm", LinkKind::Static)]
+                vec![LinkDirective::new("VhfKm")]
             }
-            DriverConfig::Umdf(_) => vec![LinkDirective::new("VhfUm", LinkKind::Dylib)],
+            DriverConfig::Umdf(_) => vec![LinkDirective::new("VhfUm")],
         }
     }
 
@@ -1573,27 +1573,7 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
 }
 
 /// Logic for the `cfg` attribute of a rendered [`LinkDirective`]
-const NOT_TEST_CFG: &str = r#"not(any(test, feature = "test-stubs"))"#;
-
-/// The `kind` of a `#[link]` attribute (i.e. how the library is linked).
-///
-/// [Rust Reference - Link Attribute](https://doc.rust-lang.org/reference/items/external-blocks.html#the-link-attribute)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LinkKind {
-    /// `kind = "static"`
-    Static,
-    /// `kind = "dylib"`
-    Dylib,
-}
-
-impl LinkKind {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Static => "static",
-            Self::Dylib => "dylib",
-        }
-    }
-}
+const NOT_TEST_CFG: &str = r#"not(any(test, feature = "no-link"))"#;
 
 /// A native library to link into the generated bindings.
 ///
@@ -1602,12 +1582,11 @@ impl LinkKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LinkDirective {
     name: &'static str,
-    kind: LinkKind,
 }
 
 impl LinkDirective {
-    const fn new(name: &'static str, kind: LinkKind) -> Self {
-        Self { name, kind }
+    const fn new(name: &'static str) -> Self {
+        Self { name }
     }
 
     /// Formats this [`LinkDirective`] as a self-contained block of Rust
@@ -1616,22 +1595,16 @@ impl LinkDirective {
     /// # Returns
     ///
     /// Returns a formatted [`String`] containing the cfg-gate
-    /// `#[cfg(not(any(test, feature = "test-stubs")))]`, the `#[link]`
+    /// `#[cfg(not(any(test, feature = "no-link")))]`, the `#[link]`
     /// attribute, and an empty `unsafe extern "C" {}` block.
     fn render(&self) -> String {
-        let modifiers = match self.kind {
-            LinkKind::Static => r#", modifiers = "-bundle""#,
-            LinkKind::Dylib => "",
-        };
-
         format!(
             r#"#[cfg({cfg})]
-#[link(name = "{name}", kind = "{kind}"{modifiers})]
+#[link(name = "{name}", kind = "static", modifiers = "-bundle")]
 unsafe extern "C" {{}}
 "#,
             cfg = NOT_TEST_CFG,
             name = self.name,
-            kind = self.kind.as_str(),
         )
     }
 }
@@ -2222,25 +2195,14 @@ mod tests {
         }
 
         #[test]
-        fn link_directives_are_disabled_for_tests_and_test_stubs() {
-            assert_eq!(NOT_TEST_CFG, r#"not(any(test, feature = "test-stubs"))"#);
-        }
-
-        #[test]
-        fn render_minimal_directive() {
-            assert_eq!(
-                LinkDirective::new("Foo", LinkKind::Dylib).render(),
-                format!(
-                    "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"dylib\")]\nunsafe \
-                     extern \"C\" {{}}\n"
-                )
-            );
+        fn link_directives_are_disabled_for_tests_and_no_link() {
+            assert_eq!(NOT_TEST_CFG, r#"not(any(test, feature = "no-link"))"#);
         }
 
         #[test]
         fn render_static_directive_disables_bundle() {
             assert_eq!(
-                LinkDirective::new("Foo", LinkKind::Static).render(),
+                LinkDirective::new("Foo").render(),
                 format!(
                     "#[cfg({NOT_TEST_CFG})]\n#[link(name = \"Foo\", kind = \"static\", modifiers \
                      = \"-bundle\")]\nunsafe extern \"C\" {{}}\n"
@@ -2367,7 +2329,10 @@ mod tests {
                 "expected base libraries to assert on"
             );
             for directive in &directives {
-                assert_eq!(directive.kind, LinkKind::Static);
+                assert!(
+                    directive.render().contains(r#"kind = "static""#),
+                    "directive should render as a static link"
+                );
                 assert!(
                     directive.render().contains(r#"modifiers = "-bundle""#),
                     "static directive should render with -bundle"
@@ -2380,21 +2345,15 @@ mod tests {
             for driver_config in [DriverConfig::Wdm, DriverConfig::Kmdf(KmdfConfig::new())] {
                 let config = config_for("x86_64", driver_config);
 
-                assert_eq!(
-                    config.hid_libraries(),
-                    vec![LinkDirective::new("VhfKm", LinkKind::Static)]
-                );
+                assert_eq!(config.hid_libraries(), vec![LinkDirective::new("VhfKm")]);
             }
         }
 
         #[test]
-        fn hid_umdf_links_vhfum_dylib_without_modifiers() {
+        fn hid_umdf_links_vhfum() {
             let config = config_for("x86_64", DriverConfig::Umdf(UmdfConfig::new()));
 
-            assert_eq!(
-                config.hid_libraries(),
-                vec![LinkDirective::new("VhfUm", LinkKind::Dylib)]
-            );
+            assert_eq!(config.hid_libraries(), vec![LinkDirective::new("VhfUm")]);
         }
 
         #[test]
