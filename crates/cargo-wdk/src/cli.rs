@@ -18,7 +18,7 @@ use crate::actions::{
     Profile,
     UMDF_STR,
     WDM_STR,
-    build::{BuildAction, BuildActionParams, SignMode},
+    build::{BuildAction, BuildActionParams, SignMode, TargetPlatform},
     clean::CleanAction,
     new::NewAction,
 };
@@ -38,6 +38,28 @@ pub enum SignModeArg {
     /// Sign with an auto-generated self-signed certificate.
     #[default]
     Test,
+}
+
+/// Platform at which the device driver is targeted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum TargetPlatformArg {
+    /// Validates that the INF meets Universal driver requirements.
+    Universal,
+    /// Validates that the INF meets Desktop driver requirements.
+    Desktop,
+    /// Validates that the INF meets Windows driver requirements.
+    Windows,
+}
+
+impl From<TargetPlatformArg> for TargetPlatform {
+    fn from(value: TargetPlatformArg) -> Self {
+        match value {
+            TargetPlatformArg::Universal => Self::Universal,
+            TargetPlatformArg::Desktop => Self::Desktop,
+            TargetPlatformArg::Windows => Self::Windows,
+        }
+    }
 }
 
 /// Arguments for the `new` subcommand
@@ -98,7 +120,15 @@ pub struct BuildArgs {
     #[arg(long, ignore_case = true)]
     pub target_arch: Option<CpuArchitecture>,
 
-    /// Driver signing mode.
+    /// Driver target platform
+    #[arg(long, value_enum, ignore_case = true, default_value_t = TargetPlatformArg::Universal)]
+    pub target_platform: TargetPlatformArg,
+
+    /// Build sample class driver project
+    #[arg(long)]
+    pub sample: bool,
+
+    /// Driver signing mode
     #[arg(long, value_enum, ignore_case = true, default_value_t = SignModeArg::Test)]
     pub sign_mode: SignModeArg,
 
@@ -114,10 +144,6 @@ pub struct BuildArgs {
         help_heading = "Inf2Cat Options"
     )]
     pub inf2cat_args: Option<Inf2catArgs>,
-
-    /// Build sample class driver project
-    #[arg(long)]
-    pub sample: bool,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
@@ -304,6 +330,7 @@ impl Cli {
                         sign_mode,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
+                        target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
                         inf2cat_args: cli_args.inf2cat_arg_tokens(),
@@ -330,7 +357,16 @@ mod tests {
 
     use crate::{
         actions::DriverType,
-        cli::{BuildArgs, Cli, Inf2catArgs, NewArgs, SignModeArg, Subcmd, parse_inf2cat_args},
+        cli::{
+            BuildArgs,
+            Cli,
+            Inf2catArgs,
+            NewArgs,
+            SignModeArg,
+            Subcmd,
+            TargetPlatformArg,
+            parse_inf2cat_args,
+        },
     };
 
     #[test]
@@ -400,6 +436,7 @@ mod tests {
                 sign_mode: SignModeArg::Off,
                 inf2cat_args: None,
                 sample: false,
+                target_platform: TargetPlatformArg::Universal,
                 locked: false,
                 features: Features::default(),
             }),
@@ -474,6 +511,7 @@ mod tests {
         let mut args = BuildArgs {
             profile: None,
             target_arch: None,
+            target_platform: TargetPlatformArg::Universal,
             verify_signature: false,
             sign_mode: SignModeArg::Test,
             inf2cat_args: None,
@@ -490,6 +528,24 @@ mod tests {
         assert_eq!(
             args.inf2cat_arg_tokens(),
             vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
+        );
+    }
+
+    #[test]
+    fn target_platform_arg_maps_to_target_platform() {
+        use crate::{actions::build::TargetPlatform, cli::TargetPlatformArg};
+
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Universal),
+            TargetPlatform::Universal
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Desktop),
+            TargetPlatform::Desktop
+        );
+        assert_eq!(
+            TargetPlatform::from(TargetPlatformArg::Windows),
+            TargetPlatform::Windows
         );
     }
 }
