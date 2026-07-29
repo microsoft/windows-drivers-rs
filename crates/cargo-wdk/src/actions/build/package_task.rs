@@ -295,12 +295,26 @@ impl<'a> PackageTask<'a> {
             info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
-        if signtool_args.is_empty() {
+        let sign_args = if signtool_args.is_empty() {
             self.generate_certificate()?;
             self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-        }
-        self.run_signtool_sign(&self.dest_driver_binary_path, signtool_args)?;
-        self.run_signtool_sign(&self.dest_cat_file_path, signtool_args)?;
+            // Default WDR test-cert switches.
+            vec![
+                "/v".to_string(),
+                "/s".to_string(),
+                WDR_TEST_CERT_STORE.to_string(),
+                "/n".to_string(),
+                WDR_LOCAL_TEST_CERT.to_string(),
+                "/t".to_string(),
+                DEFAULT_TIMESTAMP_URL.to_string(),
+                "/fd".to_string(),
+                "SHA256".to_string(),
+            ]
+        } else {
+            signtool_args.clone()
+        };
+        self.run_signtool_sign(&self.dest_driver_binary_path, &sign_args)?;
+        self.run_signtool_sign(&self.dest_cat_file_path, &sign_args)?;
         if *verify_signature {
             info!("Verifying signatures for driver binary and cat file using signtool");
             self.run_signtool_verify(&self.dest_driver_binary_path)?;
@@ -505,24 +519,17 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    /// Signs the specified file using the `signtool` command.
-    ///
-    /// When `signtool_args` is empty, cargo-wdk signs with the auto-generated
-    /// WDR test certificate and its default switches:
-    ///
-    /// `sign /v /s WDRTestCertStore /n WDRLocalTestCert /t http://timestamp.digicert.com /fd SHA256 <file>`
-    ///
-    /// When `signtool_args` is non-empty, the caller owns the full signtool
-    /// command line; cargo-wdk only prepends the `sign` verb to those arguments
-    /// and adds the trailing file operand:
-    ///
+    /// Signs the file with `signtool` by executing the following command:
     /// `sign <signtool_args...> <file>`
     ///
     /// # Arguments
     ///
     /// * `file_path` - The path to the file to be signed.
-    /// * `signtool_args` - Additional `signtool sign` arguments, or empty to
-    ///   use the default WDR test-cert flow.
+    /// * `signtool_args` - The full `signtool sign` argument list to use.
+    ///
+    /// # Errors
+    /// * `PackageTaskError::SigntoolSignCommand` - If there is an error signing
+    ///   the file with `signtool`.
     fn run_signtool_sign(
         &self,
         file_path: &Path,
@@ -539,23 +546,7 @@ impl<'a> PackageTask<'a> {
         let file_path = file_path.to_string_lossy().into_owned();
 
         let mut args: Vec<String> = vec!["sign".to_string()];
-
-        if signtool_args.is_empty() {
-            // Default WDR test-cert switches.
-            args.push("/v".to_string());
-            args.push("/s".to_string());
-            args.push(WDR_TEST_CERT_STORE.to_string());
-            args.push("/n".to_string());
-            args.push(WDR_LOCAL_TEST_CERT.to_string());
-            args.push("/t".to_string());
-            args.push(DEFAULT_TIMESTAMP_URL.to_string());
-            args.push("/fd".to_string());
-            args.push("SHA256".to_string());
-        } else {
-            // Caller owns the full option set.
-            args.extend(signtool_args.iter().cloned());
-        }
-
+        args.extend(signtool_args.iter().cloned());
         // File operand (must be last).
         args.push(file_path);
 
@@ -962,36 +953,6 @@ mod tests {
                     })
                 });
             command_exec
-        }
-
-        #[test]
-        fn sign_with_no_args_uses_default_test_cert() {
-            let arch = CpuArchitecture::Amd64;
-            let command_exec = expect_signtool_args(
-                [
-                    "sign",
-                    "/v",
-                    "/s",
-                    "WDRTestCertStore",
-                    "/n",
-                    "WDRLocalTestCert",
-                    "/t",
-                    "http://timestamp.digicert.com",
-                    "/fd",
-                    "SHA256",
-                    "C:/pkg/driver.sys",
-                ]
-                .into_iter()
-                .map(String::from)
-                .collect(),
-                Vec::new(),
-            );
-            let wdk_build = WdkBuild::default();
-            let fs = Fs::default();
-            let task = create_package_task(&wdk_build, &command_exec, &fs, &arch);
-
-            task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &[])
-                .expect("signing should succeed");
         }
 
         #[test]
