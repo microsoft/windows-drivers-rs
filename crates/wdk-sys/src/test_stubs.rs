@@ -16,7 +16,7 @@
 //!
 //! - lib crate usage that depends on wdk-sys, eg. not a driver bin crate
 //!   - if used with a driver bin crate you may need to cfg gate your
-//!     DriverEntry since these stubs provide one
+//!     `DriverEntry` since these stubs provide one
 //!
 //! - crate tests that don't rely on the stubbed symbols' functionality
 //!   - if you want to write tests where these symbols are exercised (ex: tests
