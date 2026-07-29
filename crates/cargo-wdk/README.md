@@ -121,7 +121,7 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 To sign with your own certificate or tweak any signing option, pass `--signtool-args` with a string of the arguments to forward to `signtool sign`.
 
 - When `--signtool-args` is **omitted**, cargo-wdk signs with the auto-generated WDR test certificate as described above.
-- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). cargo-wdk only wraps your arguments with the `sign` verb and the trailing file operand. If your arguments don't include a certificate selector (e.g. `/n`, `/s`, `/f`, `/sha1`), `signtool` auto-selects a code-signing certificate from your personal store and fails if none — or more than one — is found.
+- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). `cargo-wdk` will prepend the `sign` verb to your arguments and append the trailing file operand so you should not provide them. If your arguments don't include a certificate selector (e.g. `/n`, `/s`, `/f`, `/sha1`), `signtool` auto-selects a code-signing certificate from your personal store and fails if none, or more than one, is found.
 
 `--signtool-args` applies only when signing is enabled; supplying it with `--sign-mode=off` is an error.
 
@@ -149,16 +149,4 @@ To sign with your own certificate or tweak any signing option, pass `--signtool-
 
     ```pwsh
     cargo wdk build --sign-mode off
-    ```
-
-- To test-sign with a certificate selected from a store by subject name, run:
-
-    ```pwsh
-    cargo wdk build --signtool-args "/s MyStore /n MyCert /fd SHA256"
-    ```
-
-- To test-sign with a PFX file whose password is supplied inline, run:
-
-    ```pwsh
-    cargo wdk build --signtool-args "/f C:\certs\my.pfx /p <password> /fd SHA256"
     ```
