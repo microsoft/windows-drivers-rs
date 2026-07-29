@@ -50,6 +50,8 @@ impl CommandExec {
     ///
     /// # Panics
     /// If any index in `redaction_indices` is out of bounds for `args`.
+    // The `'a` lifetime is required by mockall's `#[automock]` to generate the
+    // mock impl
     #[allow(clippy::extra_unused_lifetimes)]
     pub fn run_with_redaction<'a>(
         &self,
