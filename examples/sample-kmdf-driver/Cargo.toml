@@ -40,7 +40,6 @@ usb = ["wdk-sys/usb"]
 nightly = ["wdk-sys/nightly", "wdk/nightly"]
 
 [profile.dev]
-lto = true
 panic = "abort"
 
 [profile.release]
