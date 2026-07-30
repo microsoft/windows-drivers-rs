@@ -551,11 +551,14 @@ impl<'a> PackageTask<'a> {
         args.push(file_path);
 
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let file_operand_index = arg_refs.len() - 1;
         let redaction_indices: Vec<usize> = arg_refs
             .iter()
             .enumerate()
             .filter_map(|(i, arg)| {
-                (arg.eq_ignore_ascii_case("/p") && i + 1 < arg_refs.len()).then_some(i + 1)
+                let value_index = i + 1;
+                (arg.eq_ignore_ascii_case("/p") && value_index < file_operand_index)
+                    .then_some(value_index)
             })
             .collect();
         if let Err(e) = self.command_exec.run_with_redaction(
@@ -1056,6 +1059,25 @@ mod tests {
                 "/fd".to_string(),
                 "SHA256".to_string(),
             ];
+            task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &signtool_args)
+                .expect("signing should succeed");
+        }
+
+        #[test]
+        fn sign_does_not_redact_file_operand_if_password_is_missing() {
+            let arch = CpuArchitecture::Amd64;
+            let command_exec = expect_signtool_args(
+                ["sign", "/f", "cert.pfx", "/p", "C:/pkg/driver.sys"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                vec![],
+            );
+            let wdk_build = WdkBuild::default();
+            let fs = Fs::default();
+            let task = create_package_task(&wdk_build, &command_exec, &fs, &arch);
+
+            let signtool_args = ["/f".to_string(), "cert.pfx".to_string(), "/p".to_string()];
             task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &signtool_args)
                 .expect("signing should succeed");
         }
