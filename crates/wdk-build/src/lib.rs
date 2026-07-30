@@ -1092,16 +1092,12 @@ impl Config {
     }
 
     /// Returns the base libraries that need to be linked based on the
-    /// configured driver model and target architecture.
+    /// configured driver model and target architecture as a [`Vec`] of
+    /// [`LinkDirective`]s.
     ///
     /// TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
     /// stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives emitted by
     /// [`wdk_build::Config::configure_binary_build`] will be moved here too.
-    ///
-    /// # Returns
-    ///
-    /// A [`Vec`] of [`LinkDirective`]s for the [`ApiSubset`]'s variant
-    /// [`ApiSubset::Base`].
     fn base_libraries(&self) -> Vec<LinkDirective> {
         const fn static_lib(name: &'static str) -> LinkDirective {
             LinkDirective::new(name)
@@ -1589,14 +1585,8 @@ impl LinkDirective {
         Self { name }
     }
 
-    /// Formats this [`LinkDirective`] as a self-contained block of Rust
-    /// source.
-    ///
-    /// # Returns
-    ///
-    /// Returns a formatted [`String`] containing the cfg-gate
-    /// `#[cfg(not(any(test, feature = "omit-wdk-libs")))]`, the `#[link]`
-    /// attribute, and an empty `unsafe extern "C" {}` block.
+    /// Returns the cfg-gate, this [`LinkDirective`], and an empty `unsafe
+    /// extern "C" {}` block as a self-contained block of Rust source.
     fn render(&self) -> String {
         format!(
             r#"#[cfg({cfg})]

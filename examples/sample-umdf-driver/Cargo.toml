@@ -25,6 +25,9 @@ wdk-build.path = "../../crates/wdk-build"
 wdk.path = "../../crates/wdk"
 wdk-sys.path = "../../crates/wdk-sys"
 
+[dev-dependencies]
+wdk-sys = { path = "../../crates/wdk-sys", features = ["test-stubs"] }
+
 [features]
 default = []
 
