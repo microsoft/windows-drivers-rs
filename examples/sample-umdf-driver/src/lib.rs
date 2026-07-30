@@ -170,3 +170,13 @@ extern "C" fn evt_driver_unload(_driver: WDFDRIVER) {
     println!("Goodbye World!");
     println!("Driver Exit Complete!");
 }
+
+mod tests {
+
+    #[test]
+    fn test_driver_exit() {
+        use super::*;
+
+        evt_driver_unload(core::ptr::null_mut())
+    }
+}

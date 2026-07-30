@@ -6,7 +6,7 @@
 //! This is a sample KMDF driver that demonstrates how to use the crates in
 //! windows-driver-rs to create a skeleton of a kmdf driver.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
 
@@ -188,4 +188,14 @@ extern "C" fn evt_driver_device_add(
 extern "C" fn driver_exit(_driver: *mut DRIVER_OBJECT) {
     println!("Goodbye World!");
     println!("Driver Exit Complete!");
+}
+
+mod tests {
+
+    #[test]
+    fn test_driver_exit() {
+        use super::*;
+
+        driver_exit(core::ptr::null_mut())
+    }
 }

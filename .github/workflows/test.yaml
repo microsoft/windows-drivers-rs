@@ -123,3 +123,6 @@ jobs:
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
+
+      - name: Run Cargo Test (Top-level examples Folder via Cargo Make - Sample Drivers)
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./examples test --locked --profile ${{ matrix.cargo_profile }}
