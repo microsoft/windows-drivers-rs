@@ -171,7 +171,7 @@ impl BuildArgs {
     /// Resolves a typed, fully-validated [`SignMode`] from the parsed build
     /// arguments. Rules that clap cannot express declaratively are enforced
     /// here and surfaced as `clap::Error` for consistent CLI UX.
-    fn get_sign_mode(&self) -> Result<SignMode, clap::Error> {
+    fn sign_mode(&self) -> Result<SignMode, clap::Error> {
         fn build_error(message: impl std::fmt::Display) -> clap::Error {
             Cli::command().error(ErrorKind::ArgumentConflict, message)
         }
@@ -328,7 +328,7 @@ impl Cli {
                 Ok(())
             }
             Subcmd::Build(cli_args) => {
-                let sign_mode = cli_args.get_sign_mode()?;
+                let sign_mode = cli_args.sign_mode()?;
                 BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
@@ -438,7 +438,7 @@ mod tests {
         fn rejects_verify_signature_when_sign_mode_is_off() {
             let args = parse_build_args(&["--sign-mode", "off", "--verify-signature"])
                 .expect("args parse");
-            let err = args.get_sign_mode().expect_err("should be rejected");
+            let err = args.sign_mode().expect_err("should be rejected");
             assert!(
                 err.to_string()
                     .contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
@@ -450,7 +450,7 @@ mod tests {
         fn rejects_signtool_args_with_sign_mode_off() {
             let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", "/fd SHA256"])
                 .expect("args parse");
-            let err = args.get_sign_mode().expect_err("should be rejected");
+            let err = args.sign_mode().expect_err("should be rejected");
             assert!(
                 err.to_string()
                     .contains("`--signtool-args` cannot be used with `--sign-mode=off`."),
@@ -463,7 +463,7 @@ mod tests {
             for value in ["", "   ", "\t"] {
                 let args = parse_build_args(&["--sign-mode", "off", "--signtool-args", value])
                     .expect("args should parse");
-                let err = args.get_sign_mode().expect_err("should be rejected");
+                let err = args.sign_mode().expect_err("should be rejected");
                 assert!(
                     err.to_string()
                         .contains("`--signtool-args` cannot be used with `--sign-mode=off`."),
@@ -476,7 +476,7 @@ mod tests {
         fn sign_mode_off_maps_correctly() {
             let args = parse_build_args(&["--sign-mode", "off"]).expect("args should parse");
             assert_eq!(
-                args.get_sign_mode().expect("mapping should succeed"),
+                args.sign_mode().expect("mapping should succeed"),
                 SignMode::Off
             );
         }
@@ -485,7 +485,7 @@ mod tests {
         fn default_options_maps_to_test_sign_mode_with_no_signtool_args() {
             let args = parse_build_args(&[]).expect("args should parse");
             assert_eq!(
-                args.get_sign_mode().expect("mapping should succeed"),
+                args.sign_mode().expect("mapping should succeed"),
                 SignMode::Test {
                     verify_signature: false,
                     signtool_args: Vec::new(),
@@ -498,7 +498,7 @@ mod tests {
             let args = parse_build_args(&["--verify-signature", "--signtool-args", "/fd SHA256"])
                 .expect("args should parse");
             assert_eq!(
-                args.get_sign_mode().expect("mapping should succeed"),
+                args.sign_mode().expect("mapping should succeed"),
                 SignMode::Test {
                     verify_signature: true,
                     signtool_args: vec!["/fd".to_string(), "SHA256".to_string()],
