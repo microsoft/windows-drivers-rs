@@ -14,6 +14,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
+  # TODO: Remove when cargo-wdk supports Cargo build-dir layout v2.
+  __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT: '1'
   RUSTFLAGS: >-
     -D warnings
     -C target-feature=+crt-static
