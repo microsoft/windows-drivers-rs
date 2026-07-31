@@ -299,17 +299,19 @@ impl<'a> PackageTask<'a> {
             self.generate_certificate()?;
             self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
             // Default WDR test-cert switches.
-            vec![
-                "/v".to_string(),
-                "/s".to_string(),
-                WDR_TEST_CERT_STORE.to_string(),
-                "/n".to_string(),
-                WDR_LOCAL_TEST_CERT.to_string(),
-                "/t".to_string(),
-                DEFAULT_TIMESTAMP_URL.to_string(),
-                "/fd".to_string(),
-                "SHA256".to_string(),
+            [
+                "/v",
+                "/s",
+                WDR_TEST_CERT_STORE,
+                "/n",
+                WDR_LOCAL_TEST_CERT,
+                "/t",
+                DEFAULT_TIMESTAMP_URL,
+                "/fd",
+                "SHA256",
             ]
+            .map(ToString::to_string)
+            .to_vec()
         } else {
             signtool_args.clone()
         };
@@ -520,7 +522,7 @@ impl<'a> PackageTask<'a> {
     }
 
     /// Signs the file with `signtool` by executing the following command:
-    /// `sign <signtool_args...> <file>`
+    /// `sign <signtool_args...> <file_path>`
     ///
     /// # Arguments
     ///
@@ -551,6 +553,11 @@ impl<'a> PackageTask<'a> {
         args.push(file_path);
 
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+
+        // Determine the indices of password values (the token right after each
+        // `/p`) so they can be redacted by `run_with_redaction` in the logs.
+        // `value_index < file_operand_index` ensures a value token
+        // actually follows `/p` and that it is never the trailing file operand.
         let file_operand_index = arg_refs.len() - 1;
         let redaction_indices: Vec<usize> = arg_refs
             .iter()
@@ -994,7 +1001,7 @@ mod tests {
         }
 
         #[test]
-        fn sign_redacts_password_value() {
+        fn sign_redacts_password_value_arg_by_redaction_index() {
             let arch = CpuArchitecture::Amd64;
             let command_exec = expect_signtool_args(
                 [
