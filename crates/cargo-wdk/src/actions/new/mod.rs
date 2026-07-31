@@ -8,7 +8,11 @@
 //! necessary files and configurations.
 mod error;
 
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::{self, Display},
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use clap_verbosity_flag::Verbosity;
 use error::NewActionError;
@@ -18,7 +22,43 @@ use tracing::{debug, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{actions::DriverType, trace};
+use crate::trace;
+
+pub const KMDF_STR: &str = "kmdf";
+pub const UMDF_STR: &str = "umdf";
+pub const WDM_STR: &str = "wdm";
+
+/// Enum of driver types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriverType {
+    Kmdf,
+    Umdf,
+    Wdm,
+}
+
+impl FromStr for DriverType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            KMDF_STR => Ok(Self::Kmdf),
+            UMDF_STR => Ok(Self::Umdf),
+            WDM_STR => Ok(Self::Wdm),
+            _ => Err(format!("'{s}' is not a valid driver type")),
+        }
+    }
+}
+
+impl Display for DriverType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Kmdf => KMDF_STR,
+            Self::Umdf => UMDF_STR,
+            Self::Wdm => WDM_STR,
+        };
+        write!(f, "{s}")
+    }
+}
 
 /// Directory containing the templates to be bundled with the utility
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -305,10 +345,7 @@ mod tests {
     use clap_verbosity_flag::Verbosity;
 
     use crate::{
-        actions::{
-            DriverType,
-            new::{NewAction, NewActionError},
-        },
+        actions::new::{DriverType, NewAction, NewActionError},
         providers::{
             error::{CommandError, FileError},
             exec::MockCommandExec,

@@ -28,15 +28,13 @@ use crate::providers::{
     wdk_build::WdkBuild,
 };
 use crate::{
-    actions::{
+    actions::build::{
+        BuildAction,
+        BuildActionParams,
         Profile,
-        build::{
-            BuildAction,
-            BuildActionParams,
-            SignMode,
-            TargetPlatform,
-            error::BuildActionError,
-        },
+        SignMode,
+        TargetPlatform,
+        error::BuildActionError,
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -2872,6 +2870,7 @@ impl TestBuildAction {
                 .to_string_lossy()
                 .to_string(),
         ];
+
         self.mock_run_command
             .expect_run_with_redaction()
             .withf(

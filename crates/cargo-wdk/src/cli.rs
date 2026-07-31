@@ -13,14 +13,9 @@ use mockall_double::double;
 use wdk_build::CpuArchitecture;
 
 use crate::actions::{
-    DriverType,
-    KMDF_STR,
-    Profile,
-    UMDF_STR,
-    WDM_STR,
-    build::{BuildAction, BuildActionParams, SignMode, TargetPlatform},
+    build::{BuildAction, BuildActionParams, Profile, SignMode, TargetPlatform},
     clean::CleanAction,
-    new::NewAction,
+    new::{DriverType, KMDF_STR, NewAction, UMDF_STR, WDM_STR},
 };
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
@@ -362,7 +357,7 @@ mod tests {
     use clap::Parser;
 
     use crate::{
-        actions::{DriverType, build::SignMode},
+        actions::{build::SignMode, new::DriverType},
         cli::{BuildArgs, Cli, NewArgs, Subcmd},
     };
 
