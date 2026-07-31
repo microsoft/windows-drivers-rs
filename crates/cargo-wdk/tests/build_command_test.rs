@@ -506,27 +506,17 @@ mod signtool_args {
             run_clean_cmd(&project_path);
 
             let driver_name = driver.replace('-', "_");
-            let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
             let common_args = "/s WDRTestCertStore /n WDRLocalTestCert /fd SHA256";
 
-            // First build produces a signed driver binary we can reuse as an
-            // independent second file operand.
-            run_build_cmd(&project_path, Some(&["--signtool-args", common_args]), None);
-            let built = format!("{package_dir}/{driver_name}.dll");
-            assert_file_exists(&built);
-
+            // The build copies the driver binary into the package folder and signs
+            // the copy, leaving the original under `target/debug` unsigned. We pass
+            // that unsigned original as an extra signtool operand and assert the
+            // build signs it too.
             let extra = env::current_dir()
                 .expect("cwd")
                 .join(&project_path)
-                .join("extra_to_sign.dll");
-            fs::copy(&built, &extra).expect("copy extra file");
-            strip_signature(&extra);
-            assert!(
-                authenticode_signer_subject(&extra).is_none(),
-                "precondition: extra file should be unsigned after strip"
-            );
+                .join(format!("target/debug/{driver_name}.dll"));
 
-            // Pass the extra file as an additional operand inside --signtool-args.
             let args_with_extra = format!("{common_args} \"{}\"", extra.to_string_lossy());
             let stderr = run_build_cmd(
                 &project_path,
@@ -541,8 +531,6 @@ mod signtool_args {
                 signer.contains("WDRLocalTestCert"),
                 "extra file operand signed by unexpected cert: {signer}"
             );
-
-            fs::remove_file(&extra).ok();
         });
     }
 
@@ -673,20 +661,6 @@ mod signtool_args {
                 String::from_utf8_lossy(&out.stderr)
             );
         }
-    }
-
-    fn strip_signature(path: &Path) {
-        let out = Command::new("signtool")
-            .args(["remove", "/s"])
-            .arg(path)
-            .output()
-            .expect("failed to run signtool remove");
-        assert!(
-            out.status.success(),
-            "signtool remove failed for {}: {}",
-            path.display(),
-            String::from_utf8_lossy(&out.stderr)
-        );
     }
 
     fn authenticode_signer_subject(path: &Path) -> Option<String> {
