@@ -26,7 +26,7 @@ wdk-panic.path = "../../crates/wdk-panic"
 wdk-sys.path = "../../crates/wdk-sys"
 
 [dev-dependencies]
-wdk-sys = { path = "../../crates/wdk-sys", features = ["test-stubs"] }
+wdk-sys = { features = ["test-stubs"], path = "../../crates/wdk-sys" }
 
 [features]
 default = []

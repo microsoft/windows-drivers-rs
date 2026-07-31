@@ -81,7 +81,6 @@ mod wdf {
 
     /// Stubbed version of `WdfDriverGlobals` Symbol so that test targets will
     /// link.
-    /// 
     // SAFETY: WdfDriverGlobals is a required WDF symbol for test compilation.
     // No other symbols in this crate export this name, preventing linker conflicts.
     #[unsafe(no_mangle)]
