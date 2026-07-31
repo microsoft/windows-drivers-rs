@@ -46,7 +46,7 @@ pub use wdf::*;
     driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF"
 ))]
-use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
+use crate::{NTSTATUS, PCUNICODE_STRING, PDRIVER_OBJECT};
 
 /// Stubbed version of `DriverEntry` Symbol so that test targets will compile
 ///
@@ -62,7 +62,7 @@ use crate::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING};
 // No other function in this compilation unit exports this name, preventing symbol conflicts.
 #[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
 pub const unsafe extern "system" fn driver_entry_stub(
-    _driver: &mut DRIVER_OBJECT,
+    _driver: PDRIVER_OBJECT,
     _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
     0
@@ -70,7 +70,7 @@ pub const unsafe extern "system" fn driver_entry_stub(
 
 #[cfg(any(driver_model__driver_type = "KMDF", driver_model__driver_type = "UMDF"))]
 mod wdf {
-    use crate::ULONG;
+    use crate::{PWDF_DRIVER_GLOBALS, ULONG};
 
     /// Stubbed version of `WdfFunctionCount` Symbol so that test targets will
     /// compile
@@ -78,6 +78,14 @@ mod wdf {
     // No other symbols in this crate export this name, preventing linker conflicts.
     #[unsafe(no_mangle)]
     pub static mut WdfFunctionCount: ULONG = 0;
+
+    /// Stubbed version of `WdfDriverGlobals` Symbol so that test targets will
+    /// link.
+    /// 
+    // SAFETY: WdfDriverGlobals is a required WDF symbol for test compilation.
+    // No other symbols in this crate export this name, preventing linker conflicts.
+    #[unsafe(no_mangle)]
+    pub static mut WdfDriverGlobals: PWDF_DRIVER_GLOBALS = core::ptr::null_mut();
 
     include!(concat!(env!("OUT_DIR"), "/test_stubs.rs"));
 }
