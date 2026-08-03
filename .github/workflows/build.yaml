@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  # TODO: Remove when cargo-wdk supports Cargo build-dir layout v2.
+  # TODO: Remove when cargo-wdk supports Cargo build-dir layout v2 (see https://github.com/microsoft/windows-drivers-rs/issues/709).
   CARGO_UNSTABLE_BUILD_DIR_NEW_LAYOUT: 'false'
   RUSTFLAGS: >-
     -D warnings
