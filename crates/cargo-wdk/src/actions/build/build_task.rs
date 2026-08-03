@@ -5,7 +5,10 @@
 //! building a driver package with the provided options using the `cargo build`
 //! command.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 use cargo_metadata::Message;
@@ -22,6 +25,8 @@ use crate::{
     providers::error::CommandError,
     trace,
 };
+
+const CARGO_BUILD_DIR_NEW_LAYOUT: &str = "CARGO_UNSTABLE_BUILD_DIR_NEW_LAYOUT";
 
 /// Parameters for constructing a [`BuildTask`].
 pub struct BuildTaskParams<'a> {
@@ -123,12 +128,18 @@ impl<'a> BuildTask<'a> {
             .iter()
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
+        let env_vars = HashMap::from([(CARGO_BUILD_DIR_NEW_LAYOUT, "false")]);
 
         // Run cargo build from the provided working directory so that config.toml
         // is respected
         let output = self
             .command_exec
-            .run("cargo", &args, None, Some(self.params.working_dir))
+            .run(
+                "cargo",
+                &args,
+                Some(&env_vars),
+                Some(self.params.working_dir),
+            )
             .map_err(|mut err| {
                 // Drop stdout from CommandFailed so the noisy
                 // --message-format=json-render-diagnostics output isn't bubbled up
@@ -390,6 +401,37 @@ mod tests {
 
         task.run()
             .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+    }
+
+    #[test]
+    fn run_disables_cargo_build_dir_new_layout() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let features = Features::default();
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(|command, _args, env_vars, _working_dir| {
+                command == "cargo"
+                    && env_vars.is_some_and(|env_vars| {
+                        env_vars.get(CARGO_BUILD_DIR_NEW_LAYOUT) == Some(&"false")
+                    })
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(default_build_task_params(&working_dir, &features), &mock);
+
+        task.run()
+            .expect("expected cargo build to succeed")
             .collect::<std::result::Result<Vec<_>, _>>()
             .expect("expected valid cargo messages");
     }
