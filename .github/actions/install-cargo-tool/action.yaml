@@ -17,7 +17,7 @@ runs:
   using: composite
   steps:
     - name: Install ${{ inputs.tool }} via install-action
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
       with:
         tool: ${{ inputs.tool }}
 
