@@ -13,6 +13,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  # TODO: Remove when cargo-wdk supports Cargo build-dir layout v2 (see https://github.com/microsoft/windows-drivers-rs/issues/709).
+  # The whitelist in function `sanitize_env_vars` in crates/cargo-wdk/tests/test_utils/mod.rs should also be removed once this env var is removed.
+  CARGO_UNSTABLE_BUILD_DIR_NEW_LAYOUT: 'false'
+
 jobs:
   test:
     name: Test
