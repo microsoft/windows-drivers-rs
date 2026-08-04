@@ -78,7 +78,7 @@ Options:
 
 Driver Signing:
       --sign-mode <SIGN_MODE>  Signing mode [default: test] [possible values: off, test]
-      --signtool-args <ARGS>   Additional arguments to pass to `signtool sign` when signing the driver binary and the catalog file, e.g. `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`
+      --signtool-args <ARGS>   Custom arguments to pass to `signtool sign` when signing the driver binary and the catalog file, e.g. `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`
       --verify-signature       Verify the signatures of the driver binary and catalog file after signing
 
 Feature Selection:

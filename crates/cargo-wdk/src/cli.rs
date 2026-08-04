@@ -137,7 +137,7 @@ pub struct BuildArgs {
     )]
     pub sign_mode: SignModeArg,
 
-    /// Additional arguments to pass to `signtool sign` when signing the driver
+    /// Custom arguments to pass to `signtool sign` when signing the driver
     /// binary and the catalog file, e.g.
     /// `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`.
     #[arg(
