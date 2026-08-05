@@ -34,6 +34,14 @@ fn main() -> ExitCode {
     let cli: Cli = Cli::parse();
     trace::init_tracing(cli.verbose);
     if let Err(e) = cli.run() {
+        if let Some(clap_error) = e.downcast_ref::<clap::Error>() {
+            if let Err(print_error) = clap_error.print() {
+                error!("{print_error}");
+                return ExitCode::FAILURE;
+            }
+            let exit_code = u8::try_from(clap_error.exit_code()).unwrap_or(1);
+            return ExitCode::from(exit_code);
+        }
         error!("{e:#}");
         return ExitCode::FAILURE;
     }
