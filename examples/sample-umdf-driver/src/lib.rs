@@ -35,6 +35,8 @@ use wdk_sys::{
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
 // SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
 // No other function in this compilation unit exports this name, preventing symbol conflicts.
+// The cfg gate on export_name is temporary to avoid clashing with the `DriverEntry`
+// provided by the `test-stubs` feature.
 #[cfg_attr(not(test), unsafe(export_name = "DriverEntry"))] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: PDRIVER_OBJECT,
@@ -174,6 +176,8 @@ extern "C" fn evt_driver_unload(_driver: WDFDRIVER) {
 #[cfg(test)]
 mod tests {
 
+    /// Dummy test to ensure `test` targets compile correctly 
+    /// without linking WDK libs
     #[test]
     fn test_driver_exit() {
         use super::*;

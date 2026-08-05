@@ -1062,7 +1062,7 @@ impl Config {
     /// libraries to link.
     ///
     /// Each emitted directive is gated behind `#[cfg(not(any(test, feature =
-    /// "omit-wdk-libs")))]`.
+    /// "suppress-wdk-linking")))]`.
     #[must_use]
     pub fn bindgen_library_link_raw_lines(&self, api_subset: ApiSubset) -> Option<String> {
         let libraries = self.libraries(api_subset);
@@ -1569,7 +1569,7 @@ pub fn configure_wdk_binary_build() -> Result<(), ConfigError> {
 }
 
 /// Logic for the `cfg` attribute of a rendered [`LinkDirective`]
-const NOT_TEST_CFG: &str = r#"not(any(test, feature = "omit-wdk-libs"))"#;
+const NOT_TEST_CFG: &str = r#"not(any(test, feature = "suppress-wdk-linking"))"#;
 
 /// A native library to link into the generated bindings.
 ///
@@ -2185,8 +2185,11 @@ mod tests {
         }
 
         #[test]
-        fn link_directives_are_disabled_for_tests_and_omit_wdk_libs() {
-            assert_eq!(NOT_TEST_CFG, r#"not(any(test, feature = "omit-wdk-libs"))"#);
+        fn link_directives_are_disabled_for_tests_and_suppress_wdk_linking() {
+            assert_eq!(
+                NOT_TEST_CFG,
+                r#"not(any(test, feature = "suppress-wdk-linking"))"#
+            );
         }
 
         #[test]
