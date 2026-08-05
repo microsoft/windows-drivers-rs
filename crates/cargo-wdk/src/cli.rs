@@ -226,9 +226,7 @@ fn parse_passthrough_args(raw: &str) -> Result<SigntoolArgs, String> {
             None if c.is_whitespace() => {
                 if in_arg {
                     let token = std::mem::take(&mut current);
-                    if !token.is_empty() {
-                        args.push(token);
-                    }
+                    args.push(token);
                     in_arg = false;
                 }
             }
@@ -244,7 +242,7 @@ fn parse_passthrough_args(raw: &str) -> Result<SigntoolArgs, String> {
             "unterminated `{q}` quote in `--signtool-args`; make sure every quote is closed"
         ));
     }
-    if in_arg && !current.is_empty() {
+    if in_arg {
         args.push(current);
     }
 
@@ -532,12 +530,20 @@ mod tests {
 
         #[test]
         fn treats_empty_or_whitespace_as_no_args() {
-            for value in ["", "   ", "\t", "\"\"", "''", "  \"\"  "] {
+            for value in ["", "   ", "\t"] {
                 let parsed = parse_passthrough_args(value).expect("should parse");
                 assert!(
                     parsed.0.is_empty(),
                     "value {value:?} should parse to no args"
                 );
+            }
+        }
+
+        #[test]
+        fn preserves_quoted_empty_args() {
+            for value in ["/p \"\"", "/p ''"] {
+                let parsed = parse_passthrough_args(value).expect("should parse");
+                assert_eq!(parsed.0, vec!["/p", ""]);
             }
         }
     }
