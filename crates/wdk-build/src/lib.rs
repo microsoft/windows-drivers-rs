@@ -1057,7 +1057,7 @@ impl Config {
             .collect())
     }
 
-    /// Returns the formatted `#[link]` directives (as raw Rust source) for the
+    /// Returns the formatted `#[link]` directives as raw Rust source for the
     /// given [`ApiSubset`], or `None` if the [`ApiSubset`] does not define any
     /// libraries to link.
     ///
