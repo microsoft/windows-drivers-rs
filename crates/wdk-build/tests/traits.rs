@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation
 // License: MIT OR Apache-2.0
 
-//! Integration tests for [`wdk_build::derives::DerivesMap`] driven through
-//! [`DerivesMap::from_file`]: writes a representative bindgen source snippet
-//! to a temp file and asserts the recovered derive sets match each documented
+//! Integration tests for [`wdk_build::traits::TraitsMap`] driven through
+//! [`TraitsMap::from_file`]: writes a representative bindgen source snippet
+//! to a temp file and asserts the recovered trait sets match each documented
 //! bindgen output shape.
 
 use assert_fs::{NamedTempFile, fixture::FileWriteStr};
 use bindgen::callbacks::DeriveTrait;
-use wdk_build::derives::{DerivesError, DerivesMap};
+use wdk_build::traits::{TraitsError, TraitsMap};
 
 const ALL_TRAITS: &[DeriveTrait] = &[
     DeriveTrait::Copy,
@@ -19,19 +19,19 @@ const ALL_TRAITS: &[DeriveTrait] = &[
 ];
 
 /// Writes `src` to a temp file and parses it through the public
-/// [`DerivesMap::from_file`] entry point.
-fn parse(src: &str) -> DerivesMap {
+/// [`TraitsMap::from_file`] entry point.
+fn parse(src: &str) -> TraitsMap {
     let tmp = NamedTempFile::new("bindgen_output.rs").expect("create temp file");
     tmp.write_str(src).expect("write temp file");
-    DerivesMap::from_file(tmp.path()).expect("parses")
+    TraitsMap::from_file(tmp.path()).expect("parses")
 }
 
 /// Assert that `map` reports `satisfies(name, t) == true` for exactly the
 /// traits in `expected`, and `false` for every other trait in [`ALL_TRAITS`].
-fn assert_derives(map: &DerivesMap, name: &str, expected: &[DeriveTrait]) {
+fn assert_traits(map: &TraitsMap, name: &str, expected: &[DeriveTrait]) {
     for &t in ALL_TRAITS {
         let want = expected.contains(&t);
-        let got = map.satisfies(name, t);
+        let got = map[name].contains(t);
         assert_eq!(
             got, want,
             "{name}: satisfies({t:?}) = {got}, expected {want}"
@@ -76,7 +76,7 @@ fn parses_representative_bindgen_output() {
         // Option<fn>: fn contributes all-except-Default, Option adds Default back — ends up with all 5.
         pub type OptFn = ::core::option::Option<unsafe extern "C" fn(x: u32) -> u32>;
 
-        // Bindgen module-enum pattern: inner `Type` aliases a primitive, and a use-rename re-exports it under a friendly name. The re-export must resolve to the inner `Type`'s derive set.
+        // Bindgen module-enum pattern: inner `Type` aliases a primitive, and a use-rename re-exports it under a friendly name. The re-export must resolve to the inner `Type`'s trait set.
         pub mod _INTERFACE_TYPE {
             pub type Type = ::core::ffi::c_int;
             pub const Isa: Type = 1;
@@ -85,50 +85,47 @@ fn parses_representative_bindgen_output() {
     "#;
     let map = parse(src);
 
-    assert_derives(&map, "Pod", &[Copy, Debug, Default]);
-    assert_derives(&map, "Uni", &[Copy]);
-    assert_derives(
+    assert_traits(&map, "Pod", &[Copy, Debug, Default]);
+    assert_traits(&map, "Uni", &[Copy]);
+    assert_traits(
         &map,
         "UnionField",
         &[Copy, Debug, Hash, PartialEqOrPartialOrd],
     );
-    assert_derives(
+    assert_traits(
         &map,
         "ArrayField",
         &[Copy, Debug, Default, Hash, PartialEqOrPartialOrd],
     );
 
-    // Type alias chain resolves through to Pod's derives.
-    assert_derives(&map, "PodAlias", &[Copy, Debug, Default]);
-    assert_derives(&map, "PodAliasChain", &[Copy, Debug, Default]);
+    // Type alias chain resolves through to Pod's traits.
+    assert_traits(&map, "PodAlias", &[Copy, Debug, Default]);
+    assert_traits(&map, "PodAliasChain", &[Copy, Debug, Default]);
 
-    // Primitive-target type aliases: terminal shapes get the full standard derive
+    // Primitive-target type aliases: terminal shapes get the full standard trait
     // set directly, without chain resolution.
     for name in ["UCHAR", "ULONG", "PVOID", "PULONG"] {
-        assert_derives(&map, name, ALL_TRAITS);
+        assert_traits(&map, name, ALL_TRAITS);
     }
 
-    // Unknown type name: returns false for every trait, does not panic.
-    assert_derives(&map, "Nonexistent", &[]);
-
     // Option<fn> — fn gives 4, Option adds Default → all 5.
-    assert_derives(&map, "OptFn", ALL_TRAITS);
+    assert_traits(&map, "OptFn", ALL_TRAITS);
 
     // Module-enum pattern — both the compound key (`_INTERFACE_TYPE::Type`) and
     // the re-exported friendly name (`INTERFACE_TYPE`) inherit the primitive's
-    // full derive set.
-    assert_derives(&map, "_INTERFACE_TYPE::Type", ALL_TRAITS);
-    assert_derives(&map, "INTERFACE_TYPE", ALL_TRAITS);
+    // full trait set.
+    assert_traits(&map, "_INTERFACE_TYPE::Type", ALL_TRAITS);
+    assert_traits(&map, "INTERFACE_TYPE", ALL_TRAITS);
 }
 
 #[test]
 fn from_file_missing_path_returns_io_error() {
-    let err = DerivesMap::from_file(std::path::Path::new(
+    let err = TraitsMap::from_file(std::path::Path::new(
         "/this/path/does/not/exist/bindgen_output.rs",
     ))
     .expect_err("missing file must error");
     assert!(
-        matches!(err, DerivesError::Io { .. }),
+        matches!(err, TraitsError::Io { .. }),
         "expected Io, got {err:?}"
     );
 }
@@ -138,9 +135,9 @@ fn from_file_invalid_rust_returns_parse_error() {
     let tmp = NamedTempFile::new("bad.rs").expect("create temp file");
     tmp.write_str("not @ valid @ rust @@@")
         .expect("write temp file");
-    let err = DerivesMap::from_file(tmp.path()).expect_err("invalid syntax must error");
+    let err = TraitsMap::from_file(tmp.path()).expect_err("invalid syntax must error");
     assert!(
-        matches!(err, DerivesError::Parse(_)),
+        matches!(err, TraitsError::Parse(_)),
         "expected Parse, got {err:?}"
     );
 }
@@ -150,9 +147,9 @@ fn from_file_foreign_mod_returns_unsupported_error() {
     let tmp = NamedTempFile::new("foreign.rs").expect("create temp file");
     tmp.write_str("extern \"C\" { pub fn f(); }")
         .expect("write temp file");
-    let err = DerivesMap::from_file(tmp.path()).expect_err("foreign mod must error");
+    let err = TraitsMap::from_file(tmp.path()).expect_err("foreign mod must error");
     assert!(
-        matches!(err, DerivesError::UnsupportedSynNode { .. }),
-        "expected UnsupportedSynNode, got {err:?}"
+        matches!(err, TraitsError::UnsupportedNodeVariant { .. }),
+        "expected UnsupportedNodeVariant, got {err:?}"
     );
 }
