@@ -313,6 +313,8 @@ fn sanitize_env_vars(cmd: &mut Command) {
             // non-default locations
             && var_upper != "CARGO_HOME"
             && var_upper != "RUSTUP_HOME"
+            // TODO: Remove this whitelist once the env var is removed from test.yaml (see https://github.com/microsoft/windows-drivers-rs/issues/709)
+            && var_upper != "CARGO_UNSTABLE_BUILD_DIR_NEW_LAYOUT"
         {
             Some(var)
         } else {
