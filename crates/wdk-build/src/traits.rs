@@ -225,7 +225,7 @@ impl TryFrom<String> for TraitsSet {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum TraitsSource {
     Direct(TraitsSet),
     TypeAlias(String),
@@ -401,6 +401,15 @@ impl TraitsMap {
 /// Classify the type-defining [`syn::Item`]s in `items`, returning their
 /// type names and [`TraitsSource`]s.
 ///
+/// Each `Item` has the potential to return any number of [`TraitsSource`]s
+/// depending on its variant. There is no consolidation for type names; a type
+/// may appear multiple times in the returned `Vec`.
+///
+/// If a type's implemented traits can be inferred from the `Item`, those traits
+/// are added via [`TraitsSource::Direct`]. Otherwise, a type's implemented
+/// traits must be reliant on another type, which is represented with
+/// `[TraitsSource::TypeAlias]`.
+///
 /// # Bindgen shapes
 ///
 /// Struct / Union / Enum -- traits come from the `#[derive(...)]` attrs:
@@ -442,7 +451,6 @@ impl TraitsMap {
 /// pub type PTCH = LPCH; // type definition comes from other defined type, stored as `TraitsSource::TypeAlias`
 /// ```
 ///
-///
 /// Module / Use -- `bindgen`'s representation of C-style enums. Defines a
 /// discriminant type inside a `mod` alongside variants, and exports that type
 /// via a `use` statement.
@@ -460,7 +468,8 @@ impl TraitsMap {
 /// pub use self::_DEVICE_POWER_STATE::Type as DEVICE_POWER_STATE;
 /// ```
 ///
-/// Impl -- `bindgen` helper blocks and anonymous layout assertions.
+/// Impl -- `bindgen`'s manual implementation of individual traits. This is
+/// added as a separate key/pair value from the initial definition.
 ///
 /// ```ignore
 /// #[repr(C)]
@@ -495,42 +504,24 @@ fn extract_idents_and_traits_from_items(
         match item {
             Item::Struct(s) => {
                 trace!("Item recognized as a struct");
-                let trait_set = extract_derived_traits_from_attrs(&s.attrs).try_into();
-                match trait_set {
-                    Ok(trait_set) => {
-                        traits.push((s.ident.to_string(), TraitsSource::Direct(trait_set)));
-                    }
-                    Err(TraitsError::UntrackedTraits { trait_names }) => {
-                        trace!("Struct did not derive tracked traits: {trait_names:?}");
-                    }
-                    Err(e) => return Err(e),
-                }
+                traits.push((
+                    s.ident.to_string(),
+                    extract_derived_traits_from_attrs(&s.attrs),
+                ));
             }
             Item::Union(u) => {
                 trace!("Item recognized as a union");
-                let trait_set = extract_derived_traits_from_attrs(&u.attrs).try_into();
-                match trait_set {
-                    Ok(trait_set) => {
-                        traits.push((u.ident.to_string(), TraitsSource::Direct(trait_set)));
-                    }
-                    Err(TraitsError::UntrackedTraits { trait_names }) => {
-                        trace!("Union did not derive tracked traits: {trait_names:?}");
-                    }
-                    Err(e) => return Err(e),
-                }
+                traits.push((
+                    u.ident.to_string(),
+                    extract_derived_traits_from_attrs(&u.attrs),
+                ));
             }
             Item::Enum(e) => {
                 trace!("Item recognized as an enum");
-                let trait_set = extract_derived_traits_from_attrs(&e.attrs).try_into();
-                match trait_set {
-                    Ok(trait_set) => {
-                        traits.push((e.ident.to_string(), TraitsSource::Direct(trait_set)));
-                    }
-                    Err(TraitsError::UntrackedTraits { trait_names }) => {
-                        trace!("Enum did not derive tracked traits: {trait_names:?}");
-                    }
-                    Err(e) => return Err(e),
-                }
+                traits.push((
+                    e.ident.to_string(),
+                    extract_derived_traits_from_attrs(&e.attrs),
+                ));
             }
             Item::Type(t) => {
                 trace!("Item recognized as a type");
@@ -546,15 +537,8 @@ fn extract_idents_and_traits_from_items(
             }
             Item::Impl(i) => {
                 trace!("Item recognized as an impl");
-                if let Some((key, trait_source)) = parse_impl_for_ident_and_trait(i) {
-                    let trait_set = trait_source.try_into();
-                    match trait_set {
-                        Ok(trait_set) => traits.push((key, TraitsSource::Direct(trait_set))),
-                        Err(TraitsError::UntrackedTraits { trait_names }) => {
-                            trace!("impl did not implement a tracked trait: {trait_names:?}");
-                        }
-                        Err(e) => return Err(e),
-                    }
+                if let Some(key_trait_pair) = parse_impl_for_ident_and_trait(i) {
+                    traits.push(key_trait_pair);
                 }
             }
             Item::Const(_) => {
@@ -571,9 +555,11 @@ fn extract_idents_and_traits_from_items(
 }
 
 /// Collects the trait names from `#[derive]` attributes.
+///
+/// If no tracked traits are detected, returns the default `TraitsSet`;
 #[tracing::instrument(level = "trace", ret)]
-fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> Vec<String> {
-    attrs
+fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> TraitsSource {
+    let derives_vec: Vec<String> = attrs
         .iter()
         // gather only attributes that are have ident "derive"
         .filter(|attr| attr.path().is_ident("derive"))
@@ -593,26 +579,40 @@ fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> Vec<String> {
                 .next_back()
                 .map(|seg| seg.ident.to_string())
         })
-        .collect()
+        .collect();
+
+    let Ok(traits_set) = TraitsSet::try_from(derives_vec) else {
+        trace!("Derive attributes contain no tracked traits");
+        return TraitsSource::Direct(TraitsSet::default());
+    };
+
+    TraitsSource::Direct(traits_set)
 }
 
-/// Classify a [`syn::Type`] into the [`TraitsSource`] it represents.
+/// Classifies a [`syn::Type`] into the [`TraitsSource`] it represents.
 ///
 /// # Bindgen shapes
 ///
 /// ```ignore
-/// pub type DMFMODULE = *mut DMFMODULE__;                   // Type::Ptr
+/// 
+/// pub type LPCH = *mut CHAR;                              // Type::Ptr
 ///
-/// pub type __C_ASSERT__ = [::core::ffi::c_char; 1usize];   // Type::Array
+/// pub type __C_ASSERT__ = [::core::ffi::c_char; 1usize];  // Type::Array
 ///
-///
-/// pub type EVT_DMF_CALLBACK = ::core::option::Option<      // Type::Path (Option)
-///     unsafe extern "C" fn(/* ... */) -> NTSTATUS,
+/// // type alias comes from function pointer
+/// pub type EX_CALLBACK_FUNCTION = ::core::option::Option< // Type::Path (function pointer in `Option`)
+///     unsafe extern "C" fn(
+///         CallbackContext: PVOID,
+///         Argument1: PVOID,
+///         Argument2: PVOID,
+///     ) -> NTSTATUS,
 /// >;
 ///
-/// pub type DMF_TIME_FIELDS = _DMF_TIME_FIELDS;             // Type::Path (named)
+/// pub type CHAR = ::core::ffi::c_char;                    // Type::Path (ffi)
 ///
-/// pub type WCHAR = u16;                                    // Type::Path (primitive)
+/// pub type rsize_t = usize;                               // Type::Path (primitive)
+///
+/// pub type PTCH = LPCH;                                   // Type::Path (alias)
 /// ```
 ///
 /// # Errors
@@ -620,7 +620,8 @@ fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> Vec<String> {
 /// Returns:
 /// - [`TraitsError::UnsupportedNodeVariant`] if `ty` is a `syn::Type` variant
 ///   other than Ptr/Path/Array, or if the path has generic arguments
-/// - [`TraitsError::UnsupportedNodeShape`] if the path has no segments
+/// - [`TraitsError::UnsupportedNodeShape`] if the shape is not recognized by
+///   any classifiers
 #[tracing::instrument(level = "trace", ret, err(level = "trace"))]
 fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
     match ty {
@@ -663,23 +664,24 @@ fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
     }
 }
 
-/// Classify the type-defining items inside a [`syn::ItemMod`] (bindgen's
-/// C-enum-as-module pattern), returning their prefixed type names and
-/// [`TraitsSource`]s.
+/// Classifies the type-defining items inside a [`syn::ItemMod`], returning
+/// their prefixed type names and [`TraitsSource`]s.
 ///
-/// Registers the inner `Type` under a compound key like
-/// `_INTERFACE_TYPE::Type` so other types can link to it via a type alias.
+/// Prepends the inner items with a path containing the `mod`'s ident so other
+/// types can link to it.
 ///
 /// # Bindgen shapes
 ///
 /// ```ignore
-/// pub mod _INTERFACE_TYPE {
+/// pub mod _DEVICE_POWER_STATE {
 ///     pub type Type = ::core::ffi::c_int;
-///     pub const Isa: Type = 1;
-///     pub const Eisa: Type = 2;
-///     // ...
+///     pub const PowerDeviceUnspecified: Type = 0;
+///     pub const PowerDeviceD0: Type = 1;
+///     pub const PowerDeviceD1: Type = 2;
+///     pub const PowerDeviceD2: Type = 3;
+///     pub const PowerDeviceD3: Type = 4;
+///     pub const PowerDeviceMaximum: Type = 5;
 /// }
-/// pub use self::_INTERFACE_TYPE::Type as INTERFACE_TYPE;
 /// ```
 ///
 /// # Errors
@@ -704,23 +706,20 @@ fn extract_idents_and_traits_from_mod(
     Ok(mod_items_traits)
 }
 
-/// Classify a [`syn::ItemUse`] (bindgen's `pub use self::_FOO::Type as
-/// FOO;` rename), returning the type name and the classified
-/// [`TraitsSource`].
+/// Classifies a [`syn::ItemUse`], returning the renamed type as a
+/// [`TraitsSource::TypeAlias`].
 ///
 /// # Bindgen shapes
 ///
 /// ```ignore
-/// pub use self::_INTERFACE_TYPE::Type as INTERFACE_TYPE;
-/// pub use self::_POWER_STATE_TYPE::Type as POWER_STATE_TYPE;
 /// pub use self::_DEVICE_POWER_STATE::Type as DEVICE_POWER_STATE;
 /// ```
 ///
 /// # Errors
 ///
 /// Returns:
-/// - [`TraitsError::UnsupportedNodeVariant`] for `UseTree` variants other than
-///   `Path` and `Rename`
+/// - [`TraitsError::UnsupportedNodeVariant`] if the `UseTree` does not contain
+///   any number of `UseTree::Path`s followed by a `UseTree::Rename`
 #[tracing::instrument(level = "trace", ret, err(level = "trace"))]
 fn extract_ident_and_traits_from_use(
     item_use: &ItemUse,
@@ -749,8 +748,25 @@ fn extract_ident_and_traits_from_use(
     ))
 }
 
+/// Parses a [`syn::ItemImpl`] for a manual implementation of a trait.
+///
+/// Returns `None` if a manual implementation of a tracked trait is not found.
+///
+/// # Shapes
+///
+/// ```ignore
+/// impl Default for _LARGE_INTEGER {
+///     fn default() -> Self {
+///         let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+///         unsafe {
+///             ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+///             s.assume_init()
+///         }
+///     }
+/// }
+/// ```
 #[tracing::instrument(level = "trace", ret)]
-fn parse_impl_for_ident_and_trait(item_impl: &ItemImpl) -> Option<(String, String)> {
+fn parse_impl_for_ident_and_trait(item_impl: &ItemImpl) -> Option<(String, TraitsSource)> {
     let Some((_not_token, trait_path, _for_token)) = &item_impl.trait_ else {
         trace!("Impl did not implement a trait.");
         return None;
@@ -771,9 +787,18 @@ fn parse_impl_for_ident_and_trait(item_impl: &ItemImpl) -> Option<(String, Strin
         return None;
     };
 
-    Some((type_ident.to_string(), trait_ident.to_string()))
+    let Ok(trait_set) = TraitsSet::try_from(trait_ident.to_string()) else {
+        trace!("Impl trait is not a tracked trait");
+        return None;
+    };
+
+    trace!("Impl is recognized as implementing a tracked trait");
+    Some((type_ident.to_string(), TraitsSource::Direct(trait_set)))
 }
 
+/// Parses a [`syn::Path`] for the type within a `core::option::Option`.
+///
+/// Returns `None` if the `Path` is not recognized as an `Option`.
 #[tracing::instrument(level = "trace", ret)]
 fn parse_path_for_option_type(path: &Path) -> Option<&Type> {
     // check if path is core::option::Option
@@ -810,6 +835,9 @@ fn parse_path_for_option_type(path: &Path) -> Option<&Type> {
     Some(ty)
 }
 
+/// Parses a [`syn::Path`] for the traits a primitive implements.
+///
+/// Returns `None` if the `Path` is not recognized as a Rust primitive.
 #[tracing::instrument(level = "trace", ret)]
 fn parse_path_for_primitive_traits(path: &Path) -> Option<TraitsSet> {
     let segs = &path.segments;
@@ -855,6 +883,10 @@ fn parse_path_for_primitive_traits(path: &Path) -> Option<TraitsSet> {
     None
 }
 
+/// Parses a [`syn::Path`] for a type alias.
+///
+/// Returns `None` if any segment of the alias contains a bracketed or
+/// parenthesized path.
 #[tracing::instrument(level = "trace", ret)]
 fn parse_path_for_type_alias(path: &Path) -> Option<String> {
     if path
@@ -877,8 +909,7 @@ fn parse_path_for_type_alias(path: &Path) -> Option<String> {
     Some(qualified_name)
 }
 
-/// True when the last segment of `path` has a bare-fn type as its first
-/// generic argument.
+/// Checks whether the given [`syn::Type`] is an `unsafe extern "C"` function.
 #[tracing::instrument(level = "trace", ret)]
 fn type_is_unsafe_extern_c_fn(ty: &Type) -> bool {
     // check if it is a function
@@ -911,10 +942,7 @@ fn type_is_unsafe_extern_c_fn(ty: &Type) -> bool {
     true
 }
 
-/// True when `path` ends in `core::option::Option` and contains a `BareFn`
-/// payload that is an `unsafe extern "C"`.
-///
-/// True when `path` ends in `core::ffi::*`.
+/// Checks whether the given [`syn::Path`] is a `core::ffi::` type.
 #[tracing::instrument(level = "trace", ret)]
 fn path_is_core_ffi_type(path: &Path) -> bool {
     let segs = &path.segments;
@@ -991,21 +1019,25 @@ mod tests {
         }
 
         #[test]
-        fn accepts_non_tracked_trait() {
+        fn rejects_non_tracked_trait() {
             let i: ItemImpl = parse_str("impl Clone for Type {}").unwrap();
 
-            let (ident, trait_name) = parse_impl_for_ident_and_trait(&i).expect("should be Some");
-            assert_eq!(ident, "Type");
-            assert_eq!(trait_name, "Clone");
+            assert!(parse_impl_for_ident_and_trait(&i).is_none());
         }
 
         #[test]
         fn accepts_well_formed_ident() {
             let i: ItemImpl = parse_str("impl Default for Type {}").unwrap();
 
-            let (ident, trait_name) = parse_impl_for_ident_and_trait(&i).expect("should be Some");
+            let (ident, trait_set) = parse_impl_for_ident_and_trait(&i).expect("should be Some");
             assert_eq!(ident, "Type");
-            assert_eq!(trait_name, "Default");
+            assert_eq!(
+                trait_set,
+                TraitsSource::Direct(TraitsSet {
+                    default: true,
+                    ..TraitsSet::default()
+                })
+            );
         }
     }
 
@@ -1236,7 +1268,14 @@ mod tests {
             let item: syn::ItemStruct =
                 parse_str("#[derive(Copy, Clone, Debug)] pub struct S;").unwrap();
             let derives = extract_derived_traits_from_attrs(&item.attrs);
-            assert_eq!(derives, vec!["Copy", "Clone", "Debug"]);
+            assert_eq!(
+                derives,
+                TraitsSource::Direct(TraitsSet {
+                    copy: true,
+                    debug: true,
+                    ..TraitsSet::default()
+                })
+            );
         }
 
         #[test]
@@ -1244,7 +1283,13 @@ mod tests {
             let item: syn::ItemStruct =
                 parse_str("#[repr(C)] #[derive(Copy)] #[allow(dead_code)] pub struct S;").unwrap();
             let derives = extract_derived_traits_from_attrs(&item.attrs);
-            assert_eq!(derives, vec!["Copy"]);
+            assert_eq!(
+                derives,
+                TraitsSource::Direct(TraitsSet {
+                    copy: true,
+                    ..TraitsSet::default()
+                })
+            );
         }
 
         #[test]
@@ -1252,13 +1297,32 @@ mod tests {
             let item: syn::ItemStruct =
                 parse_str("#[derive(::core::marker::Copy)] pub struct S;").unwrap();
             let derives = extract_derived_traits_from_attrs(&item.attrs);
-            assert_eq!(derives, vec!["Copy"]);
+            assert_eq!(
+                derives,
+                TraitsSource::Direct(TraitsSet {
+                    copy: true,
+                    ..TraitsSet::default()
+                })
+            );
         }
 
         #[test]
-        fn no_derives_returns_empty() {
+        fn no_derives_returns_default() {
             let item: syn::ItemStruct = parse_str("#[repr(C)] pub struct S;").unwrap();
-            assert!(extract_derived_traits_from_attrs(&item.attrs).is_empty());
+            assert_eq!(
+                extract_derived_traits_from_attrs(&item.attrs),
+                TraitsSource::Direct(TraitsSet::default())
+            );
+        }
+
+        #[test]
+        fn irrelevant_derives_returns_default() {
+            let item: syn::ItemStruct =
+                parse_str("#[derive(Clone, Eq, Ord)] pub struct S;").unwrap();
+            assert_eq!(
+                extract_derived_traits_from_attrs(&item.attrs),
+                TraitsSource::Direct(TraitsSet::default())
+            );
         }
     }
 
