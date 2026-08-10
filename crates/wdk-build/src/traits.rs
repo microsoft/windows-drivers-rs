@@ -1773,7 +1773,7 @@ mod tests {
         #[test]
         fn all_supported_item_types_are_processed() {
             let output = extract(
-                r#"
+                r"
                 #[derive(Copy, Debug, Default, Hash, PartialEq)]
                 pub struct S;
 
@@ -1798,7 +1798,7 @@ mod tests {
                 impl Copy for I {}
 
                 pub const VALUE: u32 = 1;
-                "#,
+                ",
             )
             .unwrap();
 
@@ -1847,7 +1847,7 @@ mod tests {
         fn unsupported_item_with_supported_items_returns_error() {
             assert!(matches!(
                 extract(
-                    r#"
+                    r"
                     #[derive(Copy, Debug, Default, Hash, PartialEq)]
                     pub struct S;
 
@@ -1874,7 +1874,7 @@ mod tests {
                     pub const VALUE: u32 = 1;
 
                     pub trait Unsupported {}
-                    "#,
+                    ",
                 ),
                 Err(TraitsError::UnsupportedNodeVariant { .. })
             ));
@@ -1948,16 +1948,15 @@ mod tests {
 
             let all_except_copy_and_default: &[&str] = &["str"];
 
-            all.iter()
-                .for_each(|s| assert!(PRIMITIVES_DERIVE_ALL.contains(s)));
-
-            all_except_hash
-                .iter()
-                .for_each(|s| assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_HASH.contains(s)));
-
-            all_except_copy_and_default
-                .iter()
-                .for_each(|s| assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY.contains(s)));
+            for s in all {
+                assert!(PRIMITIVES_DERIVE_ALL.contains(s));
+            }
+            for s in all_except_hash {
+                assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_HASH.contains(s));
+            }
+            for s in all_except_copy_and_default {
+                assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY.contains(s));
+            }
         }
 
         #[test]
@@ -1983,15 +1982,15 @@ mod tests {
 
             let debug: &[&str] = &["c_void"];
 
-            all.iter().for_each(|s| assert!(FFI_DERIVE_ALL.contains(s)));
-
-            all_except_hash
-                .iter()
-                .for_each(|s| assert!(FFI_DERIVE_ALL_EXCEPT_HASH.contains(s)));
-
-            debug
-                .iter()
-                .for_each(|s| assert!(FFI_DERIVE_ONLY_DEBUG.contains(s)));
+            for s in all {
+                assert!(PRIMITIVES_DERIVE_ALL.contains(s));
+            }
+            for s in all_except_hash {
+                assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_HASH.contains(s));
+            }
+            for s in debug {
+                assert!(FFI_DERIVE_ONLY_DEBUG.contains(s));
+            }
         }
     }
 
@@ -2054,7 +2053,7 @@ mod tests {
                     copy: true,
                     ..TraitsSet::default()
                 }
-            )
+            );
         }
 
         #[test]
@@ -2115,7 +2114,7 @@ mod tests {
             type_aliases.insert("A".into(), "NeverResolved".into());
             map.resolve_type_aliases(&type_aliases).unwrap();
             assert_eq!(map.types.get("A").unwrap().to_owned(), traits);
-            assert!(!map.types.contains_key("NeverResolved"))
+            assert!(!map.types.contains_key("NeverResolved"));
         }
 
         #[test]
@@ -2250,7 +2249,7 @@ mod tests {
         }
 
         #[test]
-        #[should_panic]
+        #[should_panic(expected = "accessing type name that doesn't exist")]
         fn unknown_key_panics() {
             let map = Arc::new(TraitsMap::from_source("").expect("parses"));
             let cb = BaseTraitsCallback::new(map);
