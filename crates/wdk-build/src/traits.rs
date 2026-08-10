@@ -25,26 +25,31 @@ const PRIMITIVES_DERIVE_ALL: &[&str] = &[
 /// Primitives that implement every tracked trait except `Hash`.
 const PRIMITIVES_DERIVE_ALL_EXCEPT_HASH: &[&str] = &["f16", "f32", "f64", "f128"];
 
-/// Primitives that implement every tracked trait except `Copy` and `Default`.
-const PRIMITIVES_DERIVE_ALL_EXCEPT_COPY_AND_DEFAULT: &[&str] = &["str"];
+/// Primitives that implement every tracked trait except `Copy`.
+const PRIMITIVES_DERIVE_ALL_EXCEPT_COPY: &[&str] = &["str"];
 
-/// C stdint names that bindgen lowers to Rust integer primitives internally.
-/// Mirrors bindgen 0.72.1's [`is_stdint_type`](https://github.com/rust-lang/rust-bindgen/blob/d874de8d646d9b8a3e7ba2db2bcd52f2fba8f1f5/bindgen/ir/context.rs#L2378-L2386).
-const STDINT_NAMES: &[&str] = &[
-    "int8_t",
-    "uint8_t",
-    "int16_t",
-    "uint16_t",
-    "int32_t",
-    "uint32_t",
-    "int64_t",
-    "uint64_t",
-    "uintptr_t",
-    "intptr_t",
-    "ptrdiff_t",
-    "size_t",
-    "ssize_t",
+/// [`core::ffi`] types that implement every tracked trait.
+const FFI_DERIVE_ALL: &[&str] = &[
+    "c_char",
+    "c_int",
+    "c_long",
+    "c_longlong",
+    "c_ptrdiff_t",
+    "c_schar",
+    "c_short",
+    "c_size_t",
+    "c_ssize_t",
+    "uchar",
+    "c_uint",
+    "c_ulong",
+    "c_ulonglong",
+    "c_ushort",
 ];
+
+/// [`core::ffi`] types that implement every tracked trait except `Hash`.
+const FFI_DERIVE_ALL_EXCEPT_HASH: &[&str] = &["c_double", "c_float"];
+
+const FFI_DERIVE_ONLY_DEBUG: &[&str] = &["c_void"];
 
 /// Errors returned when parsing a bindgen-emitted source file into a
 /// [`TraitsMap`].
@@ -132,6 +137,16 @@ impl TraitsSet {
         }
     }
 
+    const fn insert(&mut self, derive_trait: DeriveTrait) {
+        match derive_trait {
+            DeriveTrait::Copy => self.copy = true,
+            DeriveTrait::Debug => self.debug = true,
+            DeriveTrait::Default => self.default = true,
+            DeriveTrait::Hash => self.hash = true,
+            DeriveTrait::PartialEqOrPartialOrd => self.partial_eq_or_partial_ord = true,
+        }
+    }
+
     fn try_insert(&mut self, trait_name: &str) -> Result<(), TraitsError> {
         match trait_name {
             "Copy" => self.copy = true,
@@ -191,7 +206,7 @@ impl TryFrom<Vec<String>> for TraitsSet {
 
     /// Builds a `TraitsSet` from a list of implemented traits.
     ///
-    /// Returns [`TraitsErrror::UntrackedTraits`] if all traits are not tracked.
+    /// Returns [`TraitsError::UntrackedTraits`] if all traits are not tracked.
     fn try_from(trait_names: Vec<String>) -> Result<Self, TraitsError> {
         let mut set = Self::default();
 
@@ -216,8 +231,8 @@ impl TryFrom<String> for TraitsSet {
     /// Builds a `TraitsSet` from a single string containing the identity of an
     /// implemented trait.
     ///
-    /// Returns [`TraitsError::UntrackedTrait`] if string does not correspond to
-    /// a tracked trait.
+    /// Returns [`TraitsError::UntrackedTraits`] if string does not correspond
+    /// to a tracked trait.
     fn try_from(trait_str: String) -> Result<Self, TraitsError> {
         let mut set = Self::default();
         set.try_insert(&trait_str)?;
@@ -231,7 +246,7 @@ enum TraitsSource {
     TypeAlias(String),
 }
 
-/// Bindgen parse callback for [`blocklisted_type_implements_trait`] from a
+/// Bindgen parse callback for `blocklisted_type_implements_trait` from a
 /// pre-built [`TraitsMap`].
 #[derive(Debug)]
 pub struct BaseTraitsCallback {
@@ -319,10 +334,7 @@ impl TraitsMap {
         let file = syn::parse_str::<syn::File>(source).map_err(TraitsError::Parse)?;
 
         let mut traits_map = Self {
-            types: STDINT_NAMES
-                .iter()
-                .map(|&n| (n.to_string(), TraitsSet::all()))
-                .collect(),
+            types: HashMap::default(),
         };
 
         let mut type_aliases: HashMap<String, String> = HashMap::default();
@@ -432,7 +444,7 @@ impl TraitsMap {
 /// ```
 ///
 /// Type definitions -- traits come from `extract_traits_from_type`, which can
-/// either be infered if a base type is given or stored as a type alias for
+/// either be inferred if a base type is given or stored as a type alias for
 /// later resolution:
 /// ```ignore
 /// pub type CHAR = ::core::ffi::c_char; // type definition comes from base type
@@ -593,12 +605,28 @@ fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> TraitsSource {
 ///
 /// # Bindgen shapes
 ///
+/// Pointer types implement `Copy`, `Debug`, `Default`, `Hash`, and
+/// `PartialEq/PartialOrd`. See [primitive pointer documentation](https://doc.rust-lang.org/core/primitive.pointer.html).
 /// ```ignore
-/// 
-/// pub type LPCH = *mut CHAR;                              // Type::Ptr
+/// pub type LPCH = *mut CHAR;
+/// ```
 ///
-/// pub type __C_ASSERT__ = [::core::ffi::c_char; 1usize];  // Type::Array
+/// Array types implement `Copy`, `Debug`, `Default`, `Hash`, and `PartialOrd`
+/// only if their element type implements the trait. See [primitive array documentation](https://doc.rust-lang.org/core/primitive.array.html)
+/// ```ignore
+/// pub type __C_ASSERT__ = [::core::ffi::c_char; 1usize];
+/// ```
 ///
+/// Function types implement `Copy`, `Debug`, `Hash`, and
+/// `PartialEq/PartialOrd`. See [primitive fn documentation](https://doc.rust-lang.org/core/primitive.fn.html#trait-implementations-1)
+///
+/// `Option` implements `Copy`, `Debug`, `Hash`, and `PartialEq/PartialOrd` only
+/// if the payload type implements the trait. Additionally, `Option`
+/// unconditionally implements `Default`. See [`core::option::Option` documentation](https://doc.rust-lang.org/core/option/enum.Option.html)
+///
+/// The interaction between these two types means that an `Option` of an `unsafe
+/// extern "C" fn` implements all tracked traits.
+/// ```ignore
 /// // type alias comes from function pointer
 /// pub type EX_CALLBACK_FUNCTION = ::core::option::Option< // Type::Path (function pointer in `Option`)
 ///     unsafe extern "C" fn(
@@ -607,11 +635,22 @@ fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> TraitsSource {
 ///         Argument2: PVOID,
 ///     ) -> NTSTATUS,
 /// >;
+/// ```
 ///
+/// `core::ffi` types are mostly type aliases to Rust primitives. The traits
+/// each implements is encoded in constant `&str` arrays.
+/// ```ignore
 /// pub type CHAR = ::core::ffi::c_char;                    // Type::Path (ffi)
+/// ```
 ///
+/// Primitive types implement different traits depending on the type. The traits
+/// each implements is encoded in constant `&str` arrays.
+/// ```ignore
 /// pub type rsize_t = usize;                               // Type::Path (primitive)
+/// ```
 ///
+/// Type aliases are detected and stored for later resolution.
+/// ```ignore
 /// pub type PTCH = LPCH;                                   // Type::Path (alias)
 /// ```
 ///
@@ -620,8 +659,8 @@ fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> TraitsSource {
 /// Returns:
 /// - [`TraitsError::UnsupportedNodeVariant`] if `ty` is a `syn::Type` variant
 ///   other than Ptr/Path/Array, or if the path has generic arguments
-/// - [`TraitsError::UnsupportedNodeShape`] if the shape is not recognized by
-///   any classifiers
+/// - [`TraitsError::UnsupportedNodeShape`] if the node is not recognized by any
+///   classifiers, or if the node is an untracked [`core::ffi`] type.
 #[tracing::instrument(level = "trace", ret, err(level = "trace"))]
 fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
     match ty {
@@ -639,8 +678,8 @@ fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
                 return Ok(TraitsSource::Direct(TraitsSet::all()));
             }
 
-            if path_is_core_ffi_type(&tp.path) {
-                return Ok(TraitsSource::Direct(TraitsSet::all()));
+            if let Some(ffi_traits) = parse_path_for_ffi_traits(&tp.path) {
+                return Ok(TraitsSource::Direct(ffi_traits?));
             }
 
             if let Some(primitive_traits) = parse_path_for_primitive_traits(&tp.path) {
@@ -664,11 +703,8 @@ fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
     }
 }
 
-/// Classifies the type-defining items inside a [`syn::ItemMod`], returning
-/// their prefixed type names and [`TraitsSource`]s.
-///
-/// Prepends the inner items with a path containing the `mod`'s ident so other
-/// types can link to it.
+/// Classifies the type-defining items inside a [`syn::ItemMod`], prepending
+/// their type names with the `mod`'s prefix.
 ///
 /// # Bindgen shapes
 ///
@@ -686,8 +722,8 @@ fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
 ///
 /// # Errors
 ///
-/// Returns any error propagated from [`idents_and_traits_for_items`] on
-/// the module's inner items.
+/// Returns any error propagated from [`extract_idents_and_traits_from_items`]
+/// on the module's inner items.
 #[tracing::instrument(level = "trace", ret, err(level = "trace"))]
 fn extract_idents_and_traits_from_mod(
     m: &syn::ItemMod,
@@ -752,7 +788,7 @@ fn extract_ident_and_traits_from_use(
 ///
 /// Returns `None` if a manual implementation of a tracked trait is not found.
 ///
-/// # Shapes
+/// # Bindgen shapes
 ///
 /// ```ignore
 /// impl Default for _LARGE_INTEGER {
@@ -798,7 +834,7 @@ fn parse_impl_for_ident_and_trait(item_impl: &ItemImpl) -> Option<(String, Trait
 
 /// Parses a [`syn::Path`] for the type within a `core::option::Option`.
 ///
-/// Returns `None` if the `Path` is not recognized as an `Option`.
+/// Returns `None` if the `Path` is not recognized as a `core::option::Option`.
 #[tracing::instrument(level = "trace", ret)]
 fn parse_path_for_option_type(path: &Path) -> Option<&Type> {
     // check if path is core::option::Option
@@ -835,6 +871,57 @@ fn parse_path_for_option_type(path: &Path) -> Option<&Type> {
     Some(ty)
 }
 
+/// Parses a [`syn::Path`] for the traits associated with a `core::ffi`
+/// primitive.
+///
+/// Returns `None` if the `Path` is not recognized as a `core::ffi` primitive.
+///
+/// Returns a `TraitsError::UnsupportedNodeShape` in the inner `Result` if the
+/// type is an untracked `core::ffi` primitive.
+#[tracing::instrument(level = "trace", ret)]
+fn parse_path_for_ffi_traits(path: &Path) -> Option<Result<TraitsSet, TraitsError>> {
+    let segs = &path.segments;
+
+    if segs.len() != 3 {
+        trace!("Path does not have 3 segments");
+        return None;
+    }
+
+    if segs[0].ident != "core" || segs[1].ident != "ffi" {
+        trace!("Path does not match the pattern `core::ffi::<type>");
+        return None;
+    }
+
+    trace!("Path is recognized as a core::ffi type");
+
+    if FFI_DERIVE_ALL.iter().any(|s| segs[2].ident == s) {
+        trace!("Path is recognized as a primitive in the `FFI_DERIVE_ALL` array");
+        return Some(Ok(TraitsSet::all()));
+    }
+
+    if FFI_DERIVE_ALL_EXCEPT_HASH
+        .iter()
+        .any(|s| segs[2].ident == s)
+    {
+        trace!("Path is recognized as a primitive in the `FFI_DERIVE_ALL_EXCEPT_HASH` array");
+        let mut set = TraitsSet::all();
+        set.remove(DeriveTrait::Hash);
+        return Some(Ok(set));
+    }
+
+    if FFI_DERIVE_ONLY_DEBUG.iter().any(|s| segs[2].ident == s) {
+        trace!("Path is recognized as a primitive in the `FFI_DERIVE_ONLY_DEBUG` array");
+        let mut set = TraitsSet::default();
+        set.insert(DeriveTrait::Debug);
+        return Some(Ok(set));
+    }
+
+    Some(Err(TraitsError::UnsupportedNodeShape {
+        reason: "Type belongs to `core::ffi` but is not an explicitly handled type".to_string(),
+        node: format!("{path:?}"),
+    }))
+}
+
 /// Parses a [`syn::Path`] for the traits a primitive implements.
 ///
 /// Returns `None` if the `Path` is not recognized as a Rust primitive.
@@ -864,17 +951,15 @@ fn parse_path_for_primitive_traits(path: &Path) -> Option<TraitsSet> {
         return Some(set);
     }
 
-    if PRIMITIVES_DERIVE_ALL_EXCEPT_COPY_AND_DEFAULT
+    if PRIMITIVES_DERIVE_ALL_EXCEPT_COPY
         .iter()
         .any(|s| segs[0].ident == s)
     {
         trace!(
-            "Path is recognized as a primitive in the \
-             `PRIMITIVES_DERIVE_ALL_EXCEPT_COPY_AND_DEFAULT` array"
+            "Path is recognized as a primitive in the `PRIMITIVES_DERIVE_ALL_EXCEPT_COPY` array"
         );
         let mut set = TraitsSet::all();
         set.remove(DeriveTrait::Copy);
-        set.remove(DeriveTrait::Default);
 
         return Some(set);
     }
@@ -942,25 +1027,6 @@ fn type_is_unsafe_extern_c_fn(ty: &Type) -> bool {
     true
 }
 
-/// Checks whether the given [`syn::Path`] is a `core::ffi::` type.
-#[tracing::instrument(level = "trace", ret)]
-fn path_is_core_ffi_type(path: &Path) -> bool {
-    let segs = &path.segments;
-
-    if segs.len() != 3 {
-        trace!("Path does not have 3 segments");
-        return false;
-    }
-
-    if segs[0].ident != "core" || segs[1].ident != "ffi" {
-        trace!("Path does not match the pattern `core::ffi::<type>");
-        return false;
-    }
-
-    trace!("Path is recognized as a core_ffi_type");
-    return true;
-}
-
 #[cfg(test)]
 mod tests {
     use syn::{Path, parse_str};
@@ -972,7 +1038,7 @@ mod tests {
         match source {
             TraitsSource::Direct(set) => assert_eq!(set, TraitsSet::all()),
             TraitsSource::TypeAlias(name) => {
-                panic!("expected Derive(all), got TypeAlias({name:?})")
+                panic!("expected Direct(all), got TypeAlias({name:?})")
             }
         }
     }
@@ -982,14 +1048,14 @@ mod tests {
         match source {
             TraitsSource::TypeAlias(s) => assert_eq!(s, expected),
             TraitsSource::Direct(set) => {
-                panic!("expected TypeAlias({expected:?}), got Derive({set:?})")
+                panic!("expected TypeAlias({expected:?}), got Direct({set:?})")
             }
         }
     }
 
     mod parse_impl_for_ident_and_trait {
-
         use super::*;
+
         #[test]
         fn rejects_no_trait() {
             let i: ItemImpl = parse_str("impl NoTrait {}").unwrap();
@@ -1146,7 +1212,7 @@ mod tests {
         }
 
         #[test]
-        fn correct_traits_for_all_except_copy_and_default() {
+        fn correct_traits_for_all_except_copy() {
             let traits = parse_path_for_primitive_traits(&parse_str("str").unwrap());
             assert!(traits.is_some());
 
@@ -1156,7 +1222,6 @@ mod tests {
                 generated_traits,
                 TraitsSet {
                     copy: false,
-                    default: false,
                     ..TraitsSet::all()
                 }
             );
@@ -1193,25 +1258,89 @@ mod tests {
         }
     }
 
-    mod path_is_core_ffi_type {
+    mod parse_path_for_ffi_traits {
         use super::*;
 
         #[test]
-        fn recognizes_core_ffi_types() {
-            let p: Path = parse_str("::core::ffi::c_void").unwrap();
-            assert!(path_is_core_ffi_type(&p));
+        fn recognizes_ffi_types_derive_all() {
+            let p: Path = parse_str("::core::ffi::c_char").unwrap();
+            let ffi = parse_path_for_ffi_traits(&p)
+                .expect("parser should find ffi primitive")
+                .expect("ffi type should be recognized");
+            assert_eq!(ffi, TraitsSet::all());
+
             let p: Path = parse_str("core::ffi::c_int").unwrap();
-            assert!(path_is_core_ffi_type(&p));
+            let ffi = parse_path_for_ffi_traits(&p)
+                .expect("parser should find ffi primitive")
+                .expect("ffi type should be recognized");
+            assert_eq!(ffi, TraitsSet::all());
+
+            let p: Path = parse_str("::core::ffi::c_uint").unwrap();
+            let ffi = parse_path_for_ffi_traits(&p)
+                .expect("parser should find ffi primitive")
+                .expect("ffi type should be recognized");
+            assert_eq!(ffi, TraitsSet::all());
+        }
+
+        #[test]
+        fn recognizes_ffi_types_derive_all_except_hash() {
+            let p: Path = parse_str("::core::ffi::c_float").unwrap();
+            let ffi = parse_path_for_ffi_traits(&p)
+                .expect("parser should find ffi primitive")
+                .expect("ffi type should be recognized");
+            assert_eq!(
+                ffi,
+                TraitsSet {
+                    hash: false,
+                    ..TraitsSet::all()
+                }
+            );
+
+            let p: Path = parse_str("core::ffi::c_double").unwrap();
+            let ffi = parse_path_for_ffi_traits(&p)
+                .expect("parser should find ffi primitive")
+                .expect("ffi type should be recognized");
+            assert_eq!(
+                ffi,
+                TraitsSet {
+                    hash: false,
+                    ..TraitsSet::all()
+                }
+            );
+        }
+
+        #[test]
+        fn recognizes_ffi_type_derive_only_debug() {
+            let p: Path = parse_str("::core::ffi::c_void").unwrap();
+            let ffi = parse_path_for_ffi_traits(&p)
+                .expect("parser should find ffi primitive")
+                .expect("ffi type should be recognized");
+            assert_eq!(
+                ffi,
+                TraitsSet {
+                    debug: true,
+                    ..TraitsSet::default()
+                }
+            );
+        }
+        #[test]
+        fn error_for_ffi_types_not_recognized() {
+            let p: Path = parse_str("::core::ffi::c_str").unwrap();
+            let ffi = parse_path_for_ffi_traits(&p).expect("parser should find ffi primitive");
+            assert!(ffi.is_err());
+
+            let err = ffi.err().unwrap();
+            assert!(matches!(err, TraitsError::UnsupportedNodeShape { .. }));
         }
 
         #[test]
         fn rejects_non_core_ffi_types() {
             let p: Path = parse_str("core::option::Option").unwrap();
-            assert!(!path_is_core_ffi_type(&p));
+            assert!(parse_path_for_ffi_traits(&p).is_none());
             let p: Path = parse_str("std::ffi::CStr").unwrap();
-            assert!(!path_is_core_ffi_type(&p));
+            assert!(parse_path_for_ffi_traits(&p).is_none());
             let p: Path = parse_str("c_int").unwrap();
-            assert!(!path_is_core_ffi_type(&p));
+            assert!(parse_path_for_ffi_traits(&p).is_none());
         }
     }
 
@@ -1358,7 +1487,7 @@ mod tests {
                         ..TraitsSet::all()
                     }
                 ),
-                TraitsSource::TypeAlias(t) => panic!("expected Derive, got TypeAlias({t:?})"),
+                TraitsSource::TypeAlias(t) => panic!("expected Direct, got TypeAlias({t:?})"),
             }
 
             let ty: Type = parse_str("[SomeAlias; 8]").unwrap();
@@ -1381,7 +1510,7 @@ mod tests {
                 match extract_traits_from_type(&ty).unwrap() {
                     TraitsSource::Direct(set) => assert_eq!(set, TraitsSet::all(), "{name}"),
                     TraitsSource::TypeAlias(t) => {
-                        panic!("{name}: expected Derive, got TypeAlias({t:?})")
+                        panic!("{name}: expected Direct, got TypeAlias({t:?})")
                     }
                 }
             }
@@ -1398,7 +1527,7 @@ mod tests {
                 match extract_traits_from_type(&ty).unwrap() {
                     TraitsSource::Direct(set) => assert_eq!(set, expected, "{name}"),
                     TraitsSource::TypeAlias(t) => {
-                        panic!("{name}: expected Derive, got TypeAlias({t:?})")
+                        panic!("{name}: expected Direct, got TypeAlias({t:?})")
                     }
                 }
             }
@@ -1408,15 +1537,14 @@ mod tests {
         fn str_implements_all_except_copy_and_default() {
             let expected = TraitsSet {
                 copy: false,
-                default: false,
                 ..TraitsSet::all()
             };
-            for name in PRIMITIVES_DERIVE_ALL_EXCEPT_COPY_AND_DEFAULT {
+            for name in PRIMITIVES_DERIVE_ALL_EXCEPT_COPY {
                 let ty: Type = parse_str(name).unwrap();
                 match extract_traits_from_type(&ty).unwrap() {
                     TraitsSource::Direct(set) => assert_eq!(set, expected, "{name}"),
                     TraitsSource::TypeAlias(t) => {
-                        panic!("{name}: expected Derive, got TypeAlias({t:?})")
+                        panic!("{name}: expected Direct, got TypeAlias({t:?})")
                     }
                 }
             }
@@ -1574,7 +1702,7 @@ mod tests {
                     }
                 ),
                 TraitsSource::TypeAlias(name) => {
-                    panic!("expected Derive(copy), got TypeAlias({name:?})")
+                    panic!("expected Direct(copy), got TypeAlias({name:?})")
                 }
             }
         }
@@ -1766,7 +1894,7 @@ mod tests {
             let mut union: Vec<&str> = PRIMITIVES_DERIVE_ALL
                 .iter()
                 .chain(PRIMITIVES_DERIVE_ALL_EXCEPT_HASH)
-                .chain(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY_AND_DEFAULT)
+                .chain(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY)
                 .copied()
                 .collect();
             union.sort_unstable();
@@ -1795,7 +1923,7 @@ mod tests {
 
             all_except_copy_and_default
                 .iter()
-                .for_each(|s| assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY_AND_DEFAULT.contains(s)));
+                .for_each(|s| assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY.contains(s)));
         }
     }
 
@@ -2005,25 +2133,6 @@ mod tests {
                     map["Alias"].contains(trait_),
                     "Alias should inherit {trait_:?} from _MOD::Type"
                 );
-            }
-        }
-
-        #[test]
-        fn stdint_names_all_implement_standard_set() {
-            let map = TraitsMap::from_source("").expect("parses");
-            for name in STDINT_NAMES {
-                for trait_ in [
-                    DeriveTrait::Copy,
-                    DeriveTrait::Debug,
-                    DeriveTrait::Default,
-                    DeriveTrait::Hash,
-                    DeriveTrait::PartialEqOrPartialOrd,
-                ] {
-                    assert!(
-                        map[name].contains(trait_),
-                        "stdint {name} missing {trait_:?}"
-                    );
-                }
             }
         }
     }

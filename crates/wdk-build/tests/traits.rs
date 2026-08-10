@@ -68,7 +68,7 @@ fn parses_representative_bindgen_output() {
         pub type PodAlias = Pod;
         pub type PodAliasChain = PodAlias;
 
-        pub type UCHAR = ::core::ffi::c_uchar;
+        pub type UCHAR = ::core::ffi::c_char;
         pub type ULONG = ::core::ffi::c_ulong;
         pub type PVOID = *mut ::core::ffi::c_void;
         pub type PULONG = *mut ULONG;
@@ -104,7 +104,7 @@ fn parses_representative_bindgen_output() {
 
     // Primitive-target type aliases: terminal shapes get the full standard trait
     // set directly, without chain resolution.
-    for name in ["UCHAR", "ULONG", "PVOID", "PULONG"] {
+    for name in ["UCHAR", "ULONG", "PULONG", "PVOID"] {
         assert_traits(&map, name, ALL_TRAITS);
     }
 
