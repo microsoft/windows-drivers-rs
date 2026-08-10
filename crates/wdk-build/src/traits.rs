@@ -39,7 +39,7 @@ const FFI_DERIVE_ALL: &[&str] = &[
     "c_short",
     "c_size_t",
     "c_ssize_t",
-    "uchar",
+    "c_uchar",
     "c_uint",
     "c_ulong",
     "c_ulonglong",
@@ -1883,10 +1883,30 @@ mod tests {
 
     mod constants_and_types {
         use super::*;
-        /// Every Rust primitive name.
+
         const ALL_PRIMITIVES: &[&str] = &[
             "bool", "char", "str", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32",
             "u64", "u128", "usize", "f16", "f32", "f64", "f128",
+        ];
+
+        const ALL_FFI: &[&str] = &[
+            "c_void",
+            "c_char",
+            "c_double",
+            "c_float",
+            "c_int",
+            "c_long",
+            "c_longlong",
+            "c_ptrdiff_t",
+            "c_schar",
+            "c_short",
+            "c_size_t",
+            "c_ssize_t",
+            "c_uchar",
+            "c_uint",
+            "c_ulong",
+            "c_ulonglong",
+            "c_ushort",
         ];
 
         #[test]
@@ -1899,6 +1919,20 @@ mod tests {
                 .collect();
             union.sort_unstable();
             let mut all = ALL_PRIMITIVES.to_vec();
+            all.sort_unstable();
+            assert_eq!(union, all);
+        }
+
+        #[test]
+        fn ffi_lists_cover_every_primitive_exactly_once() {
+            let mut union: Vec<&str> = FFI_DERIVE_ALL
+                .iter()
+                .chain(FFI_DERIVE_ALL_EXCEPT_HASH)
+                .chain(FFI_DERIVE_ONLY_DEBUG)
+                .copied()
+                .collect();
+            union.sort_unstable();
+            let mut all = ALL_FFI.to_vec();
             all.sort_unstable();
             assert_eq!(union, all);
         }
@@ -1924,6 +1958,40 @@ mod tests {
             all_except_copy_and_default
                 .iter()
                 .for_each(|s| assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_COPY.contains(s)));
+        }
+
+        #[test]
+        fn correct_const_array_membership_for_ffi() {
+            let all: &[&str] = &[
+                "c_char",
+                "c_int",
+                "c_long",
+                "c_longlong",
+                "c_ptrdiff_t",
+                "c_schar",
+                "c_short",
+                "c_size_t",
+                "c_ssize_t",
+                "c_uchar",
+                "c_uint",
+                "c_ulong",
+                "c_ulonglong",
+                "c_ushort",
+            ];
+
+            let all_except_hash: &[&str] = &["c_float", "c_double"];
+
+            let debug: &[&str] = &["c_void"];
+
+            all.iter().for_each(|s| assert!(FFI_DERIVE_ALL.contains(s)));
+
+            all_except_hash
+                .iter()
+                .for_each(|s| assert!(FFI_DERIVE_ALL_EXCEPT_HASH.contains(s)));
+
+            debug
+                .iter()
+                .for_each(|s| assert!(FFI_DERIVE_ONLY_DEBUG.contains(s)));
         }
     }
 
