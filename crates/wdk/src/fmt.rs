@@ -570,7 +570,7 @@ mod tests {
             assert!(write!(&mut writer, "").is_ok());
             assert!(write!(&mut writer, "").is_ok());
             drop(writer);
-            assert!(flushed.is_empty());
+            assert_eq!(flushed, Vec::<String>::new());
         }
 
         #[test]
@@ -580,7 +580,7 @@ mod tests {
                 flushed.push(buf.as_str().to_owned());
             });
             drop(writer);
-            assert!(flushed.is_empty());
+            assert_eq!(flushed, Vec::<String>::new());
         }
 
         #[test]
@@ -653,7 +653,7 @@ mod tests {
             });
             assert!(write!(&mut writer, "❤️🧡💛💚💙💜").is_err());
             drop(writer);
-            assert!(flushed.is_empty());
+            assert_eq!(flushed, Vec::<String>::new());
         }
     }
 }
