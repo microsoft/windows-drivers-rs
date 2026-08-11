@@ -553,10 +553,19 @@ mod signtool_args {
             );
             let assertion = cmd.assert().failure();
             let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-            assert!(
-                stderr.contains("No certificates were found")
-                    || stderr.contains("signing driver binary"),
-                "expected a signtool certificate-selection failure, got: {stderr}"
+            let signing_error = stderr
+                .lines()
+                .find_map(|line| line.split_once(", error: ").map(|(_, error)| error))
+                .unwrap_or_else(|| panic!("missing cargo-wdk signing error in stderr: {stderr}"));
+            let signed_file = std::path::absolute(&project_path)
+                .expect("absolute project path")
+                .join("target")
+                .join("debug")
+                .join("wdm_driver_package")
+                .join("wdm_driver.sys");
+            assert_eq!(
+                signing_error,
+                format!("Error signing {} using signtool", signed_file.display())
             );
         });
     }
@@ -581,10 +590,19 @@ mod signtool_args {
             );
             let assertion = cmd.assert().failure();
             let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-            assert!(
-                stderr.contains("No file digest algorithm specified")
-                    || stderr.contains("signing driver binary"),
-                "expected a signtool failure from the duplicate `sign` verb, got: {stderr}"
+            let signing_error = stderr
+                .lines()
+                .find_map(|line| line.split_once(", error: ").map(|(_, error)| error))
+                .unwrap_or_else(|| panic!("missing cargo-wdk signing error in stderr: {stderr}"));
+            let signed_file = std::path::absolute(&project_path)
+                .expect("absolute project path")
+                .join("target")
+                .join("debug")
+                .join("kmdf_driver_package")
+                .join("kmdf_driver.sys");
+            assert_eq!(
+                signing_error,
+                format!("Error signing {} using signtool", signed_file.display())
             );
         });
     }
