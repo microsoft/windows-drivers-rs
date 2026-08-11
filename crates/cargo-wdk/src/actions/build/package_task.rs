@@ -36,6 +36,7 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
+const DEFAULT_TIMESTAMP_URL: &str = "http://timestamp.digicert.com";
 
 /// Signing mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -304,6 +305,8 @@ impl<'a> PackageTask<'a> {
                 WDR_TEST_CERT_STORE,
                 "/n",
                 WDR_LOCAL_TEST_CERT,
+                "/t",
+                DEFAULT_TIMESTAMP_URL,
                 "/fd",
                 "SHA256",
             ]

@@ -2808,6 +2808,8 @@ impl TestBuildAction {
             "WDRTestCertStore".to_string(),
             "/n".to_string(),
             "WDRLocalTestCert".to_string(),
+            "/t".to_string(),
+            "http://timestamp.digicert.com".to_string(),
             "/fd".to_string(),
             "SHA256".to_string(),
             expected_dest_driver_binary_path
@@ -2868,6 +2870,8 @@ impl TestBuildAction {
             "WDRTestCertStore".to_string(),
             "/n".to_string(),
             "WDRLocalTestCert".to_string(),
+            "/t".to_string(),
+            "http://timestamp.digicert.com".to_string(),
             "/fd".to_string(),
             "SHA256".to_string(),
             expected_dest_driver_cat_file_path
