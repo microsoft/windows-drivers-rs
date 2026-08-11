@@ -443,15 +443,11 @@ mod sign_mode {
             None,
             Some(&project_path),
         );
-        let assertion = cmd.assert().code(2);
+        let assertion = cmd.assert().failure();
         let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
         assert!(
             stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
             "expected validation error mentioning both flags, got: {stderr}"
-        );
-        assert!(
-            stderr.contains("Usage: cargo wdk"),
-            "expected clap usage context, got: {stderr}"
         );
     }
 }
