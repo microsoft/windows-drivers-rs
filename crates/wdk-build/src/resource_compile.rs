@@ -25,10 +25,8 @@
 //!
 //! # Version Sourcing
 //!
-//! The version is determined by CI pipeline env var with
-//! cargo package version fallback:
-//! 1. `STAMPINF_VERSION` environment variable (for CI pipelines)
-//! 2. `CARGO_PKG_VERSION` (from `Cargo.toml` `[package]` version)
+//! The version is read from `CARGO_PKG_VERSION`, which Cargo sets from the
+//! package's `[package]` version.
 //!
 //! Semver versions are mapped to 4-part Windows versions by appending `.0`
 //! for the revision component. Prerelease suffixes (e.g. `-preview`) and
@@ -50,14 +48,6 @@ use crate::{
     IoError,
     utils::{detect_windows_sdk_version, env_var_non_empty},
 };
-
-/// Environment variable for overriding the driver version in CI pipelines.
-///
-/// When set, this takes priority over `CARGO_PKG_VERSION`. The value should
-/// be in the format `MAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH.REVISION`.
-/// A prerelease suffix (e.g. `-preview`) or build metadata suffix
-/// (e.g. `+ci.42`) is stripped automatically.
-const VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
 
 /// A parsed 4-part Windows version number.
 ///
@@ -244,22 +234,15 @@ fn parse_version_component(
         })
 }
 
-/// Determine the driver version to embed in the binary.
-///
-/// Checks pipeline env var first, then falls back to
-/// `CARGO_PKG_VERSION` env var (emitted by cargo)
-/// if env var is not present or empty.
+/// Determine the driver version to embed in the binary from the env var set by
+/// `cargo`.
 fn resolve_version() -> Result<DriverVersion, ResourceCompileError> {
-    let version_str = env_var_non_empty(VERSION_ENV_VAR).map_or_else(
-        || {
-            env::var("CARGO_PKG_VERSION").map_err(|_| ResourceCompileError::MetadataError {
-                detail: "CARGO_PKG_VERSION environment variable not set. This function must be \
-                         called from a Cargo build script."
-                    .to_string(),
-            })
-        },
-        Ok,
-    )?;
+    let version_str =
+        env::var("CARGO_PKG_VERSION").map_err(|_| ResourceCompileError::MetadataError {
+            detail: "CARGO_PKG_VERSION environment variable not set. This function must be called \
+                     from a Cargo build script."
+                .to_string(),
+        })?;
 
     parse_version(&version_str)
 }
@@ -666,7 +649,7 @@ fn find_windows_sdk_root_from_bin_path(
 /// linker directive to embed it in the driver binary.
 ///
 /// This is the main entry point for version resource compilation. It:
-/// 1. Reads version from `STAMPINF_VERSION` or `CARGO_PKG_VERSION`
+/// 1. Reads the package version from `CARGO_PKG_VERSION`
 /// 2. Reads metadata from Cargo defaults and optional
 ///    `[package.metadata.wdk.version-resource]` overrides
 /// 3. Generates a WDK-style `.rc` file in `OUT_DIR`
@@ -943,37 +926,9 @@ mod tests {
         use super::*;
 
         #[test]
-        fn resolve_version_prefers_stampinf_version() {
-            let version = with_env(
-                &[
-                    (VERSION_ENV_VAR, Some("5.1.0")),
-                    ("CARGO_PKG_VERSION", Some("1.2.3")),
-                ],
-                resolve_version,
-            )
-            .unwrap();
-
-            assert_eq!(
-                version,
-                DriverVersion {
-                    major: 5,
-                    minor: 1,
-                    patch: 0,
-                    revision: 0
-                }
-            );
-        }
-
-        #[test]
-        fn resolve_version_falls_back_to_cargo_pkg_version() {
-            let version = with_env(
-                &[
-                    (VERSION_ENV_VAR, None),
-                    ("CARGO_PKG_VERSION", Some("1.2.3")),
-                ],
-                resolve_version,
-            )
-            .unwrap();
+        fn resolve_version_uses_cargo_pkg_version() {
+            let version =
+                with_env(&[("CARGO_PKG_VERSION", Some("1.2.3"))], resolve_version).unwrap();
 
             assert_eq!(
                 version,
@@ -987,33 +942,18 @@ mod tests {
         }
 
         #[test]
-        fn resolve_version_falls_back_to_cargo_pkg_version_when_stampinf_version_is_empty() {
-            let version = with_env(
-                &[
-                    (VERSION_ENV_VAR, Some("")),
-                    ("CARGO_PKG_VERSION", Some("1.2.3")),
-                ],
-                resolve_version,
-            )
-            .unwrap();
+        fn resolve_version_rejects_invalid_cargo_pkg_version() {
+            let result = with_env(&[("CARGO_PKG_VERSION", Some("invalid"))], resolve_version);
 
-            assert_eq!(
-                version,
-                DriverVersion {
-                    major: 1,
-                    minor: 2,
-                    patch: 3,
-                    revision: 0
-                }
-            );
+            assert!(matches!(
+                result,
+                Err(ResourceCompileError::VersionParseError { .. })
+            ));
         }
 
         #[test]
-        fn resolve_version_errors_without_version_sources() {
-            let result = with_env(
-                &[(VERSION_ENV_VAR, None), ("CARGO_PKG_VERSION", None)],
-                resolve_version,
-            );
+        fn resolve_version_errors_without_cargo_pkg_version() {
+            let result = with_env(&[("CARGO_PKG_VERSION", None)], resolve_version);
 
             assert!(matches!(
                 result,
