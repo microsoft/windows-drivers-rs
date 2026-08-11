@@ -318,7 +318,6 @@ impl Cli {
                     &fs,
                 )
                 .run()?;
-                Ok(())
             }
             Subcmd::Build(cli_args) => {
                 let sign_mode = cli_args.sign_mode()?;
@@ -340,13 +339,12 @@ impl Cli {
                     &metadata,
                 )?
                 .run()?;
-                Ok(())
             }
             Subcmd::Clean => {
                 CleanAction::new(Path::new("."), self.verbose, &command_exec, &fs)?.run()?;
-                Ok(())
             }
         }
+        Ok(())
     }
 }
 
