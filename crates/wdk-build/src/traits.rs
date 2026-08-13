@@ -611,8 +611,10 @@ fn extract_derived_traits_from_attrs(attrs: &[Attribute]) -> TraitsSource {
 /// pub type LPCH = *mut CHAR;
 /// ```
 ///
-/// Array types implement `Copy`, `Debug`, `Default`, `Hash`, and `PartialOrd`
-/// only if their element type implements the trait. See [primitive array documentation](https://doc.rust-lang.org/core/primitive.array.html)
+/// Array types implement `Copy`, `Debug`, `Hash`, and `PartialOrd`
+/// only if their element type implements the trait. Types implement `Default`
+/// if the element type implements the trait AND if the array is at or under
+/// length 32.  See [primitive array documentation](https://doc.rust-lang.org/core/primitive.array.html)
 /// ```ignore
 /// pub type __C_ASSERT__ = [::core::ffi::c_char; 1usize];
 /// ```
@@ -670,7 +672,44 @@ fn extract_traits_from_type(ty: &Type) -> Result<TraitsSource, TraitsError> {
         }
         Type::Array(arr) => {
             trace!("Type recognized as a `Array`");
-            extract_traits_from_type(&arr.elem)
+            let inner_traits = extract_traits_from_type(&arr.elem)?;
+
+            let syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Int(len_expr),
+                ..
+            }) = &arr.len
+            else {
+                return Err(TraitsError::UnsupportedNodeVariant {
+                    node: format!("{arr:?}"),
+                });
+            };
+
+            let Ok(len) = len_expr.base10_parse::<u32>() else {
+                return Err(TraitsError::UnsupportedNodeShape {
+                    reason: "array length is unparsable".to_string(),
+                    node: format!("{arr:?}"),
+                });
+            };
+
+            if len <= 32 {
+                return Ok(inner_traits);
+            }
+
+            // If TraitsSource is Alias, we do not know the current type's traits. However,
+            // because the length of the array is above 32 we know we need to
+            // remove Default if it is implemented by the base type.
+            // This case not currently supported by this library.
+            let TraitsSource::Direct(mut traits) = inner_traits else {
+                return Err(TraitsError::UnsupportedNodeShape {
+                    reason: "arrays whose element type is an alias and length is greater than 32 \
+                             is not supported"
+                        .to_string(),
+                    node: format!("{arr:?}"),
+                });
+            };
+
+            traits.remove(DeriveTrait::Default);
+            Ok(TraitsSource::Direct(traits))
         }
         Type::Path(tp) => {
             trace!("Type recognized as a `TypePath`");
@@ -1467,7 +1506,7 @@ mod tests {
         }
 
         #[test]
-        fn array_recurses_into_element() {
+        fn small_array_recurses_into_element() {
             let ty: Type = parse_str("[*mut u32; 8]").unwrap();
             assert_direct_all(extract_traits_from_type(&ty).unwrap());
 
@@ -1495,6 +1534,21 @@ mod tests {
 
             let ty: Type = parse_str("[[u32; 8]; 8]").unwrap();
             assert_direct_all(extract_traits_from_type(&ty).unwrap());
+        }
+
+        #[test]
+        fn large_array_recurses_into_element_and_drops_default() {
+            let ty: Type = parse_str("[*mut u32; 33]").unwrap();
+            match extract_traits_from_type(&ty).unwrap() {
+                TraitsSource::Direct(set) => assert_eq!(
+                    set,
+                    TraitsSet {
+                        default: false,
+                        ..TraitsSet::all()
+                    }
+                ),
+                TraitsSource::TypeAlias(t) => panic!("expected Direct, got TypeAlias({t:?})"),
+            }
         }
 
         #[test]
@@ -1671,7 +1725,10 @@ mod tests {
         fn empty_content_returns_empty() {
             // External mod declaration (no inline body) — `m.content` is `None`.
             let m: syn::ItemMod = parse_str("pub mod foo;").unwrap();
-            assert!(extract_idents_and_traits_from_mod(&m).unwrap().is_empty());
+            assert_eq!(
+                extract_idents_and_traits_from_mod(&m).unwrap(),
+                [] as [(String, TraitsSource); 0]
+            );
         }
     }
 
@@ -1767,7 +1824,10 @@ mod tests {
 
         #[test]
         fn const_is_ignored() {
-            assert!(extract("pub const VALUE: u32 = 1;").unwrap().is_empty());
+            assert_eq!(
+                extract("pub const VALUE: u32 = 1;").unwrap(),
+                [] as [(String, TraitsSource); 0]
+            );
         }
 
         #[test]
@@ -1983,10 +2043,10 @@ mod tests {
             let debug: &[&str] = &["c_void"];
 
             for s in all {
-                assert!(PRIMITIVES_DERIVE_ALL.contains(s));
+                assert!(FFI_DERIVE_ALL.contains(s));
             }
             for s in all_except_hash {
-                assert!(PRIMITIVES_DERIVE_ALL_EXCEPT_HASH.contains(s));
+                assert!(FFI_DERIVE_ALL_EXCEPT_HASH.contains(s));
             }
             for s in debug {
                 assert!(FFI_DERIVE_ONLY_DEBUG.contains(s));
@@ -2249,7 +2309,7 @@ mod tests {
         }
 
         #[test]
-        #[should_panic(expected = "accessing type name that doesn't exist")]
+        #[should_panic(expected = "no entry found for key")]
         fn unknown_key_panics() {
             let map = Arc::new(TraitsMap::from_source("").expect("parses"));
             let cb = BaseTraitsCallback::new(map);
