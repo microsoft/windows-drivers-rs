@@ -63,20 +63,28 @@ The last component of `PATH` is used as the name of the crate.
 Usage: cargo wdk build [OPTIONS]
 
 Options:
-      --profile <PROFILE>          Build artifacts with the specified profile
-      --target-arch <TARGET_ARCH>  Build for the target architecture
+      --profile <PROFILE>
+          Build artifacts with the specified profile
+      --target-arch <TARGET_ARCH>
+          Build for the target architecture
       --target-platform <TARGET_PLATFORM>
-                                   Driver target platform [default: universal] [possible values: desktop, universal, windows]
-      --sample                     Build sample class driver project
-      --sign-mode <SIGN_MODE>      Driver signing mode [default: test] [possible values: off, test]
-      --verify-signature           Verify the signature
-      --locked                     Assert that `Cargo.lock` will remain unchanged
-  -h, --help                       Print help
+          Driver target platform [default: universal] [possible values: universal, desktop, windows]
+      --sample
+          Build sample class driver project
+      --locked
+          Assert that `Cargo.lock` will remain unchanged
+  -h, --help
+          Print help (see more with '--help')
+
+Driver Signing:
+      --sign-mode <SIGN_MODE>  Signing mode [default: test] [possible values: off, test]
+      --signtool-args <ARGS>   Custom arguments to pass to `signtool sign` when signing the driver binary and the catalog file, e.g. `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`
+      --verify-signature       Verify the signatures of the driver binary and catalog file after signing
 
 Feature Selection:
-      --all-features               Activate all available features
-      --no-default-features        Do not activate the `default` feature
-  -F, --features <FEATURES>        Space-separated list of features to activate
+      --all-features         Activate all available features
+      --no-default-features  Do not activate the `default` feature
+  -F, --features <FEATURES>  Space-separated list of features to activate
 
 Verbosity:
   -v, --verbose...  Increase logging verbosity
@@ -107,6 +115,15 @@ The `build` command has a `--sign-mode` flag that controls how driver artifacts 
 If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually.
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
+
+##### Customizing signtool arguments
+
+To sign with your own certificate or tweak any signing option, pass `--signtool-args` with a string of the arguments to forward to `signtool sign`.
+
+- When `--signtool-args` is **omitted**, cargo-wdk signs with the auto-generated WDR test certificate as described above.
+- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). `cargo-wdk` will prepend the `sign` verb to your arguments and append the trailing file operand so you should not provide them.
+
+`--signtool-args` applies only when signing is enabled; supplying it with `--sign-mode=off` is an error.
 
 #### Examples
 
