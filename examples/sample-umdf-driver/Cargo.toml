@@ -25,6 +25,9 @@ wdk-build.path = "../../crates/wdk-build"
 wdk.path = "../../crates/wdk"
 wdk-sys.path = "../../crates/wdk-sys"
 
+[dev-dependencies]
+wdk-sys = { features = ["test-stubs"], path = "../../crates/wdk-sys" }
+
 [features]
 default = []
 
@@ -38,7 +41,6 @@ usb = ["wdk-sys/usb"]
 nightly = ["wdk-sys/nightly", "wdk/nightly"]
 
 [profile.dev]
-lto = true
 
 [profile.release]
 lto = true
