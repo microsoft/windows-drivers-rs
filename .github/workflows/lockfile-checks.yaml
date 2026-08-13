@@ -1,0 +1,91 @@
+name: Lockfile Consistency Checks
+
+on:
+  push:
+    branches-ignore:
+      - "gh-readonly-queue/**"
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  discover-lockfiles:
+    name: Discover Cargo.lock Files
+    runs-on: ubuntu-latest
+    outputs:
+      lockfiles: ${{ steps.find-lockfiles.outputs.lockfiles }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: List tracked Cargo.lock files
+        id: find-lockfiles
+        shell: bash
+        run: |
+          set -u
+
+          mapfile -t lockfiles < <(git ls-files '**/Cargo.lock')
+
+          if [ "${#lockfiles[@]}" -eq 0 ]; then
+            echo "No Cargo.lock files found."
+            echo "lockfiles=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf 'Discovered %s Cargo.lock file(s):\n' "${#lockfiles[@]}"
+          printf '  - %s\n' "${lockfiles[@]}"
+
+          json=$(printf '%s\n' "${lockfiles[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "lockfiles=$json" >> "$GITHUB_OUTPUT"
+
+  check-lockfiles:
+    name: Verify Cargo.lock works with --locked
+    needs: discover-lockfiles
+    runs-on: ubuntu-latest
+    if: ${{ needs.discover-lockfiles.outputs.lockfiles != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        lockfile: ${{ fromJSON(needs.discover-lockfiles.outputs.lockfiles) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Run cargo update --workspace --locked
+        shell: bash
+        run: |
+          set -u
+
+          lockfile='${{ matrix.lockfile }}'
+          dir=$(dirname "$lockfile")
+
+          echo "Running cargo update --workspace --locked for $lockfile"
+          pushd "$dir" > /dev/null
+          cargo update --workspace --locked
+          popd > /dev/null
+
+  summarize-lockfile-results:
+    name: Summarize Lockfile Checks
+    needs:
+      - discover-lockfiles
+      - check-lockfiles
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Ensure all lockfile checks succeeded
+        shell: bash
+        run: |
+          set -u
+
+          result='${{ needs.check-lockfiles.result }}'
+
+          if [ "$result" = "success" ] || [ "$result" = "skipped" ]; then
+            echo "Lockfile checks completed with result: $result"
+            exit 0
+          fi
+
+          echo "::error::Lockfile checks completed with result: $result"
+          exit 1
