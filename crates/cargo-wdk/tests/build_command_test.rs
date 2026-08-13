@@ -553,19 +553,17 @@ mod signtool_args {
             );
             let assertion = cmd.assert().failure();
             let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-            let signing_error = stderr
-                .lines()
-                .find_map(|line| line.split_once(", error: ").map(|(_, error)| error))
-                .unwrap_or_else(|| panic!("missing cargo-wdk signing error in stderr: {stderr}"));
-            let signed_file = std::path::absolute(&project_path)
-                .expect("absolute project path")
-                .join("target")
-                .join("debug")
-                .join("wdm_driver_package")
-                .join("wdm_driver.sys");
-            assert_eq!(
-                signing_error,
-                format!("Error signing {} using signtool", signed_file.display())
+            let signed_file = std::path::absolute(PathBuf::from(format!(
+                "{project_path}/target/debug/wdm_driver_package/wdm_driver.sys"
+            )))
+            .expect("absolute signed file path");
+            assert_message_occurs_once(
+                &stderr,
+                &format!("Error signing {} using signtool", signed_file.display()),
+            );
+            assert_message_occurs_once(
+                &stderr,
+                "SignTool Error: No certificates were found that met all the given criteria.",
             );
         });
     }
@@ -590,19 +588,17 @@ mod signtool_args {
             );
             let assertion = cmd.assert().failure();
             let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-            let signing_error = stderr
-                .lines()
-                .find_map(|line| line.split_once(", error: ").map(|(_, error)| error))
-                .unwrap_or_else(|| panic!("missing cargo-wdk signing error in stderr: {stderr}"));
-            let signed_file = std::path::absolute(&project_path)
-                .expect("absolute project path")
-                .join("target")
-                .join("debug")
-                .join("kmdf_driver_package")
-                .join("kmdf_driver.sys");
-            assert_eq!(
-                signing_error,
-                format!("Error signing {} using signtool", signed_file.display())
+            let signed_file = std::path::absolute(PathBuf::from(format!(
+                "{project_path}/target/debug/kmdf_driver_package/kmdf_driver.sys"
+            )))
+            .expect("absolute signed file path");
+            assert_message_occurs_once(
+                &stderr,
+                &format!("Error signing {} using signtool", signed_file.display()),
+            );
+            assert_message_occurs_once(
+                &stderr,
+                "SignTool Error: No file digest algorithm specified.",
             );
         });
     }
@@ -647,6 +643,15 @@ mod signtool_args {
 
     fn setup_wdk_tool_path() {
         wdk_build::cargo_make::setup_path().expect("failed to set up WDK tool paths");
+    }
+
+    fn assert_message_occurs_once(output: &str, expected_message: &str) {
+        let occurrence_count = output.matches(expected_message).count();
+        assert_eq!(
+            occurrence_count, 1,
+            "expected `{expected_message}` to occur exactly once, but found {occurrence_count} \
+             occurrences in output: {output}"
+        );
     }
 
     fn ensure_cert_in_store(store: &str, cn: &str) {
