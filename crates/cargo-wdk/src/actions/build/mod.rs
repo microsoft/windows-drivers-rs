@@ -36,9 +36,7 @@ use wdk_build::{
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
-/// `x86_64/Amd64` target triple name
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
-/// `aarch64/Arm64` target triple name
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
