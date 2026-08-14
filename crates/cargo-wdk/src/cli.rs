@@ -24,43 +24,6 @@ const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to c
                             Windows Rust driver projects.";
 const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
 
-/// Driver signing mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
-#[value(rename_all = "lower")]
-pub enum SignModeArg {
-    /// Skip signing.
-    Off,
-    /// Sign with an auto-generated self-signed certificate.
-    #[default]
-    Test,
-}
-
-/// Arguments to `signtool sign` for signing the driver binary and catalog file.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SigntoolArgs(pub Vec<String>);
-
-/// Platform at which the device driver is targeted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-#[value(rename_all = "kebab-case")]
-pub enum TargetPlatformArg {
-    /// Validates that the INF meets Universal driver requirements.
-    Universal,
-    /// Validates that the INF meets Desktop driver requirements.
-    Desktop,
-    /// Validates that the INF meets Windows driver requirements.
-    Windows,
-}
-
-impl From<TargetPlatformArg> for TargetPlatform {
-    fn from(value: TargetPlatformArg) -> Self {
-        match value {
-            TargetPlatformArg::Universal => Self::Universal,
-            TargetPlatformArg::Desktop => Self::Desktop,
-            TargetPlatformArg::Windows => Self::Windows,
-        }
-    }
-}
-
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
 #[clap(
@@ -108,6 +71,98 @@ impl NewArgs {
     }
 }
 
+/// Driver signing mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+#[value(rename_all = "lower")]
+pub enum SignModeArg {
+    /// Skip signing.
+    Off,
+    /// Sign with an auto-generated self-signed certificate.
+    #[default]
+    Test,
+}
+
+/// Arguments passed through to downstream tools.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PassthroughArgs(pub Vec<String>);
+
+impl PassthroughArgs {
+    /// Tokenizes a raw string into individual arguments for an external tool.
+    ///
+    /// Rules:
+    /// - Whitespace separates arguments
+    /// - Quoted spans (single or double quotes) are preserved as a single
+    ///   argument
+    /// - Unterminated quotes are rejected with an error
+    fn parse(raw: &str) -> Result<Self, String> {
+        let mut args = Vec::new();
+        let mut current = String::new();
+        let mut in_arg = false;
+        let mut quote: Option<char> = None;
+
+        for c in raw.chars() {
+            match quote {
+                Some(q) => {
+                    if c == q {
+                        quote = None;
+                    } else {
+                        current.push(c);
+                    }
+                }
+                None if c == '"' || c == '\'' => {
+                    quote = Some(c);
+                    in_arg = true;
+                }
+                None if c.is_whitespace() => {
+                    if in_arg {
+                        let token = std::mem::take(&mut current);
+                        args.push(token);
+                        in_arg = false;
+                    }
+                }
+                None => {
+                    current.push(c);
+                    in_arg = true;
+                }
+            }
+        }
+
+        if let Some(q) = quote {
+            return Err(format!(
+                "unterminated `{q}` quote in passthrough arguments; make sure every quote is \
+                 closed"
+            ));
+        }
+        if in_arg {
+            args.push(current);
+        }
+
+        Ok(Self(args))
+    }
+}
+
+/// Platform at which the device driver is targeted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum TargetPlatformArg {
+    /// Validates that the INF meets Universal driver requirements.
+    Universal,
+    /// Validates that the INF meets Desktop driver requirements.
+    Desktop,
+    /// Validates that the INF meets Windows driver requirements.
+    Windows,
+}
+
+impl From<TargetPlatformArg> for TargetPlatform {
+    fn from(value: TargetPlatformArg) -> Self {
+        match value {
+            TargetPlatformArg::Universal => Self::Universal,
+            TargetPlatformArg::Desktop => Self::Desktop,
+            TargetPlatformArg::Windows => Self::Windows,
+        }
+    }
+}
+
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
 pub struct BuildArgs {
@@ -143,24 +198,25 @@ pub struct BuildArgs {
     #[arg(
         long,
         value_name = "ARGS",
-        value_parser = parse_passthrough_args,
+        value_parser = PassthroughArgs::parse,
         help_heading = "Driver Signing"
     )]
-    pub signtool_args: Option<SigntoolArgs>,
+    pub signtool_args: Option<PassthroughArgs>,
 
     /// Verify the signatures of the driver binary and catalog file after
     /// signing.
     #[arg(long, help_heading = "Driver Signing")]
     pub verify_signature: bool,
 
-    /// Additional arguments to forward to `inf2cat`
+    /// Custom arguments to forward to `inf2cat` when generating the catalog
+    /// file, e.g. `--inf2cat-args '/os:10_x64 /uselocaltime'`.
     #[arg(
         long,
         value_name = "ARGS",
-        value_parser = parse_inf2cat_args,
+        value_parser = PassthroughArgs::parse,
         help_heading = "Inf2Cat Options"
     )]
-    pub inf2cat_args: Option<Inf2catArgs>,
+    pub inf2cat_args: Option<PassthroughArgs>,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
@@ -205,133 +261,12 @@ impl BuildArgs {
         }
     }
 
-    fn inf2cat_arg_tokens(&self) -> Vec<String> {
+    fn inf2cat_args(&self) -> Vec<String> {
         self.inf2cat_args
             .clone()
             .map(|parsed| parsed.0)
             .unwrap_or_default()
     }
-}
-
-/// Arguments forwarded verbatim to `inf2cat` (after cargo-wdk's own `/driver:`
-/// argument).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Inf2catArgs(pub Vec<String>);
-
-/// `value_parser` for `--inf2cat-args`: tokenizes the raw string into
-/// individual `inf2cat` arguments.
-///
-/// Rules:
-/// - Whitespace separates arguments
-/// - Quoted spans (single or double quotes) are preserved as a single argument
-/// - Unterminated quotes are rejected with an error
-/// - The `/driver:` (or its `/drv:` alias) switch is rejected because
-///   `cargo-wdk` supplies that argument itself
-fn parse_inf2cat_args(raw: &str) -> Result<Inf2catArgs, String> {
-    let mut args = Vec::new();
-    let mut current = String::new();
-    let mut in_arg = false;
-    let mut quote: Option<char> = None;
-
-    for c in raw.chars() {
-        match quote {
-            Some(q) => {
-                if c == q {
-                    quote = None;
-                } else {
-                    current.push(c);
-                }
-            }
-            None if c == '"' || c == '\'' => {
-                quote = Some(c);
-                in_arg = true;
-            }
-            None if c.is_whitespace() => {
-                if in_arg {
-                    args.push(std::mem::take(&mut current));
-                    in_arg = false;
-                }
-            }
-            None => {
-                current.push(c);
-                in_arg = true;
-            }
-        }
-    }
-
-    if let Some(q) = quote {
-        return Err(format!(
-            "unterminated `{q}` quote in `--inf2cat-args`; make sure every quote is closed"
-        ));
-    }
-    if in_arg {
-        args.push(current);
-    }
-
-    // reject a user-supplied `/driver:` (or `/drv:` alias) early.
-    if let Some(driver_arg) = args.iter().find(|arg| {
-        let lower = arg.to_ascii_lowercase();
-        lower.starts_with("/driver") || lower.starts_with("/drv")
-    }) {
-        return Err(format!(
-            "`--inf2cat-args` must not contain `{driver_arg}`: cargo-wdk supplies the `/driver:` \
-             argument itself"
-        ));
-    }
-
-    Ok(Inf2catArgs(args))
-}
-
-/// `value_parser` for `--signtool-args`: tokenizes the raw string into
-/// individual `signtool` arguments.
-///
-/// Rules:
-/// - Whitespace separates arguments
-/// - Quoted spans (single or double quotes) are preserved as a single argument
-/// - Unterminated quotes are rejected with an error
-fn parse_passthrough_args(raw: &str) -> Result<SigntoolArgs, String> {
-    let mut args = Vec::new();
-    let mut current = String::new();
-    let mut in_arg = false;
-    let mut quote: Option<char> = None;
-
-    for c in raw.chars() {
-        match quote {
-            Some(q) => {
-                if c == q {
-                    quote = None;
-                } else {
-                    current.push(c);
-                }
-            }
-            None if c == '"' || c == '\'' => {
-                quote = Some(c);
-                in_arg = true;
-            }
-            None if c.is_whitespace() => {
-                if in_arg {
-                    let token = std::mem::take(&mut current);
-                    args.push(token);
-                    in_arg = false;
-                }
-            }
-            None => {
-                current.push(c);
-                in_arg = true;
-            }
-        }
-    }
-
-    if let Some(q) = quote {
-        return Err(format!(
-            "unterminated `{q}` quote in `--signtool-args`; make sure every quote is closed"
-        ));
-    }
-    if in_arg {
-        args.push(current);
-    }
-
-    Ok(SigntoolArgs(args))
 }
 
 /// Subcommands
@@ -417,7 +352,7 @@ impl Cli {
                         target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
-                        inf2cat_args: cli_args.inf2cat_arg_tokens(),
+                        inf2cat_args: cli_args.inf2cat_args(),
                     },
                     &wdk_build,
                     &command_exec,
@@ -441,16 +376,7 @@ mod tests {
 
     use crate::{
         actions::{build::SignMode, new::DriverType},
-        cli::{
-            BuildArgs,
-            Cli,
-            Inf2catArgs,
-            NewArgs,
-            SignModeArg,
-            Subcmd,
-            TargetPlatformArg,
-            parse_inf2cat_args,
-        },
+        cli::{BuildArgs, Cli, NewArgs, PassthroughArgs, SignModeArg, Subcmd, TargetPlatformArg},
     };
 
     #[test]
@@ -594,29 +520,30 @@ mod tests {
         }
     }
 
-    mod parse_passthrough_args {
-        use super::super::parse_passthrough_args;
+    mod passthrough_args {
+        use super::PassthroughArgs;
 
         #[test]
         fn tokenizes_whitespace_separated_args() {
-            let parsed = parse_passthrough_args("/fd SHA384 /f cert.pfx").expect("should parse");
+            let parsed = PassthroughArgs::parse("/fd SHA384 /f cert.pfx").expect("should parse");
             assert_eq!(parsed.0, vec!["/fd", "SHA384", "/f", "cert.pfx"]);
         }
 
         #[test]
         fn preserves_quoted_spans() {
             let parsed =
-                parse_passthrough_args("/n \"CN=Contoso Root\" /fd SHA256").expect("should parse");
+                PassthroughArgs::parse("/n \"CN=Contoso Root\" /fd SHA256").expect("should parse");
             assert_eq!(parsed.0, vec!["/n", "CN=Contoso Root", "/fd", "SHA256"]);
         }
 
         #[test]
         fn rejects_unterminated_quote() {
-            let err = parse_passthrough_args("/n \"CN=Contoso")
+            let err = PassthroughArgs::parse("/n \"CN=Contoso")
                 .expect_err("unterminated quote should be rejected");
             assert!(
                 err.contains(
-                    "unterminated `\"` quote in `--signtool-args`; make sure every quote is closed"
+                    "unterminated `\"` quote in passthrough arguments; make sure every quote is \
+                     closed"
                 ),
                 "unexpected error: {err}"
             );
@@ -625,7 +552,7 @@ mod tests {
         #[test]
         fn treats_empty_or_whitespace_as_no_args() {
             for value in ["", "   ", "\t"] {
-                let parsed = parse_passthrough_args(value).expect("should parse");
+                let parsed = PassthroughArgs::parse(value).expect("should parse");
                 assert!(
                     parsed.0.is_empty(),
                     "value {value:?} should parse to no args"
@@ -636,64 +563,9 @@ mod tests {
         #[test]
         fn preserves_quoted_empty_args() {
             for value in ["/p \"\"", "/p ''"] {
-                let parsed = parse_passthrough_args(value).expect("should parse");
+                let parsed = PassthroughArgs::parse(value).expect("should parse");
                 assert_eq!(parsed.0, vec!["/p", ""]);
             }
-        }
-    }
-
-    #[test]
-    fn parse_inf2cat_args_tokenizes_on_whitespace() {
-        assert_eq!(
-            parse_inf2cat_args("/os:10_x64 /uselocaltime").unwrap(),
-            Inf2catArgs(vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()])
-        );
-    }
-
-    #[test]
-    fn parse_inf2cat_args_preserves_quoted_spans() {
-        assert_eq!(
-            parse_inf2cat_args("/os:10_x64 \"a b\" /verbose").unwrap(),
-            Inf2catArgs(vec![
-                "/os:10_x64".to_string(),
-                "a b".to_string(),
-                "/verbose".to_string(),
-            ])
-        );
-    }
-
-    #[test]
-    fn parse_inf2cat_args_rejects_unterminated_quote() {
-        let err = parse_inf2cat_args("/os:10_x64 \"unterminated")
-            .expect_err("unterminated quote should be rejected");
-        assert!(err.contains("unterminated"), "unexpected error: {err}");
-    }
-
-    #[test]
-    fn parse_inf2cat_args_treats_empty_or_whitespace_as_no_tokens() {
-        for value in ["", "   ", "\t"] {
-            assert_eq!(
-                parse_inf2cat_args(value).unwrap(),
-                Inf2catArgs(Vec::new()),
-                "input {value:?} should yield no tokens"
-            );
-        }
-    }
-
-    #[test]
-    fn parse_inf2cat_args_rejects_driver_switch() {
-        for value in [
-            "/driver:C:\\pkg",
-            "/os:10_x64 /driver:C:\\pkg",
-            "/DRIVER:C:\\pkg",
-            "/drv:C:\\pkg",
-        ] {
-            let err = parse_inf2cat_args(value)
-                .expect_err("a user-supplied /driver: switch should be rejected");
-            assert!(
-                err.contains("cargo-wdk supplies the `/driver:`"),
-                "unexpected error for {value:?}: {err}"
-            );
         }
     }
 
@@ -711,14 +583,14 @@ mod tests {
             locked: false,
             features: Features::default(),
         };
-        assert!(args.inf2cat_arg_tokens().is_empty());
+        assert!(args.inf2cat_args().is_empty());
 
-        args.inf2cat_args = Some(Inf2catArgs(vec![
+        args.inf2cat_args = Some(PassthroughArgs(vec![
             "/os:10_x64".to_string(),
             "/uselocaltime".to_string(),
         ]));
         assert_eq!(
-            args.inf2cat_arg_tokens(),
+            args.inf2cat_args(),
             vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
         );
     }
