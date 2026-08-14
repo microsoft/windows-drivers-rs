@@ -356,59 +356,367 @@ mod kmdf_driver_with_target_override {
     }
 }
 
-#[test]
-fn kmdf_driver_builds_successfully_with_sign_mode_off() {
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    with_mutex(&project_path, || {
-        run_clean_cmd(&project_path);
+/// Functional tests for the `--sign-mode` flag.
+mod sign_mode {
+    use super::*;
 
-        let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-        assert!(stderr.contains(&format!("Building package {driver}")));
-        assert!(stderr.contains(&format!("Finished building {driver}")));
+    #[test]
+    fn kmdf_driver_builds_successfully_with_sign_mode_off() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            run_clean_cmd(&project_path);
 
-        let driver_name = driver.replace('-', "_");
-        let target_dir = format!("{project_path}/target/debug");
-        let package_dir = format!("{target_dir}/{driver_name}_package");
+            let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+            assert!(stderr.contains(&format!("Building package {driver}")));
+            assert!(stderr.contains(&format!("Finished building {driver}")));
 
-        assert_dir_exists(&package_dir);
-        for ext in ["cat", "inf", "map", "pdb", "sys"] {
-            assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
-        }
+            let driver_name = driver.replace('-', "_");
+            let target_dir = format!("{project_path}/target/debug");
+            let package_dir = format!("{target_dir}/{driver_name}_package");
 
-        let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
-        assert!(
-            !cert_in_package.exists(),
-            "Cert file must not be present in the final package folder when --sign-mode=off, but \
-             found {}",
-            cert_in_package.display()
+            assert_dir_exists(&package_dir);
+            for ext in ["cat", "inf", "map", "pdb", "sys"] {
+                assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+            }
+
+            let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+            assert!(
+                !cert_in_package.exists(),
+                "Cert file must not be present in the final package folder when --sign-mode=off, \
+                 but found {}",
+                cert_in_package.display()
+            );
+
+            let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
+            assert!(
+                !staged_cert.exists(),
+                "Cert file must not be present in the `target` dir when --sign-mode=off, but \
+                 found {}",
+                staged_cert.display()
+            );
+        });
+    }
+
+    #[test]
+    fn rebuild_with_sign_mode_off_drops_stale_test_cert() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            run_clean_cmd(&project_path);
+
+            let driver_name = driver.replace('-', "_");
+            let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
+            let cert_in_package = PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer"));
+
+            // First build test-signs, so the package folder contains the cert.
+            run_build_cmd(&project_path, Some(&["--sign-mode", "test"]), None);
+            assert!(
+                cert_in_package.exists(),
+                "test-sign build should place the cert in the package folder: {}",
+                cert_in_package.display()
+            );
+
+            // Rebuild with signing off (no clean in between). The package folder is
+            // reassembled fresh, so the stale cert must not be present.
+            run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
+            assert!(
+                !cert_in_package.exists(),
+                "stale cert must be removed after rebuilding with --sign-mode=off, but found {}",
+                cert_in_package.display()
+            );
+
+            assert_dir_exists(&package_dir);
+            for ext in ["cat", "inf", "map", "pdb", "sys"] {
+                assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+            }
+        });
+    }
+
+    #[test]
+    fn sign_mode_off_with_verify_signature_is_rejected() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        let mut cmd = create_cargo_wdk_cmd(
+            "build",
+            Some(&["--sign-mode", "off", "--verify-signature"]),
+            None,
+            Some(&project_path),
         );
-
-        let staged_cert = PathBuf::from(format!("{target_dir}/WDRLocalTestCert.cer"));
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
         assert!(
-            !staged_cert.exists(),
-            "Cert file must not be present in the `target` dir when --sign-mode=off, but found {}",
-            staged_cert.display()
+            stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
+            "expected validation error mentioning both flags, got: {stderr}"
         );
-    });
+    }
 }
 
-#[test]
-fn sign_mode_off_with_verify_signature_is_rejected() {
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    let mut cmd = create_cargo_wdk_cmd(
-        "build",
-        Some(&["--sign-mode", "off", "--verify-signature"]),
-        None,
-        Some(&project_path),
-    );
-    let assertion = cmd.assert().failure();
-    let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-    assert!(
-        stderr.contains("`--verify-signature` cannot be used with `--sign-mode=off`."),
-        "expected validation error mentioning both flags, got: {stderr}"
-    );
+/// Functional tests for the `--signtool-args` passthrough.
+mod signtool_args {
+    use super::*;
+
+    #[test]
+    fn kmdf_driver_signs_with_custom_store_and_cert_via_signtool_args() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            setup_wdk_tool_path();
+            ensure_cert_in_store("WDRCustomTestStore", "WDRCustomTestCert");
+            run_clean_cmd(&project_path);
+
+            let stderr = run_build_cmd(
+                &project_path,
+                Some(&[
+                    "--signtool-args",
+                    "/s WDRCustomTestStore /n WDRCustomTestCert /fd SHA256",
+                ]),
+                None,
+            );
+            assert!(stderr.contains(&format!("Finished building {driver}")));
+
+            let driver_name = driver.replace('-', "_");
+            let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
+            assert_dir_exists(&package_dir);
+            for ext in ["cat", "inf", "sys"] {
+                assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
+            }
+            assert!(
+                !PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer")).exists(),
+                "passthrough signing should not emit WDRLocalTestCert.cer"
+            );
+
+            let sys = format!("{package_dir}/{driver_name}.sys");
+            let signer = authenticode_signer_subject(Path::new(&sys))
+                .expect("driver binary should be signed");
+            assert!(
+                signer.contains("WDRCustomTestCert"),
+                "driver binary signed by unexpected cert: {signer}"
+            );
+        });
+    }
+
+    #[test]
+    fn umdf_driver_signs_extra_file_operand_via_signtool_args() {
+        let driver = "umdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            setup_wdk_tool_path();
+            ensure_cert_in_store("WDRTestCertStore", "WDRLocalTestCert");
+            run_clean_cmd(&project_path);
+
+            let driver_name = driver.replace('-', "_");
+            let common_args = "/s WDRTestCertStore /n WDRLocalTestCert /fd SHA256";
+
+            // The build copies the driver binary into the package folder and signs
+            // the copy, leaving the original under `target/debug` unsigned. We pass
+            // that unsigned original as an extra signtool operand and assert the
+            // build signs it too.
+            let extra = env::current_dir()
+                .expect("cwd")
+                .join(&project_path)
+                .join(format!("target/debug/{driver_name}.dll"));
+
+            let args_with_extra = format!("{common_args} \"{}\"", extra.to_string_lossy());
+            let stderr = run_build_cmd(
+                &project_path,
+                Some(&["--signtool-args", &args_with_extra]),
+                None,
+            );
+            assert!(stderr.contains(&format!("Finished building {driver}")));
+
+            let signer = authenticode_signer_subject(&extra)
+                .expect("extra file operand should be signed after build");
+            assert!(
+                signer.contains("WDRLocalTestCert"),
+                "extra file operand signed by unexpected cert: {signer}"
+            );
+        });
+    }
+
+    #[test]
+    fn wdm_driver_build_fails_when_signtool_args_select_unknown_cert() {
+        let driver = "wdm-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            setup_wdk_tool_path();
+            run_clean_cmd(&project_path);
+
+            let mut cmd = create_cargo_wdk_cmd(
+                "build",
+                Some(&[
+                    "--signtool-args",
+                    "/s WDRTestCertStore /n NoSuchCert /fd SHA256",
+                ]),
+                None,
+                Some(&project_path),
+            );
+            let assertion = cmd.assert().failure();
+            let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+            let signed_file = std::path::absolute(PathBuf::from(format!(
+                "{project_path}/target/debug/wdm_driver_package/wdm_driver.sys"
+            )))
+            .expect("absolute signed file path");
+            assert_message_occurs_once(
+                &stderr,
+                &format!("Error signing {} using signtool", signed_file.display()),
+            );
+            assert_message_occurs_once(
+                &stderr,
+                "SignTool Error: No certificates were found that met all the given criteria.",
+            );
+        });
+    }
+
+    #[test]
+    fn kmdf_driver_build_fails_with_duplicate_sign_verb_in_signtool_args() {
+        let driver = "kmdf-driver";
+        let project_path = format!("tests/{driver}");
+        with_mutex(&project_path, || {
+            setup_wdk_tool_path();
+            ensure_cert_in_store("WDRTestCertStore", "WDRLocalTestCert");
+            run_clean_cmd(&project_path);
+
+            let mut cmd = create_cargo_wdk_cmd(
+                "build",
+                Some(&[
+                    "--signtool-args",
+                    "sign /s WDRTestCertStore /n WDRLocalTestCert /fd SHA256",
+                ]),
+                None,
+                Some(&project_path),
+            );
+            let assertion = cmd.assert().failure();
+            let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
+            let signed_file = std::path::absolute(PathBuf::from(format!(
+                "{project_path}/target/debug/kmdf_driver_package/kmdf_driver.sys"
+            )))
+            .expect("absolute signed file path");
+            assert_message_occurs_once(
+                &stderr,
+                &format!("Error signing {} using signtool", signed_file.display()),
+            );
+            assert_message_occurs_once(
+                &stderr,
+                "SignTool Error: No file digest algorithm specified.",
+            );
+        });
+    }
+
+    #[test]
+    fn mixed_package_kmdf_workspace_signs_driver_member_via_signtool_args() {
+        let project_path = "tests/mixed-package-kmdf-workspace";
+        with_mutex(project_path, || {
+            setup_wdk_tool_path();
+            ensure_cert_in_store("WDRTestCertStore", "WDRLocalTestCert");
+            run_clean_cmd(project_path);
+
+            run_build_cmd(
+                project_path,
+                Some(&[
+                    "--signtool-args",
+                    "/s WDRTestCertStore /n WDRLocalTestCert /fd SHA256",
+                ]),
+                None,
+            );
+
+            let package_dir = format!("{project_path}/target/debug/driver_package");
+            assert_dir_exists(&package_dir);
+            for ext in ["cat", "inf", "sys"] {
+                assert_file_exists(&format!("{package_dir}/driver.{ext}"));
+            }
+            // Passthrough signing does not generate/copy the WDR test cert file.
+            assert!(
+                !PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer")).exists(),
+                "passthrough signing should not emit WDRLocalTestCert.cer"
+            );
+
+            let signer =
+                authenticode_signer_subject(Path::new(&format!("{package_dir}/driver.sys")))
+                    .expect("workspace driver member should be signed");
+            assert!(
+                signer.contains("WDRLocalTestCert"),
+                "workspace driver member signed by unexpected cert: {signer}"
+            );
+        });
+    }
+
+    fn setup_wdk_tool_path() {
+        wdk_build::cargo_make::setup_path().expect("failed to set up WDK tool paths");
+    }
+
+    fn assert_message_occurs_once(output: &str, expected_message: &str) {
+        let occurrence_count = output.matches(expected_message).count();
+        assert_eq!(
+            occurrence_count, 1,
+            "expected `{expected_message}` to occur exactly once, but found {occurrence_count} \
+             occurrences in output: {output}"
+        );
+    }
+
+    fn ensure_cert_in_store(store: &str, cn: &str) {
+        let output = Command::new("certmgr.exe")
+            .args(["-s", store])
+            .output()
+            .expect("failed to query certificate store");
+        assert!(output.status.success(), "certmgr query failed for {store}");
+
+        if !String::from_utf8_lossy(&output.stdout).contains(cn) {
+            let subject = format!("CN={cn}");
+            let out = Command::new("makecert")
+                .args([
+                    "-r",
+                    "-pe",
+                    "-a",
+                    "SHA256",
+                    "-eku",
+                    "1.3.6.1.5.5.7.3.3",
+                    "-ss",
+                    store,
+                    "-n",
+                    &subject,
+                ])
+                .output()
+                .expect("failed to run makecert");
+            assert!(
+                out.status.success(),
+                "makecert failed for {store}/{cn}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    fn authenticode_signer_subject(path: &Path) -> Option<String> {
+        // Escape single quotes for the PowerShell single-quoted string literal so
+        // paths containing `'` don't break the generated `-Command` script.
+        let literal_path = path.display().to_string().replace('\'', "''");
+        let script = format!(
+            "$s = Get-AuthenticodeSignature -LiteralPath '{literal_path}'; if \
+             ($s.SignerCertificate) {{ Write-Output $s.SignerCertificate.Subject }}",
+        );
+        let out = Command::new("powershell")
+            // Clear PSModulePath so Windows PowerShell uses its default module path.
+            // When the test runner is launched from PowerShell 7 (pwsh), the child
+            // Windows PowerShell inherits pwsh's PSModulePath and fails to load
+            // `Microsoft.PowerShell.Security` (which provides Get-AuthenticodeSignature).
+            .env_remove("PSModulePath")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .output()
+            .expect("failed to run Get-AuthenticodeSignature");
+        assert!(
+            out.status.success(),
+            "Get-AuthenticodeSignature failed for {} (exit {:?}): {}",
+            path.display(),
+            out.status.code(),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let subject = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if subject.is_empty() {
+            None
+        } else {
+            Some(subject)
+        }
+    }
 }
 
 #[test]

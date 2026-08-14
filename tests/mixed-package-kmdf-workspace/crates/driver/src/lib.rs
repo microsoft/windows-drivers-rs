@@ -6,7 +6,7 @@
 //! This is a sample KMDF driver that demonstrates how to use the crates in
 //! windows-driver-rs to create a skeleton of a kmdf driver.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
 
@@ -53,7 +53,7 @@ static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
 // SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
 // No other function in this compilation unit exports this name, preventing symbol conflicts.
-#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
+#[cfg_attr(not(test), unsafe(export_name = "DriverEntry"))] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
@@ -181,4 +181,21 @@ extern "C" fn evt_driver_device_add(
 
     println!("WdfDeviceCreate NTSTATUS: {ntstatus:#02x}");
     ntstatus
+}
+
+#[cfg(test)]
+mod tests {
+    use wdk_sys::{ULONG, WDF_DRIVER_CONFIG};
+
+    /// Checks a real invariant the driver's `DriverEntry` relies on.
+    /// It references a bindgen generated type so the test links
+    /// bindgen generated bindings without referencing KM functions.
+    ///
+    /// The value is that this **builds, links, and runs**, proving a
+    /// `wdk-sys`-dependent driver cdylib can host unit tests.
+    #[test]
+    fn wdf_driver_config_size_fits_ulong() {
+        // Checks a type generated from bindgen and not an FFI
+        assert!(core::mem::size_of::<WDF_DRIVER_CONFIG>() <= ULONG::MAX as usize);
+    }
 }

@@ -67,6 +67,8 @@ pub mod error {
         CreateDirError(PathBuf, #[source] io::Error),
         #[error("Failed to rename file from {0} to {1}")]
         RenameError(PathBuf, PathBuf, #[source] io::Error),
+        #[error("Failed to remove directory {0}")]
+        RemoveDirError(PathBuf, #[source] io::Error),
         #[error("Failed to get file type for directory entry {0}")]
         DirFileTypeError(PathBuf, #[source] io::Error),
         #[error("Failed to read directory {0}")]

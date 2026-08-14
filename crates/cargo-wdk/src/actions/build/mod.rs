@@ -13,8 +13,10 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
+    fmt::{self, Display},
     path::{Path, PathBuf, absolute},
     result::Result::Ok,
+    str::FromStr,
 };
 
 use anyhow::Result;
@@ -31,9 +33,46 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::actions::Profile;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+
+const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
+const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Profile {
+    Dev,
+    Release,
+}
+impl FromStr for Profile {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "dev" => Ok(Self::Dev),
+            "release" => Ok(Self::Release),
+            _ => Err(format!("'{s}' is not a valid profile")),
+        }
+    }
+}
+impl Display for Profile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Dev => "dev",
+            Self::Release => "release",
+        };
+        write!(f, "{s}")
+    }
+}
+
+/// Converts `CpuArchitecture` to its corresponding target triple name.
+#[must_use]
+pub fn to_target_triple(cpu_arch: CpuArchitecture) -> String {
+    match cpu_arch {
+        CpuArchitecture::Amd64 => X86_64_TARGET_TRIPLE_NAME.to_string(),
+        CpuArchitecture::Arm64 => AARCH64_TARGET_TRIPLE_NAME.to_string(),
+    }
+}
 
 pub struct BuildActionParams<'a> {
     pub working_dir: &'a Path,
@@ -103,7 +142,7 @@ impl<'a> BuildAction<'a> {
             working_dir: absolute(params.working_dir)?,
             profile: params.profile,
             target_arch: params.target_arch,
-            sign_mode: params.sign_mode,
+            sign_mode: params.sign_mode.clone(),
             is_sample_class: params.is_sample_class,
             locked: params.locked,
             target_platform: params.target_platform,
@@ -410,7 +449,7 @@ impl<'a> BuildAction<'a> {
                 working_dir,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
-                sign_mode: self.sign_mode,
+                sign_mode: self.sign_mode.clone(),
                 sample_class: self.is_sample_class,
                 driver_model,
                 inf2cat_args: self.inf2cat_args.clone(),

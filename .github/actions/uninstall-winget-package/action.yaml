@@ -60,7 +60,7 @@ runs:
                   
                       # Check for uninstall errors in the result object
                       if ($uninstallResult.Status -ne 'Ok') {
-                          throw "Package uninstall failed with status: $($uninstallResult.Status). InstallerErrorCode: $($uninstallResult.InstallerErrorCode)"
+                          throw "Package uninstall failed with status: $($uninstallResult.Status). UninstallerErrorCode: $($uninstallResult.UninstallerErrorCode)"
                       }
                       Write-Host "✅ Successfully uninstalled $($package.Name) (ID: $($package.Id))"
                       $successCount++
