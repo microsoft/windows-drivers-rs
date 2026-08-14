@@ -16,6 +16,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(test)]
 use mockall::automock;
 
 use super::error::FileError;
@@ -37,7 +38,7 @@ pub struct DirEntryInfo {
 #[derive(Default)]
 pub struct Fs {}
 
-#[automock]
+#[cfg_attr(test, automock)]
 impl Fs {
     pub fn copy(&self, src: &Path, dest: &Path) -> Result<u64, FileError> {
         copy(src, dest).map_err(|e| FileError::CopyError(src.to_owned(), dest.to_owned(), e))

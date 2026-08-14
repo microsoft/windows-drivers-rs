@@ -6,7 +6,7 @@
 //! enables mocking the `CommandExec` struct for unit testing.
 
 // Suppression added for mockall as it generates mocks with env_vars: &Option
-#![allow(clippy::ref_option_ref)]
+#![cfg_attr(test, allow(clippy::ref_option_ref))]
 // Warns the run method is not used, however it is used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]
@@ -19,6 +19,7 @@ use std::{
 };
 
 use anyhow::Result;
+#[cfg(test)]
 use mockall::automock;
 use tracing::debug;
 
@@ -28,7 +29,7 @@ use super::error::CommandError;
 #[derive(Debug, Default)]
 pub struct CommandExec {}
 
-#[automock]
+#[cfg_attr(test, automock)]
 impl CommandExec {
     // The `'a` lifetime is required by mockall's `#[automock]` to generate the
     // mock impl

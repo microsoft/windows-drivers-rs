@@ -9,13 +9,14 @@
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]
 #![allow(clippy::unused_self)]
+#[cfg(test)]
 use mockall::automock;
 
 /// Provides limited access to wdk-build crate methods
 #[derive(Default)]
 pub struct WdkBuild {}
 
-#[automock]
+#[cfg_attr(test, automock)]
 impl WdkBuild {
     pub fn detect_wdk_build_number(&self) -> Result<u32, wdk_build::ConfigError> {
         wdk_build::detect_wdk_build_number()
