@@ -6,7 +6,7 @@
 //! enables mocking the `CommandExec` struct for unit testing.
 
 // Suppression added for mockall as it generates mocks with env_vars: &Option
-#![allow(clippy::ref_option_ref)]
+#![cfg_attr(test, allow(clippy::ref_option_ref))]
 // Warns the run method is not used, however it is used.
 // The intellisense confusion seems to come from automock
 #![allow(dead_code)]
