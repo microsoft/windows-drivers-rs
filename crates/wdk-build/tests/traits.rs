@@ -1,0 +1,155 @@
+// Copyright (c) Microsoft Corporation
+// License: MIT OR Apache-2.0
+
+//! Integration tests for [`wdk_build::traits::TraitsMap`] driven through
+//! [`TraitsMap::from_file`]: writes a representative bindgen source snippet
+//! to a temp file and asserts the recovered trait sets match each documented
+//! bindgen output shape.
+
+use assert_fs::{NamedTempFile, fixture::FileWriteStr};
+use bindgen::callbacks::DeriveTrait;
+use wdk_build::traits::{TraitsError, TraitsMap};
+
+const ALL_TRAITS: &[DeriveTrait] = &[
+    DeriveTrait::Copy,
+    DeriveTrait::Debug,
+    DeriveTrait::Default,
+    DeriveTrait::Hash,
+    DeriveTrait::PartialEqOrPartialOrd,
+];
+
+/// Writes `src` to a temp file and parses it through the public
+/// [`TraitsMap::from_file`] entry point.
+fn parse(src: &str) -> TraitsMap {
+    let tmp = NamedTempFile::new("bindgen_output.rs").expect("create temp file");
+    tmp.write_str(src).expect("write temp file");
+    TraitsMap::from_file(tmp.path()).expect("parses")
+}
+
+/// Assert that `map` reports `satisfies(name, t) == true` for exactly the
+/// traits in `expected`, and `false` for every other trait in [`ALL_TRAITS`].
+fn assert_traits(map: &TraitsMap, name: &str, expected: &[DeriveTrait]) {
+    for &t in ALL_TRAITS {
+        let want = expected.contains(&t);
+        let got = map[name].contains(t);
+        assert_eq!(
+            got, want,
+            "{name}: satisfies({t:?}) = {got}, expected {want}"
+        );
+    }
+}
+
+#[test]
+fn parses_representative_bindgen_output() {
+    use DeriveTrait::{Copy, Debug, Default, Hash, PartialEqOrPartialOrd};
+
+    // Shapes observed in real bindgen output for wdk-sys:
+    //   - POD struct with the common four-trait derive
+    //   - Union with only Copy/Clone (Rust unions can't auto-derive Debug/Default)
+    //   - Bindgen's `__BindgenUnionField` wrapper — PartialEq without PartialOrd
+    //   - Bindgen's `__IncompleteArrayField` wrapper — the full nine-trait derive
+    //   - Type alias chain: `PodAliasChain = PodAlias = Pod` should inherit Pod's
+    //     derives.
+    let src = r#"
+        #[repr(C)]
+        #[derive(Debug, Default, Copy, Clone)]
+        pub struct Pod { pub x: u32 }
+
+        #[repr(C)]
+        #[derive(Copy, Clone)]
+        pub union Uni { pub a: u32, pub b: u64 }
+
+        #[derive(PartialEq, Copy, Clone, Debug, Hash)]
+        pub struct UnionField;
+
+        #[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        pub struct ArrayField;
+
+        pub type PodAlias = Pod;
+        pub type PodAliasChain = PodAlias;
+
+        pub type UCHAR = ::core::ffi::c_char;
+        pub type ULONG = ::core::ffi::c_ulong;
+        pub type PVOID = *mut ::core::ffi::c_void;
+        pub type PULONG = *mut ULONG;
+
+        // Option<fn>: fn contributes all-except-Default, Option adds Default back — ends up with all 5.
+        pub type OptFn = ::core::option::Option<unsafe extern "C" fn(x: u32) -> u32>;
+
+        // Bindgen module-enum pattern: inner `Type` aliases a primitive, and a use-rename re-exports it under a friendly name. The re-export must resolve to the inner `Type`'s trait set.
+        pub mod _INTERFACE_TYPE {
+            pub type Type = ::core::ffi::c_int;
+            pub const Isa: Type = 1;
+        }
+        pub use self::_INTERFACE_TYPE::Type as INTERFACE_TYPE;
+    "#;
+    let map = parse(src);
+
+    assert_traits(&map, "Pod", &[Copy, Debug, Default]);
+    assert_traits(&map, "Uni", &[Copy]);
+    assert_traits(
+        &map,
+        "UnionField",
+        &[Copy, Debug, Hash, PartialEqOrPartialOrd],
+    );
+    assert_traits(
+        &map,
+        "ArrayField",
+        &[Copy, Debug, Default, Hash, PartialEqOrPartialOrd],
+    );
+
+    // Type alias chain resolves through to Pod's traits.
+    assert_traits(&map, "PodAlias", &[Copy, Debug, Default]);
+    assert_traits(&map, "PodAliasChain", &[Copy, Debug, Default]);
+
+    // Primitive-target type aliases: terminal shapes get the full standard trait
+    // set directly, without chain resolution.
+    for name in ["UCHAR", "ULONG", "PULONG", "PVOID"] {
+        assert_traits(&map, name, ALL_TRAITS);
+    }
+
+    // Option<fn> — fn gives 4, Option adds Default → all 5.
+    assert_traits(&map, "OptFn", ALL_TRAITS);
+
+    // Module-enum pattern — both the compound key (`_INTERFACE_TYPE::Type`) and
+    // the re-exported friendly name (`INTERFACE_TYPE`) inherit the primitive's
+    // full trait set.
+    assert_traits(&map, "_INTERFACE_TYPE::Type", ALL_TRAITS);
+    assert_traits(&map, "INTERFACE_TYPE", ALL_TRAITS);
+}
+
+#[test]
+fn from_file_missing_path_returns_io_error() {
+    let err = TraitsMap::from_file(std::path::Path::new(
+        "/this/path/does/not/exist/bindgen_output.rs",
+    ))
+    .expect_err("missing file must error");
+    assert!(
+        matches!(err, TraitsError::Io { .. }),
+        "expected Io, got {err:?}"
+    );
+}
+
+#[test]
+fn from_file_invalid_rust_returns_parse_error() {
+    let tmp = NamedTempFile::new("bad.rs").expect("create temp file");
+    tmp.write_str("not @ valid @ rust @@@")
+        .expect("write temp file");
+    let err = TraitsMap::from_file(tmp.path()).expect_err("invalid syntax must error");
+    assert!(
+        matches!(err, TraitsError::Parse(_)),
+        "expected Parse, got {err:?}"
+    );
+}
+
+#[test]
+fn from_file_foreign_mod_returns_unsupported_error() {
+    let tmp = NamedTempFile::new("foreign.rs").expect("create temp file");
+    tmp.write_str("extern \"C\" { pub fn f(); }")
+        .expect("write temp file");
+    let err = TraitsMap::from_file(tmp.path()).expect_err("foreign mod must error");
+    assert!(
+        matches!(err, TraitsError::UnsupportedNodeVariant { .. }),
+        "expected UnsupportedNodeVariant, got {err:?}"
+    );
+}
