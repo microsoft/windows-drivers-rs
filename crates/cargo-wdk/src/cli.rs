@@ -9,6 +9,7 @@ use anyhow::Result;
 use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand, ValueEnum, error::ErrorKind};
 use clap_cargo::Features;
 use clap_verbosity_flag::Verbosity;
+#[cfg(test)]
 use mockall_double::double;
 use wdk_build::CpuArchitecture;
 
@@ -17,7 +18,7 @@ use crate::actions::{
     clean::CleanAction,
     new::{DriverType, KMDF_STR, NewAction, UMDF_STR, WDM_STR},
 };
-#[double]
+#[cfg_attr(test, double)]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to create and build \

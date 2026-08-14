@@ -17,10 +17,11 @@ use std::{
 use clap_verbosity_flag::Verbosity;
 use error::NewActionError;
 use include_dir::{Dir, include_dir};
+#[cfg(test)]
 use mockall_double::double;
 use tracing::{debug, info};
 
-#[double]
+#[cfg_attr(test, double)]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::trace;
 

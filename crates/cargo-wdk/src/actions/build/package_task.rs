@@ -15,6 +15,7 @@ use std::{
     result::Result,
 };
 
+#[cfg(test)]
 use mockall_double::double;
 use tracing::{debug, info, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
@@ -26,7 +27,7 @@ use windows::{
     core::{Error as WinError, PCSTR},
 };
 
-#[double]
+#[cfg_attr(test, double)]
 use crate::providers::{exec::CommandExec, fs::Fs, wdk_build::WdkBuild};
 use crate::{actions::build::error::PackageTaskError, providers::error::FileError};
 

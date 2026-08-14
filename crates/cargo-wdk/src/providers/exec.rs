@@ -19,6 +19,7 @@ use std::{
 };
 
 use anyhow::Result;
+#[cfg(test)]
 use mockall::automock;
 use tracing::debug;
 
@@ -28,7 +29,7 @@ use super::error::CommandError;
 #[derive(Debug, Default)]
 pub struct CommandExec {}
 
-#[automock]
+#[cfg_attr(test, automock)]
 impl CommandExec {
     // The `'a` lifetime is required by mockall's `#[automock]` to generate the
     // mock impl

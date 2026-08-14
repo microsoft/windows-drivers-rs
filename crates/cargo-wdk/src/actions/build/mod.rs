@@ -24,6 +24,7 @@ use build_task::{BuildTask, BuildTaskParams};
 use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
 use clap_cargo::Features;
 use error::BuildActionError;
+#[cfg(test)]
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
@@ -33,7 +34,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-#[double]
+#[cfg_attr(test, double)]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";

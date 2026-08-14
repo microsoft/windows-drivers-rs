@@ -10,12 +10,13 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use cargo_metadata::Message;
 use clap_cargo::Features;
+#[cfg(test)]
 use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
 
 use super::{Profile, error::BuildTaskError, features_to_cargo_args, to_target_triple};
-#[double]
+#[cfg_attr(test, double)]
 use crate::providers::exec::CommandExec;
 use crate::{providers::error::CommandError, trace};
 
