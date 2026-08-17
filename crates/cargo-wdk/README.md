@@ -82,7 +82,7 @@ Driver Signing:
       --verify-signature       Verify the signatures of the driver binary and catalog file after signing
 
 Inf2Cat Options:
-      --inf2cat-args <ARGS>        Additional arguments to forward to inf2cat
+      --inf2cat-args <ARGS>        Custom arguments to pass to `inf2cat` when generating the catalog file, e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`
 
 Feature Selection:
       --all-features         Activate all available features
@@ -119,11 +119,7 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
 
-#### Customizing `inf2cat` arguments
-
-To target a specific set of Windows versions or pass any additional switches other than `/driver`, you can use `--inf2cat-args` with a string of the arguments to passthrough to `inf2cat` (e.g '/os:10_x64,10_CO_X64 /verbose'). Supplying `/driver:` (or its `/drv:` alias) yourself is rejected since `cargo-wdk` provides it.
-
-##### Customizing signtool arguments
+##### Customizing `signtool` arguments
 
 To sign with your own certificate or tweak any signing option, pass `--signtool-args` with a string of the arguments to forward to `signtool sign`.
 
@@ -131,6 +127,12 @@ To sign with your own certificate or tweak any signing option, pass `--signtool-
 - When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). `cargo-wdk` will prepend the `sign` verb to your arguments and append the trailing file operand so you should not provide them.
 
 `--signtool-args` applies only when signing is enabled; supplying it with `--sign-mode=off` is an error.
+
+#### Customizing `inf2cat` arguments
+
+To target a specific set of Windows versions or pass additional switches, use `--inf2cat-args` with the arguments to forward to `inf2cat` (e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`).
+
+You can pass any `inf2cat` switches except `/driver:` (and its `/drv:` alias), which `cargo-wdk` always supplies itself. If `--inf2cat-args` is omitted or left empty, cargo-wdk's defaults are used.
 
 #### Examples
 

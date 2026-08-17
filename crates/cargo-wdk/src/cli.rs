@@ -208,8 +208,9 @@ pub struct BuildArgs {
     #[arg(long, help_heading = "Driver Signing")]
     pub verify_signature: bool,
 
-    /// Custom arguments to forward to `inf2cat` when generating the catalog
-    /// file, e.g. `--inf2cat-args '/os:10_x64 /uselocaltime'`.
+    /// Custom arguments to pass to `inf2cat` when generating the catalog file,
+    /// except the `/driver:` / `/drv:` switch, e.g.
+    /// `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`.
     #[arg(
         long,
         value_name = "ARGS",
@@ -259,6 +260,30 @@ impl BuildArgs {
                     .unwrap_or_default(),
             }),
         }
+    }
+
+    /// Resolves the arguments to forward to `inf2cat`. Rejects a
+    /// caller-supplied `/driver:` (or its `/drv:` alias).
+    /// Returns a `clap::Error` if the caller-supplied arguments are invalid.
+    fn resolve_inf2cat_args(&self) -> Result<Vec<String>, clap::Error> {
+        let args = self
+            .inf2cat_args
+            .clone()
+            .map(|parsed| parsed.0)
+            .unwrap_or_default();
+        for arg in &args {
+            let lower = arg.to_ascii_lowercase();
+            if lower.starts_with("/driver:") || lower.starts_with("/drv:") {
+                return Err(Cli::command().error(
+                    ErrorKind::ArgumentConflict,
+                    format!(
+                        "`--inf2cat-args` must not contain `{arg}`; cargo-wdk supplies the \
+                         `/driver:` switch itself"
+                    ),
+                ));
+            }
+        }
+        Ok(args)
     }
 }
 
@@ -334,6 +359,7 @@ impl Cli {
             }
             Subcmd::Build(cli_args) => {
                 let sign_mode = cli_args.sign_mode()?;
+                let inf2cat_args = cli_args.resolve_inf2cat_args()?;
                 BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
@@ -345,11 +371,7 @@ impl Cli {
                         target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
-                        inf2cat_args: cli_args
-                            .inf2cat_args
-                            .clone()
-                            .map(|parsed| parsed.0)
-                            .unwrap_or_default(),
+                        inf2cat_args,
                     },
                     &wdk_build,
                     &command_exec,
@@ -512,6 +534,31 @@ mod tests {
                     verify_signature: true,
                     signtool_args: vec!["/fd".to_string(), "SHA256".to_string()],
                 }
+            );
+        }
+
+        #[test]
+        fn resolve_inf2cat_args_rejects_driver_switch() {
+            for value in ["/driver:x", "/DRIVER:x", "/drv:x", "/os:10_x64 /driver:y"] {
+                let args = parse_build_args(&["--inf2cat-args", value]).expect("args should parse");
+                let err = args
+                    .resolve_inf2cat_args()
+                    .expect_err("driver switch should be rejected");
+                assert!(
+                    err.to_string()
+                        .contains("cargo-wdk supplies the `/driver:` switch itself"),
+                    "unexpected error for {value:?}: {err}"
+                );
+            }
+        }
+
+        #[test]
+        fn resolve_inf2cat_args_allows_other_switches() {
+            let args = parse_build_args(&["--inf2cat-args", "/os:10_x64 /uselocaltime"])
+                .expect("args should parse");
+            assert_eq!(
+                args.resolve_inf2cat_args().expect("should resolve"),
+                vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
             );
         }
     }
