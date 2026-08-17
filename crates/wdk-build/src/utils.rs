@@ -420,6 +420,13 @@ where
     );
 }
 
+/// Reads an environment variable, returning `None` for both unset and empty
+/// values. eWDK/vcvars occasionally export variables with empty defaults that
+/// should be treated as unset.
+pub fn env_var_non_empty(key: &str) -> Option<String> {
+    env::var(key).ok().filter(|value| !value.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use assert_fs::prelude::*;
