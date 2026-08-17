@@ -24,6 +24,43 @@ const ABOUT_STRING: &str = "cargo-wdk is a cargo extension that can be used to c
                             Windows Rust driver projects.";
 const CARGO_WDK_BIN_NAME: &str = "cargo wdk";
 
+/// Driver signing mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+#[value(rename_all = "lower")]
+pub enum SignModeArg {
+    /// Skip signing.
+    Off,
+    /// Sign with an auto-generated self-signed certificate.
+    #[default]
+    Test,
+}
+
+/// Arguments passed through to downstream tools.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PassthroughArgs(pub Vec<String>);
+
+/// Platform at which the device driver is targeted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum TargetPlatformArg {
+    /// Validates that the INF meets Universal driver requirements.
+    Universal,
+    /// Validates that the INF meets Desktop driver requirements.
+    Desktop,
+    /// Validates that the INF meets Windows driver requirements.
+    Windows,
+}
+
+impl From<TargetPlatformArg> for TargetPlatform {
+    fn from(value: TargetPlatformArg) -> Self {
+        match value {
+            TargetPlatformArg::Universal => Self::Universal,
+            TargetPlatformArg::Desktop => Self::Desktop,
+            TargetPlatformArg::Windows => Self::Windows,
+        }
+    }
+}
+
 /// Arguments for the `new` subcommand
 #[derive(Debug, Args)]
 #[clap(
@@ -71,98 +108,6 @@ impl NewArgs {
     }
 }
 
-/// Driver signing mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
-#[value(rename_all = "lower")]
-pub enum SignModeArg {
-    /// Skip signing.
-    Off,
-    /// Sign with an auto-generated self-signed certificate.
-    #[default]
-    Test,
-}
-
-/// Arguments passed through to downstream tools.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PassthroughArgs(pub Vec<String>);
-
-impl PassthroughArgs {
-    /// Tokenizes a raw string into individual arguments for an external tool.
-    ///
-    /// Rules:
-    /// - Whitespace separates arguments
-    /// - Quoted spans (single or double quotes) are preserved as a single
-    ///   argument
-    /// - Unterminated quotes are rejected with an error
-    fn parse(raw: &str) -> Result<Self, String> {
-        let mut args = Vec::new();
-        let mut current = String::new();
-        let mut in_arg = false;
-        let mut quote: Option<char> = None;
-
-        for c in raw.chars() {
-            match quote {
-                Some(q) => {
-                    if c == q {
-                        quote = None;
-                    } else {
-                        current.push(c);
-                    }
-                }
-                None if c == '"' || c == '\'' => {
-                    quote = Some(c);
-                    in_arg = true;
-                }
-                None if c.is_whitespace() => {
-                    if in_arg {
-                        let token = std::mem::take(&mut current);
-                        args.push(token);
-                        in_arg = false;
-                    }
-                }
-                None => {
-                    current.push(c);
-                    in_arg = true;
-                }
-            }
-        }
-
-        if let Some(q) = quote {
-            return Err(format!(
-                "unterminated `{q}` quote in passthrough arguments; make sure every quote is \
-                 closed"
-            ));
-        }
-        if in_arg {
-            args.push(current);
-        }
-
-        Ok(Self(args))
-    }
-}
-
-/// Platform at which the device driver is targeted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-#[value(rename_all = "kebab-case")]
-pub enum TargetPlatformArg {
-    /// Validates that the INF meets Universal driver requirements.
-    Universal,
-    /// Validates that the INF meets Desktop driver requirements.
-    Desktop,
-    /// Validates that the INF meets Windows driver requirements.
-    Windows,
-}
-
-impl From<TargetPlatformArg> for TargetPlatform {
-    fn from(value: TargetPlatformArg) -> Self {
-        match value {
-            TargetPlatformArg::Universal => Self::Universal,
-            TargetPlatformArg::Desktop => Self::Desktop,
-            TargetPlatformArg::Windows => Self::Windows,
-        }
-    }
-}
-
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
 pub struct BuildArgs {
@@ -198,7 +143,7 @@ pub struct BuildArgs {
     #[arg(
         long,
         value_name = "ARGS",
-        value_parser = PassthroughArgs::parse,
+        value_parser = parse_passthrough_args,
         help_heading = "Driver Signing"
     )]
     pub signtool_args: Option<PassthroughArgs>,
@@ -214,7 +159,7 @@ pub struct BuildArgs {
     #[arg(
         long,
         value_name = "ARGS",
-        value_parser = PassthroughArgs::parse,
+        value_parser = parse_passthrough_args,
         help_heading = "Inf2Cat Options"
     )]
     pub inf2cat_args: Option<PassthroughArgs>,
@@ -285,6 +230,58 @@ impl BuildArgs {
         }
         Ok(args)
     }
+}
+
+/// `value_parser` for passthrough tool arguments: tokenizes the raw string
+/// into individual arguments for an external tool.
+///
+/// Rules:
+/// - Whitespace separates arguments
+/// - Quoted spans (single or double quotes) are preserved as a single argument
+/// - Unterminated quotes are rejected with an error
+fn parse_passthrough_args(raw: &str) -> Result<PassthroughArgs, String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut in_arg = false;
+    let mut quote: Option<char> = None;
+
+    for c in raw.chars() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                } else {
+                    current.push(c);
+                }
+            }
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                in_arg = true;
+            }
+            None if c.is_whitespace() => {
+                if in_arg {
+                    let token = std::mem::take(&mut current);
+                    args.push(token);
+                    in_arg = false;
+                }
+            }
+            None => {
+                current.push(c);
+                in_arg = true;
+            }
+        }
+    }
+
+    if let Some(q) = quote {
+        return Err(format!(
+            "unterminated `{q}` quote in passthrough arguments; make sure every quote is closed"
+        ));
+    }
+    if in_arg {
+        args.push(current);
+    }
+
+    Ok(PassthroughArgs(args))
 }
 
 /// Subcommands
@@ -394,7 +391,7 @@ mod tests {
 
     use crate::{
         actions::{build::SignMode, new::DriverType},
-        cli::{BuildArgs, Cli, NewArgs, PassthroughArgs, Subcmd},
+        cli::{BuildArgs, Cli, NewArgs, Subcmd},
     };
 
     #[test]
@@ -563,25 +560,25 @@ mod tests {
         }
     }
 
-    mod passthrough_args {
-        use super::PassthroughArgs;
+    mod parse_passthrough_args {
+        use super::super::parse_passthrough_args;
 
         #[test]
         fn tokenizes_whitespace_separated_args() {
-            let parsed = PassthroughArgs::parse("/fd SHA384 /f cert.pfx").expect("should parse");
+            let parsed = parse_passthrough_args("/fd SHA384 /f cert.pfx").expect("should parse");
             assert_eq!(parsed.0, vec!["/fd", "SHA384", "/f", "cert.pfx"]);
         }
 
         #[test]
         fn preserves_quoted_spans() {
             let parsed =
-                PassthroughArgs::parse("/n \"CN=Contoso Root\" /fd SHA256").expect("should parse");
+                parse_passthrough_args("/n \"CN=Contoso Root\" /fd SHA256").expect("should parse");
             assert_eq!(parsed.0, vec!["/n", "CN=Contoso Root", "/fd", "SHA256"]);
         }
 
         #[test]
         fn rejects_unterminated_quote() {
-            let err = PassthroughArgs::parse("/n \"CN=Contoso")
+            let err = parse_passthrough_args("/n \"CN=Contoso")
                 .expect_err("unterminated quote should be rejected");
             assert!(
                 err.contains(
@@ -595,7 +592,7 @@ mod tests {
         #[test]
         fn treats_empty_or_whitespace_as_no_args() {
             for value in ["", "   ", "\t"] {
-                let parsed = PassthroughArgs::parse(value).expect("should parse");
+                let parsed = parse_passthrough_args(value).expect("should parse");
                 assert!(
                     parsed.0.is_empty(),
                     "value {value:?} should parse to no args"
@@ -606,7 +603,7 @@ mod tests {
         #[test]
         fn preserves_quoted_empty_args() {
             for value in ["/p \"\"", "/p ''"] {
-                let parsed = PassthroughArgs::parse(value).expect("should parse");
+                let parsed = parse_passthrough_args(value).expect("should parse");
                 assert_eq!(parsed.0, vec!["/p", ""]);
             }
         }
