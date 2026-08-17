@@ -110,7 +110,7 @@ If you have a workspace with a mix of sample and non-sample driver projects, the
 
 #### Customizing `inf2cat` arguments
 
-To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat` . `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
+To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat`. `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
 
 #### Signing and Verification
 
