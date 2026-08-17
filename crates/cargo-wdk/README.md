@@ -108,6 +108,10 @@ Building a sample driver requires the `--sample` flag. If it is not specified, t
 
 If you have a workspace with a mix of sample and non-sample driver projects, the build will fail as that scenario is not supported yet. In the future `build` will be able to automatically detect sample projects. That will remove the need for the `--sample` flag and enable support for this scenario.
 
+#### Customizing `inf2cat` arguments
+
+To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat` . `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
+
 #### Signing and Verification
 
 The `build` command has a `--sign-mode` flag that controls how driver artifacts are signed. It accepts the following values:
@@ -127,12 +131,6 @@ To sign with your own certificate or tweak any signing option, pass `--signtool-
 - When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). `cargo-wdk` will prepend the `sign` verb to your arguments and append the trailing file operand so you should not provide them.
 
 `--signtool-args` applies only when signing is enabled; supplying it with `--sign-mode=off` is an error.
-
-#### Customizing `inf2cat` arguments
-
-To target a specific set of Windows versions or pass additional switches, use `--inf2cat-args` with the arguments to forward to `inf2cat` (e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`).
-
-You can pass any `inf2cat` switches except `/driver:` (and its `/drv:` alias), which `cargo-wdk` always supplies itself. If `--inf2cat-args` is omitted or left empty, cargo-wdk's defaults are used.
 
 #### Examples
 
