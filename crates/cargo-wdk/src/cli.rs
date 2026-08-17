@@ -260,13 +260,6 @@ impl BuildArgs {
             }),
         }
     }
-
-    fn inf2cat_args(&self) -> Vec<String> {
-        self.inf2cat_args
-            .clone()
-            .map(|parsed| parsed.0)
-            .unwrap_or_default()
-    }
 }
 
 /// Subcommands
@@ -352,7 +345,11 @@ impl Cli {
                         target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
-                        inf2cat_args: cli_args.inf2cat_args(),
+                        inf2cat_args: cli_args
+                            .inf2cat_args
+                            .clone()
+                            .map(|parsed| parsed.0)
+                            .unwrap_or_default(),
                     },
                     &wdk_build,
                     &command_exec,
@@ -372,11 +369,10 @@ impl Cli {
 #[cfg(test)]
 mod tests {
     use clap::Parser;
-    use clap_cargo::Features;
 
     use crate::{
         actions::{build::SignMode, new::DriverType},
-        cli::{BuildArgs, Cli, NewArgs, PassthroughArgs, SignModeArg, Subcmd, TargetPlatformArg},
+        cli::{BuildArgs, Cli, NewArgs, PassthroughArgs, Subcmd},
     };
 
     #[test]
@@ -567,32 +563,6 @@ mod tests {
                 assert_eq!(parsed.0, vec!["/p", ""]);
             }
         }
-    }
-
-    #[test]
-    fn build_inf2cat_args_maps_none_to_empty_and_some_to_tokens() {
-        let mut args = BuildArgs {
-            profile: None,
-            target_arch: None,
-            target_platform: TargetPlatformArg::Universal,
-            verify_signature: false,
-            sign_mode: SignModeArg::Test,
-            signtool_args: None,
-            inf2cat_args: None,
-            sample: false,
-            locked: false,
-            features: Features::default(),
-        };
-        assert!(args.inf2cat_args().is_empty());
-
-        args.inf2cat_args = Some(PassthroughArgs(vec![
-            "/os:10_x64".to_string(),
-            "/uselocaltime".to_string(),
-        ]));
-        assert_eq!(
-            args.inf2cat_args(),
-            vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
-        );
     }
 
     #[test]
