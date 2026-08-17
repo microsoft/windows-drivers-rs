@@ -35,7 +35,6 @@
 
 use std::{
     env,
-    fmt::Write as _,
     fs,
     path::{Path, PathBuf, absolute},
     process::Command,
@@ -436,6 +435,17 @@ fn generate_rc_content(
     metadata: &VersionResourceMetadata,
     config: &Config,
 ) -> String {
+    const VER_FILETYPE_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_FILETYPE>";
+    const VER_FILESUBTYPE_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_FILESUBTYPE>";
+    const INTERNAL_NAME_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_INTERNALNAME_STR>";
+    const ORIGINAL_FILENAME_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_ORIGINALFILENAME_STR>";
+    const FILE_DESCRIPTION_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_FILEDESCRIPTION_STR>";
+    const PRODUCT_NAME_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_PRODUCTNAME_STR>";
+    const FILE_VERSION_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_FILEVERSION>";
+    const FILE_VERSION_STR_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_FILEVERSION_STR>";
+    const COPYRIGHT_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_LEGALCOPYRIGHT_STR>";
+    const COMPANY_NAME_PLACEHOLDER: &str = "<PLACEHOLDER FOR VER_COMPANYNAME_STR>";
+
     let driver_filename = metadata
         .internal_name
         .clone()
@@ -446,60 +456,74 @@ fn generate_rc_content(
         .clone()
         .unwrap_or_else(|| driver_filename.clone());
 
-    // Determine file type based on driver model
     let (ver_filetype, ver_filesubtype) = match config.driver_config {
         DriverConfig::Wdm | DriverConfig::Kmdf(_) => ("VFT_DRV", "VFT2_DRV_SYSTEM"),
         DriverConfig::Umdf(_) => ("VFT_DLL", "VFT2_UNKNOWN"),
     };
 
-    let mut rc = String::with_capacity(1024);
-    writeln!(rc, "#pragma code_page(65001)").expect("write to String should not fail");
-    writeln!(rc, "#include <windows.h>").expect("write to String should not fail");
-    writeln!(rc, "#include <ntverp.h>").expect("write to String should not fail");
-    writeln!(rc).expect("write to String should not fail");
-    writeln!(rc, "#define VER_FILETYPE             {ver_filetype}")
-        .expect("write to String should not fail");
-    writeln!(rc, "#define VER_FILESUBTYPE          {ver_filesubtype}")
-        .expect("write to String should not fail");
-    writeln!(rc).expect("write to String should not fail");
-    writeln!(rc, "#define VER_INTERNALNAME_STR     \"{driver_filename}\"")
-        .expect("write to String should not fail");
-    writeln!(
-        rc,
-        "#define VER_ORIGINALFILENAME_STR \"{original_filename}\""
+    format!(
+        r#"#pragma code_page(65001)
+#include <windows.h>
+#include <ntverp.h>
+
+#define VER_FILETYPE             {VER_FILETYPE_PLACEHOLDER}
+#define VER_FILESUBTYPE          {VER_FILESUBTYPE_PLACEHOLDER}
+#define VER_INTERNALNAME_STR     "{INTERNAL_NAME_PLACEHOLDER}"
+#define VER_ORIGINALFILENAME_STR "{ORIGINAL_FILENAME_PLACEHOLDER}"
+
+#ifdef  VER_FILEDESCRIPTION_STR
+#undef  VER_FILEDESCRIPTION_STR
+#endif
+#define VER_FILEDESCRIPTION_STR  "{FILE_DESCRIPTION_PLACEHOLDER}"
+
+#ifdef  VER_PRODUCTNAME_STR
+#undef  VER_PRODUCTNAME_STR
+#endif
+#define VER_PRODUCTNAME_STR  "{PRODUCT_NAME_PLACEHOLDER}"
+
+#ifdef  VER_FILEVERSION
+#undef  VER_FILEVERSION
+#endif
+#define VER_FILEVERSION  {FILE_VERSION_PLACEHOLDER}
+
+#ifdef  VER_FILEVERSION_STR
+#undef  VER_FILEVERSION_STR
+#endif
+#define VER_FILEVERSION_STR  "{FILE_VERSION_STR_PLACEHOLDER}"
+
+#ifdef  VER_PRODUCTVERSION
+#undef  VER_PRODUCTVERSION
+#endif
+#define VER_PRODUCTVERSION  VER_FILEVERSION
+
+#ifdef  VER_PRODUCTVERSION_STR
+#undef  VER_PRODUCTVERSION_STR
+#endif
+#define VER_PRODUCTVERSION_STR  VER_FILEVERSION_STR
+
+#ifdef  VER_LEGALCOPYRIGHT_STR
+#undef  VER_LEGALCOPYRIGHT_STR
+#endif
+#define VER_LEGALCOPYRIGHT_STR  "{COPYRIGHT_PLACEHOLDER}"
+
+#ifdef  VER_COMPANYNAME_STR
+#undef  VER_COMPANYNAME_STR
+#endif
+#define VER_COMPANYNAME_STR  "{COMPANY_NAME_PLACEHOLDER}"
+
+#include <common.ver>
+"#
     )
-    .expect("write to String should not fail");
-    writeln!(rc).expect("write to String should not fail");
-
-    // Use consistent #ifdef/#undef/#define pattern for all overridden macros
-    let file_description = &metadata.file_description;
-    let product_name = &metadata.product_name;
-    let copyright = &metadata.copyright;
-    let company_name = &metadata.company_name;
-    for (macro_name, macro_value) in [
-        ("VER_FILEDESCRIPTION_STR", format!("\"{file_description}\"")),
-        ("VER_PRODUCTNAME_STR", format!("\"{product_name}\"")),
-        ("VER_FILEVERSION", version.as_rc_numeric()),
-        (
-            "VER_FILEVERSION_STR",
-            format!("\"{}\"", version.as_rc_string()),
-        ),
-        ("VER_PRODUCTVERSION", "VER_FILEVERSION".to_string()),
-        ("VER_PRODUCTVERSION_STR", "VER_FILEVERSION_STR".to_string()),
-        ("VER_LEGALCOPYRIGHT_STR", format!("\"{copyright}\"")),
-        ("VER_COMPANYNAME_STR", format!("\"{company_name}\"")),
-    ] {
-        writeln!(rc, "#ifdef  {macro_name}").expect("write to String should not fail");
-        writeln!(rc, "#undef  {macro_name}").expect("write to String should not fail");
-        writeln!(rc, "#endif").expect("write to String should not fail");
-        writeln!(rc, "#define {macro_name}  {macro_value}")
-            .expect("write to String should not fail");
-        writeln!(rc).expect("write to String should not fail");
-    }
-
-    writeln!(rc, "#include <common.ver>").expect("write to String should not fail");
-
-    rc
+    .replace(VER_FILETYPE_PLACEHOLDER, ver_filetype)
+    .replace(VER_FILESUBTYPE_PLACEHOLDER, ver_filesubtype)
+    .replace(INTERNAL_NAME_PLACEHOLDER, &driver_filename)
+    .replace(ORIGINAL_FILENAME_PLACEHOLDER, &original_filename)
+    .replace(FILE_DESCRIPTION_PLACEHOLDER, &metadata.file_description)
+    .replace(PRODUCT_NAME_PLACEHOLDER, &metadata.product_name)
+    .replace(FILE_VERSION_PLACEHOLDER, &version.as_rc_numeric())
+    .replace(FILE_VERSION_STR_PLACEHOLDER, &version.as_rc_string())
+    .replace(COPYRIGHT_PLACEHOLDER, &metadata.copyright)
+    .replace(COMPANY_NAME_PLACEHOLDER, &metadata.company_name)
 }
 
 /// Builds the `/I` include-path list passed to `rc.exe` when compiling the
@@ -1532,6 +1556,9 @@ mod tests {
             assert!(rc.contains("\"Copyright Test\""));
             assert!(rc.contains("1,0,0,0"));
             assert!(rc.contains("\"1.0.0.0\""));
+            assert!(rc.contains("#define VER_PRODUCTVERSION  VER_FILEVERSION"));
+            assert!(rc.contains("#define VER_PRODUCTVERSION_STR  VER_FILEVERSION_STR"));
+            assert!(!rc.contains("<PLACEHOLDER"));
         }
 
         #[test]
