@@ -14,14 +14,10 @@ use mockall_double::double;
 use tracing::debug;
 use wdk_build::CpuArchitecture;
 
-use super::features_to_cargo_args;
+use super::{Profile, error::BuildTaskError, features_to_cargo_args, to_target_triple};
 #[double]
 use crate::providers::exec::CommandExec;
-use crate::{
-    actions::{Profile, build::error::BuildTaskError, to_target_triple},
-    providers::error::CommandError,
-    trace,
-};
+use crate::{providers::error::CommandError, trace};
 
 /// Parameters for constructing a [`BuildTask`].
 pub struct BuildTaskParams<'a> {
@@ -156,7 +152,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        actions::Profile,
+        actions::build::Profile,
         providers::{error::CommandError, exec::MockCommandExec},
     };
 

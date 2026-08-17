@@ -6,25 +6,19 @@
 //! This is a sample KMDF driver that demonstrates how to use the crates in
 //! windows-driver-rs to create a skeleton of a kmdf driver.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
 
 #[cfg(not(test))]
 extern crate wdk_panic;
 
-use alloc::{
-    ffi::CString,
-    slice,
-    string::String,
-};
+use alloc::{ffi::CString, slice, string::String};
 
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
 use wdk_sys::{
-    call_unsafe_wdf_function_binding,
-    ntddk::DbgPrint,
     DRIVER_OBJECT,
     NTSTATUS,
     PCUNICODE_STRING,
@@ -32,12 +26,14 @@ use wdk_sys::{
     ULONG,
     UNICODE_STRING,
     WCHAR,
-    WDFDEVICE,
-    WDFDEVICE_INIT,
-    WDFDRIVER,
     WDF_DRIVER_CONFIG,
     WDF_NO_HANDLE,
     WDF_NO_OBJECT_ATTRIBUTES,
+    WDFDEVICE,
+    WDFDEVICE_INIT,
+    WDFDRIVER,
+    call_unsafe_wdf_function_binding,
+    ntddk::DbgPrint,
 };
 
 #[cfg(not(test))]
@@ -53,7 +49,9 @@ static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
 // SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
 // No other function in this compilation unit exports this name, preventing symbol conflicts.
-#[unsafe(export_name = "DriverEntry")] // WDF expects a symbol with the name DriverEntry
+// The cfg gate on export_name is temporary to avoid clashing with the `DriverEntry`
+// provided by the `test-stubs` feature.
+#[cfg_attr(not(test), unsafe(export_name = "DriverEntry"))] // WDF expects a symbol with the name DriverEntry
 pub unsafe extern "system" fn driver_entry(
     driver: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
@@ -141,10 +139,9 @@ pub unsafe extern "system" fn driver_entry(
         //            of the slice must be no larger than `isize::MAX`. This is proven by the below
         //            `debug_assert!`.
         unsafe {
-            debug_assert!(isize::try_from(
-                number_of_slice_elements * core::mem::size_of::<WCHAR>()
-            )
-            .is_ok());
+            debug_assert!(
+                isize::try_from(number_of_slice_elements * core::mem::size_of::<WCHAR>()).is_ok()
+            );
             slice::from_raw_parts(registry_path.Buffer, number_of_slice_elements)
         },
     );
@@ -188,4 +185,17 @@ extern "C" fn evt_driver_device_add(
 extern "C" fn driver_exit(_driver: *mut DRIVER_OBJECT) {
     println!("Goodbye World!");
     println!("Driver Exit Complete!");
+}
+
+#[cfg(test)]
+mod tests {
+
+    /// Dummy test to ensure `test` targets compile correctly 
+    /// without linking WDK libs
+    #[test]
+    fn test_driver_exit() {
+        use super::*;
+
+        driver_exit(core::ptr::null_mut())
+    }
 }
