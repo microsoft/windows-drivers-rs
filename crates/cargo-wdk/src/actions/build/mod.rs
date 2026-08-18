@@ -33,6 +33,7 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
+use crate::actions::cargo_project_iterator::CargoProjectIterator;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
 
@@ -201,32 +202,12 @@ impl<'a> BuildAction<'a> {
         }
 
         // Emulated workspaces support
-        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
         debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
-
-        let mut is_valid_dir_with_rust_projects = false;
-        for entry in &dirs {
-            if entry.is_dir && self.fs.exists(&entry.path.join("Cargo.toml")) {
-                debug!(
-                    "Found at least one valid Rust project directory: {}, continuing with the \
-                     build flow",
-                    entry
-                        .path
-                        .file_name()
-                        .expect(
-                            "package sub directory name ended with \"..\" which is not expected"
-                        )
-                        .to_string_lossy()
-                );
-                is_valid_dir_with_rust_projects = true;
-                break;
-            }
-        }
-
-        if !is_valid_dir_with_rust_projects {
+        let mut cargo_projects = CargoProjectIterator::new(self.fs, &self.working_dir)?.peekable();
+        if cargo_projects.peek().is_none() {
             return Err(BuildActionError::NoValidRustProjectsInTheDirectory(
                 self.working_dir.clone(),
             ));
@@ -235,14 +216,7 @@ impl<'a> BuildAction<'a> {
         info!("Building packages in {}", self.working_dir.display());
 
         let mut failed_atleast_one_project = false;
-        for entry in dirs {
-            debug!("Checking dir entry: {}", entry.path.display());
-            if !entry.is_dir || !self.fs.exists(&entry.path.join("Cargo.toml")) {
-                debug!("Dir entry is not a valid Rust package");
-                continue;
-            }
-
-            let cargo_package_path = entry.path;
+        for cargo_package_path in cargo_projects {
             let package_dir_name = cargo_package_path
                 .file_name()
                 .expect("package sub directory name ended with \"..\" which is not expected")
