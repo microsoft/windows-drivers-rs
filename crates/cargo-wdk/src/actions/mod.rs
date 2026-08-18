@@ -8,5 +8,6 @@
 //! * `build` - Build action module
 //! * `clean` - Clean action module
 pub mod build;
+mod cargo_project_iterator;
 pub mod clean;
 pub mod new;

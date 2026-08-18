@@ -13,7 +13,7 @@ use tracing::{debug, error as err, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::trace;
+use crate::{actions::cargo_project_iterator::CargoProjectIterator, trace};
 
 /// Action that removes build artifacts produced by the `build` command for a
 /// driver project or emulated workspace.
@@ -96,33 +96,25 @@ impl<'a> CleanAction<'a> {
         }
 
         // Emulated workspaces support
-        let dirs = self.fs.read_dir_entries(&self.working_dir)?;
         debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
         );
+        let mut cargo_projects = CargoProjectIterator::new(self.fs, &self.working_dir)?.peekable();
+        if cargo_projects.peek().is_none() {
+            return Err(CleanActionError::NoValidRustProjectsInTheDirectory(
+                self.working_dir.clone(),
+            ));
+        }
 
-        let mut found_at_least_one_project = false;
+        info!("Cleaning package(s) in {}", self.working_dir.display());
         let mut failed_at_least_one_project = false;
-        for entry in dirs {
-            debug!("Checking dir entry: {}", entry.path.display());
-            if !entry.is_dir || !self.fs.exists(&entry.path.join("Cargo.toml")) {
-                debug!("Dir entry is not a valid Rust package");
-                continue;
-            }
-
-            let cargo_package_path = entry.path;
+        for cargo_package_path in cargo_projects {
             let package_dir_name = cargo_package_path
                 .file_name()
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default();
 
-            // Emit the log only once for the entire emulated workspace, the first
-            // time a valid Rust project is discovered during the scan.
-            if !found_at_least_one_project {
-                info!("Cleaning package(s) in {}", self.working_dir.display());
-            }
-            found_at_least_one_project = true;
             debug!("Cleaning package(s) in dir {package_dir_name}");
             if let Err(e) = self.run_cargo_clean(&cargo_package_path) {
                 failed_at_least_one_project = true;
@@ -131,12 +123,6 @@ impl<'a> CleanAction<'a> {
                     anyhow::Error::new(e)
                 );
             }
-        }
-
-        if !found_at_least_one_project {
-            return Err(CleanActionError::NoValidRustProjectsInTheDirectory(
-                self.working_dir.clone(),
-            ));
         }
 
         debug!("Done cleaning package(s) in {}", self.working_dir.display());
