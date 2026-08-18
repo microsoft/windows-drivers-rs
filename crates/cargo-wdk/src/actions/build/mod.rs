@@ -197,8 +197,26 @@ impl<'a> BuildAction<'a> {
             return self.run_from_workspace_root(&self.working_dir);
         }
 
-        // Emulated workspaces support
         let dirs = self.fs.read_dir_entries(&self.working_dir)?;
+
+        if let Some(workspace_root) = super::find_workspace_root(
+            self.metadata,
+            self.fs,
+            &self.working_dir,
+            &dirs,
+            self.locked,
+            self.features,
+        ) {
+            debug!(
+                "Working directory {} lies inside the workspace rooted at {}; running build from \
+                 workspace root",
+                self.working_dir.display(),
+                workspace_root.display()
+            );
+            return self.run_from_workspace_root(&workspace_root);
+        }
+
+        // Emulated workspaces support
         debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()

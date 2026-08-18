@@ -7,12 +7,13 @@ mod error;
 use std::path::{Path, PathBuf, absolute};
 
 use anyhow::Result;
+use clap_cargo::Features;
 use error::CleanActionError;
 use mockall_double::double;
 use tracing::{debug, error as err, info};
 
 #[double]
-use crate::providers::{exec::CommandExec, fs::Fs};
+use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata};
 use crate::trace;
 
 /// Action that removes build artifacts produced by the `build` command for a
@@ -24,6 +25,7 @@ pub struct CleanAction<'a> {
     // Injected deps
     command_exec: &'a CommandExec,
     fs: &'a Fs,
+    metadata: &'a Metadata,
 }
 
 impl<'a> CleanAction<'a> {
@@ -34,6 +36,7 @@ impl<'a> CleanAction<'a> {
     /// * `verbosity_level` - The verbosity level for logging
     /// * `command_exec` - The command execution provider instance
     /// * `fs` - The file system provider instance
+    /// * `metadata` - The metadata provider instance
     ///
     /// # Returns
     /// * `Result<Self>` - A result containing either a new instance of
@@ -47,6 +50,7 @@ impl<'a> CleanAction<'a> {
         verbosity_level: clap_verbosity_flag::Verbosity,
         command_exec: &'a CommandExec,
         fs: &'a Fs,
+        metadata: &'a Metadata,
     ) -> Result<Self> {
         anyhow::ensure!(
             !working_dir.as_os_str().is_empty(),
@@ -57,6 +61,7 @@ impl<'a> CleanAction<'a> {
             verbosity_level,
             command_exec,
             fs,
+            metadata,
         })
     }
 
@@ -95,8 +100,26 @@ impl<'a> CleanAction<'a> {
             return self.run_cargo_clean(&self.working_dir);
         }
 
-        // Emulated workspaces support
         let dirs = self.fs.read_dir_entries(&self.working_dir)?;
+
+        if let Some(workspace_root) = super::find_workspace_root(
+            self.metadata,
+            self.fs,
+            &self.working_dir,
+            &dirs,
+            false,
+            &Features::default(),
+        ) {
+            debug!(
+                "Working directory {} lies inside the workspace rooted at {}; running cargo clean \
+                 from workspace root",
+                self.working_dir.display(),
+                workspace_root.display()
+            );
+            return self.run_cargo_clean(&workspace_root);
+        }
+
+        // Emulated workspaces support
         debug!(
             "Checking for valid Rust projects in the working directory: {}",
             self.working_dir.display()
@@ -186,7 +209,7 @@ mod tests {
         fs::DirEntryInfo,
     };
     #[double]
-    use crate::providers::{exec::CommandExec, fs::Fs};
+    use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata};
 
     fn ok_output() -> Output {
         Output {
@@ -241,10 +264,33 @@ mod tests {
             });
     }
 
-    fn run_action(cwd: &Path, fs: &Fs, exec: &CommandExec) -> Result<(), CleanActionError> {
-        CleanAction::new(cwd, clap_verbosity_flag::Verbosity::default(), exec, fs)
-            .expect("CleanAction::new should succeed")
-            .run()
+    fn metadata_not_in_workspace() -> Metadata {
+        let mut metadata = Metadata::default();
+        metadata
+            .expect_get_cargo_metadata_at_path()
+            .returning(|_, _, _| {
+                Err(cargo_metadata::Error::CargoMetadata {
+                    stderr: "not a workspace".to_string(),
+                })
+            });
+        metadata
+    }
+
+    fn run_action(
+        cwd: &Path,
+        fs: &Fs,
+        exec: &CommandExec,
+        metadata: &Metadata,
+    ) -> Result<(), CleanActionError> {
+        CleanAction::new(
+            cwd,
+            clap_verbosity_flag::Verbosity::default(),
+            exec,
+            fs,
+            metadata,
+        )
+        .expect("CleanAction::new should succeed")
+        .run()
     }
 
     #[test]
@@ -252,8 +298,16 @@ mod tests {
         let cwd = PathBuf::from("C:\\tmp");
         let fs = Fs::default();
         let exec = CommandExec::default();
+        let metadata = Metadata::default();
         assert!(
-            CleanAction::new(&cwd, clap_verbosity_flag::Verbosity::default(), &exec, &fs,).is_ok()
+            CleanAction::new(
+                &cwd,
+                clap_verbosity_flag::Verbosity::default(),
+                &exec,
+                &fs,
+                &metadata,
+            )
+            .is_ok()
         );
     }
 
@@ -262,9 +316,16 @@ mod tests {
         let cwd = PathBuf::from("");
         let fs = Fs::default();
         let exec = CommandExec::default();
-        let err = CleanAction::new(&cwd, clap_verbosity_flag::Verbosity::default(), &exec, &fs)
-            .err()
-            .expect("CleanAction::new should fail for empty working_dir");
+        let metadata = Metadata::default();
+        let err = CleanAction::new(
+            &cwd,
+            clap_verbosity_flag::Verbosity::default(),
+            &exec,
+            &fs,
+            &metadata,
+        )
+        .err()
+        .expect("CleanAction::new should fail for empty working_dir");
         assert_eq!(err.to_string(), "working_dir must not be empty");
     }
 
@@ -275,9 +336,10 @@ mod tests {
         let cwd = PathBuf::from("C:\\tmp");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = Metadata::default();
         mock_cargo_toml(&mut fs, &cwd, true);
         mock_cargo_clean(&mut exec, &cwd, true);
-        assert!(run_action(&cwd, &fs, &exec).is_ok());
+        assert!(run_action(&cwd, &fs, &exec, &metadata).is_ok());
     }
 
     #[test]
@@ -285,10 +347,11 @@ mod tests {
         let cwd = PathBuf::from("C:\\tmp");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = Metadata::default();
         mock_cargo_toml(&mut fs, &cwd, true);
         mock_cargo_clean(&mut exec, &cwd, false);
         assert!(matches!(
-            run_action(&cwd, &fs, &exec),
+            run_action(&cwd, &fs, &exec, &metadata),
             Err(CleanActionError::CargoClean(_))
         ));
     }
@@ -300,10 +363,11 @@ mod tests {
         let cwd = PathBuf::from("C:\\tmp");
         let mut fs = Fs::default();
         let exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         mock_read_dir(&mut fs, &cwd, &[]);
         assert!(matches!(
-            run_action(&cwd, &fs, &exec),
+            run_action(&cwd, &fs, &exec, &metadata),
             Err(CleanActionError::NoValidRustProjectsInTheDirectory(_))
         ));
     }
@@ -314,11 +378,12 @@ mod tests {
         let pkg_a = cwd.join("pkg-a");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         mock_read_dir(&mut fs, &cwd, &[("pkg-a", true)]);
         mock_cargo_toml(&mut fs, &pkg_a, true);
         mock_cargo_clean(&mut exec, &pkg_a, true);
-        assert!(run_action(&cwd, &fs, &exec).is_ok());
+        assert!(run_action(&cwd, &fs, &exec, &metadata).is_ok());
     }
 
     #[test]
@@ -328,13 +393,14 @@ mod tests {
         let pkg_b = cwd.join("pkg-b");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         mock_read_dir(&mut fs, &cwd, &[("pkg-a", true), ("pkg-b", true)]);
         mock_cargo_toml(&mut fs, &pkg_a, true);
         mock_cargo_toml(&mut fs, &pkg_b, true);
         mock_cargo_clean(&mut exec, &pkg_a, true);
         mock_cargo_clean(&mut exec, &pkg_b, true);
-        assert!(run_action(&cwd, &fs, &exec).is_ok());
+        assert!(run_action(&cwd, &fs, &exec, &metadata).is_ok());
     }
 
     #[test]
@@ -343,12 +409,13 @@ mod tests {
         let pkg_a = cwd.join("pkg-a");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         // README.md (is_dir=false) is filtered out before any Cargo.toml probe.
         mock_read_dir(&mut fs, &cwd, &[("README.md", false), ("pkg-a", true)]);
         mock_cargo_toml(&mut fs, &pkg_a, true);
         mock_cargo_clean(&mut exec, &pkg_a, true);
-        assert!(run_action(&cwd, &fs, &exec).is_ok());
+        assert!(run_action(&cwd, &fs, &exec, &metadata).is_ok());
     }
 
     #[test]
@@ -358,12 +425,13 @@ mod tests {
         let pkg_a = cwd.join("pkg-a");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         mock_read_dir(&mut fs, &cwd, &[("docs", true), ("pkg-a", true)]);
         mock_cargo_toml(&mut fs, &docs, false);
         mock_cargo_toml(&mut fs, &pkg_a, true);
         mock_cargo_clean(&mut exec, &pkg_a, true);
-        assert!(run_action(&cwd, &fs, &exec).is_ok());
+        assert!(run_action(&cwd, &fs, &exec, &metadata).is_ok());
     }
 
     #[test]
@@ -373,12 +441,13 @@ mod tests {
         let scripts = cwd.join("scripts");
         let mut fs = Fs::default();
         let exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         mock_read_dir(&mut fs, &cwd, &[("docs", true), ("scripts", true)]);
         mock_cargo_toml(&mut fs, &docs, false);
         mock_cargo_toml(&mut fs, &scripts, false);
         assert!(matches!(
-            run_action(&cwd, &fs, &exec),
+            run_action(&cwd, &fs, &exec, &metadata),
             Err(CleanActionError::NoValidRustProjectsInTheDirectory(_))
         ));
     }
@@ -390,6 +459,7 @@ mod tests {
         let pkg_bad = cwd.join("pkg-bad");
         let mut fs = Fs::default();
         let mut exec = CommandExec::default();
+        let metadata = metadata_not_in_workspace();
         mock_cargo_toml(&mut fs, &cwd, false);
         mock_read_dir(&mut fs, &cwd, &[("pkg-ok", true), ("pkg-bad", true)]);
         mock_cargo_toml(&mut fs, &pkg_ok, true);
@@ -397,7 +467,7 @@ mod tests {
         mock_cargo_clean(&mut exec, &pkg_ok, true);
         mock_cargo_clean(&mut exec, &pkg_bad, false);
         assert!(matches!(
-            run_action(&cwd, &fs, &exec),
+            run_action(&cwd, &fs, &exec, &metadata),
             Err(CleanActionError::OneOrMoreRustProjectsFailedToClean(_))
         ));
     }
@@ -407,6 +477,9 @@ mod tests {
         let cwd = PathBuf::from("C:\\tmp");
         let mut fs = Fs::default();
         let exec = CommandExec::default();
+        // `read_dir_entries` is attempted before the metadata probe, so no
+        // metadata expectation is needed here.
+        let metadata = Metadata::default();
         mock_cargo_toml(&mut fs, &cwd, false);
         let cwd_clone = cwd.clone();
         fs.expect_read_dir_entries().returning(move |_| {
@@ -416,7 +489,7 @@ mod tests {
             ))
         });
         assert!(matches!(
-            run_action(&cwd, &fs, &exec),
+            run_action(&cwd, &fs, &exec, &metadata),
             Err(CleanActionError::FileIo(_))
         ));
     }
