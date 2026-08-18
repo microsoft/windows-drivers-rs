@@ -89,7 +89,7 @@ macro_rules! println {
 ///
 /// This is the no_std equivalent of the standard library's `eprintln!` macro.
 /// For WDM and KMDF drivers, output is routed through `DbgPrintEx` using the
-/// `DPFLTR_IHVDRIVER_ID` component and `DPFLTR_ERROR_LEVEL`. UMDF drivers use
+/// `DPFLTR_DEFAULT_ID` component and `DPFLTR_ERROR_LEVEL`. UMDF drivers use
 /// `OutputDebugStringA`, which does not expose debug message levels.
 #[macro_export]
 macro_rules! eprintln {
@@ -167,8 +167,8 @@ macro_rules! dbg {
 
 #[derive(Clone, Copy)]
 enum DebugPrintLevel {
-    Error = 0,
-    Info = 3,
+    Error,
+    Info,
 }
 
 /// Internal implementation of `print!` and `println!`.
@@ -204,13 +204,13 @@ fn _print_with_level(args: fmt::Arguments, level: DebugPrintLevel) {
                 // - `cstr` is a valid NUL-terminated CStr from `FormatBuffer::as_c_str`.
                 // - Using `%s` prevents `DbgPrintEx` from interpreting format specifiers
                 //   in the buffer contents, which could cause UB.
-                // - `DPFLTR_IHVDRIVER_ID` is the documented component ID for third-party
-                //   drivers, and `level` is one of the documented DPFLTR levels.
+                // - `DPFLTR_DEFAULT_ID` preserves the component used by `DbgPrint`, while
+                //   `level` selects the requested INFO or ERROR debug-message level.
                 // - IRQL requirements (must be <= DIRQL) are the caller's responsibility,
                 //   as documented on the print macros.
                 unsafe {
                     wdk_sys::ntddk::DbgPrintEx(
-                        wdk_sys::DPFLTR_IHVDRIVER_ID,
+                        wdk_sys::DPFLTR_DEFAULT_ID,
                         level,
                         c"%s".as_ptr().cast(),
                         cstr.as_ptr().cast::<wdk_sys::CHAR>(),
