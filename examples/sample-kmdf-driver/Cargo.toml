@@ -27,6 +27,9 @@ wdk-alloc.path = "../../crates/wdk-alloc"
 wdk-panic.path = "../../crates/wdk-panic"
 wdk-sys.path = "../../crates/wdk-sys"
 
+[dev-dependencies]
+wdk-sys = { features = ["test-stubs"], path = "../../crates/wdk-sys" }
+
 [features]
 default = []
 
@@ -40,7 +43,6 @@ usb = ["wdk-sys/usb"]
 nightly = ["wdk-sys/nightly", "wdk/nightly"]
 
 [profile.dev]
-lto = true
 panic = "abort"
 
 [profile.release]

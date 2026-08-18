@@ -13,6 +13,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.compare || github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  # TODO: Remove when cargo-wdk supports Cargo build-dir layout v2 (see https://github.com/microsoft/windows-drivers-rs/issues/709).
+  # The whitelist in function `sanitize_env_vars` in crates/cargo-wdk/tests/test_utils/mod.rs should also be removed once this env var is removed.
+  CARGO_UNSTABLE_BUILD_DIR_NEW_LAYOUT: 'false'
+
 jobs:
   test:
     name: Test
@@ -47,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Install Winget
         uses: ./.github/actions/install-winget
@@ -108,7 +113,7 @@ jobs:
 
       - name: Upload Coverage to Codecov
         if: matrix.runner.arch != 'arm64' && github.repository == 'microsoft/windows-drivers-rs' # Skip for forks because they may not have CODECOV_TOKEN
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: target/codecov.info
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -123,3 +128,6 @@ jobs:
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
         run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
+
+      - name: Run Cargo Test (Top-level examples Folder via Cargo Make - Sample Drivers)
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./examples test --locked --profile ${{ matrix.cargo_profile }}

@@ -14,6 +14,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
+  # TODO: Remove when cargo-wdk supports Cargo build-dir layout v2 (see https://github.com/microsoft/windows-drivers-rs/issues/709).
+  CARGO_UNSTABLE_BUILD_DIR_NEW_LAYOUT: 'false'
   RUSTFLAGS: >-
     -D warnings
     -C target-feature=+crt-static
@@ -57,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Install Winget
         uses: ./.github/actions/install-winget
