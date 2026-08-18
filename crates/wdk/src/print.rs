@@ -12,12 +12,12 @@ use std::ffi::CString;
 #[cfg_attr(
     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
     doc = r"
-The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrint`], so the `IRQL` 
+The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrintEx`], so the `IRQL`
 requirements of that function apply. In particular, this should only be called at 
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
+[`wdk_sys::ntddk::DbgPrintEx`]'s 512 byte limit does not apply to this macro, as it will
 automatically buffer and chunk the output if it exceeds that limit. Interior NUL bytes
 in the formatted output will cause each chunk to be truncated at the first NUL.
 "
@@ -50,12 +50,12 @@ macro_rules! print {
 #[cfg_attr(
     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
     doc = r"
-The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrint`], so the `IRQL` 
+The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrintEx`], so the `IRQL`
 requirements of that function apply. In particular, this should only be called at 
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
+[`wdk_sys::ntddk::DbgPrintEx`]'s 512 byte limit does not apply to this macro, as it will
 automatically buffer and chunk the output if it exceeds that limit. Interior NUL bytes
 in the formatted output will cause each chunk to be truncated at the first NUL.
 "
@@ -85,20 +85,37 @@ macro_rules! println {
     };
 }
 
+/// Prints to the debugger at error level, with a newline.
+///
+/// This is the no_std equivalent of the standard library's `eprintln!` macro.
+/// For WDM and KMDF drivers, output is routed through `DbgPrintEx` using the
+/// `DPFLTR_IHVDRIVER_ID` component and `DPFLTR_ERROR_LEVEL`. UMDF drivers use
+/// `OutputDebugStringA`, which does not expose debug message levels.
+#[macro_export]
+macro_rules! eprintln {
+    () => {
+      ($crate::_eprint(format_args!("\n")));
+    };
+
+    ($($arg:tt)*) => {
+      ($crate::_eprint(format_args!("{}\n", format_args!($($arg)*))))
+    };
+}
+
 /// Prints and returns the value of a given expression for quick and dirty
 /// debugging.
 /// This is the no_std equivalent of the std library's dbg! macro.
 /// Instead of writing to stderr it routes output through the debugger using
-/// the println! macro in wdk.
+/// the `eprintln!` macro in wdk.
 #[cfg_attr(
     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
     doc = r"
-The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrint`], so the `IRQL`
+The output is routed to the debugger via [`wdk_sys::ntddk::DbgPrintEx`], so the `IRQL`
 requirements of that function apply. In particular, this should only be called at
 `IRQL` <= `DIRQL`, and calling it at `IRQL` > `DIRQL` can cause deadlocks due to
 the debugger's use of IPIs (Inter-Process Interrupts).
 
-[`wdk_sys::ntddk::DbgPrint`]'s 512 byte limit does not apply to this macro, as it will
+[`wdk_sys::ntddk::DbgPrintEx`]'s 512 byte limit does not apply to this macro, as it will
 automatically buffer and chunk the output if it exceeds that limit. Interior NUL bytes
 in the formatted output will cause each chunk to be truncated at the first NUL.
 "
@@ -118,20 +135,18 @@ content will be printed.
 #[macro_export]
 macro_rules! dbg {
     // NOTE: We cannot use `concat!` to make a static string as a format argument
-    // of `println!` because `file!` could contain a `{` or
-    // `$val` expression could be a block (`{ .. }`), in which case the `println!`
+    // of `eprintln!` because `file!` could contain a `{` or
+    // `$val` expression could be a block (`{ .. }`), in which case the `eprintln!`
     // will be malformed.
-    // TODO: Consider replacing `println!` with a no_std implementation of `eprintln!`
-    // to target different debug message levels.
     () => {
-        $crate::println!("[{}:{}:{}]", core::file!(), core::line!(), core::column!())
+        $crate::eprintln!("[{}:{}:{}]", core::file!(), core::line!(), core::column!())
     };
     ($val:expr $(,)?) => {
         // Use of `match` here is intentional because it affects the lifetimes
         // of temporaries - https://stackoverflow.com/a/48732525/1063961
         match $val {
             tmp => {
-                $crate::println!(
+                $crate::eprintln!(
                     "[{}:{}:{}] {} = {:#?}",
                     core::file!(),
                     core::line!(),
@@ -150,29 +165,53 @@ macro_rules! dbg {
     };
 }
 
-/// Internal implementation of print macros. This function is an implementation
-/// detail and should never be called directly, but must be public to be useable
-/// by the print! and println! macro
+#[derive(Clone, Copy)]
+enum DebugPrintLevel {
+    Error = 0,
+    Info = 3,
+}
+
+/// Internal implementation of `print!` and `println!`.
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    _print_with_level(args, DebugPrintLevel::Info);
+}
+
+/// Internal implementation of `eprintln!`.
+#[doc(hidden)]
+pub fn _eprint(args: fmt::Arguments) {
+    _print_with_level(args, DebugPrintLevel::Error);
+}
+
+/// Internal implementation of debugger output.
 ///
 /// Interior NUL bytes in the formatted output are handled differently per
 /// driver model: WDM/KMDF truncates at the first NUL (via `as_c_str()`),
 /// while UMDF strips NUL bytes and prints the remaining content.
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
+fn _print_with_level(args: fmt::Arguments, level: DebugPrintLevel) {
     cfg_if::cfg_if! {
         if #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))] {
+            let level = match level {
+                DebugPrintLevel::Error => wdk_sys::DPFLTR_ERROR_LEVEL,
+                DebugPrintLevel::Info => wdk_sys::DPFLTR_INFO_LEVEL,
+            };
+
             let mut writer = crate::fmt::FlushableFormatBuffer::<_, 512>::new(|buf| {
                 let cstr = buf.as_c_str();
 
                 // SAFETY:
                 // - `c"%s"` is a compile-time NUL-terminated format literal.
                 // - `cstr` is a valid NUL-terminated CStr from `FormatBuffer::as_c_str`.
-                // - Using `%s` prevents `DbgPrint` from interpreting format specifiers
+                // - Using `%s` prevents `DbgPrintEx` from interpreting format specifiers
                 //   in the buffer contents, which could cause UB.
+                // - `DPFLTR_IHVDRIVER_ID` is the documented component ID for third-party
+                //   drivers, and `level` is one of the documented DPFLTR levels.
                 // - IRQL requirements (must be <= DIRQL) are the caller's responsibility,
-                //   as documented on the print! macro.
+                //   as documented on the print macros.
                 unsafe {
-                    wdk_sys::ntddk::DbgPrint(
+                    wdk_sys::ntddk::DbgPrintEx(
+                        wdk_sys::DPFLTR_IHVDRIVER_ID,
+                        level,
                         c"%s".as_ptr().cast(),
                         cstr.as_ptr().cast::<wdk_sys::CHAR>(),
                     );
@@ -188,6 +227,7 @@ pub fn _print(args: fmt::Arguments) {
             writer.flush();
 
         } else if #[cfg(driver_model__driver_type = "UMDF")] {
+            let _ = level;
             match CString::new(format!("{args}")) {
                 Ok(c_string) => {
                     // SAFETY: `CString` guarantees a valid null-terminated string
