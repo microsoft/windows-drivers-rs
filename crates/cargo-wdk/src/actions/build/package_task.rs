@@ -84,9 +84,9 @@ pub struct PackageTaskParams<'a> {
     pub target_dir: &'a Path,
     pub target_arch: &'a CpuArchitecture,
     pub sign_mode: SignMode,
+    pub inf2cat_args: Vec<String>,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
-    pub inf2cat_args: Vec<String>,
     pub target_platform: TargetPlatform,
 }
 
@@ -94,6 +94,7 @@ pub struct PackageTaskParams<'a> {
 pub struct PackageTask<'a> {
     package_name: String,
     sign_mode: SignMode,
+    inf2cat_args: Vec<String>,
     sample_class: bool,
 
     // src paths
@@ -116,7 +117,6 @@ pub struct PackageTask<'a> {
     arch: &'a CpuArchitecture,
     os_mapping: &'a str,
     driver_model: DriverConfig,
-    inf2cat_args: Vec<String>,
     target_platform: TargetPlatform,
 
     // Injected deps
@@ -206,6 +206,7 @@ impl<'a> PackageTask<'a> {
         Self {
             package_name,
             sign_mode: params.sign_mode,
+            inf2cat_args: params.inf2cat_args,
             sample_class: params.sample_class,
             src_inx_file_path,
             src_driver_binary_file_path,
@@ -223,7 +224,6 @@ impl<'a> PackageTask<'a> {
             arch: params.target_arch,
             os_mapping,
             driver_model: params.driver_model,
-            inf2cat_args: params.inf2cat_args,
             target_platform: params.target_platform,
             wdk_build,
             command_exec,
@@ -430,8 +430,10 @@ impl<'a> PackageTask<'a> {
 
         let mut args: Vec<String> = vec![driver_arg];
         if self.inf2cat_args.is_empty() {
-            args.push(format!("/os:{}", self.os_mapping));
-            args.push("/uselocaltime".to_string());
+            args.extend([
+                format!("/os:{}", self.os_mapping),
+                "/uselocaltime".to_string(),
+            ]);
         } else {
             args.extend(self.inf2cat_args.iter().cloned());
         }

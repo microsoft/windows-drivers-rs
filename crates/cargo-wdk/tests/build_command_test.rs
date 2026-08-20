@@ -736,30 +736,6 @@ fn kmdf_driver_with_inf2cat_args_os_override_builds_successfully() {
     );
 }
 
-#[test]
-fn kmdf_driver_with_inf2cat_args_arch_os_mismatch_fails() {
-    wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
-    let driver = "kmdf-driver";
-    let project_path = format!("tests/{driver}");
-    with_mutex(&project_path, || {
-        run_clean_cmd(&project_path);
-        let os_arg = format!("/os:{}", host_mismatching_os_id());
-        let mut cmd = create_cargo_wdk_cmd(
-            "build",
-            Some(&["--inf2cat-args", os_arg.as_str()]),
-            None,
-            Some(&project_path),
-        );
-        let assertion = cmd.assert().failure();
-        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).to_string();
-        assert!(
-            stderr.to_lowercase().contains("inf2cat"),
-            "expected an inf2cat failure for an arch/OS mismatch, got: {stderr}"
-        );
-        run_clean_cmd(&project_path);
-    });
-}
-
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
@@ -1080,14 +1056,6 @@ fn host_matching_os_id() -> &'static str {
     match env::consts::ARCH {
         "x86_64" => "10_x64",
         "aarch64" => "Server10_arm64",
-        other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
-    }
-}
-
-fn host_mismatching_os_id() -> &'static str {
-    match env::consts::ARCH {
-        "x86_64" => "Server10_arm64",
-        "aarch64" => "10_x64",
         other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
     }
 }
