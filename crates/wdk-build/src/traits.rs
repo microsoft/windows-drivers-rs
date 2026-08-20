@@ -6,9 +6,7 @@
 
 use std::{
     collections::HashMap,
-    ops::Index,
     path::{Path as FsPath, PathBuf},
-    sync::Arc,
 };
 
 use bindgen::callbacks::{DeriveTrait, ImplementsTrait, ParseCallbacks};
@@ -246,35 +244,6 @@ enum TraitsSource {
     TypeAlias(String),
 }
 
-/// Bindgen parse callback for `blocklisted_type_implements_trait` from a
-/// pre-built [`TraitsMap`].
-#[derive(Debug)]
-pub struct BaseTraitsCallback {
-    map: Arc<TraitsMap>,
-}
-
-impl BaseTraitsCallback {
-    /// Wrap a shared [`TraitsMap`] for use as a `bindgen` [`ParseCallbacks`].
-    #[must_use]
-    pub const fn new(map: Arc<TraitsMap>) -> Self {
-        Self { map }
-    }
-}
-
-impl ParseCallbacks for BaseTraitsCallback {
-    fn blocklisted_type_implements_trait(
-        &self,
-        name: &str,
-        derive_trait: DeriveTrait,
-    ) -> Option<ImplementsTrait> {
-        Some(if self.map[name].contains(derive_trait) {
-            ImplementsTrait::Yes
-        } else {
-            ImplementsTrait::No
-        })
-    }
-}
-
 /// Map storing Rust source type names to the set of traits the type
 /// implements.
 #[derive(Debug)]
@@ -282,11 +251,19 @@ pub struct TraitsMap {
     types: HashMap<String, TraitsSet>,
 }
 
-impl Index<&str> for TraitsMap {
-    type Output = TraitsSet;
-
-    fn index(&self, key: &str) -> &Self::Output {
-        &self.types[key]
+impl ParseCallbacks for TraitsMap {
+    fn blocklisted_type_implements_trait(
+        &self,
+        name: &str,
+        derive_trait: DeriveTrait,
+    ) -> Option<ImplementsTrait> {
+        if !self.types.contains_key(name) {
+            return None;
+        }
+        if self.types[name].contains(derive_trait) {
+            return Some(ImplementsTrait::Yes);
+        }
+        Some(ImplementsTrait::No)
     }
 }
 
@@ -2257,7 +2234,7 @@ mod tests {
                 DeriveTrait::PartialEqOrPartialOrd,
             ] {
                 assert!(
-                    map["Alias"].contains(trait_),
+                    map.types["Alias"].contains(trait_),
                     "Alias should inherit {trait_:?} from _MOD::Type"
                 );
             }
@@ -2275,21 +2252,20 @@ mod tests {
                 #[derive(Copy, Clone, Debug)]
                 pub struct Pod;
             ";
-            let map = Arc::new(TraitsMap::from_source(src).expect("parses"));
-            let cb = BaseTraitsCallback::new(map);
+            let map = TraitsMap::from_source(src).expect("parses");
 
             assert!(matches!(
-                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Copy),
+                map.blocklisted_type_implements_trait("Pod", DeriveTrait::Copy),
                 Some(ImplementsTrait::Yes)
             ));
 
             assert!(matches!(
-                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
+                map.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
                 Some(ImplementsTrait::Yes)
             ));
 
             assert!(matches!(
-                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Hash),
+                map.blocklisted_type_implements_trait("Pod", DeriveTrait::Hash),
                 Some(ImplementsTrait::No)
             ));
         }
@@ -2300,20 +2276,20 @@ mod tests {
                 #[derive(Copy, Clone)]
                 pub struct Pod;
             ";
-            let map = Arc::new(TraitsMap::from_source(src).expect("parses"));
-            let cb = BaseTraitsCallback::new(map);
+            let map = TraitsMap::from_source(src).expect("parses");
             assert!(matches!(
-                cb.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
+                map.blocklisted_type_implements_trait("Pod", DeriveTrait::Debug),
                 Some(ImplementsTrait::No)
             ));
         }
 
         #[test]
-        #[should_panic(expected = "no entry found for key")]
-        fn unknown_key_panics() {
-            let map = Arc::new(TraitsMap::from_source("").expect("parses"));
-            let cb = BaseTraitsCallback::new(map);
-            cb.blocklisted_type_implements_trait("Nonexistent", DeriveTrait::Debug);
+        fn unknown_key_returns_none() {
+            let map = TraitsMap::from_source("").expect("parses");
+            assert_eq!(
+                map.blocklisted_type_implements_trait("Nonexistent", DeriveTrait::Debug),
+                None
+            );
         }
     }
 }

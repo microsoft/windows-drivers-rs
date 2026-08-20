@@ -7,7 +7,7 @@
 //! bindgen output shape.
 
 use assert_fs::{NamedTempFile, fixture::FileWriteStr};
-use bindgen::callbacks::DeriveTrait;
+use bindgen::callbacks::{DeriveTrait, ParseCallbacks};
 use wdk_build::traits::{TraitsError, TraitsMap};
 
 const ALL_TRAITS: &[DeriveTrait] = &[
@@ -30,12 +30,18 @@ fn parse(src: &str) -> TraitsMap {
 /// traits in `expected`, and `false` for every other trait in [`ALL_TRAITS`].
 fn assert_traits(map: &TraitsMap, name: &str, expected: &[DeriveTrait]) {
     for &t in ALL_TRAITS {
-        let want = expected.contains(&t);
-        let got = map[name].contains(t);
-        assert_eq!(
-            got, want,
-            "{name}: satisfies({t:?}) = {got}, expected {want}"
-        );
+        let result = map.blocklisted_type_implements_trait(name, t);
+        if expected.contains(&t) {
+            assert!(matches!(
+                result,
+                Some(bindgen::callbacks::ImplementsTrait::Yes)
+            ));
+        } else {
+            assert!(matches!(
+                result,
+                Some(bindgen::callbacks::ImplementsTrait::No)
+            ));
+        }
     }
 }
 
