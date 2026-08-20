@@ -76,8 +76,12 @@ pub enum PackageTaskError {
     CertGenerationInStoreCommand(#[source] CommandError),
     #[error("Error while acquiring mutex for generating certificate. HRESULT: {0:#x}")]
     CertMutexError(i32),
-    #[error("Error signing driver binary using signtool")]
-    DriverBinarySignCommand(#[source] CommandError),
+    #[error("Error signing {} using signtool", .file.display())]
+    SigntoolSignCommand {
+        file: PathBuf,
+        #[source]
+        source: CommandError,
+    },
     #[error("Error verifying signed driver binary using signtool")]
     DriverBinarySignVerificationCommand(#[source] CommandError),
     #[error("Error verifying inf file using infverif")]

@@ -12,7 +12,7 @@ use std::{
 
 use cargo_metadata::Metadata as CargoMetadata;
 use clap_cargo::Features;
-use mockall::predicate::eq;
+use mockall::{Sequence, predicate::eq};
 use mockall_double::double;
 use wdk_build::{
     CpuArchitecture,
@@ -28,15 +28,13 @@ use crate::providers::{
     wdk_build::WdkBuild,
 };
 use crate::{
-    actions::{
+    actions::build::{
+        BuildAction,
+        BuildActionParams,
         Profile,
-        build::{
-            BuildAction,
-            BuildActionParams,
-            SignMode,
-            TargetPlatform,
-            error::BuildActionError,
-        },
+        SignMode,
+        TargetPlatform,
+        error::BuildActionError,
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -475,7 +473,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -505,7 +503,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
 }
 
 #[test]
-pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_creating_it() {
+pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_recreated() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -529,8 +527,7 @@ pub fn given_a_driver_project_when_final_package_dir_exists_then_it_should_skip_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, false)
-        .expect_dir_created(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -629,7 +626,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
             .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
-            .expect_final_package_dir_exists(driver_name, &cwd, true)
+            .expect_final_package_dir_created(driver_name, &cwd, true)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, false);
@@ -681,7 +678,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -742,7 +739,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -804,7 +801,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -864,7 +861,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -925,7 +922,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -988,7 +985,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(driver_name, Some(cargo_build_output), 25100u32)
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name, &cwd, true)
+        .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -1303,7 +1300,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_root_manifest_exists(&cwd, true)
         .expect_cargo_build(driver_name_1, &cwd, Some(cargo_build_output))
         .expect_probe_target_arch_using_cargo_rustc(&cwd, target_arch, None)
-        .expect_final_package_dir_exists(driver_name_1, &workspace_root_dir, true)
+        .expect_final_package_dir_created(driver_name_1, &workspace_root_dir, true)
         .expect_inx_file_exists(driver_name_1, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
         .expect_copy_driver_binary_sys_to_package_folder(driver_name_1, &workspace_root_dir, true)
@@ -1743,9 +1740,12 @@ fn initialize_build_action<'a>(
     sample_class: bool,
     test_build_action: &'a TestBuildAction,
 ) -> Result<BuildAction<'a>, anyhow::Error> {
-    let sign_mode = match test_build_action.sign_mode {
+    let sign_mode = match &test_build_action.sign_mode {
         SignMode::Off => SignMode::Off,
-        SignMode::Test { .. } => SignMode::Test { verify_signature },
+        SignMode::Test { signtool_args, .. } => SignMode::Test {
+            verify_signature,
+            signtool_args: signtool_args.clone(),
+        },
     };
     BuildAction::new(
         &BuildActionParams {
@@ -1849,6 +1849,7 @@ impl TestBuildAction {
             sample_class,
             sign_mode: SignMode::Test {
                 verify_signature: false,
+                signtool_args: Vec::new(),
             },
             locked: false,
             features: Features::default(),
@@ -2025,7 +2026,7 @@ impl TestBuildAction {
         let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
-            .expect_final_package_dir_exists(driver_name, &cwd, true)
+            .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -2057,7 +2058,7 @@ impl TestBuildAction {
         target_arch: CpuArchitecture,
     ) -> Self {
         let cwd = self.cwd.clone();
-        self.expect_final_package_dir_exists(driver_name, &cwd, true)
+        self.expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -2078,7 +2079,7 @@ impl TestBuildAction {
         let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
-            .expect_final_package_dir_exists(driver_name, &cwd, true)
+            .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd.join(driver_name), true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -2122,43 +2123,41 @@ impl TestBuildAction {
         self
     }
 
-    fn expect_final_package_dir_exists(
+    fn expect_final_package_dir_created(
         mut self,
         driver_name: &str,
         cwd: &Path,
-        does_exist: bool,
+        removes_existing: bool,
     ) -> Self {
         let expected_driver_name_underscored = driver_name.replace('-', "_");
         let expected_target_dir = self.setup_target_dir(cwd);
-        let expected_final_package_dir_path =
+        let expected_package_dir =
             expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
+
+        // `run()` checks existence, removes any stale dir, then creates a fresh
+        // one. The Sequence asserts this exists -> remove -> create ordering,
+        // not just the per-method call counts.
+        let mut seq = Sequence::new();
         self.mock_fs_provider
             .expect_exists()
-            .with(eq(expected_final_package_dir_path))
+            .with(eq(expected_package_dir.clone()))
             .once()
-            .returning(move |_| does_exist);
-        self
-    }
-
-    fn expect_dir_created(mut self, driver_name: &str, cwd: &Path, created: bool) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(cwd);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
+            .in_sequence(&mut seq)
+            .returning(move |_| removes_existing);
+        if removes_existing {
+            self.mock_fs_provider
+                .expect_remove_dir_all()
+                .with(eq(expected_package_dir.clone()))
+                .once()
+                .in_sequence(&mut seq)
+                .returning(move |_| Ok(()));
+        }
         self.mock_fs_provider
             .expect_create_dir()
-            .with(eq(expected_final_package_dir_path.clone()))
+            .with(eq(expected_package_dir))
             .once()
-            .returning(move |_| {
-                if created {
-                    Ok(())
-                } else {
-                    Err(FileError::CreateDirError(
-                        expected_final_package_dir_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "create error"),
-                    ))
-                }
-            });
+            .in_sequence(&mut seq)
+            .returning(move |_| Ok(()));
         self
     }
 
@@ -2819,10 +2818,11 @@ impl TestBuildAction {
         ];
 
         self.mock_run_command
-            .expect_run()
+            .expect_run_with_redaction()
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _redaction_indices: &[usize],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2830,7 +2830,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
@@ -2878,11 +2878,13 @@ impl TestBuildAction {
                 .to_string_lossy()
                 .to_string(),
         ];
+
         self.mock_run_command
-            .expect_run()
+            .expect_run_with_redaction()
             .withf(
                 move |command: &str,
                       args: &[&str],
+                      _redaction_indices: &[usize],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
@@ -2890,7 +2892,7 @@ impl TestBuildAction {
                 },
             )
             .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
+            .returning(move |_, _, _, _, _| match override_output.clone() {
                 Some(output) => match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),

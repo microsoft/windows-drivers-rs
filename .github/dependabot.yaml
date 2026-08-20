@@ -29,3 +29,5 @@ updates:
     labels:
       - "type:dependabot"
       - "type:dependencies-github-actions"
+    cooldown:
+      default-days: 7

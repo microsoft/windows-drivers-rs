@@ -25,7 +25,7 @@ fn wdm_driver_is_created_successfully() {
 #[test]
 fn if_no_driver_type_given_command_fails() {
     test_command_invocation(&[], true, false, |stdout, stderr| {
-        assert!(stdout.is_empty());
+        assert_eq!(stdout, "");
         assert!(stderr.contains("error: the following required arguments were not provided:"));
         assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
     });
@@ -34,7 +34,7 @@ fn if_no_driver_type_given_command_fails() {
 #[test]
 fn if_multiple_driver_types_given_command_fails() {
     test_command_invocation(&["--kmdf", "--umdf"], true, false, |stdout, stderr| {
-        assert!(stdout.is_empty());
+        assert_eq!(stdout, "");
         assert!(stderr.contains("error: the argument '--kmdf' cannot be used with '--umdf'"));
     });
 }
@@ -42,7 +42,7 @@ fn if_multiple_driver_types_given_command_fails() {
 #[test]
 fn if_missing_required_arguments_command_fails() {
     test_command_invocation(&[], false, false, |stdout, stderr| {
-        assert!(stdout.is_empty());
+        assert_eq!(stdout, "");
         assert!(stderr.contains("error: the following required arguments were not provided:"));
         assert!(stderr.contains("<--kmdf|--umdf|--wdm>"));
         assert!(stderr.contains("<PATH>"));
@@ -54,7 +54,7 @@ fn help_works() {
     test_command_invocation(&["--help"], false, true, |stdout, stderr| {
         assert!(stdout.contains("Create a new Windows Driver Kit project"));
         assert!(stdout.contains("Usage: cargo wdk new [OPTIONS] <--kmdf|--umdf|--wdm> <PATH>"));
-        assert!(stderr.is_empty());
+        assert_eq!(stderr, "");
     });
 }
 

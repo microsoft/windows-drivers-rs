@@ -9,8 +9,6 @@ version = "0.0.0"
 
 [lib]
 crate-type = ["cdylib"]
-# temporarily disable due to github runner issues: https://github.com/microsoft/windows-drivers-rs/issues/502
-test = false
 
 [build-dependencies]
 wdk-build.workspace = true
@@ -20,3 +18,9 @@ wdk.workspace = true
 wdk-alloc.workspace = true
 wdk-panic.workspace = true
 wdk-sys.workspace = true
+
+[dev-dependencies]
+# The feature "test-stubs" isn't needed since gating the DriverEntry export_name keeps
+# driver_entry from being codegen'd, so nothing references WDF functions. Switch to "test-stubs"
+# if a test ever reaches a call_unsafe_wdf_function_binding! call site.
+wdk-sys = { features = ["test-stubs"], workspace = true }

@@ -11,7 +11,7 @@
 #![allow(clippy::unused_self)]
 
 use std::{
-    fs::{File, OpenOptions, copy, create_dir, create_dir_all, read_dir, rename},
+    fs::{File, OpenOptions, copy, create_dir, create_dir_all, read_dir, remove_dir_all, rename},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
@@ -76,6 +76,10 @@ impl Fs {
 
     pub fn rename(&self, src: &Path, dest: &Path) -> Result<(), FileError> {
         rename(src, dest).map_err(|e| FileError::RenameError(src.to_owned(), dest.to_owned(), e))
+    }
+
+    pub fn remove_dir_all(&self, path: &Path) -> Result<(), FileError> {
+        remove_dir_all(path).map_err(|e| FileError::RemoveDirError(path.to_owned(), e))
     }
 
     pub fn read_file_to_string(&self, path: &Path) -> Result<String, FileError> {
