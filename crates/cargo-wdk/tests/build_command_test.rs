@@ -720,9 +720,14 @@ mod signtool_args {
 }
 
 #[test]
-fn kmdf_driver_with_inf2cat_args_os_override_builds_successfully() {
+fn kmdf_driver_with_custom_inf2cat_args_builds_successfully() {
     let driver = "kmdf-driver";
-    let os_arg = format!("/os:{}", host_matching_os_id());
+    let host_os_ids = match env::consts::ARCH {
+        "x86_64" => "10_x64,10_GE_X64",
+        "aarch64" => "Server10_arm64,10_GE_ARM64",
+        other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
+    };
+    let inf2cat_args = format!("/os:{host_os_ids} /uselocaltime /verbose /pageHashes");
     clean_build_and_verify_project(
         "kmdf",
         driver,
@@ -732,7 +737,7 @@ fn kmdf_driver_with_inf2cat_args_os_override_builds_successfully() {
         None,
         None,
         None,
-        Some(&["--inf2cat-args", os_arg.as_str()]),
+        Some(&["--inf2cat-args", inf2cat_args.as_str()]),
     );
 }
 
@@ -1049,13 +1054,5 @@ fn cross_compile_target_arch() -> &'static str {
             "Unsupported host architecture '{other}' for cross-compilation tests. Expected \
              'x86_64' or 'aarch64'."
         ),
-    }
-}
-
-fn host_matching_os_id() -> &'static str {
-    match env::consts::ARCH {
-        "x86_64" => "10_x64",
-        "aarch64" => "Server10_arm64",
-        other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
     }
 }
