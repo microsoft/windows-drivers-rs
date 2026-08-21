@@ -1753,7 +1753,7 @@ fn initialize_build_action<'a>(
             profile,
             target_arch,
             sign_mode,
-            inf2cat_args: Vec::new(),
+            inf2cat_args: None,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
             target_platform: TargetPlatform::Universal,

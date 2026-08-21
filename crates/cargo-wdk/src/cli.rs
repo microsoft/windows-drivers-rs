@@ -210,12 +210,10 @@ impl BuildArgs {
     /// Resolves the arguments to forward to `inf2cat`. Rejects a
     /// caller-supplied `/driver:` (or its `/drv:` alias).
     /// Returns a `clap::Error` if the caller-supplied arguments are invalid.
-    fn inf2cat_args(&self) -> Result<Vec<String>, clap::Error> {
-        let args = self
-            .inf2cat_args
-            .clone()
-            .map(|parsed| parsed.0)
-            .unwrap_or_default();
+    fn inf2cat_args(&self) -> Result<Option<Vec<String>>, clap::Error> {
+        let Some(args) = self.inf2cat_args.clone().map(|parsed| parsed.0) else {
+            return Ok(None);
+        };
         for arg in &args {
             let lower = arg.to_ascii_lowercase();
             if lower.starts_with("/driver:") || lower.starts_with("/drv:") {
@@ -228,7 +226,7 @@ impl BuildArgs {
                 ));
             }
         }
-        Ok(args)
+        Ok(Some(args))
     }
 }
 
@@ -555,7 +553,7 @@ mod tests {
                 .expect("args should parse");
             assert_eq!(
                 args.inf2cat_args().expect("should resolve"),
-                vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()]
+                Some(vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()])
             );
         }
     }
