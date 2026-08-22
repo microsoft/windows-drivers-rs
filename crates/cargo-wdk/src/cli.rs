@@ -35,9 +35,9 @@ pub enum SignModeArg {
     Test,
 }
 
-/// Arguments to `signtool sign` for signing the driver binary and catalog file.
+/// Arguments passed through to downstream tools.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SigntoolArgs(pub Vec<String>);
+pub struct PassthroughArgs(pub Vec<String>);
 
 /// Platform at which the device driver is targeted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -146,12 +146,23 @@ pub struct BuildArgs {
         value_parser = parse_passthrough_args,
         help_heading = "Driver Signing"
     )]
-    pub signtool_args: Option<SigntoolArgs>,
+    pub signtool_args: Option<PassthroughArgs>,
 
     /// Verify the signatures of the driver binary and catalog file after
     /// signing.
     #[arg(long, help_heading = "Driver Signing")]
     pub verify_signature: bool,
+
+    /// Custom arguments to pass to `inf2cat` when generating the catalog file,
+    /// e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`. `/driver:`
+    /// and `/drv:` are not allowed because cargo-wdk passes them by default.
+    #[arg(
+        long,
+        value_name = "ARGS",
+        value_parser = parse_passthrough_args,
+        help_heading = "Inf2Cat Options"
+    )]
+    pub inf2cat_args: Option<PassthroughArgs>,
 
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
@@ -195,16 +206,38 @@ impl BuildArgs {
             }),
         }
     }
+
+    /// Resolves the arguments to forward to `inf2cat`. Rejects a
+    /// caller-supplied `/driver:` (or its `/drv:` alias).
+    /// Returns a `clap::Error` if the caller-supplied arguments are invalid.
+    fn inf2cat_args(&self) -> Result<Option<Vec<String>>, clap::Error> {
+        let Some(args) = self.inf2cat_args.clone().map(|parsed| parsed.0) else {
+            return Ok(None);
+        };
+        for arg in &args {
+            let lower = arg.to_ascii_lowercase();
+            if lower.starts_with("/driver:") || lower.starts_with("/drv:") {
+                return Err(Cli::command().error(
+                    ErrorKind::ArgumentConflict,
+                    format!(
+                        "`--inf2cat-args` must not contain `{arg}`; cargo-wdk supplies the \
+                         `/driver:` switch itself"
+                    ),
+                ));
+            }
+        }
+        Ok(Some(args))
+    }
 }
 
-/// `value_parser` for `--signtool-args`: tokenizes the raw string into
-/// individual `signtool` arguments.
+/// `value_parser` for passthrough tool arguments: tokenizes the raw string
+/// into individual arguments for an external tool.
 ///
 /// Rules:
 /// - Whitespace separates arguments
 /// - Quoted spans (single or double quotes) are preserved as a single argument
 /// - Unterminated quotes are rejected with an error
-fn parse_passthrough_args(raw: &str) -> Result<SigntoolArgs, String> {
+fn parse_passthrough_args(raw: &str) -> Result<PassthroughArgs, String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut in_arg = false;
@@ -239,14 +272,14 @@ fn parse_passthrough_args(raw: &str) -> Result<SigntoolArgs, String> {
 
     if let Some(q) = quote {
         return Err(format!(
-            "unterminated `{q}` quote in `--signtool-args`; make sure every quote is closed"
+            "unterminated `{q}` quote in passthrough arguments; make sure every quote is closed"
         ));
     }
     if in_arg {
         args.push(current);
     }
 
-    Ok(SigntoolArgs(args))
+    Ok(PassthroughArgs(args))
 }
 
 /// Subcommands
@@ -321,12 +354,14 @@ impl Cli {
             }
             Subcmd::Build(cli_args) => {
                 let sign_mode = cli_args.sign_mode()?;
+                let inf2cat_args = cli_args.inf2cat_args()?;
                 BuildAction::new(
                     &BuildActionParams {
                         working_dir: Path::new("."), // Using current dir as working dir
                         profile: cli_args.profile.as_ref(),
                         target_arch: cli_args.target_arch,
                         sign_mode,
+                        inf2cat_args,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
                         target_platform: cli_args.target_platform.into(),
@@ -496,6 +531,31 @@ mod tests {
                 }
             );
         }
+
+        #[test]
+        fn inf2cat_args_rejects_driver_switch() {
+            for value in ["/driver:x", "/DRIVER:x", "/drv:x", "/os:10_x64 /driver:y"] {
+                let args = parse_build_args(&["--inf2cat-args", value]).expect("args should parse");
+                let err = args
+                    .inf2cat_args()
+                    .expect_err("driver switch should be rejected");
+                assert!(
+                    err.to_string()
+                        .contains("cargo-wdk supplies the `/driver:` switch itself"),
+                    "unexpected error for {value:?}: {err}"
+                );
+            }
+        }
+
+        #[test]
+        fn inf2cat_args_allows_other_switches() {
+            let args = parse_build_args(&["--inf2cat-args", "/os:10_x64 /uselocaltime"])
+                .expect("args should parse");
+            assert_eq!(
+                args.inf2cat_args().expect("should resolve"),
+                Some(vec!["/os:10_x64".to_string(), "/uselocaltime".to_string()])
+            );
+        }
     }
 
     mod parse_passthrough_args {
@@ -520,7 +580,8 @@ mod tests {
                 .expect_err("unterminated quote should be rejected");
             assert!(
                 err.contains(
-                    "unterminated `\"` quote in `--signtool-args`; make sure every quote is closed"
+                    "unterminated `\"` quote in passthrough arguments; make sure every quote is \
+                     closed"
                 ),
                 "unexpected error: {err}"
             );

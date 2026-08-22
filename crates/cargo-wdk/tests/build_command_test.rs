@@ -719,6 +719,28 @@ mod signtool_args {
     }
 }
 
+#[test]
+fn kmdf_driver_with_custom_inf2cat_args_builds_successfully() {
+    let driver = "kmdf-driver";
+    let host_os_ids = match env::consts::ARCH {
+        "x86_64" => "10_x64,10_CO_X64",
+        "aarch64" => "Server10_arm64,10_CO_ARM64",
+        other => panic!("Unsupported host architecture '{other}'. Expected 'x86_64' or 'aarch64'."),
+    };
+    let inf2cat_args = format!("/os:{host_os_ids} /uselocaltime /verbose /pageHashes");
+    clean_build_and_verify_project(
+        "kmdf",
+        driver,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&["--inf2cat-args", inf2cat_args.as_str()]),
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,

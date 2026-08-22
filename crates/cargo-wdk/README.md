@@ -81,6 +81,9 @@ Driver Signing:
       --signtool-args <ARGS>   Custom arguments to pass to `signtool sign` when signing the driver binary and the catalog file, e.g. `--signtool-args '/fd SHA512 /n "CN=WDRLocalTestCert, O=Foo"'`
       --verify-signature       Verify the signatures of the driver binary and catalog file after signing
 
+Inf2Cat Options:
+      --inf2cat-args <ARGS>        Custom arguments to pass to `inf2cat` when generating the catalog file, e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`
+
 Feature Selection:
       --all-features         Activate all available features
       --no-default-features  Do not activate the `default` feature
@@ -105,6 +108,10 @@ Building a sample driver requires the `--sample` flag. If it is not specified, t
 
 If you have a workspace with a mix of sample and non-sample driver projects, the build will fail as that scenario is not supported yet. In the future `build` will be able to automatically detect sample projects. That will remove the need for the `--sample` flag and enable support for this scenario.
 
+#### Customizing `inf2cat` arguments
+
+To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat`. `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
+
 #### Signing and Verification
 
 The `build` command has a `--sign-mode` flag that controls how driver artifacts are signed. It accepts the following values:
@@ -116,7 +123,7 @@ If the `--verify-signature` flag is provided, the signatures are verified after 
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
 
-##### Customizing signtool arguments
+##### Customizing `signtool` arguments
 
 To sign with your own certificate or tweak any signing option, pass `--signtool-args` with a string of the arguments to forward to `signtool sign`.
 

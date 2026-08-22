@@ -84,6 +84,7 @@ pub struct PackageTaskParams<'a> {
     pub target_dir: &'a Path,
     pub target_arch: &'a CpuArchitecture,
     pub sign_mode: SignMode,
+    pub inf2cat_args: Option<Vec<String>>,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
     pub target_platform: TargetPlatform,
@@ -93,6 +94,7 @@ pub struct PackageTaskParams<'a> {
 pub struct PackageTask<'a> {
     package_name: String,
     sign_mode: SignMode,
+    inf2cat_args: Option<Vec<String>>,
     sample_class: bool,
 
     // src paths
@@ -204,6 +206,7 @@ impl<'a> PackageTask<'a> {
         Self {
             package_name,
             sign_mode: params.sign_mode,
+            inf2cat_args: params.inf2cat_args,
             sample_class: params.sample_class,
             src_inx_file_path,
             src_driver_binary_file_path,
@@ -418,18 +421,25 @@ impl<'a> PackageTask<'a> {
 
     fn run_inf2cat(&self) -> Result<(), PackageTaskError> {
         info!("Running inf2cat");
-        let args = [
-            &format!(
-                "/driver:{}",
-                self.dest_root_package_folder
-                    .to_string_lossy()
-                    .trim_start_matches("\\\\?\\")
-            ),
-            &format!("/os:{}", self.os_mapping),
-            "/uselocaltime",
-        ];
+        let driver_arg = format!(
+            "/driver:{}",
+            self.dest_root_package_folder
+                .to_string_lossy()
+                .trim_start_matches("\\\\?\\")
+        );
 
-        if let Err(e) = self.command_exec.run("inf2cat", &args, None, None) {
+        let mut args: Vec<String> = vec![driver_arg];
+        if let Some(inf2cat_args) = &self.inf2cat_args {
+            args.extend(inf2cat_args.iter().cloned());
+        } else {
+            args.extend([
+                format!("/os:{}", self.os_mapping),
+                "/uselocaltime".to_string(),
+            ]);
+        }
+
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        if let Err(e) = self.command_exec.run("inf2cat", &arg_refs, None, None) {
             return Err(PackageTaskError::Inf2CatCommand(e));
         }
 
@@ -725,6 +735,7 @@ mod tests {
                 verify_signature: false,
                 signtool_args: Vec::new(),
             },
+            inf2cat_args: None,
             target_platform: TargetPlatform::Universal,
         };
         let dest_root = target_dir.join(format!("{package_name}_package"));
@@ -798,6 +809,7 @@ mod tests {
                 verify_signature: false,
                 signtool_args: Vec::new(),
             },
+            inf2cat_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -828,6 +840,7 @@ mod tests {
                 verify_signature: false,
                 signtool_args: Vec::new(),
             },
+            inf2cat_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -867,6 +880,7 @@ mod tests {
                             verify_signature: false,
                             signtool_args: Vec::new(),
                         },
+                        inf2cat_args: None,
                         target_platform: TargetPlatform::Universal,
                     };
 
@@ -908,6 +922,143 @@ mod tests {
     }
 
     #[test]
+    fn run_inf2cat_with_no_args_uses_arch_os_and_uselocaltime() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name: "driver",
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+                signtool_args: Vec::new(),
+            },
+            inf2cat_args: None,
+            target_platform: TargetPlatform::Universal,
+        };
+
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "inf2cat"
+                    && args[0].starts_with("/driver:")
+                    && args.contains(&"/os:10_x64")
+                    && args.contains(&"/uselocaltime")
+            })
+            .once()
+            .return_once(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_inf2cat().is_ok());
+    }
+
+    #[test]
+    fn run_inf2cat_with_empty_custom_args_passes_only_driver_arg() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name: "driver",
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+                signtool_args: Vec::new(),
+            },
+            inf2cat_args: Some(Vec::new()),
+            target_platform: TargetPlatform::Universal,
+        };
+
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "inf2cat" && args.len() == 1 && args[0].starts_with("/driver:")
+            })
+            .once()
+            .return_once(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_inf2cat().is_ok());
+    }
+
+    #[test]
+    fn run_inf2cat_with_custom_args_forwards_them_verbatim() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name: "driver",
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class: false,
+            sign_mode: SignMode::Test {
+                verify_signature: false,
+                signtool_args: Vec::new(),
+            },
+            inf2cat_args: Some(vec![
+                "/os:10_x64,10_CO_X64".to_string(),
+                "/verbose".to_string(),
+            ]),
+            target_platform: TargetPlatform::Universal,
+        };
+
+        let wdk_build = WdkBuild::default();
+        let fs = Fs::default();
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "inf2cat"
+                    && args[0].starts_with("/driver:")
+                    && args.contains(&"/os:10_x64,10_CO_X64")
+                    && args.contains(&"/verbose")
+                    && !args.contains(&"/uselocaltime")
+                    && !args.contains(&"/os:10_x64")
+            })
+            .once()
+            .return_once(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_inf2cat().is_ok());
+    }
+
+    #[test]
     fn target_platform_maps_to_infverif_flag() {
         assert_eq!(TargetPlatform::Universal.as_infverif_flag(), "/u");
         assert_eq!(TargetPlatform::Desktop.as_infverif_flag(), "/h");
@@ -935,6 +1086,7 @@ mod tests {
                 driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
                 sample_class: false,
                 sign_mode: SignMode::Off,
+                inf2cat_args: None,
                 target_platform: TargetPlatform::Universal,
             };
             PackageTask::new(params, wdk_build, command_exec, fs)
@@ -1130,6 +1282,7 @@ mod tests {
                         "SHA256".to_string(),
                     ],
                 },
+                inf2cat_args: None,
                 target_platform: TargetPlatform::Universal,
             };
             let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
@@ -1156,6 +1309,7 @@ mod tests {
             driver_model,
             sample_class: false,
             sign_mode: SignMode::Off,
+            inf2cat_args: None,
             target_platform,
         };
 
