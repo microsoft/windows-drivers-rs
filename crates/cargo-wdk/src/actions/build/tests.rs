@@ -3370,8 +3370,8 @@ fn create_cargo_build_output_json_with_manifest(
         _ => "debug",
     };
 
-    // For non-driver projects, use "lib" instead of "cdylib" to ensure BuildTask
-    // returns DllNotFound
+    // For non-driver projects, use "lib" instead of "cdylib" to ensure
+    // BuildTask returns DllNotFound
     let (kind, crate_types, file_ext) = if is_driver {
         ("cdylib", "cdylib", "dll")
     } else {

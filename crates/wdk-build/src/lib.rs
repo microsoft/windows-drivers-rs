@@ -447,8 +447,8 @@ impl Config {
             .exec()?;
         let wdk_metadata = metadata::Wdk::try_from(&cargo_metadata)?;
 
-        // Force rebuilds if any of the manifest files change (ex. if wdk metadata
-        // section is modified)
+        // Force rebuilds if any of the manifest files change (ex. if wdk
+        // metadata section is modified)
         for manifest_path in metadata::iter_manifest_paths(cargo_metadata)
             .into_iter()
             .chain(std::iter::once(
@@ -492,8 +492,8 @@ impl Config {
                 });
 
             let cfg_key = {
-                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that `cfg_key` is a
-                // valid rust identifier name
+                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that
+                // `cfg_key` is a valid rust identifier name
                 let mut k = cfg_key.replace(metadata::ser::KEY_NAME_SEPARATOR, "__");
                 // convention is that cfg keys are lowercase
                 k.make_ascii_lowercase();
@@ -521,8 +521,8 @@ impl Config {
             let cfg_value = &serialized_wdk_metadata_map[cfg_key];
 
             let cfg_key = {
-                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that `cfg_key` is a
-                // valid rust identifier name
+                // Replace `metadata::ser::KEY_NAME_SEPARATOR` with `__` so that
+                // `cfg_key` is a valid rust identifier name
                 let mut k = cfg_key.replace(metadata::ser::KEY_NAME_SEPARATOR, "__");
                 // convention is that cfg keys are lowercase
                 k.make_ascii_lowercase();
@@ -576,8 +576,9 @@ impl Config {
                 ));
                 Self::validate_and_add_folder_path(&mut include_paths, &kmdf_include_path)?;
 
-                // `ufxclient.h` relies on `ufxbase.h` being on the headers search path. The WDK
-                // normally does not automatically include this search path, but it is required
+                // `ufxclient.h` relies on `ufxbase.h` being on the headers
+                // search path. The WDK normally does not
+                // automatically include this search path, but it is required
                 // here so that the headers can be processed successfully.
                 let ufx_include_path = km_or_um_include_path.join("ufx/1.1");
                 Self::validate_and_add_folder_path(&mut include_paths, &ufx_include_path)?;
@@ -660,8 +661,8 @@ impl Config {
             }
         }
 
-        // Reverse order of library paths so that paths pushed later into the vec take
-        // precedence
+        // Reverse order of library paths so that paths pushed later into the
+        // vec take precedence
         library_paths.reverse();
         Ok(library_paths.into_iter())
     }
@@ -1106,8 +1107,8 @@ impl Config {
         let mut directives = Vec::new();
 
         // Base libraries are derived from WindowsDriver.KernelMode.props
-        // (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni (22H2) WDK.
-        // ARM64 WDM/KMDF builds also link `arm64rt`, derived from
+        // (WDM/KMDF) and WindowsDriver.UserMode.props (UMDF) in the Ni (22H2)
+        // WDK. ARM64 WDM/KMDF builds also link `arm64rt`, derived from
         // WindowsDriver.arm64.props.
         match &self.driver_config {
             DriverConfig::Wdm => {
@@ -1227,58 +1228,66 @@ impl Config {
         }
 
         // TODO: Once [link-arg-attribute](https://doc.rust-lang.org/unstable-book/language-features/link-arg-attribute.html)
-        // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be moved to
-        // their respective functions collected by `libraries`
+        // stabilizes, the `cargo::rustc-cdylib-link-arg=*` directives will be
+        // moved to their respective functions collected by `libraries`
         match &self.driver_config {
             DriverConfig::Wdm => {
                 // Emit WDM-specific linker args
-                // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
+                // Linker arguments derived from WindowsDriver.KernelMode.props
+                // in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:NATIVE");
                 println!("cargo::rustc-cdylib-link-arg=/KERNEL");
 
-                // Linker arguments derived from WindowsDriver.KernelMode.WDM.props in Ni(22H2)
+                // Linker arguments derived from
+                // WindowsDriver.KernelMode.WDM.props in Ni(22H2)
                 // WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:DriverEntry");
 
-                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
-                // might not run` since `rustc` has no support for `/KERNEL`
+                // Ignore `LNK4257: object file was not compiled for kernel
+                // mode; the image might not run` since `rustc`
+                // has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
 
-                // Ignore `LNK4216: Exported entry point DriverEntry` since Rust currently
-                // provides no way to set a symbol's name without also exporting the symbol:
-                // https://github.com/rust-lang/rust/issues/67399
+                // Ignore `LNK4216: Exported entry point DriverEntry` since Rust
+                // currently provides no way to set a symbol's
+                // name without also exporting the symbol: https://github.com/rust-lang/rust/issues/67399
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4216");
             }
             DriverConfig::Kmdf(_) => {
                 // Emit KMDF-specific linker args
-                // Linker arguments derived from WindowsDriver.KernelMode.props in Ni(22H2) WDK
+                // Linker arguments derived from WindowsDriver.KernelMode.props
+                // in Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/DRIVER");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB");
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:NATIVE");
                 println!("cargo::rustc-cdylib-link-arg=/KERNEL");
 
-                // Linker arguments derived from WindowsDriver.KernelMode.KMDF.props in
+                // Linker arguments derived from
+                // WindowsDriver.KernelMode.KMDF.props in
                 // Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/ENTRY:FxDriverEntry");
 
-                // Ignore `LNK4257: object file was not compiled for kernel mode; the image
-                // might not run` since `rustc` has no support for `/KERNEL`
+                // Ignore `LNK4257: object file was not compiled for kernel
+                // mode; the image might not run` since `rustc`
+                // has no support for `/KERNEL`
                 println!("cargo::rustc-cdylib-link-arg=/IGNORE:4257");
             }
             DriverConfig::Umdf(_) => {
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:kernel32.lib");
                 println!("cargo::rustc-cdylib-link-arg=/NODEFAULTLIB:user32.lib");
 
-                // Linker arguments derived from WindowsDriver.UserMode.props in Ni(22H2) WDK
+                // Linker arguments derived from WindowsDriver.UserMode.props in
+                // Ni(22H2) WDK
                 println!("cargo::rustc-cdylib-link-arg=/SUBSYSTEM:WINDOWS");
             }
         }
 
         // Emit linker arguments common to all configs
         {
-            // Linker arguments derived from Microsoft.Link.Common.props in Ni(22H2) WDK
+            // Linker arguments derived from Microsoft.Link.Common.props in
+            // Ni(22H2) WDK
             println!("cargo::rustc-cdylib-link-arg=/NXCOMPAT");
             println!("cargo::rustc-cdylib-link-arg=/DYNAMICBASE");
 
@@ -1289,8 +1298,8 @@ impl Config {
             // Force Linker Optimizations
             println!("cargo::rustc-cdylib-link-arg=/OPT:REF,ICF");
 
-            // Enable "Forced Integrity Checking" to prevent non-signed binaries from
-            // loading
+            // Enable "Forced Integrity Checking" to prevent non-signed binaries
+            // from loading
             println!("cargo::rustc-cdylib-link-arg=/INTEGRITYCHECK");
 
             // Disable Manifest File Generation
@@ -1375,7 +1384,8 @@ impl From<DeserializableDriverConfig> for DriverConfig {
 
 impl Default for KmdfConfig {
     fn default() -> Self {
-        // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
+        // FIXME: determine default values from TargetVersion and
+        // _NT_TARGET_VERSION
         Self {
             kmdf_version_major: 1,
             target_kmdf_version_minor: 33,
@@ -1394,7 +1404,8 @@ impl KmdfConfig {
 
 impl Default for UmdfConfig {
     fn default() -> Self {
-        // FIXME: determine default values from TargetVersion and _NT_TARGET_VERSION
+        // FIXME: determine default values from TargetVersion and
+        // _NT_TARGET_VERSION
         Self {
             umdf_version_major: 2,
             target_umdf_version_minor: 33,
@@ -1426,7 +1437,8 @@ impl CpuArchitecture {
     #[must_use]
     pub fn try_from_cargo_str<S: AsRef<str>>(cargo_str: S) -> Option<Self> {
         // Specifically not using the [`std::convert::TryFrom`] trait to be more
-        // explicit in function name, since only arch strings from cargo are handled.
+        // explicit in function name, since only arch strings from cargo are
+        // handled.
         match cargo_str.as_ref() {
             "x86_64" => Some(Self::Amd64),
             "aarch64" => Some(Self::Arm64),
@@ -1492,12 +1504,13 @@ pub fn configure_wdk_library_build() -> Result<(), ConfigError> {
         Err(ConfigError::TryFromCargoMetadataError(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected,
         )) => {
-            // No WDK configurations will be detected if the crate is not being used in a
-            // driver. Since this is usually the case when libraries are being built
-            // standalone, this scenario is treated as a warning.
+            // No WDK configurations will be detected if the crate is not being
+            // used in a driver. Since this is usually the case when
+            // libraries are being built standalone, this scenario
+            // is treated as a warning.
             tracing::warn!("No WDK configurations detected.");
-            // check_cfg must be emitted even if no WDK configurations are detected, so that
-            // cfg options are still checked
+            // check_cfg must be emitted even if no WDK configurations are
+            // detected, so that cfg options are still checked
             Config::emit_check_cfg_settings();
             Ok(())
         }
@@ -1537,12 +1550,13 @@ where
         Err(ConfigError::TryFromCargoMetadataError(
             TryFromCargoMetadataError::NoWdkConfigurationsDetected,
         )) => {
-            // No WDK configurations will be detected if the crate is not being used in a
-            // driver. Since this is usually the case when libraries are being built
-            // standalone, this scenario is treated as a warning.
+            // No WDK configurations will be detected if the crate is not being
+            // used in a driver. Since this is usually the case when
+            // libraries are being built standalone, this scenario
+            // is treated as a warning.
             tracing::warn!("No WDK configurations detected.");
-            // check_cfg must be emitted even if no WDK configurations are detected, so that
-            // cfg options are still checked
+            // check_cfg must be emitted even if no WDK configurations are
+            // detected, so that cfg options are still checked
             Config::emit_check_cfg_settings();
             Ok(())
         }
@@ -1882,8 +1896,8 @@ mod tests {
         V: AsRef<OsStr>,
         F: FnOnce() -> R,
     {
-        // Tests can execute in multiple threads in the same process, so mutex must be
-        // used to guard access to the environment variables
+        // Tests can execute in multiple threads in the same process, so mutex
+        // must be used to guard access to the environment variables
         static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
         let _mutex_guard = ENV_MUTEX.lock().unwrap();
@@ -2387,11 +2401,13 @@ mod tests {
         fn raw_lines_concatenate_all_libraries_in_subset() {
             let config = config_for("x86_64", DriverConfig::Wdm);
 
-            // `bindgen_library_link_raw_lines` is the plain concatenation of each
-            // library's rendered `#[link]` block (no separators or wrapping), so
-            // it stays correct regardless of which libraries a subset contributes.
-            // The exact rendered format is locked by the `render_*` tests, and the
-            // per-subset library set by the `base_*`/`hid_*` tests.
+            // `bindgen_library_link_raw_lines` is the plain concatenation of
+            // each library's rendered `#[link]` block (no
+            // separators or wrapping), so it stays correct
+            // regardless of which libraries a subset contributes.
+            // The exact rendered format is locked by the `render_*` tests, and
+            // the per-subset library set by the `base_*`/`hid_*`
+            // tests.
             assert_eq!(
                 config.bindgen_library_link_raw_lines(ApiSubset::Base),
                 Some(
@@ -2565,8 +2581,8 @@ mod tests {
             assert!(result.is_ok());
             assert_eq!(include_paths.len(), 1);
 
-            // `validate_and_add_folder_path` should always ensure that the path should not
-            // start with \\?\ on Windows
+            // `validate_and_add_folder_path` should always ensure that the path
+            // should not start with \\?\ on Windows
             let path_str = include_paths[0].to_string_lossy();
             assert!(!path_str.starts_with(r"\\?\"));
 

@@ -32,9 +32,9 @@ impl Timer {
         };
 
         let nt_status;
-        // SAFETY: The resulting ffi object is stored in a private member and not
-        // accessible outside of this module, and this module guarantees that it is
-        // always in a valid state.
+        // SAFETY: The resulting ffi object is stored in a private member and
+        // not accessible outside of this module, and this module
+        // guarantees that it is always in a valid state.
         unsafe {
             nt_status = call_unsafe_wdf_function_binding!(
                 WdfTimerCreate,
@@ -64,8 +64,9 @@ impl Timer {
     #[must_use]
     pub fn start(&self, due_time: i64) -> bool {
         let result;
-        // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by
-        // WDF, and this module guarantees that it is always in a valid state.
+        // SAFETY: `wdf_timer` is a private member of `Timer`, originally
+        // created by WDF, and this module guarantees that it is always
+        // in a valid state.
         unsafe {
             result = call_unsafe_wdf_function_binding!(WdfTimerStart, self.wdf_timer, due_time);
         }
@@ -76,8 +77,9 @@ impl Timer {
     #[must_use]
     pub fn stop(&self, wait: bool) -> bool {
         let result;
-        // SAFETY: `wdf_timer` is a private member of `Timer`, originally created by
-        // WDF, and this module guarantees that it is always in a valid state.
+        // SAFETY: `wdf_timer` is a private member of `Timer`, originally
+        // created by WDF, and this module guarantees that it is always
+        // in a valid state.
         unsafe {
             result =
                 call_unsafe_wdf_function_binding!(WdfTimerStop, self.wdf_timer, u8::from(wait));

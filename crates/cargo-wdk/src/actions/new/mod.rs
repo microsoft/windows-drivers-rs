@@ -409,7 +409,8 @@ mod tests {
             DriverType::Kmdf,
             Verbosity::default(),
             |test_setup| {
-                // Set up mocks with failure at copy lib rs template to driver project step
+                // Set up mocks with failure at copy lib rs template to driver
+                // project step
                 test_setup.set_expectations_with(Some(FailureStep::CopyLibRsTemplate), None)
             },
             |result| {
@@ -536,7 +537,8 @@ mod tests {
             DriverType::Kmdf,
             Verbosity::default(),
             |test_setup| {
-                // Set up mocks with failure at copy build rs template to driver project step
+                // Set up mocks with failure at copy build rs template to driver
+                // project step
                 test_setup.set_expectations_with(Some(FailureStep::CopyBuildRsTemplate), None)
             },
             |result| {
@@ -558,7 +560,8 @@ mod tests {
             DriverType::Kmdf,
             Verbosity::default(),
             |test_setup| {
-                // Set up mocks with failure at copy cargo config to driver project step
+                // Set up mocks with failure at copy cargo config to driver
+                // project step
                 test_setup.set_expectations_with(Some(FailureStep::CopyCargoConfig), None)
             },
             |result| {

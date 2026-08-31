@@ -313,7 +313,8 @@ impl<'a> BuildAction<'a> {
                 }
             }
             if let Err(e) = wdk_metadata {
-                // Ignore NoWdkConfigurationsDetected but propagate any other error
+                // Ignore NoWdkConfigurationsDetected but propagate any other
+                // error
                 if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
                     return Err(BuildActionError::WdkMetadataParse(e));
                 }
@@ -348,7 +349,8 @@ impl<'a> BuildAction<'a> {
             self.build_and_package(working_dir, &wdk_metadata, package)?;
 
             if let Err(e) = wdk_metadata {
-                // Ignore NoWdkConfigurationsDetected but propagate any other error
+                // Ignore NoWdkConfigurationsDetected but propagate any other
+                // error
                 if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
                     return Err(BuildActionError::WdkMetadataParse(e));
                 }

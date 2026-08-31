@@ -97,7 +97,8 @@ impl TryFrom<&Metadata> for Wdk {
             configs
         };
 
-        // Ensure that only one configuration of WDK is allowed per dependency graph
+        // Ensure that only one configuration of WDK is allowed per dependency
+        // graph
         match wdk_metadata_configurations.len() {
             1 => Ok(wdk_metadata_configurations.into_iter().next().expect(
                 "wdk_metadata_configurations should have exactly one element because of the \

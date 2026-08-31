@@ -241,7 +241,8 @@ impl<F: FnMut(&FormatBuffer<N>), const N: usize> fmt::Write for FlushableFormatB
                     // A single character doesn't fit in the entire buffer.
                     return Err(fmt::Error);
                 }
-                // Buffer has content but no room for the next char — flush and retry.
+                // Buffer has content but no room for the next char — flush and
+                // retry.
                 self.flush();
                 continue;
             }
@@ -318,12 +319,14 @@ mod tests {
             let world: &str = "world";
             assert!(write!(&mut fmt_buffer, "Hello {world}!").is_ok());
 
-            // borrow fmt_buffer -- while this is in scope we cannot edit fmt_buffer
+            // borrow fmt_buffer -- while this is in scope we cannot edit
+            // fmt_buffer
             let buf_str = fmt_buffer.as_str();
             // buf_str borrows fmt_buffer, so we cannot write to it here.
             assert_eq!(buf_str, "Hello world!");
 
-            // buf_str cannot be used after this. The backing buffer stays in scope.
+            // buf_str cannot be used after this. The backing buffer stays in
+            // scope.
             assert!(write!(&mut fmt_buffer, " Second sentence!").is_ok());
             assert_eq!(fmt_buffer.as_str(), "Hello world! Second sentence!");
 
@@ -555,7 +558,8 @@ mod tests {
             let mut writer = FlushableFormatBuffer::<_, 4>::new(|buf| {
                 flushed.push(buf.as_str().to_owned());
             });
-            // "0123456789" is 10 bytes — triggers 3 flushes (3+3+3), leaves "9" in buffer.
+            // "0123456789" is 10 bytes — triggers 3 flushes (3+3+3), leaves "9"
+            // in buffer.
             assert!(write!(&mut writer, "0123456789").is_ok());
             drop(writer);
             assert_eq!(flushed, vec!["012", "345", "678", "9"]);
@@ -632,8 +636,9 @@ mod tests {
         fn multi_byte_char_triggers_early_flush() {
             let mut flushed: Vec<String> = Vec::new();
             // Capacity is N-1 = 6 usable bytes.
-            // "abcd" (4 bytes) leaves 2 bytes of space — not enough for ❤️ (6 bytes).
-            // Flushes "abcd", then chunks the hearts as in the previous test.
+            // "abcd" (4 bytes) leaves 2 bytes of space — not enough for ❤️ (6
+            // bytes). Flushes "abcd", then chunks the hearts as in
+            // the previous test.
             let mut writer = FlushableFormatBuffer::<_, 7>::new(|buf| {
                 flushed.push(buf.as_str().to_owned());
             });
