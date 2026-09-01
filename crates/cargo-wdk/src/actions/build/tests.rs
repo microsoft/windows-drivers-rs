@@ -435,30 +435,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-    let expected_certmgr_output = Output {
-        status: ExitStatus::default(),
-        stdout: r"==============Certificate # 1 ==========
-                    Subject::
-                    [0,0] 2.5.4.3 (CN) WDRLocalTestCert
-                    Issuer::
-                    [0,0] 2.5.4.3 (CN) WDRLocalTestCert
-                    SerialNumber::
-                    5E 04 0D 63 35 20 76 A5 4A E1 96 BF CF 01 0F 96
-                    SHA1 Thumbprint::
-                        FB972842 C63CD369 E07D0C71 88E17921 B5813C71
-                    MD5 Thumbprint::
-                        832B3F18 707EA3F6 54465207 345A93F1
-                    Provider Type:: 1 Provider Name:: Microsoft Strong Cryptographic Provider Container: 68f79a6e-6afa-4ec7-be5b-16d6656edd3f KeySpec: 2
-                    NotBefore::
-                    Tue Jan 28 13:51:04 2025
-                    NotAfter::
-                    Sun Jan 01 05:29:59 2040
-                    ==============No CTLs ==========
-                    ==============No CRLs ==========
-                    ==============================================
-                    CertMgr Succeeded".as_bytes().to_vec(),
-        stderr: vec![],
-    };
 
     let expected_create_cert_output = Output {
         status: ExitStatus::default(),
@@ -482,8 +458,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_certmgr_cert_lookup(vec![get_certmgr_valid_cert_output()])
         .expect_certmgr_create_cert_from_store(&cwd, Some(expected_create_cert_output))
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
@@ -518,7 +493,6 @@ pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_rec
     let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
     let (workspace_member, package) =
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-    let expected_certmgr_output = get_certmgr_success_output();
 
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
@@ -536,9 +510,9 @@ pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_rec
         .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_certmgr_cert_lookup(certmgr_lookups_with_cert_creation())
         .expect_makecert(&cwd, None)
+        .expect_certmgr_create_cert_from_store(&cwd, None)
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
         .expect_signtool_sign_cat_file(driver_name, &cwd, None)
@@ -811,8 +785,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(Some(expected_output));
+        .expect_certmgr_cert_lookup(vec![expected_output]);
 
     let build_action = initialize_build_action(
         &cwd,
@@ -871,8 +844,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(None)
+        .expect_certmgr_cert_lookup(certmgr_lookups_with_cert_creation())
         .expect_makecert(&cwd, Some(expected_output));
 
     let build_action = initialize_build_action(
@@ -932,9 +904,9 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, None)
-        .expect_self_signed_cert_file_exists(&cwd, false)
-        .expect_certmgr_exists_check(None)
+        .expect_certmgr_cert_lookup(certmgr_lookups_with_cert_creation())
         .expect_makecert(&cwd, None)
+        .expect_certmgr_create_cert_from_store(&cwd, None)
         .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
         .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, Some(expected_output));
 
@@ -1273,8 +1245,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         None,
     );
 
-    let expected_certmgr_output = get_certmgr_success_output();
-
     let cargo_build_output = create_cargo_build_output_json_with_manifest(
         driver_name_1,
         driver_version_1,
@@ -1309,9 +1279,9 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_copy_map_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
         .expect_stampinf(driver_name_1, &workspace_root_dir, target_arch, None)
         .expect_inf2cat(driver_name_1, &workspace_root_dir, target_arch, None)
-        .expect_self_signed_cert_file_exists(&workspace_root_dir, false)
-        .expect_certmgr_exists_check(Some(expected_certmgr_output))
+        .expect_certmgr_cert_lookup(certmgr_lookups_with_cert_creation())
         .expect_makecert(&workspace_root_dir, None)
+        .expect_certmgr_create_cert_from_store(&workspace_root_dir, None)
         .expect_copy_self_signed_cert_file_to_package_folder(
             driver_name_1,
             &workspace_root_dir,
@@ -1781,6 +1751,51 @@ fn get_certmgr_success_output() -> Output {
     }
 }
 
+/// SHA-1 thumbprint of the certificate in [`get_certmgr_valid_cert_output`].
+const TEST_CERT_THUMBPRINT: &str = "FB972842C63CD369E07D0C7188E17921B5813C71";
+
+fn get_certmgr_valid_cert_output() -> Output {
+    Output {
+        status: ExitStatus::default(),
+        stdout: r"==============Certificate # 1 ==========
+                    Subject::
+                    [0,0] 2.5.4.3 (CN) ValueType: 4
+                        57 44 52 4C 6F 63 61 6C 54 65 73 74 43 65 72 74    'WDRLocalTestCert'
+                    Issuer::
+                    [0,0] 2.5.4.3 (CN) ValueType: 4
+                        57 44 52 4C 6F 63 61 6C 54 65 73 74 43 65 72 74    'WDRLocalTestCert'
+                    SerialNumber::
+                    5E 04 0D 63 35 20 76 A5 4A E1 96 BF CF 01 0F 96
+                    SHA1 Thumbprint::
+                        FB972842 C63CD369 E07D0C71 88E17921 B5813C71
+                    MD5 Thumbprint::
+                        832B3F18 707EA3F6 54465207 345A93F1
+                    Provider Type:: 1 Provider Name:: Microsoft Strong Cryptographic Provider Container: 68f79a6e-6afa-4ec7-be5b-16d6656edd3f KeySpec: 2
+                    NotBefore::
+                    Tue Jan 28 13:51:04 2025
+                    NotAfter::
+                    Sun Jan 01 05:29:59 2040
+                    Extension[0] 2.5.29.37(Enhanced Key Usage) Critical:  False::
+                    Code Signing (1.3.6.1.5.5.7.3.3)
+                    ==============No CTLs ==========
+                    ==============No CRLs ==========
+                    ==============================================
+                    CertMgr Succeeded"
+            .as_bytes()
+            .to_vec(),
+        stderr: vec![],
+    }
+}
+
+/// Lookup sequence for a build that has to create a certificate before it can
+/// select one.
+fn certmgr_lookups_with_cert_creation() -> Vec<Output> {
+    vec![
+        get_certmgr_success_output(),
+        get_certmgr_valid_cert_output(),
+    ]
+}
+
 fn assert_build_action_run_with_env_is_success(
     cwd: &PathBuf,
     profile: Option<Profile>,
@@ -2025,7 +2040,6 @@ impl TestBuildAction {
         verify_signature: bool,
     ) -> Self {
         let cwd = self.cwd.clone();
-        let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
             .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
@@ -2036,9 +2050,9 @@ impl TestBuildAction {
             .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
             .expect_stampinf(driver_name, &cwd, target_arch, None)
             .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_self_signed_cert_file_exists(&cwd, false)
-            .expect_certmgr_exists_check(Some(expected_certmgr_output))
+            .expect_certmgr_cert_lookup(certmgr_lookups_with_cert_creation())
             .expect_makecert(&cwd, None)
+            .expect_certmgr_create_cert_from_store(&cwd, None)
             .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
             .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
             .expect_signtool_sign_cat_file(driver_name, &cwd, None);
@@ -2078,7 +2092,6 @@ impl TestBuildAction {
         verify_signature: bool,
     ) -> Self {
         let cwd = self.cwd.clone();
-        let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
             .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd.join(driver_name), true)
@@ -2089,9 +2102,9 @@ impl TestBuildAction {
             .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
             .expect_stampinf(driver_name, &cwd, target_arch, None)
             .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_self_signed_cert_file_exists(&cwd, false)
-            .expect_certmgr_exists_check(Some(expected_certmgr_output))
+            .expect_certmgr_cert_lookup(certmgr_lookups_with_cert_creation())
             .expect_makecert(&cwd, None)
+            .expect_certmgr_create_cert_from_store(&cwd, None)
             .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
             .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
             .expect_signtool_sign_cat_file(driver_name, &cwd, None)
@@ -2108,17 +2121,6 @@ impl TestBuildAction {
         self.mock_fs_provider
             .expect_exists()
             .with(eq(root_dir.join("Cargo.toml")))
-            .once()
-            .returning(move |_| does_exist);
-        self
-    }
-
-    fn expect_self_signed_cert_file_exists(mut self, driver_dir: &Path, does_exist: bool) -> Self {
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
-        self.mock_fs_provider
-            .expect_exists()
-            .with(eq(expected_src_driver_cert_path))
             .once()
             .returning(move |_| does_exist);
         self
@@ -2653,11 +2655,18 @@ impl TestBuildAction {
         self
     }
 
-    fn expect_certmgr_exists_check(mut self, override_output: Option<Output>) -> Self {
-        // check for cert in cert store using certmgr
+    fn expect_certmgr_cert_lookup(mut self, outputs: Vec<Output>) -> Self {
+        assert!(
+            !outputs.is_empty(),
+            "expect_certmgr_cert_lookup requires at least one output"
+        );
         let expected_certmgr_command: &'static str = "certmgr.exe";
-        let expected_certmgr_args: Vec<String> =
-            vec!["-s".to_string(), "WDRTestCertStore".to_string()];
+        let expected_certmgr_args: Vec<String> = vec![
+            "-v".to_string(),
+            "-s".to_string(),
+            "WDRTestCertStore".to_string(),
+        ];
+        let mut call_index = 0usize;
         self.mock_run_command
             .expect_run()
             .withf(
@@ -2669,20 +2678,18 @@ impl TestBuildAction {
                     command == expected_certmgr_command && args == expected_certmgr_args
                 },
             )
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => match output.status.code() {
+            .returning(move |_, _, _, _| {
+                let index = call_index % outputs.len();
+                call_index += 1;
+                let output = outputs[index].clone();
+                match output.status.code() {
                     Some(0) => Ok(Output {
                         status: ExitStatus::from_raw(0),
                         stdout: output.stdout,
                         stderr: output.stderr,
                     }),
                     _ => Err(CommandError::from_output("certmgr", &[], &output)),
-                },
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: vec![],
-                    stderr: vec![],
-                }),
+                }
             });
         self
     }
@@ -2702,8 +2709,8 @@ impl TestBuildAction {
             "-s".to_string(),
             "WDRTestCertStore".to_string(),
             "-c".to_string(),
-            "-n".to_string(),
-            "WDRLocalTestCert".to_string(),
+            "-sha1".to_string(),
+            TEST_CERT_THUMBPRINT.to_string(),
             expected_self_signed_cert_file_path
                 .to_string_lossy()
                 .to_string(),
@@ -2740,9 +2747,8 @@ impl TestBuildAction {
 
     fn expect_makecert(mut self, driver_dir: &Path, override_output: Option<Output>) -> Self {
         // create self signed certificate using makecert
-        let expected_target_dir = self.setup_target_dir(driver_dir);
+        let _ = self.setup_target_dir(driver_dir);
         let expected_makecert_command: &'static str = "makecert";
-        let expected_src_driver_cert_path = expected_target_dir.join("WDRLocalTestCert.cer");
         let expected_makecert_args: Vec<String> = vec![
             "-r".to_string(),
             "-pe".to_string(),
@@ -2750,11 +2756,12 @@ impl TestBuildAction {
             "SHA256".to_string(),
             "-eku".to_string(),
             "1.3.6.1.5.5.7.3.3".to_string(),
+            "-m".to_string(),
+            "120".to_string(),
             "-ss".to_string(),
             "WDRTestCertStore".to_string(),
             "-n".to_string(),
             "CN=WDRLocalTestCert".to_string(),
-            expected_src_driver_cert_path.to_string_lossy().to_string(),
         ];
 
         self.mock_run_command
@@ -2807,10 +2814,8 @@ impl TestBuildAction {
             "/v".to_string(),
             "/s".to_string(),
             "WDRTestCertStore".to_string(),
-            "/n".to_string(),
-            "WDRLocalTestCert".to_string(),
-            "/t".to_string(),
-            "http://timestamp.digicert.com".to_string(),
+            "/sha1".to_string(),
+            TEST_CERT_THUMBPRINT.to_string(),
             "/fd".to_string(),
             "SHA256".to_string(),
             expected_dest_driver_binary_path
@@ -2869,10 +2874,8 @@ impl TestBuildAction {
             "/v".to_string(),
             "/s".to_string(),
             "WDRTestCertStore".to_string(),
-            "/n".to_string(),
-            "WDRLocalTestCert".to_string(),
-            "/t".to_string(),
-            "http://timestamp.digicert.com".to_string(),
+            "/sha1".to_string(),
+            TEST_CERT_THUMBPRINT.to_string(),
             "/fd".to_string(),
             "SHA256".to_string(),
             expected_dest_driver_cat_file_path

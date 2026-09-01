@@ -15,8 +15,9 @@ use std::{
     result::Result,
 };
 
+use certmgr_parser::{parse_certificates, today_in_days};
 use mockall_double::double;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 use wdk_build::{CpuArchitecture, DriverConfig};
 use windows::{
     Win32::{
@@ -36,7 +37,13 @@ const MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE: RangeInclusive<u32> = 25798..=
 const WDR_TEST_CERT_STORE: &str = "WDRTestCertStore";
 const WDR_LOCAL_TEST_CERT: &str = "WDRLocalTestCert";
 const STAMPINF_VERSION_ENV_VAR: &str = "STAMPINF_VERSION";
-const DEFAULT_TIMESTAMP_URL: &str = "http://timestamp.digicert.com";
+const CERT_VALIDITY_MONTHS: &str = "120";
+/// Enhanced key usage OID a certificate must carry to sign code.
+const CODE_SIGNING_EKU_OID: &str = "1.3.6.1.5.5.7.3.3";
+/// Test signatures are not timestamped, so they are only trusted while the
+/// signing certificate itself is valid. Replace the certificate well before it
+/// expires instead of at the last moment.
+const MIN_REMAINING_VALIDITY_DAYS: i64 = 90;
 
 /// Signing mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +81,23 @@ impl TargetPlatform {
             Self::Desktop => "/h",
             Self::Windows => "/w",
         }
+    }
+}
+
+/// A code signing certificate listed in the `WDRTestCertStore` store.
+struct Certificate {
+    thumbprint: String,
+    expiry_in_days: i64,
+}
+
+impl Certificate {
+    /// Days left before the certificate expires, negative once it has.
+    const fn remaining_validity_days(&self, today_in_days: i64) -> i64 {
+        self.expiry_in_days - today_in_days
+    }
+
+    const fn is_valid(&self, today_in_days: i64) -> bool {
+        self.remaining_validity_days(today_in_days) >= MIN_REMAINING_VALIDITY_DAYS
     }
 }
 
@@ -299,17 +323,18 @@ impl<'a> PackageTask<'a> {
             return Ok(());
         };
         let sign_args = if signtool_args.is_empty() {
-            self.generate_certificate()?;
+            let thumbprint = self.generate_certificate()?;
             self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-            // Default WDR test-cert switches.
+            // Default WDR test-cert switches. The signature is deliberately not
+            // timestamped: the certificate is generated locally for test
+            // signing only, and requiring a timestamp server would
+            // make every build depend on network access.
             [
                 "/v",
                 "/s",
                 WDR_TEST_CERT_STORE,
-                "/n",
-                WDR_LOCAL_TEST_CERT,
-                "/t",
-                DEFAULT_TIMESTAMP_URL,
+                "/sha1",
+                &thumbprint,
                 "/fd",
                 "SHA256",
             ]
@@ -447,66 +472,128 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    fn generate_certificate(&self) -> Result<(), PackageTaskError> {
-        debug!("Generating certificate");
-        if self.fs.exists(&self.src_cert_file_path) {
-            return Ok(());
-        }
-        if self.is_self_signed_certificate_in_store()? {
-            self.create_cert_file_from_store()?;
-        } else {
-            // This mutex prevents multiple instances of this app from racing to
-            // create a cert in the store. It is not a correctness problem. We
-            // just don't want to litter the store with certs especially during
-            // tests when there are lots of parallel runs
-            let mutex_name = CString::new("WDRCertStoreMutex_bd345cf9330") // Unique enough
-                .expect("string is a valid C string");
-            let mutex = NamedMutex::acquire(&mutex_name)
-                .map_err(|e| PackageTaskError::CertMutexError(e.code().0))?;
-            debug!("Acquired cert store mutex");
-
-            // Check again for an existing cert. Another instance might have
-            // created it while we waited for the mutex
-            if self.is_self_signed_certificate_in_store()? {
-                drop(mutex);
-                self.create_cert_file_from_store()?;
-            } else {
-                self.create_self_signed_cert_in_store()?;
+    fn run_infverif(&self) -> Result<(), PackageTaskError> {
+        let additional_args = if self.sample_class {
+            let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
+            match wdk_build_number {
+                n if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&n) => {
+                    debug!(
+                        "InfVerif in WDK Build {wdk_build_number} is buggy and does not contain \
+                         the /samples flag."
+                    );
+                    warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
+                    return Ok(());
+                }
+                // Use the `/samples` flag after the range and the `/msft` flag before the range
+                n if n > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() => "/samples",
+                _ => "/msft",
             }
+        } else {
+            ""
+        };
+
+        info!("Running infverif");
+
+        let mode_flag = self.target_platform.as_infverif_flag();
+
+        let mut args = vec!["/v", mode_flag];
+        let inf_path = self.dest_inf_file_path.to_string_lossy();
+
+        if self.sample_class {
+            args.push(additional_args);
+        }
+        args.push(&inf_path);
+
+        if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
+            return Err(PackageTaskError::InfVerificationCommand(e));
         }
 
         Ok(())
     }
 
-    fn is_self_signed_certificate_in_store(&self) -> Result<bool, PackageTaskError> {
-        debug!("Checking if self signed certificate exists in WDRTestCertStore store");
-        let args = ["-s", WDR_TEST_CERT_STORE];
+    /// Selects a usable test certificate from the store, creating one when
+    /// none is left, exports it to the source certificate file and returns its
+    /// SHA-1 thumbprint.
+    fn generate_certificate(&self) -> Result<String, PackageTaskError> {
+        // This mutex prevents multiple instances of this app from racing to
+        // create a cert in the store. It is not a correctness problem. We
+        // just don't want to litter the store with certs especially during
+        // tests when there are lots of parallel runs
+        let mutex_name = CString::new("WDRCertStoreMutex_bd345cf9330") // Unique enough
+            .expect("string is a valid C string");
+        debug!("Acquiring cert store mutex.");
+        let _mutex = NamedMutex::acquire(&mutex_name)
+            .map_err(|e| PackageTaskError::CertMutexError(e.code().0))?;
+        debug!("Acquired cert store mutex");
 
-        match self.command_exec.run("certmgr.exe", &args, None, None) {
-            Ok(output) if output.status.success() => String::from_utf8(output.stdout).map_or_else(
-                |e| Err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput(e)),
-                |stdout| Ok(stdout.contains(WDR_LOCAL_TEST_CERT)),
-            ),
-            Ok(_) => Ok(false),
-            Err(e) => Err(PackageTaskError::VerifyCertExistsInStoreCommand(e)),
+        let certificate = if let Some(certificate) = self.find_valid_certificate_in_store()? {
+            info!(
+                "Using test certificate {} from {WDR_TEST_CERT_STORE} store",
+                certificate.thumbprint
+            );
+            certificate
+        } else {
+            self.create_self_signed_cert_in_store()?;
+            let certificate = self
+                .find_valid_certificate_in_store()?
+                .ok_or(PackageTaskError::NoUsableCertificate)?;
+            info!(
+                "Created test certificate {} in {WDR_TEST_CERT_STORE} store",
+                certificate.thumbprint
+            );
+            certificate
+        };
+
+        self.export_certificate(&certificate.thumbprint)?;
+        Ok(certificate.thumbprint)
+    }
+
+    /// Returns the first certificate in the store that is still usable for
+    /// test signing, or `None` if none is found, or `PackageTaskError` if the
+    /// store query fails.
+    fn find_valid_certificate_in_store(&self) -> Result<Option<Certificate>, PackageTaskError> {
+        debug!("Checking for a usable self signed certificate in {WDR_TEST_CERT_STORE} store");
+        let args = ["-v", "-s", WDR_TEST_CERT_STORE];
+
+        let output = self
+            .command_exec
+            .run("certmgr.exe", &args, None, None)
+            .map_err(PackageTaskError::VerifyCertExistsInStoreCommand)?;
+        if !output.status.success() {
+            return Ok(None);
         }
+        let stdout = String::from_utf8(output.stdout)
+            .map_err(PackageTaskError::VerifyCertExistsInStoreInvalidCommandOutput)?;
+
+        let today = today_in_days();
+        let certificates = parse_certificates(&stdout, WDR_LOCAL_TEST_CERT);
+        for certificate in &certificates {
+            trace!(
+                thumbprint = %certificate.thumbprint,
+                remaining_validity_days = certificate.remaining_validity_days(today),
+                "Found test certificate in store"
+            );
+        }
+        Ok(certificates
+            .into_iter()
+            .find(|certificate| certificate.is_valid(today)))
     }
 
     fn create_self_signed_cert_in_store(&self) -> Result<(), PackageTaskError> {
         info!("Creating self signed certificate in WDRTestCertStore store using makecert");
-        let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-r",
             "-pe",
             "-a",
             "SHA256",
             "-eku",
-            "1.3.6.1.5.5.7.3.3",
+            CODE_SIGNING_EKU_OID,
+            "-m",
+            CERT_VALIDITY_MONTHS,
             "-ss",
             WDR_TEST_CERT_STORE, // FIXME: this should be a parameter
             "-n",
             &format!("CN={WDR_LOCAL_TEST_CERT}"), // FIXME: this should be a parameter
-            &cert_path,
         ];
         if let Err(e) = self.command_exec.run("makecert", &args, None, None) {
             return Err(PackageTaskError::CertGenerationInStoreCommand(e));
@@ -514,16 +601,16 @@ impl<'a> PackageTask<'a> {
         Ok(())
     }
 
-    fn create_cert_file_from_store(&self) -> Result<(), PackageTaskError> {
-        info!("Creating certificate file from WDRTestCertStore store using certmgr");
+    fn export_certificate(&self, thumbprint: &str) -> Result<(), PackageTaskError> {
+        info!("Exporting test certificate {thumbprint} from {WDR_TEST_CERT_STORE} store");
         let cert_path = self.src_cert_file_path.to_string_lossy();
         let args = [
             "-put",
             "-s",
             WDR_TEST_CERT_STORE,
             "-c",
-            "-n",
-            WDR_LOCAL_TEST_CERT,
+            "-sha1",
+            thumbprint,
             &cert_path,
         ];
         if let Err(e) = self.command_exec.run("certmgr.exe", &args, None, None) {
@@ -611,44 +698,251 @@ impl<'a> PackageTask<'a> {
         }
         Ok(())
     }
+}
 
-    fn run_infverif(&self) -> Result<(), PackageTaskError> {
-        let additional_args = if self.sample_class {
-            let wdk_build_number = self.wdk_build.detect_wdk_build_number()?;
-            match wdk_build_number {
-                n if MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.contains(&n) => {
-                    debug!(
-                        "InfVerif in WDK Build {wdk_build_number} is buggy and does not contain \
-                         the /samples flag."
-                    );
-                    warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
-                    return Ok(());
-                }
-                // Use the `/samples` flag after the range and the `/msft` flag before the range
-                n if n > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() => "/samples",
-                _ => "/msft",
-            }
-        } else {
-            ""
+/// Module that contains code that parses the output of `certmgr -v -s <store>`.
+mod certmgr_parser {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::{CODE_SIGNING_EKU_OID, Certificate};
+
+    /// Certificates in `listing`, the output of `certmgr -v -s <store>`, whose
+    /// subject is exactly `subject` and that are able to sign code.
+    pub fn parse_certificates(listing: &str, subject: &str) -> Vec<Certificate> {
+        listing
+            .split("==============Certificate #")
+            .skip(1)
+            .filter_map(|record| parse_certificate(record, subject))
+            .collect()
+    }
+
+    /// Days since the Unix epoch, used as the reference point for validity
+    /// checks.
+    pub fn today_in_days() -> i64 {
+        let days = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since_epoch| since_epoch.as_secs() / 86_400);
+        i64::try_from(days).unwrap_or(0)
+    }
+
+    fn parse_certificate(record: &str, subject: &str) -> Option<Certificate> {
+        if !subject_matches(record, subject)
+            // Printed only when the certificate has private key provider info.
+            || !record.contains("Provider Type::")
+            || !record.contains(CODE_SIGNING_EKU_OID)
+        {
+            return None;
+        }
+        Some(Certificate {
+            thumbprint: thumbprint(record)?,
+            expiry_in_days: not_after_in_days(record)?,
+        })
+    }
+
+    /// Reads the `SHA1 Thumbprint::` value, which `certmgr` prints on the
+    /// following line in space separated groups.
+    fn thumbprint(record: &str) -> Option<String> {
+        let thumbprint_index = record.find("SHA1 Thumbprint::")?;
+        let value = record[thumbprint_index..]
+            .lines()
+            .skip(1)
+            .map(str::trim)
+            .find(|line| !line.is_empty())?;
+        Some(value.split_whitespace().collect::<String>().to_uppercase())
+    }
+
+    /// Matches a subject of exactly `CN=<subject>`, so a certificate that
+    /// merely contains that text in a longer name is not reused.
+    fn subject_matches(record: &str, subject: &str) -> bool {
+        let Some(subject_section) = section_between(record, "Subject::", "Issuer::") else {
+            return false;
         };
+        let mut values = subject_section.lines().filter_map(rdn_value);
+        values.next() == Some(subject) && values.next().is_none()
+    }
 
-        info!("Running infverif");
+    fn not_after_in_days(record: &str) -> Option<i64> {
+        let not_after_index = record.find("NotAfter::")?;
+        let value = record[not_after_index..]
+            .lines()
+            .skip(1)
+            .map(str::trim)
+            .find(|line| !line.is_empty())?;
+        parse_certmgr_date(value)
+    }
 
-        let mode_flag = self.target_platform.as_infverif_flag();
+    /// Parses a `certmgr` timestamp such as `Sun Jan 01 05:29:59 2040` into
+    /// days since the Unix epoch. `certmgr` prints local time, which is precise
+    /// enough for a validity margin measured in months.
+    fn parse_certmgr_date(value: &str) -> Option<i64> {
+        const MONTHS: [&str; 12] = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
 
-        let mut args = vec!["/v", mode_flag];
-        let inf_path = self.dest_inf_file_path.to_string_lossy();
+        let mut fields = value.split_whitespace();
+        let _weekday = fields.next()?;
+        let month_name = fields.next()?;
+        let month = u32::try_from(MONTHS.iter().position(|month| *month == month_name)?).ok()? + 1;
+        let day = fields.next()?.parse::<u32>().ok()?;
+        let _time_of_day = fields.next()?;
+        let year = fields.next()?.parse::<i64>().ok()?;
 
-        if self.sample_class {
-            args.push(additional_args);
+        Some(days_from_civil(year, month, day))
+    }
+
+    /// Days from the Unix epoch to `year-month-day`, using Howard Hinnant's
+    /// `days_from_civil` algorithm.
+    fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+        let year = if month <= 2 { year - 1 } else { year };
+        let era = if year >= 0 { year } else { year - 399 } / 400;
+        let year_of_era = year - era * 400;
+        let shifted_month = i64::from((month + 9) % 12);
+        let day_of_year = (153 * shifted_month + 2) / 5 + i64::from(day) - 1;
+        let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+        era * 146_097 + day_of_era - 719_468
+    }
+
+    fn section_between<'a>(record: &'a str, start: &str, end: &str) -> Option<&'a str> {
+        let start_index = record.find(start)? + start.len();
+        let rest = &record[start_index..];
+        let end_index = rest.find(end)?;
+        Some(&rest[..end_index])
+    }
+
+    /// Extracts the ASCII rendering `certmgr` prints beside each RDN value.
+    fn rdn_value(line: &str) -> Option<&str> {
+        let start_index = line.find('\'')? + 1;
+        let rest = &line[start_index..];
+        let end_index = rest.rfind('\'')?;
+        Some(&rest[..end_index])
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{super::MIN_REMAINING_VALIDITY_DAYS, *};
+
+        const TODAY: i64 = 20_689; // 2026-08-24
+        const SUBJECT: &str = "WDRLocalTestCert";
+        const THUMBPRINT: &str = "32CA754DC16D56FB15363275147EDB3D211A91FC";
+        const PROVIDER: &str = "Provider Type:: 1 Provider Name:: Microsoft Strong Cryptographic \
+                                Provider Container: c75ab649 KeySpec: 2\n";
+
+        fn listing(subject: &str, not_after: &str, extras: &str) -> String {
+            format!(
+                "==============Certificate # 1 ==========\nSubject::\n[0,0] 2.5.4.3 (CN) \
+                 ValueType: 4\n57 44 52    '{subject}'\nIssuer::\n[0,0] 2.5.4.3 (CN) ValueType: \
+                 4\n57 44 52    '{subject}'\nSHA1 Thumbprint::\n32CA754D C16D56FB 15363275 \
+                 147EDB3D 211A91FC\n{extras}NotBefore::\nTue Jan 20 20:48:04 \
+                 2026\nNotAfter::\n{not_after}\nExtension[0] 2.5.29.37(Enhanced Key Usage) \
+                 Critical:  False::\nCode Signing \
+                 (1.3.6.1.5.5.7.3.3)\n==============================================\nCertMgr \
+                 Succeeded"
+            )
         }
-        args.push(&inf_path);
 
-        if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
-            return Err(PackageTaskError::InfVerificationCommand(e));
+        fn parse_one(listing: &str) -> Option<Certificate> {
+            parse_certificates(listing, SUBJECT).into_iter().next()
         }
 
-        Ok(())
+        #[test]
+        fn parses_thumbprint_and_expiry() {
+            let listing = listing(SUBJECT, "Sun Jan 01 05:29:59 2040", PROVIDER);
+            let certificate = parse_one(&listing).expect("certificate should be parsed");
+            assert_eq!(certificate.thumbprint, THUMBPRINT);
+            assert_eq!(certificate.expiry_in_days, days_from_civil(2040, 1, 1));
+        }
+
+        #[test]
+        fn accepts_certificate_with_long_validity() {
+            let listing = listing(SUBJECT, "Sun Jan 01 05:29:59 2040", PROVIDER);
+            assert!(parse_one(&listing).is_some_and(|c| c.is_valid(TODAY)));
+        }
+
+        #[test]
+        fn rejects_expired_certificate() {
+            let listing = listing(SUBJECT, "Wed Jan 01 05:29:59 2020", PROVIDER);
+            assert!(!parse_one(&listing).is_some_and(|c| c.is_valid(TODAY)));
+        }
+
+        #[test]
+        fn rejects_certificate_expiring_within_the_margin() {
+            let listing = listing(SUBJECT, "Mon Sep 21 05:29:59 2026", PROVIDER);
+            assert!(!parse_one(&listing).is_some_and(|c| c.is_valid(TODAY)));
+        }
+
+        #[test]
+        fn accepts_certificate_exactly_at_the_margin() {
+            let listing = listing(SUBJECT, "Sun Nov 22 05:29:59 2026", PROVIDER);
+            let certificate = parse_one(&listing).expect("certificate should be parsed");
+            assert_eq!(
+                certificate.remaining_validity_days(TODAY),
+                MIN_REMAINING_VALIDITY_DAYS
+            );
+            assert!(certificate.is_valid(TODAY));
+        }
+
+        #[test]
+        fn skips_certificate_without_private_key() {
+            let listing = listing(SUBJECT, "Sun Jan 01 05:29:59 2040", "");
+            assert!(parse_certificates(&listing, SUBJECT).is_empty());
+        }
+
+        #[test]
+        fn skips_certificate_with_different_subject() {
+            let listing = listing("WDR Test", "Sun Jan 01 05:29:59 2040", PROVIDER);
+            assert!(parse_certificates(&listing, SUBJECT).is_empty());
+        }
+
+        #[test]
+        fn skips_subject_that_merely_contains_the_expected_name() {
+            let listing = listing("WDRLocalTestCertOld", "Sun Jan 01 05:29:59 2040", PROVIDER);
+            assert!(parse_certificates(&listing, SUBJECT).is_empty());
+        }
+
+        #[test]
+        fn skips_certificate_without_code_signing_eku() {
+            let listing = listing(SUBJECT, "Sun Jan 01 05:29:59 2040", PROVIDER)
+                .replace(CODE_SIGNING_EKU_OID, "1.3.6.1.5.5.7.3.1");
+            assert!(parse_certificates(&listing, SUBJECT).is_empty());
+        }
+
+        #[test]
+        fn parses_empty_store() {
+            let listing = "==============No Certificates \
+                           ==========\n==============================================\nCertMgr \
+                           Succeeded";
+            assert!(parse_certificates(listing, SUBJECT).is_empty());
+        }
+
+        #[test]
+        fn parses_only_matching_certificates_when_the_store_has_several() {
+            let unusable = listing("WDR Test", "Sun Jan 01 05:29:59 2040", PROVIDER);
+            let usable = listing(SUBJECT, "Sun Jan 01 05:29:59 2040", PROVIDER);
+            let certificates = parse_certificates(&format!("{unusable}{usable}"), SUBJECT);
+            assert_eq!(certificates.len(), 1);
+            assert_eq!(certificates[0].thumbprint, THUMBPRINT);
+        }
+
+        #[test]
+        fn parses_certmgr_dates() {
+            assert_eq!(
+                parse_certmgr_date("Sun Jan 01 05:29:59 2040"),
+                Some(days_from_civil(2040, 1, 1))
+            );
+            assert_eq!(
+                parse_certmgr_date("Tue Jan 20 20:48:04 2026"),
+                Some(days_from_civil(2026, 1, 20))
+            );
+            assert_eq!(parse_certmgr_date("not a date"), None);
+        }
+
+        #[test]
+        fn days_from_civil_matches_known_epochs() {
+            assert_eq!(days_from_civil(1970, 1, 1), 0);
+            assert_eq!(days_from_civil(1970, 1, 2), 1);
+            assert_eq!(days_from_civil(2000, 3, 1), 11_017);
+            assert_eq!(days_from_civil(2026, 8, 24), TODAY);
+        }
     }
 }
 
