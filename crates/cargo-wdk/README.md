@@ -84,6 +84,9 @@ Driver Signing:
 Inf2Cat Options:
       --inf2cat-args <ARGS>        Custom arguments to pass to `inf2cat` when generating the catalog file, e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`
 
+InfVerif Options:
+    --infverif-args <ARGS>       Custom arguments to pass to `infverif` when validating the INF, e.g. `--infverif-args '/rulever 10.0.22621 /info'`
+
 Feature Selection:
       --all-features         Activate all available features
       --no-default-features  Do not activate the `default` feature

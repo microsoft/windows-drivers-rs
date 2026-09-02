@@ -85,6 +85,7 @@ pub struct PackageTaskParams<'a> {
     pub target_arch: &'a CpuArchitecture,
     pub sign_mode: SignMode,
     pub inf2cat_args: Option<Vec<String>>,
+    pub infverif_args: Option<Vec<String>>,
     pub sample_class: bool,
     pub driver_model: DriverConfig,
     pub target_platform: TargetPlatform,
@@ -95,6 +96,7 @@ pub struct PackageTask<'a> {
     package_name: String,
     sign_mode: SignMode,
     inf2cat_args: Option<Vec<String>>,
+    infverif_args: Option<Vec<String>>,
     sample_class: bool,
 
     // src paths
@@ -207,6 +209,7 @@ impl<'a> PackageTask<'a> {
             package_name,
             sign_mode: params.sign_mode,
             inf2cat_args: params.inf2cat_args,
+            infverif_args: params.infverif_args,
             sample_class: params.sample_class,
             src_inx_file_path,
             src_driver_binary_file_path,
@@ -642,6 +645,9 @@ impl<'a> PackageTask<'a> {
         if self.sample_class {
             args.push(additional_args);
         }
+        if let Some(infverif_args) = &self.infverif_args {
+            args.extend(infverif_args.iter().map(String::as_str));
+        }
         args.push(&inf_path);
 
         if let Err(e) = self.command_exec.run("infverif", &args, None, None) {
@@ -737,6 +743,7 @@ mod tests {
                 signtool_args: Vec::new(),
             },
             inf2cat_args: None,
+            infverif_args: None,
             target_platform: TargetPlatform::Universal,
         };
         let dest_root = target_dir.join(format!("{package_name}_package"));
@@ -811,6 +818,7 @@ mod tests {
                 signtool_args: Vec::new(),
             },
             inf2cat_args: None,
+            infverif_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -842,6 +850,7 @@ mod tests {
                 signtool_args: Vec::new(),
             },
             inf2cat_args: None,
+            infverif_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -882,6 +891,7 @@ mod tests {
                             signtool_args: Vec::new(),
                         },
                         inf2cat_args: None,
+                        infverif_args: None,
                         target_platform: TargetPlatform::Universal,
                     };
 
@@ -940,6 +950,7 @@ mod tests {
                 signtool_args: Vec::new(),
             },
             inf2cat_args: None,
+            infverif_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -985,6 +996,7 @@ mod tests {
                 signtool_args: Vec::new(),
             },
             inf2cat_args: Some(Vec::new()),
+            infverif_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -1030,6 +1042,7 @@ mod tests {
                 "/os:10_x64,10_CO_X64".to_string(),
                 "/verbose".to_string(),
             ]),
+            infverif_args: None,
             target_platform: TargetPlatform::Universal,
         };
 
@@ -1088,6 +1101,7 @@ mod tests {
                 sample_class: false,
                 sign_mode: SignMode::Off,
                 inf2cat_args: None,
+                infverif_args: None,
                 target_platform: TargetPlatform::Universal,
             };
             PackageTask::new(params, wdk_build, command_exec, fs)
@@ -1285,6 +1299,7 @@ mod tests {
                     ],
                 },
                 inf2cat_args: None,
+                infverif_args: None,
                 target_platform: TargetPlatform::Universal,
             };
             let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
@@ -1312,6 +1327,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Off,
             inf2cat_args: None,
+            infverif_args: None,
             target_platform,
         };
 
@@ -1371,6 +1387,85 @@ mod tests {
             DriverConfig::Kmdf(KmdfConfig::default()),
             TargetPlatform::Windows,
             "/w",
+        );
+    }
+
+    fn assert_infverif_args(
+        sample_class: bool,
+        infverif_args: Option<Vec<String>>,
+        expected_args_before_inf: Vec<&'static str>,
+    ) {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let target_dir = PathBuf::from("C:/abs/driver/target/debug");
+        let arch = CpuArchitecture::Amd64;
+
+        let params = PackageTaskParams {
+            package_name: "driver",
+            working_dir: &working_dir,
+            target_dir: &target_dir,
+            target_arch: &arch,
+            driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
+            sample_class,
+            sign_mode: SignMode::Off,
+            inf2cat_args: None,
+            infverif_args,
+            target_platform: TargetPlatform::Universal,
+        };
+
+        let fs = Fs::default();
+        let mut wdk_build = WdkBuild::default();
+        if sample_class {
+            wdk_build
+                .expect_detect_wdk_build_number()
+                .once()
+                .returning(|| Ok(26101));
+        }
+
+        let expected_inf_path = target_dir
+            .join("driver_package")
+            .join("driver.inf")
+            .to_string_lossy()
+            .to_string();
+        let mut command_exec = CommandExec::default();
+        command_exec
+            .expect_run()
+            .withf(move |cmd: &str, args: &[&str], _, _| {
+                cmd == "infverif"
+                    && args[..args.len() - 1] == expected_args_before_inf[..]
+                    && args[args.len() - 1] == expected_inf_path
+            })
+            .once()
+            .returning(|_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: vec![],
+                    stderr: vec![],
+                })
+            });
+
+        let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
+        assert!(task.run_infverif().is_ok());
+    }
+
+    #[test]
+    fn run_infverif_with_custom_args_appends_them_before_the_inf_path() {
+        assert_infverif_args(
+            false,
+            Some(vec![
+                "/rulever".to_string(),
+                "10.0.22621".to_string(),
+                "/info".to_string(),
+            ]),
+            vec!["/v", "/u", "/rulever", "10.0.22621", "/info"],
+        );
+    }
+
+    #[test]
+    fn run_infverif_with_custom_args_appends_them_after_the_sample_flag() {
+        assert_infverif_args(
+            true,
+            Some(vec!["/stampinf".to_string()]),
+            vec!["/v", "/u", "/samples", "/stampinf"],
         );
     }
 
