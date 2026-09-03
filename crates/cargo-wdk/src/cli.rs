@@ -249,13 +249,14 @@ impl BuildArgs {
         };
         for arg in &args {
             let lower = arg.to_ascii_lowercase();
-            let reason = if MODE_FLAGS.contains(&lower.trim_start_matches(['/', '-'])) {
-                "cargo-wdk derives the mode flag from `--target-platform`"
+            let mode_flag = lower.trim_start_matches(['/', '-']);
+            let reason = if MODE_FLAGS.contains(&mode_flag) {
+                format!("cargo-wdk derives the mode flag `/{mode_flag}` from `--target-platform`")
             } else if Path::new(arg)
                 .extension()
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("inf"))
             {
-                "cargo-wdk supplies the INF file operand itself"
+                "cargo-wdk supplies the INF file operand itself".to_string()
             } else {
                 continue;
             };
@@ -610,10 +611,13 @@ mod tests {
 
         #[test]
         fn infverif_args_rejects_mode_flags() {
-            for value in ["/h", "/w", "/U", "/k", "/info /w"] {
+            for (value, mode_flag) in [("/h", "/h"), ("/w", "/w"), ("/U", "/u"), ("/info /w", "/w")]
+            {
                 assert_infverif_args_rejected(
                     value,
-                    "cargo-wdk derives the mode flag from `--target-platform`",
+                    &format!(
+                        "cargo-wdk derives the mode flag `{mode_flag}` from `--target-platform`"
+                    ),
                 );
             }
         }

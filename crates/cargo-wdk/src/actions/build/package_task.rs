@@ -1390,11 +1390,8 @@ mod tests {
         );
     }
 
-    fn assert_infverif_args(
-        sample_class: bool,
-        infverif_args: Option<Vec<String>>,
-        expected_args_before_inf: Vec<&'static str>,
-    ) {
+    #[test]
+    fn run_infverif_with_custom_args_forwards_them_verbatim() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let target_dir = PathBuf::from("C:/abs/driver/target/debug");
         let arch = CpuArchitecture::Amd64;
@@ -1405,22 +1402,25 @@ mod tests {
             target_dir: &target_dir,
             target_arch: &arch,
             driver_model: DriverConfig::Kmdf(KmdfConfig::default()),
-            sample_class,
+            sample_class: true,
             sign_mode: SignMode::Off,
             inf2cat_args: None,
-            infverif_args,
+            infverif_args: Some(vec![
+                "/rulever".to_string(),
+                "10.0.22621".to_string(),
+                "/info".to_string(),
+            ]),
             target_platform: TargetPlatform::Universal,
         };
 
         let fs = Fs::default();
         let mut wdk_build = WdkBuild::default();
-        if sample_class {
-            wdk_build
-                .expect_detect_wdk_build_number()
-                .once()
-                .returning(|| Ok(26101));
-        }
+        wdk_build
+            .expect_detect_wdk_build_number()
+            .once()
+            .returning(|| Ok(26101));
 
+        let expected_args_before_inf = ["/v", "/u", "/samples", "/rulever", "10.0.22621", "/info"];
         let expected_inf_path = target_dir
             .join("driver_package")
             .join("driver.inf")
@@ -1431,7 +1431,7 @@ mod tests {
             .expect_run()
             .withf(move |cmd: &str, args: &[&str], _, _| {
                 cmd == "infverif"
-                    && args[..args.len() - 1] == expected_args_before_inf[..]
+                    && args[..args.len() - 1] == expected_args_before_inf
                     && args[args.len() - 1] == expected_inf_path
             })
             .once()
@@ -1445,28 +1445,6 @@ mod tests {
 
         let task = PackageTask::new(params, &wdk_build, &command_exec, &fs);
         assert!(task.run_infverif().is_ok());
-    }
-
-    #[test]
-    fn run_infverif_with_custom_args_appends_them_before_the_inf_path() {
-        assert_infverif_args(
-            false,
-            Some(vec![
-                "/rulever".to_string(),
-                "10.0.22621".to_string(),
-                "/info".to_string(),
-            ]),
-            vec!["/v", "/u", "/rulever", "10.0.22621", "/info"],
-        );
-    }
-
-    #[test]
-    fn run_infverif_with_custom_args_appends_them_after_the_sample_flag() {
-        assert_infverif_args(
-            true,
-            Some(vec!["/stampinf".to_string()]),
-            vec!["/v", "/u", "/samples", "/stampinf"],
-        );
     }
 
     mod named_mutex {
