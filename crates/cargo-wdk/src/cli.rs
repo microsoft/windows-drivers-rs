@@ -240,18 +240,20 @@ impl BuildArgs {
     }
 
     /// Resolves the arguments to forward to `infverif`. Rejects the arguments
-    /// cargo-wdk supplies itself: mode flags and the INF file operand.
+    /// cargo-wdk supplies itself: the mode flags derived from the
+    /// `--target-platform` option and the INF file operand.
     fn infverif_args(&self) -> Result<Option<Vec<String>>, clap::Error> {
-        const MODE_FLAGS: [&str; 4] = ["h", "w", "u", "k"];
+        const MODE_FLAGS: [&str; 3] = ["h", "w", "u"];
 
         let Some(args) = self.infverif_args.clone().map(|parsed| parsed.0) else {
             return Ok(None);
         };
         for arg in &args {
-            let lower = arg.to_ascii_lowercase();
-            let mode_flag = lower.trim_start_matches(['/', '-']);
-            let reason = if MODE_FLAGS.contains(&mode_flag) {
-                format!("cargo-wdk derives the mode flag `/{mode_flag}` from `--target-platform`")
+            let mode_flag = arg.trim_start_matches(['/', '-']).to_ascii_lowercase();
+            let reason = if MODE_FLAGS.contains(&mode_flag.as_str()) {
+                format!(
+                    "cargo-wdk derives the mode flag `{arg}` from the `--target-platform` option"
+                )
             } else if Path::new(arg)
                 .extension()
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("inf"))
@@ -611,12 +613,13 @@ mod tests {
 
         #[test]
         fn infverif_args_rejects_mode_flags() {
-            for (value, mode_flag) in [("/h", "/h"), ("/w", "/w"), ("/U", "/u"), ("/info /w", "/w")]
+            for (value, mode_flag) in [("/h", "/h"), ("/w", "/w"), ("/U", "/U"), ("/info -w", "-w")]
             {
                 assert_infverif_args_rejected(
                     value,
                     &format!(
-                        "cargo-wdk derives the mode flag `{mode_flag}` from `--target-platform`"
+                        "cargo-wdk derives the mode flag `{mode_flag}` from the \
+                         `--target-platform` option"
                     ),
                 );
             }
