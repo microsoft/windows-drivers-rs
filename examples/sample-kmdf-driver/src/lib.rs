@@ -36,9 +36,13 @@ use wdk_sys::{
     ntddk::DbgPrint,
 };
 
+// The value of memory tags are stored in little-endian order, so it is
+// convenient to reverse the order for readability in tooling (i.e. Windbg)
+const POOL_TAG: ULONG = ULONG::from_ne_bytes(*b"rust");
+
 #[cfg(not(test))]
 #[global_allocator]
-static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
+static GLOBAL_ALLOCATOR: WdkAllocator<POOL_TAG> = WdkAllocator;
 
 /// `DriverEntry` function required by WDF
 ///
@@ -85,6 +89,7 @@ pub unsafe extern "system" fn driver_entry(
         WDF_DRIVER_CONFIG {
             Size: wdf_driver_config_size,
             EvtDriverDeviceAdd: Some(evt_driver_device_add),
+            DriverPoolTag: POOL_TAG,
             ..WDF_DRIVER_CONFIG::default()
         }
     };
