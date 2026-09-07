@@ -379,8 +379,8 @@ impl<'a> PackageTask<'a> {
             ],
             DriverConfig::Wdm => vec![],
         };
-        // TODO: Does it generate cat file relative to inf file path or we need to
-        // provide the absolute path?
+        // TODO: Does it generate cat file relative to inf file path or we need
+        // to provide the absolute path?
         let cat_file_path = format!("{}.cat", self.package_name);
         let dest_inf_file_path = self.dest_inf_file_path.to_string_lossy();
         let arch = self.arch.to_string();
@@ -397,9 +397,10 @@ impl<'a> PackageTask<'a> {
 
         match std::env::var(STAMPINF_VERSION_ENV_VAR) {
             Ok(version) if !version.trim().is_empty() => {
-                // When STAMPINF_VERSION is set to a non-empty, non-whitespace value, we
-                // intentionally omit -v so stampinf reads it and populates
-                // DriverVer. (Whitespace-only values are ignored.)
+                // When STAMPINF_VERSION is set to a non-empty, non-whitespace
+                // value, we intentionally omit -v so stampinf
+                // reads it and populates DriverVer.
+                // (Whitespace-only values are ignored.)
                 debug!(
                     DriverVer = version,
                     "Using {STAMPINF_VERSION_ENV_VAR} env var to set DriverVer"
@@ -603,8 +604,8 @@ impl<'a> PackageTask<'a> {
         );
         let driver_binary_file_path = file_path.to_string_lossy();
         let args = ["verify", "/v", "/pa", &driver_binary_file_path];
-        // TODO: Differentiate between command exec failure and signature verification
-        // failure
+        // TODO: Differentiate between command exec failure and signature
+        // verification failure
         if let Err(e) = self.command_exec.run("signtool", &args, None, None) {
             return Err(PackageTaskError::DriverBinarySignVerificationCommand(e));
         }
@@ -1068,10 +1069,10 @@ mod tests {
     mod signtool {
         use super::*;
 
-        // Builds a minimal `PackageTask` suitable for exercising `run_signtool_sign`
-        // in isolation. The signing method does not read `sign_mode`, so `Off` is
-        // used here; the caller passes the signtool argument slice under test
-        // directly.
+        // Builds a minimal `PackageTask` suitable for exercising
+        // `run_signtool_sign` in isolation. The signing method does not
+        // read `sign_mode`, so `Off` is used here; the caller passes
+        // the signtool argument slice under test directly.
         fn create_package_task<'a>(
             wdk_build: &'a WdkBuild,
             command_exec: &'a CommandExec,
@@ -1092,8 +1093,9 @@ mod tests {
             PackageTask::new(params, wdk_build, command_exec, fs)
         }
 
-        // Returns a mocked `CommandExec` that expects a single `signtool` invocation
-        // with exactly the provided argument vector and redaction indices.
+        // Returns a mocked `CommandExec` that expects a single `signtool`
+        // invocation with exactly the provided argument vector and
+        // redaction indices.
         fn expect_signtool_args(
             expected: Vec<String>,
             expected_redaction_indices: Vec<usize>,
@@ -1394,9 +1396,12 @@ mod tests {
             // to a barrier
             // 2. Both increment a counter `active` while they run holding
             // the mutex
-            // 3. Both also increment another counter `completed` when they finish
-            // 4. We verify that `active` never exceeds 1 i.e. there's no concurrent
-            // execution and `completed` is 2 at the end i.e. both threads run to completion
+            // 3. Both also increment another counter `completed` when they
+            //    finish
+            // 4. We verify that `active` never exceeds 1 i.e. there's no
+            //    concurrent
+            // execution and `completed` is 2 at the end i.e. both threads run
+            // to completion
 
             let barrier = Barrier::new(2);
             let active = AtomicUsize::new(0);
@@ -1448,8 +1453,9 @@ mod tests {
             thread::scope(|s| {
                 s.spawn(|| {
                     let guard = acquire_mutex();
-                    // Simulate an abnormal exit while still holding the mutex to trigger the
-                    // WAIT_ABANDONED path for the next owner.
+                    // Simulate an abnormal exit while still holding the mutex
+                    // to trigger the WAIT_ABANDONED path
+                    // for the next owner.
                     std::mem::forget(guard);
                 });
             });

@@ -149,9 +149,9 @@ impl BuilderExt for Builder {
             .rust_edition(get_rust_edition()?);
 
         // The `_USBPM_CLIENT_CONFIG_EXTRA_INFO` struct only has members when
-        // _KERNEL_MODE flag is defined. We need to mark this type as opaque to avoid
-        // generating an empty struct, since  they are not currently supported by
-        // bindgen: https://github.com/rust-lang/rust-bindgen/issues/1683
+        // _KERNEL_MODE flag is defined. We need to mark this type as opaque to
+        // avoid generating an empty struct, since  they are not
+        // currently supported by bindgen: https://github.com/rust-lang/rust-bindgen/issues/1683
         if let DriverConfig::Umdf(_) = config.driver_config {
             builder = builder.opaque_type("_USBPM_CLIENT_CONFIG_EXTRA_INFO");
         }
@@ -252,8 +252,8 @@ fn get_stable_rust_target() -> Result<bindgen::RustTarget, ConfigError> {
 #[tracing::instrument(level = "trace")]
 fn get_rust_edition() -> Result<bindgen::RustEdition, ConfigError> {
     const WDK_BUILD_PACKAGE_NAME: &str = "wdk-build";
-    // Run `cargo_metadata` in the same working directory as the top level manifest
-    // in order to respect `config.toml` overrides
+    // Run `cargo_metadata` in the same working directory as the top level
+    // manifest in order to respect `config.toml` overrides
     let top_level_cargo_manifest_path = find_top_level_cargo_manifest();
     debug!(
         "Top level Cargo manifest path: {:?}",

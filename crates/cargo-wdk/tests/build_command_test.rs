@@ -417,8 +417,9 @@ mod sign_mode {
                 cert_in_package.display()
             );
 
-            // Rebuild with signing off (no clean in between). The package folder is
-            // reassembled fresh, so the stale cert must not be present.
+            // Rebuild with signing off (no clean in between). The package
+            // folder is reassembled fresh, so the stale cert must
+            // not be present.
             run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
             assert!(
                 !cert_in_package.exists(),
@@ -508,9 +509,10 @@ mod signtool_args {
             let driver_name = driver.replace('-', "_");
             let common_args = "/s WDRTestCertStore /n WDRLocalTestCert /fd SHA256";
 
-            // The build copies the driver binary into the package folder and signs
-            // the copy, leaving the original under `target/debug` unsigned. We pass
-            // that unsigned original as an extra signtool operand and assert the
+            // The build copies the driver binary into the package folder and
+            // signs the copy, leaving the original under
+            // `target/debug` unsigned. We pass that unsigned
+            // original as an extra signtool operand and assert the
             // build signs it too.
             let extra = env::current_dir()
                 .expect("cwd")
@@ -625,7 +627,8 @@ mod signtool_args {
             for ext in ["cat", "inf", "sys"] {
                 assert_file_exists(&format!("{package_dir}/driver.{ext}"));
             }
-            // Passthrough signing does not generate/copy the WDR test cert file.
+            // Passthrough signing does not generate/copy the WDR test cert
+            // file.
             assert!(
                 !PathBuf::from(format!("{package_dir}/WDRLocalTestCert.cer")).exists(),
                 "passthrough signing should not emit WDRLocalTestCert.cer"
@@ -687,8 +690,9 @@ mod signtool_args {
     }
 
     fn authenticode_signer_subject(path: &Path) -> Option<String> {
-        // Escape single quotes for the PowerShell single-quoted string literal so
-        // paths containing `'` don't break the generated `-Command` script.
+        // Escape single quotes for the PowerShell single-quoted string literal
+        // so paths containing `'` don't break the generated `-Command`
+        // script.
         let literal_path = path.display().to_string().replace('\'', "''");
         let script = format!(
             "$s = Get-AuthenticodeSignature -LiteralPath '{literal_path}'; if \
@@ -1001,8 +1005,8 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
 
     // NuGet WDK package folder names use `x64` (lowercase and not `amd64`) and
     // `ARM64` (uppercase) whereas `cargo-wdk` CLI uses `amd64` / `arm64`
-    // (case-insensitive), so we normalize here in order to locate the right package
-    // folder during tests.
+    // (case-insensitive), so we normalize here in order to locate the right
+    // package folder during tests.
     let target_arch_lower = target_arch.to_ascii_lowercase();
     let nuget_arch = match target_arch_lower.as_str() {
         "amd64" | "x64" | "x86_64" => "x64",

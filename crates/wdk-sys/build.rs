@@ -194,7 +194,8 @@ fn initialize_tracing() -> Result<(), ParseError> {
                             tracing_filter.add_directive(parsed_filter_directive)
                         }
                         Err(parsing_error) => {
-                            // Must use eprintln!() here as tracing is not yet initialized
+                            // Must use eprintln!() here as tracing is not yet
+                            // initialized
                             eprintln!(
                                 "Skipping filter directive, {}, which failed to be parsed from {} \
                                  obtained from {} with the following error: {}",
@@ -681,8 +682,9 @@ fn start_wdf_symbol_export_tasks<'scope>(
                 info_span!(parent: current_span, "cc").in_scope(|| {
                     info!("Compiling wdf.c");
 
-                    // Write all included headers into wdf.c (existing file, if present
-                    // (i.e. incremental rebuild), is truncated)
+                    // Write all included headers into wdf.c (existing file, if
+                    // present (i.e. incremental rebuild),
+                    // is truncated)
                     let wdf_c_file_path = out_path.join("wdf.c");
                     {
                         let mut wdf_c_file = File::create(&wdf_c_file_path)
@@ -703,8 +705,9 @@ fn start_wdf_symbol_export_tasks<'scope>(
                             )
                             .map_err(|source| IoError::with_path(&wdf_c_file_path, source))?;
 
-                        // Explicitly sync_all to surface any IO errors (File::drop
-                        // silently ignores close errors)
+                        // Explicitly sync_all to surface any IO errors
+                        // (File::drop silently ignores
+                        // close errors)
                         wdf_c_file
                             .sync_all()
                             .map_err(|source| IoError::with_path(&wdf_c_file_path, source))?;

@@ -354,8 +354,9 @@ impl ParseCargoArgs for CompilationOptions {
                 "release".to_string()
             }
             _ => {
-                // All other cargo-make profiles do not set a specific cargo profile. Cargo
-                // profiles set by --release, --profile <PROFILE>, or -p <PROFILE> (after
+                // All other cargo-make profiles do not set a specific cargo
+                // profile. Cargo profiles set by --release,
+                // --profile <PROFILE>, or -p <PROFILE> (after
                 // the cargo-make task name) are forwarded to cargo
                 // commands
                 if *release {
@@ -490,8 +491,9 @@ pub fn validate_command_line_args() -> impl IntoIterator<Item = String> {
             .color(if is_cargo_make_color_disabled() {
                 ColorChoice::Never
             } else {
-                // `ColorChoice::Always` is used instead of `ColorChoice::Auto` to force color.
-                // This function is always executed from rust-script invoked by cargo-make,
+                // `ColorChoice::Always` is used instead of `ColorChoice::Auto`
+                // to force color. This function is always
+                // executed from rust-script invoked by cargo-make,
                 // whose piping of stdout/stderr disables color by default.
                 ColorChoice::Always
             })
@@ -648,9 +650,9 @@ pub fn forward_printed_env_vars(env_vars: impl IntoIterator<Item = impl AsRef<st
     for env_var_name in env_vars {
         let env_var_name = env_var_name.as_ref();
 
-        // Since this executes in a child process to cargo-make, we need to forward the
-        // values we want to change to duckscript, in order to get it to modify the
-        // parent process (ie. cargo-make)
+        // Since this executes in a child process to cargo-make, we need to
+        // forward the values we want to change to duckscript, in order
+        // to get it to modify the parent process (ie. cargo-make)
         println!(
             "{env_var_name}={}",
             env::var(env_var_name).unwrap_or_else(|_| panic!(
@@ -913,8 +915,8 @@ fn load_wdk_build_makefile<S: AsRef<str> + AsRef<Utf8Path> + AsRef<Path> + fmt::
         .join("target")
         .join(&makefile_name);
 
-    // Only create a new symlink if the existing one is not already pointing to the
-    // correct file
+    // Only create a new symlink if the existing one is not already pointing to
+    // the correct file
     if !destination_path.exists() {
         std::os::windows::fs::symlink_file(&rust_driver_makefile_toml_path, &destination_path)
             .map_err(|source| {
@@ -1025,9 +1027,10 @@ where
 /// Panics if `CARGO_MAKE_CURRENT_TASK_NAME` is not set in the environment
 pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
     condition_script(|| {
-        // Get the current package name via `CARGO_MAKE_CRATE_NAME_ENV_VAR` instead of
-        // `CARGO_MAKE_CRATE_FS_NAME_ENV_VAR`, since `cargo_metadata` output uses the
-        // non-preprocessed name (ie. - instead of _)
+        // Get the current package name via `CARGO_MAKE_CRATE_NAME_ENV_VAR`
+        // instead of `CARGO_MAKE_CRATE_FS_NAME_ENV_VAR`, since
+        // `cargo_metadata` output uses the non-preprocessed name (ie. -
+        // instead of _)
         let current_package_name = env::var(CARGO_MAKE_CRATE_NAME_ENV_VAR).unwrap_or_else(|_| {
             panic!("{CARGO_MAKE_CRATE_NAME_ENV_VAR} should be set by cargo-make")
         });
@@ -1076,7 +1079,8 @@ pub fn package_driver_flow_condition_script() -> anyhow::Result<()> {
 
             Err(unexpected_error) => {
                 eprintln!("Unexpected error: {unexpected_error:#?}");
-                // Do not silently skip task if unexpected error in parsing WDK Metadata occurs
+                // Do not silently skip task if unexpected error in parsing WDK
+                // Metadata occurs
                 Ok(())
             }
         }
@@ -1164,9 +1168,9 @@ fn configure_wdf_build_output_dir(target_arg: Option<&String>, cargo_make_cargo_
 
         if cargo_make_cargo_profile == "dev" {
             // Cargo puts "dev" profile builds in the "debug" target folder: https://doc.rust-lang.org/cargo/guide/build-cache.html#build-cache.
-            // This also supports cargo-make profile of "development" since cargo-make maps
-            // CARGO_MAKE_PROFILE value of "development" to CARGO_MAKE_CARGO_PROFILE of
-            // "dev".
+            // This also supports cargo-make profile of "development" since
+            // cargo-make maps CARGO_MAKE_PROFILE value of
+            // "development" to CARGO_MAKE_CARGO_PROFILE of "dev".
             output_dir += "/debug";
         } else {
             output_dir += "/";
@@ -1345,9 +1349,9 @@ mod tests {
             let host_arch = host_cpu_arch.as_windows_str();
             let wdk_content_root = setup_test_wdk_layout(&temp, sdk_version, host_arch);
 
-            // Calculate expected PATH components based on default WDK structure.
-            // When WDKBinRoot/WDKToolRoot are not set, setup_path constructs paths from
-            // WDKContentRoot.
+            // Calculate expected PATH components based on default WDK
+            // structure. When WDKBinRoot/WDKToolRoot are not set,
+            // setup_path constructs paths from WDKContentRoot.
             let expected_paths = expected_path_strings(vec![
                 wdk_content_root
                     .join("tools")
@@ -1381,8 +1385,8 @@ mod tests {
             let host_arch = host_cpu_arch.as_windows_str();
             let wdk_content_root = setup_test_wdk_layout(&temp, sdk_version, host_arch);
 
-            // When WDKBinRoot/WDKToolRoot are set (eWDK/NuGet scenario), they should point
-            // to their respective versioned folders
+            // When WDKBinRoot/WDKToolRoot are set (eWDK/NuGet scenario), they
+            // should point to their respective versioned folders
             let bin_root_versioned = wdk_content_root.join("bin").join(sdk_version);
             let tools_root_versioned = wdk_content_root.join("tools").join(sdk_version);
             let expected_paths = expected_path_strings(vec![

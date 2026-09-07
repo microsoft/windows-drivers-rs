@@ -35,9 +35,9 @@ impl SpinLock {
         };
 
         let nt_status;
-        // SAFETY: The resulting ffi object is stored in a private member and not
-        // accessible outside of this module, and this module guarantees that it is
-        // always in a valid state.
+        // SAFETY: The resulting ffi object is stored in a private member and
+        // not accessible outside of this module, and this module
+        // guarantees that it is always in a valid state.
         unsafe {
             nt_status = call_unsafe_wdf_function_binding!(
                 WdfSpinLockCreate,
@@ -62,8 +62,9 @@ impl SpinLock {
 
     /// Acquire the spinlock
     pub fn acquire(&self) {
-        // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally created
-        // by WDF, and this module guarantees that it is always in a valid state.
+        // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally
+        // created by WDF, and this module guarantees that it is always
+        // in a valid state.
         unsafe {
             call_unsafe_wdf_function_binding!(WdfSpinLockAcquire, self.wdf_spin_lock);
         }
@@ -71,8 +72,9 @@ impl SpinLock {
 
     /// Release the spinlock
     pub fn release(&self) {
-        // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally created
-        // by WDF, and this module guarantees that it is always in a valid state.
+        // SAFETY: `wdf_spin_lock` is a private member of `SpinLock`, originally
+        // created by WDF, and this module guarantees that it is always
+        // in a valid state.
         unsafe {
             call_unsafe_wdf_function_binding!(WdfSpinLockRelease, self.wdf_spin_lock);
         }

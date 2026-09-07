@@ -20,8 +20,8 @@ where
     V: AsRef<OsStr>,
     F: FnOnce() -> R,
 {
-    // Tests can execute in multiple threads in the same process, so mutex must be
-    // used to guard access to the environment variables
+    // Tests can execute in multiple threads in the same process, so mutex must
+    // be used to guard access to the environment variables
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     let _mutex_guard = ENV_MUTEX.lock().unwrap();
@@ -78,8 +78,8 @@ where
     K: AsRef<OsStr>,
     V: AsRef<OsStr>,
 {
-    // SAFETY: this function is only conditionally compiled for windows targets, and
-    // env::set_var is always safe for windows targets
+    // SAFETY: this function is only conditionally compiled for windows targets,
+    // and env::set_var is always safe for windows targets
     unsafe {
         std::env::set_var(key, value);
     }
@@ -113,8 +113,8 @@ pub fn remove_var<K>(key: K)
 where
     K: AsRef<OsStr>,
 {
-    // SAFETY: this function is only conditionally compiled for windows targets, and
-    // env::remove_var is always safe for windows targets
+    // SAFETY: this function is only conditionally compiled for windows targets,
+    // and env::remove_var is always safe for windows targets
     unsafe {
         std::env::remove_var(key);
     }

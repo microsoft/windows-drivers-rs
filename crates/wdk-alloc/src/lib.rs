@@ -68,8 +68,9 @@ mod kernel_mode {
         }
 
         unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-            // SAFETY: `ExFreePool` is safe to call from any `IRQL` <= `DISPATCH_LEVEL`
-            // since its freeing memory allocated from `POOL_FLAG_NON_PAGED` in `alloc`
+            // SAFETY: `ExFreePool` is safe to call from any `IRQL` <=
+            // `DISPATCH_LEVEL` since its freeing memory allocated
+            // from `POOL_FLAG_NON_PAGED` in `alloc`
             unsafe {
                 ExFreePool(ptr.cast());
             }

@@ -117,8 +117,8 @@ where
     K: AsRef<OsStr>,
     V: AsRef<OsStr>,
 {
-    // SAFETY: this function is only conditionally compiled for windows targets, and
-    // env::set_var is always safe for windows targets
+    // SAFETY: this function is only conditionally compiled for windows targets,
+    // and env::set_var is always safe for windows targets
     unsafe {
         env::set_var(key, value);
     }
@@ -152,8 +152,8 @@ pub fn remove_var<K>(key: K)
 where
     K: AsRef<OsStr>,
 {
-    // SAFETY: this function is only conditionally compiled for windows targets, and
-    // env::remove_var is always safe for windows targets
+    // SAFETY: this function is only conditionally compiled for windows targets,
+    // and env::remove_var is always safe for windows targets
     unsafe {
         env::remove_var(key);
     }

@@ -137,8 +137,8 @@ impl Drop for FileLockGuard {
 
 impl StringExt for String {
     fn to_snake_case(&self) -> String {
-        // There will be, at max, 2 characters unhandled by the 3-char windows. It is
-        // only less than 2 when the string has length less than 2
+        // There will be, at max, 2 characters unhandled by the 3-char windows.
+        // It is only less than 2 when the string has length less than 2
         const MAX_PADDING_NEEDED: usize = 2;
 
         let mut snake_case_string = Self::with_capacity(self.len());
@@ -150,7 +150,8 @@ impl StringExt for String {
             .tuple_windows()
             .filter_map(|(c1, c2, c3)| Some((c1?, c2, c3)))
         {
-            // Handle camelCase or PascalCase word boundary (e.g. lC in camelCase)
+            // Handle camelCase or PascalCase word boundary (e.g. lC in
+            // camelCase)
             if current_char.is_lowercase() && next_char.is_some_and(|c| c.is_ascii_uppercase()) {
                 snake_case_string.push(current_char);
                 snake_case_string.push('_');
@@ -445,8 +446,9 @@ fn get_wdf_function_info_map(
         let _flock_guard = FileLockGuard::new(flock, span)
             .to_syn_result(span, "unable to create file lock guard")?;
 
-        // Before this thread acquires the lock, it's possible that a concurrent thread
-        // already created the cache. If so, this thread skips cache generation.
+        // Before this thread acquires the lock, it's possible that a concurrent
+        // thread already created the cache. If so, this thread skips
+        // cache generation.
         if !cached_function_info_map_path.exists() {
             let function_info_map = create_wdf_function_info_file_cache(
                 types_path,
@@ -1427,8 +1429,9 @@ mod tests {
 
         #[test]
         fn valid_input() {
-            // This is a snippet of a bindgen-generated file containing types information
-            // used by tests for [`wdk_macros::call_unsafe_wdf_function_binding!`]
+            // This is a snippet of a bindgen-generated file containing types
+            // information used by tests for
+            // [`wdk_macros::call_unsafe_wdf_function_binding!`]
             let types_ast = parse_quote! {
                 pub type PFN_WDFIOQUEUEPURGESYNCHRONOUSLY = ::core::option::Option<
                     unsafe extern "C" fn(DriverGlobals: PWDF_DRIVER_GLOBALS, Queue: WDFQUEUE),
@@ -1457,8 +1460,9 @@ mod tests {
 
         #[test]
         fn valid_input() {
-            // This is a snippet of a bindgen-generated file containing types information
-            // used by tests for [`wdk_macros::call_unsafe_wdf_function_binding!`]
+            // This is a snippet of a bindgen-generated file containing types
+            // information used by tests for
+            // [`wdk_macros::call_unsafe_wdf_function_binding!`]
             let types_ast = parse_quote! {
                 pub type WDF_DRIVER_GLOBALS = _WDF_DRIVER_GLOBALS;
                 pub type PWDF_DRIVER_GLOBALS = *mut _WDF_DRIVER_GLOBALS;

@@ -120,15 +120,15 @@ impl<'a> BuildTask<'a> {
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
 
-        // Run cargo build from the provided working directory so that config.toml
-        // is respected
+        // Run cargo build from the provided working directory so that
+        // config.toml is respected
         let output = self
             .command_exec
             .run("cargo", &args, None, Some(self.params.working_dir))
             .map_err(|mut err| {
                 // Drop stdout from CommandFailed so the noisy
-                // --message-format=json-render-diagnostics output isn't bubbled up
-                // in the wrapped error.
+                // --message-format=json-render-diagnostics output isn't bubbled
+                // up in the wrapped error.
                 if let CommandError::CommandFailed { stdout, .. } = &mut err {
                     stdout.clear();
                 }

@@ -117,8 +117,9 @@ impl<'a> CleanAction<'a> {
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default();
 
-            // Emit the log only once for the entire emulated workspace, the first
-            // time a valid Rust project is discovered during the scan.
+            // Emit the log only once for the entire emulated workspace, the
+            // first time a valid Rust project is discovered during
+            // the scan.
             if !found_at_least_one_project {
                 info!("Cleaning package(s) in {}", self.working_dir.display());
             }
