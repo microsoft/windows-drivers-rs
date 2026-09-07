@@ -613,8 +613,13 @@ mod tests {
 
         #[test]
         fn infverif_args_rejects_mode_flags() {
-            for (value, mode_flag) in [("/h", "/h"), ("/w", "/w"), ("/U", "/U"), ("/info -w", "-w")]
-            {
+            for (value, mode_flag) in [
+                ("/h", "/h"),
+                ("/w", "/w"),
+                ("/U", "/U"),
+                ("/info -w", "-w"),
+                ("/rulever 10.0.22621 -h /info /w pkg.inf", "-h"),
+            ] {
                 assert_infverif_args_rejected(
                     value,
                     &format!(
