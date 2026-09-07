@@ -76,10 +76,14 @@ pub unsafe extern "system" fn driver_entry(
 
     let rw_spin_lock = RwSpinLock::new(0_u32);
     {
-        let mut sample_value = rw_spin_lock.write();
+        // SAFETY: DriverEntry runs at PASSIVE_LEVEL, and this guard is not
+        // nested with another spin-lock guard.
+        let mut sample_value = unsafe { rw_spin_lock.write() };
         *sample_value = 3;
     }
-    let sample_value = *rw_spin_lock.read();
+    // SAFETY: DriverEntry runs at PASSIVE_LEVEL, and the previous spin-lock
+    // guard has already been dropped.
+    let sample_value = *unsafe { rw_spin_lock.read() };
     println!("RwSpinLock sample value: {sample_value}");
 
     // Translate UTF16 string to rust string

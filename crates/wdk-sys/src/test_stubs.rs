@@ -116,6 +116,53 @@ pub use spin_lock_test_state::{
     spin_lock_events,
 };
 
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+mod push_lock_test_state {
+    use super::{AtomicU32, Ordering, ULONG};
+
+    pub(super) const ENTER_CRITICAL_REGION: ULONG = 1;
+    pub(super) const SHARED_ACQUIRE: ULONG = 2;
+    pub(super) const SHARED_RELEASE: ULONG = 3;
+    pub(super) const LEAVE_CRITICAL_REGION: ULONG = 4;
+    pub(super) const EXCLUSIVE_ACQUIRE: ULONG = 5;
+    pub(super) const EXCLUSIVE_RELEASE: ULONG = 6;
+
+    /// Expected call sequence for a shared push-lock acquire/release pair.
+    pub const PUSH_LOCK_SHARED_EVENTS: ULONG = 0x1234;
+
+    /// Expected call sequence for an exclusive push-lock acquire/release pair.
+    pub const PUSH_LOCK_EXCLUSIVE_EVENTS: ULONG = 0x1564;
+
+    static PUSH_LOCK_EVENTS: AtomicU32 = AtomicU32::new(0);
+
+    pub(super) fn record(event: ULONG) {
+        let _previous_events = PUSH_LOCK_EVENTS.fetch_update(
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+            |events| Some((events << 4) | event),
+        );
+    }
+
+    /// Clear the push-lock events recorded by the test stubs.
+    pub fn reset_push_lock_events() {
+        PUSH_LOCK_EVENTS.store(0, Ordering::Relaxed);
+    }
+
+    /// Return the push-lock events recorded by the test stubs.
+    #[must_use]
+    pub fn push_lock_events() -> ULONG {
+        PUSH_LOCK_EVENTS.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+pub use push_lock_test_state::{
+    PUSH_LOCK_EXCLUSIVE_EVENTS,
+    PUSH_LOCK_SHARED_EVENTS,
+    push_lock_events,
+    reset_push_lock_events,
+};
+
 /// Stubbed version of `DriverEntry` Symbol so that test targets will compile
 ///
 /// # Safety
@@ -234,12 +281,16 @@ pub extern "system" fn ExDeleteResourceLite(_resource: *mut ERESOURCE) -> NTSTAT
 /// Stubbed version of `KeEnterCriticalRegion` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "system" fn KeEnterCriticalRegion() {}
+pub extern "system" fn KeEnterCriticalRegion() {
+    push_lock_test_state::record(push_lock_test_state::ENTER_CRITICAL_REGION);
+}
 
 /// Stubbed version of `KeLeaveCriticalRegion` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "system" fn KeLeaveCriticalRegion() {}
+pub extern "system" fn KeLeaveCriticalRegion() {
+    push_lock_test_state::record(push_lock_test_state::LEAVE_CRITICAL_REGION);
+}
 
 /// Stubbed version of `ExInitializePushLock` so test targets can link
 ///
@@ -258,22 +309,30 @@ pub unsafe extern "system" fn ExInitializePushLock(push_lock: *mut ULONG_PTR) {
 /// Stubbed version of `ExAcquirePushLockSharedEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "system" fn ExAcquirePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExAcquirePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {
+    push_lock_test_state::record(push_lock_test_state::SHARED_ACQUIRE);
+}
 
 /// Stubbed version of `ExAcquirePushLockExclusiveEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "system" fn ExAcquirePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExAcquirePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {
+    push_lock_test_state::record(push_lock_test_state::EXCLUSIVE_ACQUIRE);
+}
 
 /// Stubbed version of `ExReleasePushLockSharedEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "system" fn ExReleasePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExReleasePushLockSharedEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {
+    push_lock_test_state::record(push_lock_test_state::SHARED_RELEASE);
+}
 
 /// Stubbed version of `ExReleasePushLockExclusiveEx` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[unsafe(no_mangle)]
-pub extern "system" fn ExReleasePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {}
+pub extern "system" fn ExReleasePushLockExclusiveEx(_push_lock: *mut ULONG_PTR, _flags: ULONG) {
+    push_lock_test_state::record(push_lock_test_state::EXCLUSIVE_RELEASE);
+}
 
 /// Stubbed version of `ExAcquireSpinLockShared` so test targets can link
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]

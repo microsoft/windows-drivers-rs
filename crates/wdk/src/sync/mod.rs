@@ -8,7 +8,8 @@
 //! - [`PushLock`] uses `EX_PUSH_LOCK` for compact waitable reader-writer
 //!   locking at `IRQL <= APC_LEVEL`.
 //! - [`RwSpinLock`] uses `EX_SPIN_LOCK` for very short non-waiting sections
-//!   that can run up to `DISPATCH_LEVEL`.
+//!   that can run up to `DISPATCH_LEVEL`; its acquisition methods are unsafe
+//!   because callers must uphold the WDK's IRQL and release-order contracts.
 
 pub use push_lock::*;
 #[cfg(feature = "rw-lock")]

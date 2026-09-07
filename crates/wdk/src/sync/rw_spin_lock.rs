@@ -24,9 +24,11 @@ use wdk_sys::{
 /// Reader-writer spin lock backed by `EX_SPIN_LOCK`.
 ///
 /// This lock is intended for very short critical sections that may be accessed
-/// from elevated-IRQL paths. [`RwSpinLock::read`] and [`RwSpinLock::write`] can
-/// be called at `IRQL <= DISPATCH_LEVEL`; they raise to `DISPATCH_LEVEL` and
-/// restore the previous IRQL when the guard is dropped.
+/// from elevated-IRQL paths. [`RwSpinLock::read`] and [`RwSpinLock::write`]
+/// raise to `DISPATCH_LEVEL` and restore the previous IRQL when the guard is
+/// dropped. These methods are unsafe because Rust cannot enforce the WDK's
+/// requirement that nested spin-lock acquisitions be released in strict
+/// reverse order.
 ///
 /// The `*_at_dpc_level` methods are for callers that are already running at
 /// `DISPATCH_LEVEL`. They do not save or restore IRQL. Code while holding this
@@ -73,11 +75,20 @@ impl<T: ?Sized> RwSpinLock<T> {
     ///
     /// This raises the current IRQL to `DISPATCH_LEVEL` and restores the
     /// previous IRQL when the returned guard is dropped.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be running at `IRQL <= DISPATCH_LEVEL` and must not
+    /// already hold this lock. The returned guard must be dropped in strict
+    /// reverse acquisition order relative to every other spin-lock guard on
+    /// the current thread. The caller must not otherwise lower IRQL below
+    /// `DISPATCH_LEVEL` until the guard is dropped.
     #[must_use]
-    pub fn read(&self) -> RwSpinLockReadGuard<'_, T> {
+    pub unsafe fn read(&self) -> RwSpinLockReadGuard<'_, T> {
         let old_irql;
         // SAFETY: `spin_lock_ptr` returns the initialized spin lock owned by
-        // this object. The caller is at `IRQL <= DISPATCH_LEVEL`.
+        // this object. The caller guarantees it is at
+        // `IRQL <= DISPATCH_LEVEL`.
         unsafe {
             old_irql = ExAcquireSpinLockShared(self.spin_lock_ptr());
         }
@@ -93,9 +104,9 @@ impl<T: ?Sized> RwSpinLock<T> {
     ///
     /// # Safety
     ///
-    /// The caller must already be running at `DISPATCH_LEVEL` and must remain
-    /// at that IRQL until the returned guard is dropped. The guard will not
-    /// restore IRQL when it is dropped.
+    /// The caller must already be running at `DISPATCH_LEVEL`, must not already
+    /// hold this lock, and must remain at that IRQL until the returned guard is
+    /// dropped. The guard will not restore IRQL when it is dropped.
     #[must_use]
     pub unsafe fn read_at_dpc_level(&self) -> RwSpinLockReadGuard<'_, T> {
         // SAFETY: The caller guarantees current IRQL is `DISPATCH_LEVEL`, and
@@ -116,11 +127,20 @@ impl<T: ?Sized> RwSpinLock<T> {
     ///
     /// This raises the current IRQL to `DISPATCH_LEVEL` and restores the
     /// previous IRQL when the returned guard is dropped.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be running at `IRQL <= DISPATCH_LEVEL` and must not
+    /// already hold this lock. The returned guard must be dropped in strict
+    /// reverse acquisition order relative to every other spin-lock guard on
+    /// the current thread. The caller must not otherwise lower IRQL below
+    /// `DISPATCH_LEVEL` until the guard is dropped.
     #[must_use]
-    pub fn write(&self) -> RwSpinLockWriteGuard<'_, T> {
+    pub unsafe fn write(&self) -> RwSpinLockWriteGuard<'_, T> {
         let old_irql;
         // SAFETY: `spin_lock_ptr` returns the initialized spin lock owned by
-        // this object. The caller is at `IRQL <= DISPATCH_LEVEL`.
+        // this object. The caller guarantees it is at
+        // `IRQL <= DISPATCH_LEVEL`.
         unsafe {
             old_irql = ExAcquireSpinLockExclusive(self.spin_lock_ptr());
         }
@@ -136,9 +156,9 @@ impl<T: ?Sized> RwSpinLock<T> {
     ///
     /// # Safety
     ///
-    /// The caller must already be running at `DISPATCH_LEVEL` and must remain
-    /// at that IRQL until the returned guard is dropped. The guard will not
-    /// restore IRQL when it is dropped.
+    /// The caller must already be running at `DISPATCH_LEVEL`, must not already
+    /// hold this lock, and must remain at that IRQL until the returned guard is
+    /// dropped. The guard will not restore IRQL when it is dropped.
     #[must_use]
     pub unsafe fn write_at_dpc_level(&self) -> RwSpinLockWriteGuard<'_, T> {
         // SAFETY: The caller guarantees current IRQL is `DISPATCH_LEVEL`, and
