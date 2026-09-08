@@ -115,6 +115,15 @@ If you have a workspace with a mix of sample and non-sample driver projects, the
 
 To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat`. `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
 
+#### Customizing `infverif` arguments
+
+To pin the InfVerif rule version, print rule details, or customize the behaviour of `infverif`, pass `--infverif-args` with a string of the arguments to forward to `infverif`.
+
+**Note:**
+
+- `cargo-wdk` derives the validation mode flag (`/h`, `/w` or `/u`) from `--target-platform`, so passing any of them is an error.
+- `cargo-wdk` passes the generated INF file itself, so passing a `.inf` operand is an error.
+
 #### Signing and Verification
 
 The `build` command has a `--sign-mode` flag that controls how driver artifacts are signed. It accepts the following values:

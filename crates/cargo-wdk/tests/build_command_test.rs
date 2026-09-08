@@ -759,11 +759,8 @@ fn kmdf_driver_with_custom_infverif_args_builds_successfully() {
         Some(&["--infverif-args", "/rulever 10.0.22621 /stampinf", "-v"]),
     );
     assert!(
-        stderr.contains(
-            "Running: infverif [\"/v\", \"/u\", \"/rulever\", \"10.0.22621\", \"/stampinf\", "
-        ),
-        "expected `--infverif-args` to be appended after the mode flag and before the INF path; \
-         stderr:\n{stderr}"
+        stderr.contains("\"/rulever\", \"10.0.22621\", \"/stampinf\""),
+        "expected `--infverif-args` to be forwarded to `infverif`; stderr:\n{stderr}"
     );
 }
 

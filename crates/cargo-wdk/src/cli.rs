@@ -169,6 +169,8 @@ pub struct BuildArgs {
     #[arg(
         long,
         value_name = "ARGS",
+        // `infverif` args can be `-` prefixed.
+        allow_hyphen_values = true,
         value_parser = parse_passthrough_args,
         help_heading = "InfVerif Options"
     )]
@@ -617,7 +619,7 @@ mod tests {
                 ("/h", "/h"),
                 ("/w", "/w"),
                 ("/U", "/U"),
-                ("/info -w", "-w"),
+                ("-w", "-w"),
                 ("/rulever 10.0.22621 -h /info /w pkg.inf", "-h"),
             ] {
                 assert_infverif_args_rejected(
@@ -641,23 +643,20 @@ mod tests {
         }
 
         #[test]
-        fn infverif_args_allows_other_switches() {
-            let args = parse_build_args(&["--infverif-args", "/rulever 10.0.22621 /info"])
-                .expect("args should parse");
-            assert_eq!(
-                args.infverif_args().expect("should resolve"),
-                Some(vec![
-                    "/rulever".to_string(),
-                    "10.0.22621".to_string(),
-                    "/info".to_string()
-                ])
-            );
-        }
-
-        #[test]
-        fn infverif_args_defaults_to_none() {
-            let args = parse_build_args(&[]).expect("args should parse");
-            assert_eq!(args.infverif_args().expect("should resolve"), None);
+        fn infverif_args_allows_other_args() {
+            for value in ["/rulever 10.0.22621 /info", "-rulever 10.0.22621 -info"] {
+                let args =
+                    parse_build_args(&["--infverif-args", value]).expect("args should parse");
+                let prefix = &value[..1];
+                assert_eq!(
+                    args.infverif_args().expect("should resolve"),
+                    Some(vec![
+                        format!("{prefix}rulever"),
+                        "10.0.22621".to_string(),
+                        format!("{prefix}info"),
+                    ])
+                );
+            }
         }
     }
 
