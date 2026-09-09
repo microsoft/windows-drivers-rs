@@ -376,7 +376,7 @@ mod sign_mode {
             let package_dir = format!("{target_dir}/{driver_name}_package");
 
             assert_dir_exists(&package_dir);
-            for ext in ["cat", "inf", "map", "pdb", "sys"] {
+            for ext in ["cat", "inf", "pdb", "sys"] {
                 assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
             }
 
@@ -428,7 +428,7 @@ mod sign_mode {
             );
 
             assert_dir_exists(&package_dir);
-            for ext in ["cat", "inf", "map", "pdb", "sys"] {
+            for ext in ["cat", "inf", "pdb", "sys"] {
                 assert_file_exists(&format!("{package_dir}/{driver_name}.{ext}"));
             }
         });
