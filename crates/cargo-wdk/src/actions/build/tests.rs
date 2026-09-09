@@ -479,7 +479,6 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
@@ -533,7 +532,6 @@ pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_rec
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_self_signed_cert_file_exists(&cwd, false)
@@ -684,7 +682,6 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(
             driver_name,
             &cwd,
@@ -745,7 +742,6 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(
             driver_name,
@@ -807,7 +803,6 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, None)
@@ -867,7 +862,6 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, None)
@@ -928,7 +922,6 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, None)
@@ -991,7 +984,6 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
         .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
         .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
         .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-        .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
         .expect_stampinf(driver_name, &cwd, target_arch, None)
         .expect_inf2cat(driver_name, &cwd, target_arch, None)
         .expect_infverif(driver_name, &cwd, None, Some(expected_output));
@@ -1306,7 +1298,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_copy_driver_binary_sys_to_package_folder(driver_name_1, &workspace_root_dir, true)
         .expect_copy_pdb_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
         .expect_copy_inx_file_to_package_folder(driver_name_1, &cwd, true, &workspace_root_dir)
-        .expect_copy_map_file_to_package_folder(driver_name_1, &workspace_root_dir, true)
         .expect_stampinf(driver_name_1, &workspace_root_dir, target_arch, None)
         .expect_inf2cat(driver_name_1, &workspace_root_dir, target_arch, None)
         .expect_self_signed_cert_file_exists(&workspace_root_dir, false)
@@ -2033,7 +2024,6 @@ impl TestBuildAction {
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
             .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
             .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
             .expect_stampinf(driver_name, &cwd, target_arch, None)
             .expect_inf2cat(driver_name, &cwd, target_arch, None)
             .expect_self_signed_cert_file_exists(&cwd, false)
@@ -2065,7 +2055,6 @@ impl TestBuildAction {
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
             .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
             .expect_copy_inx_file_to_package_folder(driver_name, &cwd, true, &cwd)
-            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
             .expect_stampinf(driver_name, &cwd, target_arch, None)
             .expect_inf2cat(driver_name, &cwd, target_arch, None)
             .expect_infverif(driver_name, &cwd, None, None)
@@ -2086,7 +2075,6 @@ impl TestBuildAction {
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
             .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
             .expect_copy_inx_file_to_package_folder(driver_name, &cwd.join(driver_name), true, &cwd)
-            .expect_copy_map_file_to_package_folder(driver_name, &cwd, true)
             .expect_stampinf(driver_name, &cwd, target_arch, None)
             .expect_inf2cat(driver_name, &cwd, target_arch, None)
             .expect_self_signed_cert_file_exists(&cwd, false)
@@ -2428,45 +2416,6 @@ impl TestBuildAction {
                     Err(FileError::CopyError(
                         expected_src_driver_inx_path.clone(),
                         expected_dest_driver_inf_path.clone(),
-                        std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
-                    ))
-                }
-            });
-        self
-    }
-
-    fn expect_copy_map_file_to_package_folder(
-        mut self,
-        driver_name: &str,
-        driver_dir: &Path,
-        is_success: bool,
-    ) -> Self {
-        let expected_driver_name_underscored = driver_name.replace('-', "_");
-        let expected_target_dir = self.setup_target_dir(driver_dir);
-        let expected_final_package_dir_path =
-            expected_target_dir.join(format!("{expected_driver_name_underscored}_package"));
-        let mock_non_zero_bytes_copied_size = 1000u64;
-
-        // copy map file to package directory
-        let expected_src_driver_map_path = expected_target_dir
-            .join("deps")
-            .join(format!("{expected_driver_name_underscored}.map"));
-        let expected_dest_driver_map_path =
-            expected_final_package_dir_path.join(format!("{expected_driver_name_underscored}.map"));
-        self.mock_fs_provider
-            .expect_copy()
-            .with(
-                eq(expected_src_driver_map_path.clone()),
-                eq(expected_dest_driver_map_path.clone()),
-            )
-            .once()
-            .returning(move |_, _| {
-                if is_success {
-                    Ok(mock_non_zero_bytes_copied_size)
-                } else {
-                    Err(FileError::CopyError(
-                        expected_src_driver_map_path.clone(),
-                        expected_dest_driver_map_path.clone(),
                         std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "copy error"),
                     ))
                 }

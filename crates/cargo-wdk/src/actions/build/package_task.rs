@@ -102,7 +102,6 @@ pub struct PackageTask<'a> {
     src_driver_binary_file_path: PathBuf,
     src_renamed_driver_binary_file_path: PathBuf,
     src_pdb_file_path: PathBuf,
-    src_map_file_path: PathBuf,
     src_cert_file_path: PathBuf,
 
     // destination paths
@@ -110,7 +109,6 @@ pub struct PackageTask<'a> {
     dest_inf_file_path: PathBuf,
     dest_driver_binary_path: PathBuf,
     dest_pdb_file_path: PathBuf,
-    dest_map_file_path: PathBuf,
     dest_cert_file_path: PathBuf,
     dest_cat_file_path: PathBuf,
 
@@ -172,10 +170,6 @@ impl<'a> PackageTask<'a> {
             .target_dir
             .join(format!("{package_name}.{src_driver_binary_extension}"));
         let src_pdb_file_path = params.target_dir.join(format!("{package_name}.pdb"));
-        let src_map_file_path = params
-            .target_dir
-            .join("deps")
-            .join(format!("{package_name}.map"));
         let src_cert_file_path = params.target_dir.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
 
         // destination paths
@@ -193,7 +187,6 @@ impl<'a> PackageTask<'a> {
         let dest_driver_binary_path =
             dest_root_package_folder.join(format!("{package_name}.{dest_driver_binary_extension}"));
         let dest_pdb_file_path = dest_root_package_folder.join(format!("{package_name}.pdb"));
-        let dest_map_file_path = dest_root_package_folder.join(format!("{package_name}.map"));
         let dest_cert_file_path =
             dest_root_package_folder.join(format!("{WDR_LOCAL_TEST_CERT}.cer"));
         let dest_cat_file_path = dest_root_package_folder.join(format!("{package_name}.cat"));
@@ -212,13 +205,11 @@ impl<'a> PackageTask<'a> {
             src_driver_binary_file_path,
             src_renamed_driver_binary_file_path,
             src_pdb_file_path,
-            src_map_file_path,
             src_cert_file_path,
             dest_root_package_folder,
             dest_inf_file_path,
             dest_driver_binary_path,
             dest_pdb_file_path,
-            dest_map_file_path,
             dest_cert_file_path,
             dest_cat_file_path,
             arch: params.target_arch,
@@ -281,7 +272,6 @@ impl<'a> PackageTask<'a> {
         )?;
         self.copy(&self.src_pdb_file_path, &self.dest_pdb_file_path)?;
         self.copy(&self.src_inx_file_path, &self.dest_inf_file_path)?;
-        self.copy(&self.src_map_file_path, &self.dest_map_file_path)?;
         self.run_stampinf()?;
         self.run_inf2cat()?;
         self.run_infverif()?;
@@ -765,10 +755,6 @@ mod tests {
         );
         assert_eq!(task.src_pdb_file_path, target_dir.join("test_package.pdb"));
         assert_eq!(
-            task.src_map_file_path,
-            target_dir.join("deps").join("test_package.map")
-        );
-        assert_eq!(
             task.src_cert_file_path,
             target_dir.join("WDRLocalTestCert.cer")
         );
@@ -779,7 +765,6 @@ mod tests {
             dest_root.join("test_package.sys")
         );
         assert_eq!(task.dest_pdb_file_path, dest_root.join("test_package.pdb"));
-        assert_eq!(task.dest_map_file_path, dest_root.join("test_package.map"));
         assert_eq!(
             task.dest_cert_file_path,
             dest_root.join("WDRLocalTestCert.cer")

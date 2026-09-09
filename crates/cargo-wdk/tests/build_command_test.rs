@@ -891,18 +891,13 @@ fn verify_driver_package_files(
     // Verify files exist in package folder
     assert_dir_exists(&package_path);
 
-    for ext in ["cat", "inf", "map", "pdb", driver_binary_extension] {
+    for ext in ["cat", "inf", "pdb", driver_binary_extension] {
         assert_file_exists(&format!("{package_path}/{driver_name}.{ext}"));
     }
 
     assert_file_exists(&format!("{package_path}/WDRLocalTestCert.cer"));
 
     // Verify hashes of files copied from debug to package folder
-    assert_file_hash(
-        &format!("{package_path}/{driver_name}.map"),
-        &format!("{target_folder_path}/deps/{driver_name}.map"),
-    );
-
     assert_file_hash(
         &format!("{package_path}/{driver_name}.pdb"),
         &format!("{target_folder_path}/{driver_name}.pdb"),
