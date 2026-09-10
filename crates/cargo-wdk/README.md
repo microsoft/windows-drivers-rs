@@ -117,12 +117,7 @@ To target a specific set of Windows versions or to customize the behaviour of `i
 
 #### Customizing `infverif` arguments
 
-To pin the InfVerif rule version, print rule details, or customize the behaviour of `infverif`, pass `--infverif-args` with a string of the arguments to forward to `infverif`.
-
-**Note:**
-
-- `cargo-wdk` derives the validation mode flag (`/h`, `/w` or `/u`) from `--target-platform`, so passing any of them is an error.
-- `cargo-wdk` passes the generated INF file itself, so passing a `.inf` operand is an error.
+To customize the behaviour of `infverif`, pass `--infverif-args` with arguments to forward to `infverif`. Args `-h`, `-w`, `-u` and paths to `.INF` files are not allowed because they are always supplied by `cargo-wdk` itself.
 
 #### Signing and Verification
 

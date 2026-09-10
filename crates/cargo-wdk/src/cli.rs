@@ -243,7 +243,7 @@ impl BuildArgs {
 
     /// Resolves the arguments to forward to `infverif`. Rejects the arguments
     /// cargo-wdk supplies itself: the mode flags derived from the
-    /// `--target-platform` option and the INF file operand.
+    /// `--target-platform` option and the INF file path.
     fn infverif_args(&self) -> Result<Option<Vec<String>>, clap::Error> {
         const MODE_FLAGS: [&str; 3] = ["h", "w", "u"];
 
@@ -260,7 +260,7 @@ impl BuildArgs {
                 .extension()
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("inf"))
             {
-                "cargo-wdk supplies the INF file operand itself".to_string()
+                "cargo-wdk supplies the INF file path itself".to_string()
             } else {
                 continue;
             };
@@ -617,9 +617,10 @@ mod tests {
         fn infverif_args_rejects_mode_flags() {
             for (value, mode_flag) in [
                 ("/h", "/h"),
-                ("/w", "/w"),
-                ("/U", "/U"),
                 ("-w", "-w"),
+                ("/U", "/U"),
+                ("/info -w", "-w"),
+                ("-info /w", "/w"),
                 ("/rulever 10.0.22621 -h /info /w pkg.inf", "-h"),
             ] {
                 assert_infverif_args_rejected(
@@ -633,28 +634,34 @@ mod tests {
         }
 
         #[test]
-        fn infverif_args_rejects_inf_operands() {
-            for value in ["extra.inf", "/info C:\\pkg\\other.INF"] {
-                assert_infverif_args_rejected(
-                    value,
-                    "cargo-wdk supplies the INF file operand itself",
-                );
+        fn infverif_args_rejects_inf_paths() {
+            for value in [
+                "extra.inf",
+                "/info C:\\pkg\\other.INF",
+                "-info C:\\pkg\\other.INF",
+            ] {
+                assert_infverif_args_rejected(value, "cargo-wdk supplies the INF file path itself");
             }
         }
 
         #[test]
         fn infverif_args_allows_other_args() {
-            for value in ["/rulever 10.0.22621 /info", "-rulever 10.0.22621 -info"] {
+            for (value, expected) in [
+                (
+                    "/rulever 10.0.22621 -info",
+                    ["/rulever", "10.0.22621", "-info"],
+                ),
+                (
+                    "-rulever 10.0.22621 /info",
+                    ["-rulever", "10.0.22621", "/info"],
+                ),
+            ] {
                 let args =
                     parse_build_args(&["--infverif-args", value]).expect("args should parse");
-                let prefix = &value[..1];
                 assert_eq!(
                     args.infverif_args().expect("should resolve"),
-                    Some(vec![
-                        format!("{prefix}rulever"),
-                        "10.0.22621".to_string(),
-                        format!("{prefix}info"),
-                    ])
+                    Some(expected.map(str::to_string).to_vec()),
+                    "unexpected args for {value:?}"
                 );
             }
         }

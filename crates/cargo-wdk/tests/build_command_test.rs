@@ -756,10 +756,10 @@ fn kmdf_driver_with_custom_infverif_args_builds_successfully() {
         None,
         None,
         None,
-        Some(&["--infverif-args", "/rulever 10.0.22621 /stampinf", "-v"]),
+        Some(&["--infverif-args", "-rulever 10.0.22621 /stampinf", "-v"]),
     );
     assert!(
-        stderr.contains("\"/rulever\", \"10.0.22621\", \"/stampinf\""),
+        stderr.contains("\"-rulever\", \"10.0.22621\", \"/stampinf\""),
         "expected `--infverif-args` to be forwarded to `infverif`; stderr:\n{stderr}"
     );
 }
