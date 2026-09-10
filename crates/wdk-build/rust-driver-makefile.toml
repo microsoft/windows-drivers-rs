@@ -380,29 +380,6 @@ script_runner_args = [
   "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
 ]
 
-[tasks.copy-map-to-package]
-dependencies = ["build"]
-private = true
-script = '''
-//! ```cargo
-//! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
-//! ```
-#![allow(unused_doc_comments)]
-
-wdk_build::cargo_make::copy_to_driver_package_folder(
-    wdk_build::cargo_make::get_wdk_build_output_directory().join(format!(
-        "deps/{}.map",
-        wdk_build::cargo_make::get_current_package_name()
-    )),
-)?
-'''
-script_runner = "@rust"
-script_runner_args = [
-  "--base-path",
-  "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",
-]
-
 [tasks.inf2cat]
 args = [
   "/driver:${WDK_BUILD_OUTPUT_DIRECTORY}/${CARGO_MAKE_CRATE_FS_NAME}_package",
@@ -522,7 +499,6 @@ dependencies = [
   "copy-driver-binary-to-package",
   "copy-pdb-to-package",
   "copy-inf-to-package",
-  "copy-map-to-package",
   "copy-certificate-to-package",
   "sign-driver-binary",
   "verify-signature-driver-binary",
