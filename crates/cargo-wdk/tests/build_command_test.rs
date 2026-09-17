@@ -756,7 +756,7 @@ mod stampinf_args {
             "kmdf",
             driver,
             None,
-            Some("4.3.2.1"),
+            Some("01/01/2026,4.3.2.1"),
             None,
             None,
             None,
@@ -1013,10 +1013,21 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
     };
 
     // Example: DriverVer = 09/13/2023,1.0.0.0
+    let (driver_date, driver_version) = match driver_version {
+        Some(val) if val.contains(',') => {
+            let (d, v) = val.split_once(',').unwrap();
+            let d = (!d.is_empty()).then_some(d);
+            let v = (!v.is_empty()).then_some(v);
+            (d, v)
+        }
+        _ => (None, driver_version),
+    };
+
+    let driver_date_regex = driver_date.map_or_else(|| r"\d+/\d+/\d+".to_string(), regex::escape);
     let driver_version_regex =
         driver_version.map_or_else(|| r"\d+\.\d+\.\d+\.\d+".to_string(), regex::escape);
     let re = regex::Regex::new(&format!(
-        r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
+        r"^DriverVer\s+=\s+{driver_date_regex},{driver_version_regex}$"
     ))
     .unwrap();
 
