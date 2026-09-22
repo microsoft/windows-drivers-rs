@@ -30,6 +30,9 @@ jobs:
 
         llvm:
           - 17.0.6
+          - 19.1.7
+          - 20.1.8
+          - 21.1.2
 
         rust_toolchain:
           - stable
