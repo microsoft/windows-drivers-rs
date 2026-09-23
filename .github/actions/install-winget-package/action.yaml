@@ -152,3 +152,9 @@ runs:
                       }
                   }
               }
+
+        - name: Collect failure diagnostics
+          if: failure()
+          uses: ./.github/actions/winget-failure-diagnostics
+          with:
+            scope: winget

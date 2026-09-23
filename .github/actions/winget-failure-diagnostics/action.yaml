@@ -1,0 +1,178 @@
+name: Collect WinGet/PSGallery Failure Diagnostics
+description: >-
+  Emit diagnostic information (runner egress IP, runner environment, network configuration,
+  service-specific probes, and recent WinGet logs) when a WinGet or PSGallery operation fails.
+  Intended to be invoked from an `if: failure()` step immediately after the failing operation,
+  so the captured diagnostics can be attached to upstream bug reports (e.g. winget-cli).
+inputs:
+  scope:
+    description: "Which service to probe: 'winget' (WinGet CDN), 'psgallery' (PowerShell Gallery), or 'both'."
+    required: false
+    default: 'both'
+runs:
+  using: composite
+  steps:
+    - name: Collect WinGet/PSGallery failure diagnostics
+      shell: pwsh
+      run: |
+        # Best-effort diagnostics. This step itself must never fail or mask the original error.
+        $ErrorActionPreference = 'Continue'
+
+        $scope = '${{ inputs.scope }}'.Trim().ToLowerInvariant()
+        if ($scope -notin @('winget', 'psgallery', 'both')) {
+          Write-Warning "Invalid scope '$scope'; defaulting to 'both'."
+          $scope = 'both'
+        }
+
+        function Write-Group([string]$Name) { Write-Host "::group::$Name" }
+        function Close-Group { Write-Host "::endgroup::" }
+
+        function Invoke-DirectProbe {
+          param(
+            [string]$Label,
+            [string]$Method,
+            [string]$Url
+          )
+
+          Write-Host "--- $Label : $Method $Url ---"
+          try {
+            $resp = Invoke-WebRequest -Uri $Url -Method $Method -UseBasicParsing -MaximumRedirection 0 -TimeoutSec 15 -ErrorAction Stop
+            Write-Host "Status: $([int]$resp.StatusCode) $($resp.StatusDescription)"
+            if ($resp.Headers) {
+              foreach ($entry in $resp.Headers.GetEnumerator()) {
+                Write-Host "  $($entry.Key): $($entry.Value)"
+              }
+            }
+            if ($Method -ne 'Head' -and $resp.Content) {
+              $body = if ($resp.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($resp.Content) } else { [string]$resp.Content }
+              $snippet = $body.Substring(0, [Math]::Min(800, $body.Length))
+              Write-Host "  Body (first 800 chars): $snippet"
+            }
+          } catch {
+            Write-Host "Request failed: $($_.Exception.Message)"
+            $response = $_.Exception.Response
+            if ($response) {
+              try { Write-Host "  Status: $([int]$response.StatusCode) $($response.StatusCode)" } catch { }
+              try {
+                foreach ($entry in $response.Headers.GetEnumerator()) {
+                  Write-Host "  $($entry.Key): $($entry.Value)"
+                }
+              } catch { }
+              try {
+                $stream = $response.GetResponseStream()
+                if ($stream) {
+                  $reader = [System.IO.StreamReader]::new($stream)
+                  $body = $reader.ReadToEnd()
+                  if ($body) {
+                    $snippet = $body.Substring(0, [Math]::Min(800, $body.Length))
+                    Write-Host "  Body (first 800 chars): $snippet"
+                  }
+                }
+              } catch { }
+            }
+          }
+        }
+
+        Write-Group "Failure diagnostics: runner environment"
+        Write-Host "RUNNER_NAME        : $env:RUNNER_NAME"
+        Write-Host "RUNNER_ARCH        : $env:RUNNER_ARCH"
+        Write-Host "RUNNER_OS          : $env:RUNNER_OS"
+        Write-Host "ImageOS            : $env:ImageOS"
+        Write-Host "ImageVersion       : $env:ImageVersion"
+        Write-Host "GITHUB_RUN_ID      : $env:GITHUB_RUN_ID"
+        Write-Host "GITHUB_RUN_ATTEMPT : $env:GITHUB_RUN_ATTEMPT"
+        Write-Host "GITHUB_JOB         : $env:GITHUB_JOB"
+        Write-Host "GITHUB_ACTION      : $env:GITHUB_ACTION"
+        Close-Group
+
+        Write-Group "Failure diagnostics: runner egress IP"
+        foreach ($probe in @(
+          @{ name = 'IPv4 (api.ipify.org)';        url = 'https://api.ipify.org?format=json' },
+          @{ name = 'IPv6/dual (api64.ipify.org)'; url = 'https://api64.ipify.org?format=json' }
+        )) {
+          try {
+            $resp = Invoke-RestMethod -Uri $probe.url -TimeoutSec 10 -ErrorAction Stop
+            Write-Host "$($probe.name): $($resp.ip)"
+          } catch {
+            Write-Host "$($probe.name): probe failed - $($_.Exception.Message)"
+          }
+        }
+        Close-Group
+
+        Write-Group "Failure diagnostics: network configuration"
+        try {
+          Get-NetIPConfiguration -ErrorAction Stop | Format-List | Out-String | Write-Host
+        } catch {
+          Write-Host "Get-NetIPConfiguration failed: $($_.Exception.Message)"
+        }
+        Close-Group
+
+        if ($scope -in @('psgallery', 'both')) {
+          Write-Group "Failure diagnostics: PSGallery"
+
+          Write-Host "--- Registered PSResource repositories ---"
+          try {
+            Get-PSResourceRepository -ErrorAction Stop | Format-List * | Out-String | Write-Host
+          } catch {
+            Write-Host "Get-PSResourceRepository failed: $($_.Exception.Message)"
+          }
+
+          Write-Host "--- Re-run Find-PSResource Microsoft.WinGet.Client with -Verbose -Debug ---"
+          $oldVerbose = $VerbosePreference
+          $oldDebug = $DebugPreference
+          $VerbosePreference = 'Continue'
+          $DebugPreference = 'Continue'
+          try {
+            Find-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Verbose -Debug -ErrorAction Stop |
+              Out-String | Write-Host
+          } catch {
+            Write-Host "Find-PSResource failed: $($_.Exception.Message)"
+          } finally {
+            $VerbosePreference = $oldVerbose
+            $DebugPreference = $oldDebug
+          }
+
+          Invoke-DirectProbe -Label 'PSGallery (FindPackagesById)' -Method 'GET' `
+            -Url "https://www.powershellgallery.com/api/v2/FindPackagesById()?id=%27Microsoft.WinGet.Client%27"
+          Invoke-DirectProbe -Label 'PSGallery (api v2 root)' -Method 'GET' `
+            -Url 'https://www.powershellgallery.com/api/v2/'
+
+          Close-Group
+        }
+
+        if ($scope -in @('winget', 'both')) {
+          Write-Group "Failure diagnostics: WinGet"
+
+          Write-Host "--- winget --info ---"
+          try { & winget --info 2>&1 | Out-String | Write-Host } catch { Write-Host "winget --info failed: $($_.Exception.Message)" }
+
+          Write-Host "--- winget source list ---"
+          try { & winget source list 2>&1 | Out-String | Write-Host } catch { Write-Host "winget source list failed: $($_.Exception.Message)" }
+
+          Write-Host "--- winget source update --verbose-logs ---"
+          try { & winget source update --verbose-logs --disable-interactivity 2>&1 | Out-String | Write-Host } catch { Write-Host "winget source update failed: $($_.Exception.Message)" }
+
+          Invoke-DirectProbe -Label 'WinGet CDN (cache root)'      -Method 'HEAD' -Url 'https://cdn.winget.microsoft.com/cache/'
+          Invoke-DirectProbe -Label 'WinGet CDN (source manifest)' -Method 'HEAD' -Url 'https://cdn.winget.microsoft.com/cache/source.msix'
+          Invoke-DirectProbe -Label 'GitHub API (egress sanity)'   -Method 'GET'  -Url 'https://api.github.com/'
+
+          Write-Host "--- Recent WinGet diagnostic logs ---"
+          try {
+            $diagDirs = Get-ChildItem -Path "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_*\LocalState\DiagOutputDir" -Directory -ErrorAction Stop
+            if (-not $diagDirs) {
+              Write-Host "No WinGet diagnostic log directory found."
+            } else {
+              Get-ChildItem -Path $diagDirs.FullName -Filter '*.log' -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 3 |
+                ForEach-Object {
+                  Write-Host "--- $($_.FullName) (last 100 lines) ---"
+                  Get-Content -Path $_.FullName -Tail 100 -ErrorAction SilentlyContinue | Out-String | Write-Host
+                }
+            }
+          } catch {
+            Write-Host "WinGet log collection failed: $($_.Exception.Message)"
+          }
+
+          Close-Group
+        }
