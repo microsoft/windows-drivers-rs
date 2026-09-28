@@ -30,7 +30,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'tmate binary verification failed.' }
 
       - name: Interactive runner debugging
-        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        uses: mxschmitt/action-tmate@0e3058c2c8deab34606c16800925735f854f12e1
         with:
           install-dependencies: false
           limit-access-to-actor: true
