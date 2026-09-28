@@ -13,7 +13,24 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
+      - name: Install and verify tmate
+        timeout-minutes: 3
+        shell: pwsh
+        env:
+          MSYSTEM: MINGW64
+          MSYS2_PATH_TYPE: inherit
+          CHERE_INVOKING: '1'
+        run: |
+          $bash = 'C:\msys64\usr\bin\bash.exe'
+          Write-Host 'Installing tmate and its dependencies...'
+          & $bash -lc 'pacman -S --noconfirm tmate'
+          if ($LASTEXITCODE -ne 0) { throw 'tmate installation failed.' }
+          Write-Host 'Installation finished. Checking the binary and libraries...'
+          & $bash -lc 'set -e; pacman -Q tmate libssh libevent msgpack-c; ldd /usr/bin/tmate.exe; tmate -V'
+          if ($LASTEXITCODE -ne 0) { throw 'tmate binary verification failed.' }
+
       - name: Interactive runner debugging
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
         with:
+          install-dependencies: false
           limit-access-to-actor: true
