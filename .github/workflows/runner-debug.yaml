@@ -29,6 +29,66 @@ jobs:
           & $bash -lc 'set -e; pacman -Q tmate libssh libevent msgpack-c; ldd /usr/bin/tmate.exe; tmate -V'
           if ($LASTEXITCODE -ne 0) { throw 'tmate binary verification failed.' }
 
+      - name: Diagnose authenticated tmate startup
+        timeout-minutes: 3
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MSYSTEM: MINGW64
+          MSYS2_PATH_TYPE: inherit
+          CHERE_INVOKING: '1'
+        run: |
+          $env:TMATE_DIAGNOSTIC_DIR = Join-Path $env:RUNNER_TEMP 'tmate-diagnostics'
+          New-Item -ItemType Directory -Path $env:TMATE_DIAGNOSTIC_DIR -Force | Out-Null
+          Write-Host "Fetching public authentication keys for $env:GITHUB_ACTOR..."
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+          $uri = "$env:GITHUB_API_URL/users/$env:GITHUB_ACTOR/keys?per_page=100"
+          $publicKeys = @(Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop |
+            ForEach-Object { $_.key } | Where-Object { $_ })
+          if ($publicKeys.Count -eq 0) {
+            throw 'No public SSH keys found. Remote access will not be opened.'
+          }
+          $publicKeys | Set-Content (Join-Path $env:TMATE_DIAGNOSTIC_DIR 'authorized_keys') -Encoding utf8
+          Write-Host "Retrieved $($publicKeys.Count) public SSH key(s)."
+          Remove-Item Env:GH_TOKEN
+          $probe = @'
+          set -e
+          cd "$(cygpath -u "$TMATE_DIAGNOSTIC_DIR")"
+          socket=/tmp/tmate-readiness-probe.sock
+          cleanup() { timeout -k 5s 10s tmate -S "$socket" kill-server >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          echo 'Starting an authenticated probe session (15-second launch limit)...'
+          status=0
+          timeout -k 5s 15s tmate -vv -S "$socket" -a "$PWD/authorized_keys" new-session -d || status=$?
+          if [ "$status" -eq 0 ]; then
+            echo 'Session launched. Waiting up to 60 seconds for relay readiness...'
+            timeout -k 5s 60s tmate -S "$socket" wait tmate-ready || status=$?
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "tmate readiness failed: exit $status (124 means timeout)."
+            timeout -k 5s 5s tmate -S "$socket" show-messages || true
+            for logfile in tmate-*.log; do
+              if [ -f "$logfile" ]; then
+                echo "--- $logfile ---"
+                tail -n 100 "$logfile"
+              fi
+            done
+            exit "$status"
+          fi
+          echo 'TMATE_READY: authenticated session reached the relay. Closing probe.'
+          '@
+          & 'C:\msys64\usr\bin\bash.exe' -lc $probe
+          if ($LASTEXITCODE -ne 0) { throw 'tmate startup probe failed; inspect the output and diagnostic artifact.' }
+
+      - name: Upload tmate startup diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tmate-startup-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/tmate-diagnostics/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Interactive runner debugging
         uses: mxschmitt/action-tmate@0e3058c2c8deab34606c16800925735f854f12e1
         with:
