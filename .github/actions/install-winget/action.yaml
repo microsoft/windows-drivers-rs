@@ -130,7 +130,8 @@ runs:
         }
         $best = ($allVersions | Sort-Object Version -Descending | Select-Object -First 1).Version
         Write-Host "Installing closest matching module version: $best"
-        Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $best -TrustRepository -Quiet
+        Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $best -TrustRepository -Quiet -ErrorAction Stop
 
-        $moduleVersion = (Get-InstalledPSResource -Name Microsoft.WinGet.Client | Sort-Object Version -Descending | Select-Object -First 1).Version.ToString()
-        Write-Host "Installed module version: $moduleVersion"
+        Write-Host "Installed module version: $best"
+        $envLine = "WINGET_MODULE_VERSION=$best"
+        [System.IO.File]::AppendAllText($env:GITHUB_ENV, "$envLine`n", [System.Text.Encoding]::UTF8)
