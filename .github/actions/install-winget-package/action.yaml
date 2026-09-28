@@ -58,21 +58,7 @@ runs:
               # Check if package is already installed and skip if appropriate
               $shouldInstall = $true
               if ($skipIfInstalled) {
-                  $existingPackage = $null
-                  for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
-                      try {
-                          Write-Host "Querying installed package (attempt $attempt of $maxRetries)..."
-                          $existingPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals -ErrorAction Stop
-                          break
-                      } catch {
-                          Write-Warning "Package query failed on attempt $attempt`: $($_.Exception.Message)"
-                          if ($attempt -eq $maxRetries) {
-                              throw
-                          }
-                          Write-Host "Waiting $delaySeconds seconds before retry..."
-                          Start-Sleep -Seconds $delaySeconds
-                      }
-                  }
+                  $existingPackage = Get-WinGetPackage -Id $packageId -Source winget -MatchOption Equals
                   if ($existingPackage) {
                       $installedVersion = $existingPackage.InstalledVersion
                       Write-Host "$packageId is already installed. Installed version: $installedVersion"
