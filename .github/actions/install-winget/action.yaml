@@ -123,12 +123,20 @@ runs:
         $cliVersion = [version]((winget --version).Trim() -replace '^v', '')
         Write-Host "WinGet CLI version: $cliVersion"
 
-        $versionRange = "[$($cliVersion.Major).$($cliVersion.Minor).0, $cliVersion]"
-        $allVersions = Find-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $versionRange -ErrorAction Stop
-        if (-not $allVersions) {
-          throw "No Microsoft.WinGet.Client module found in range $versionRange on PSGallery. A matching major/minor version with a patch no greater than the CLI is required."
+        # Returns the highest available module version matching both major and minor,
+        # with a patch no greater than the CLI's. Throws if no match exists.
+        function Get-MatchingWinGetModuleVersion {
+          param([version]$CliVersion)
+
+          $versionRange = "[$($CliVersion.Major).$($CliVersion.Minor).0, $CliVersion]"
+          $allVersions = Find-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $versionRange -ErrorAction Stop
+          if (-not $allVersions) {
+            throw "No Microsoft.WinGet.Client module found in range $versionRange on PSGallery."
+          }
+          return ($allVersions | Sort-Object Version -Descending | Select-Object -First 1).Version
         }
-        $best = ($allVersions | Sort-Object Version -Descending | Select-Object -First 1).Version
+
+        $best = Get-MatchingWinGetModuleVersion -CliVersion $cliVersion
         Write-Host "Installing closest matching module version: $best"
         Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $best -TrustRepository -Quiet -ErrorAction Stop
 
