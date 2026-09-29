@@ -15,10 +15,7 @@ runs:
               Set-StrictMode -Version Latest
 
               # Import WinGet PowerShell module
-              if ([string]::IsNullOrWhiteSpace($env:WINGET_MODULE_VERSION)) {
-                  throw "Run install-winget first to set WINGET_MODULE_VERSION."
-              }
-              Import-Module Microsoft.WinGet.Client -RequiredVersion $env:WINGET_MODULE_VERSION -Force -ErrorAction Stop
+              Import-Module Microsoft.WinGet.Client -Force
 
               $queriesInput = '${{ inputs.queries }}'
 

@@ -141,5 +141,3 @@ runs:
         Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -Version $best -TrustRepository -Quiet -ErrorAction Stop
 
         Write-Host "Installed module version: $best"
-        $envLine = "WINGET_MODULE_VERSION=$best"
-        [System.IO.File]::AppendAllText($env:GITHUB_ENV, "$envLine`n", [System.Text.Encoding]::UTF8)
