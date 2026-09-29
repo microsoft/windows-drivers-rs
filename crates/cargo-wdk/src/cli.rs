@@ -225,8 +225,7 @@ impl BuildArgs {
                 signtool_args: self
                     .signtool_args
                     .clone()
-                    .map(|parsed| parsed.0)
-                    .unwrap_or_default(),
+                    .map_or_else(Vec::new, |parsed| parsed.0),
             }),
         }
     }
