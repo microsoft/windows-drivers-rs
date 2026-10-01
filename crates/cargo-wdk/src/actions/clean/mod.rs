@@ -114,8 +114,7 @@ impl<'a> CleanAction<'a> {
             let cargo_package_path = entry.path;
             let package_dir_name = cargo_package_path
                 .file_name()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default();
+                .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
 
             // Emit the log only once for the entire emulated workspace, the
             // first time a valid Rust project is discovered during

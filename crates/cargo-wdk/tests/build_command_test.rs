@@ -745,6 +745,63 @@ fn kmdf_driver_with_custom_inf2cat_args_builds_successfully() {
     );
 }
 
+/// Functional tests for the `--stampinf-args` passthrough.
+mod stampinf_args {
+    use super::*;
+
+    #[test]
+    fn kmdf_driver_with_custom_date_and_version_builds_successfully() {
+        let driver = "kmdf-driver";
+        clean_build_and_verify_project(
+            "kmdf",
+            driver,
+            None,
+            Some("01/01/2026,4.3.2.1"),
+            None,
+            None,
+            None,
+            None,
+            Some(&["--stampinf-args", "-d 01/01/2026 /v 4.3.2.1"]),
+        );
+    }
+
+    #[test]
+    fn custom_version_wins_over_stampinf_version_env_var() {
+        let driver = "kmdf-driver";
+        let env = [(STAMPINF_VERSION_ENV_VAR, Some("9.9.9.9".to_string()))];
+        clean_build_and_verify_project(
+            "kmdf",
+            driver,
+            None,
+            Some("4.3.2.1"),
+            None,
+            None,
+            Some(&env),
+            None,
+            Some(&["--stampinf-args", "/v 4.3.2.1"]),
+        );
+    }
+}
+
+#[test]
+fn kmdf_driver_with_custom_infverif_args_builds_successfully() {
+    let stderr = clean_build_and_verify_project(
+        "kmdf",
+        "kmdf-driver",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&["--infverif-args", "-rulever 10.0.22621 /stampinf", "-v"]),
+    );
+    assert!(
+        stderr.contains("\"-rulever\", \"10.0.22621\", \"/stampinf\""),
+        "expected `--infverif-args` to be forwarded to `infverif`; stderr:\n{stderr}"
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn clean_build_and_verify_project(
     driver_type: &str,
@@ -956,10 +1013,21 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
     };
 
     // Example: DriverVer = 09/13/2023,1.0.0.0
+    let (driver_date, driver_version) = match driver_version {
+        Some(val) if val.contains(',') => {
+            let (d, v) = val.split_once(',').unwrap();
+            let d = (!d.is_empty()).then_some(d);
+            let v = (!v.is_empty()).then_some(v);
+            (d, v)
+        }
+        _ => (None, driver_version),
+    };
+
+    let driver_date_regex = driver_date.map_or_else(|| r"\d+/\d+/\d+".to_string(), regex::escape);
     let driver_version_regex =
         driver_version.map_or_else(|| r"\d+\.\d+\.\d+\.\d+".to_string(), regex::escape);
     let re = regex::Regex::new(&format!(
-        r"^DriverVer\s+=\s+\d+/\d+/\d+,{driver_version_regex}$"
+        r"^DriverVer\s+=\s+{driver_date_regex},{driver_version_regex}$"
     ))
     .unwrap();
 

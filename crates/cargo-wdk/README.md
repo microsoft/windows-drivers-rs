@@ -82,7 +82,13 @@ Driver Signing:
       --verify-signature       Verify the signatures of the driver binary and catalog file after signing
 
 Inf2Cat Options:
-      --inf2cat-args <ARGS>        Custom arguments to pass to `inf2cat` when generating the catalog file, e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`
+      --inf2cat-args <ARGS>  Custom arguments to pass to `inf2cat` when generating the catalog file, e.g. `--inf2cat-args '/os:10_x64,10_GE_X64 /uselocaltime'`
+
+Stampinf Options:
+      --stampinf-args <ARGS>  Custom arguments to pass to `stampinf` when generating the INF file, e.g. `--stampinf-args '-d 01/01/2026 -v 1.2.3.4 -p "Contoso Ltd"'`
+
+InfVerif Options:
+      --infverif-args <ARGS>       Custom arguments to pass to `infverif` when validating the INF, e.g. `--infverif-args '/rulever 10.0.22621 /info'`
 
 Feature Selection:
       --all-features         Activate all available features
@@ -108,9 +114,17 @@ Building a sample driver requires the `--sample` flag. If it is not specified, t
 
 If you have a workspace with a mix of sample and non-sample driver projects, the build will fail as that scenario is not supported yet. In the future `build` will be able to automatically detect sample projects. That will remove the need for the `--sample` flag and enable support for this scenario.
 
+#### Customizing `stampinf` arguments
+
+To customize the behaviour of `stampinf`, pass `--stampinf-args` with arguments to forward to `stampinf`. Args `-f`, `-a`, `-c`, `-k` and `-u` are not allowed because they are always supplied by `cargo-wdk` itself.
+
 #### Customizing `inf2cat` arguments
 
 To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat`. `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
+
+#### Customizing `infverif` arguments
+
+To customize the behaviour of `infverif`, pass `--infverif-args` with arguments to forward to `infverif`. Args `-h`, `-w`, `-u` and paths to `.INF` files are not allowed because they are always supplied by `cargo-wdk` itself.
 
 #### Signing and Verification
 
