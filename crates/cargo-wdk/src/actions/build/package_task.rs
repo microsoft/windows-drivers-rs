@@ -50,11 +50,11 @@ pub enum SignMode {
         verify_signature: bool,
         /// Additional `signtool sign` arguments.
         ///
-        /// When empty, run `signtool sign` with the auto-generated WDR test
-        /// certificate and default switches. When non-empty, auto generation
+        /// When `None`, run `signtool sign` with the auto-generated WDR test
+        /// certificate and default switches. When `Some`, auto generation
         /// is skipped and the caller owns the full signtool command line
         /// (certificate selection, digest, etc.).
-        signtool_args: Vec<String>,
+        signtool_args: Option<Vec<String>>,
     },
 }
 
@@ -294,7 +294,9 @@ impl<'a> PackageTask<'a> {
             info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
-        let sign_args = if signtool_args.is_empty() {
+        let sign_args = if let Some(args) = signtool_args {
+            args.clone()
+        } else {
             self.generate_certificate()?;
             self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
             // Default WDR test-cert switches.
@@ -311,8 +313,6 @@ impl<'a> PackageTask<'a> {
             ]
             .map(ToString::to_string)
             .to_vec()
-        } else {
-            signtool_args.clone()
         };
         self.run_signtool_sign(&self.dest_driver_binary_path, &sign_args)?;
         self.run_signtool_sign(&self.dest_cat_file_path, &sign_args)?;
@@ -568,17 +568,19 @@ impl<'a> PackageTask<'a> {
 
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
 
-        // Determine the indices of password values (the token right after each
-        // `/p`) so they can be redacted by `run_with_redaction` in the logs.
-        // `value_index < file_operand_index` ensures a value token
-        // actually follows `/p` and that it is never the trailing file operand.
+        // Determine the indices of password values so they can be redacted by
+        // `run_with_redaction` in the logs.
+        // `value_index < file_operand_index` ensures a value token actually
+        // follows `-p` or `/p` and that it is never the trailing file operand.
         let file_operand_index = arg_refs.len() - 1;
         let redaction_indices: Vec<usize> = arg_refs
             .iter()
             .enumerate()
             .filter_map(|(i, arg)| {
                 let value_index = i + 1;
-                (arg.eq_ignore_ascii_case("/p") && value_index < file_operand_index)
+                (arg.strip_prefix(['-', '/'])
+                    .is_some_and(|arg| arg.eq_ignore_ascii_case("p"))
+                    && value_index < file_operand_index)
                     .then_some(value_index)
             })
             .collect();
@@ -740,7 +742,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             },
             inf2cat_args: None,
             stampinf_args: None,
@@ -758,7 +760,7 @@ mod tests {
             task.sign_mode,
             SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             }
         );
         assert!(!task.sample_class);
@@ -811,7 +813,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             },
             inf2cat_args: None,
             stampinf_args: None,
@@ -844,7 +846,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             },
             inf2cat_args: None,
             stampinf_args: None,
@@ -886,7 +888,7 @@ mod tests {
                         sample_class: false,
                         sign_mode: SignMode::Test {
                             verify_signature: false,
-                            signtool_args: Vec::new(),
+                            signtool_args: None,
                         },
                         inf2cat_args: None,
                         stampinf_args: None,
@@ -1072,7 +1074,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             },
             inf2cat_args: None,
             stampinf_args: None,
@@ -1119,7 +1121,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             },
             inf2cat_args: Some(Vec::new()),
             stampinf_args: None,
@@ -1163,7 +1165,7 @@ mod tests {
             sample_class: false,
             sign_mode: SignMode::Test {
                 verify_signature: false,
-                signtool_args: Vec::new(),
+                signtool_args: None,
             },
             inf2cat_args: Some(vec![
                 "/os:10_x64,10_CO_X64".to_string(),
@@ -1340,7 +1342,7 @@ mod tests {
                     "sign",
                     "/f",
                     "cert.pfx",
-                    "/P",
+                    "-P",
                     "secret",
                     "/fd",
                     "SHA256",
@@ -1358,7 +1360,7 @@ mod tests {
             let signtool_args = [
                 "/f".to_string(),
                 "cert.pfx".to_string(),
-                "/P".to_string(),
+                "-P".to_string(),
                 "secret".to_string(),
                 "/fd".to_string(),
                 "SHA256".to_string(),
@@ -1384,6 +1386,42 @@ mod tests {
             let signtool_args = ["/f".to_string(), "cert.pfx".to_string(), "/p".to_string()];
             task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &signtool_args)
                 .expect("signing should succeed");
+        }
+
+        #[test]
+        fn sign_and_verify_with_empty_custom_args_skips_defaults() {
+            let arch = CpuArchitecture::Amd64;
+            let mut command_exec = CommandExec::default();
+            for file_name in ["driver.sys", "driver.cat"] {
+                command_exec
+                    .expect_run_with_redaction()
+                    .withf(move |command, args, redaction_indices, _env, _cwd| {
+                        command == "signtool"
+                            && args.len() == 2
+                            && args[0] == "sign"
+                            && Path::new(args[1]).ends_with(file_name)
+                            && redaction_indices.is_empty()
+                    })
+                    .once()
+                    .returning(|_, _, _, _, _| {
+                        Ok(Output {
+                            status: ExitStatus::default(),
+                            stdout: vec![],
+                            stderr: vec![],
+                        })
+                    });
+            }
+
+            let wdk_build = WdkBuild::default();
+            let fs = Fs::default();
+            let mut task = create_package_task(&wdk_build, &command_exec, &fs, &arch);
+            task.sign_mode = SignMode::Test {
+                verify_signature: false,
+                signtool_args: Some(Vec::new()),
+            };
+
+            task.sign_and_verify()
+                .expect("empty custom arguments should be forwarded without defaults");
         }
 
         #[test]
@@ -1418,14 +1456,14 @@ mod tests {
                 sample_class: false,
                 sign_mode: SignMode::Test {
                     verify_signature: false,
-                    signtool_args: vec![
+                    signtool_args: Some(vec![
                         "/s".to_string(),
                         "MyStore".to_string(),
                         "/n".to_string(),
                         "MyCert".to_string(),
                         "/fd".to_string(),
                         "SHA256".to_string(),
-                    ],
+                    ]),
                 },
                 inf2cat_args: None,
                 stampinf_args: None,
