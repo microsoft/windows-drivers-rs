@@ -714,6 +714,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "syn",
  "thiserror",
  "tracing",
  "windows",
