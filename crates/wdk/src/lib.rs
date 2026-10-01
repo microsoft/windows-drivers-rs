@@ -15,7 +15,7 @@
     driver_model__driver_type = "KMDF",
     driver_model__driver_type = "UMDF",
 ))]
-pub use print::_print;
+pub use print::{_eprint, _print};
 #[cfg(any(
     driver_model__driver_type = "WDM",
     driver_model__driver_type = "KMDF",
