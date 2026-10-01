@@ -291,26 +291,25 @@ impl<'a> PackageTask<'a> {
             info!("Sign mode is 'off'; skipping signing");
             return Ok(());
         };
-        let sign_args = match signtool_args {
-            Some(args) => args.clone(),
-            None => {
-                self.generate_certificate()?;
-                self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
-                // Default WDR test-cert switches.
-                [
-                    "/v",
-                    "/s",
-                    WDR_TEST_CERT_STORE,
-                    "/n",
-                    WDR_LOCAL_TEST_CERT,
-                    "/t",
-                    DEFAULT_TIMESTAMP_URL,
-                    "/fd",
-                    "SHA256",
-                ]
-                .map(ToString::to_string)
-                .to_vec()
-            }
+        let sign_args = if let Some(args) = signtool_args {
+            args.clone()
+        } else {
+            self.generate_certificate()?;
+            self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
+            // Default WDR test-cert switches.
+            [
+                "/v",
+                "/s",
+                WDR_TEST_CERT_STORE,
+                "/n",
+                WDR_LOCAL_TEST_CERT,
+                "/t",
+                DEFAULT_TIMESTAMP_URL,
+                "/fd",
+                "SHA256",
+            ]
+            .map(ToString::to_string)
+            .to_vec()
         };
         self.run_signtool_sign(&self.dest_driver_binary_path, &sign_args)?;
         self.run_signtool_sign(&self.dest_cat_file_path, &sign_args)?;
