@@ -48,12 +48,9 @@ pub enum SignMode {
         /// When `true`, run `signtool verify` on the signed driver binary and
         /// catalog file after signing.
         verify_signature: bool,
-        /// Additional `signtool sign` arguments.
-        ///
-        /// When empty, run `signtool sign` with the auto-generated WDR test
-        /// certificate and default switches. When non-empty, auto generation
-        /// is skipped and the caller owns the full signtool command line
-        /// (certificate selection, digest, etc.).
+        /// When `None`, use the auto-generated WDR test certificate and default
+        /// switches. When `Some`, skip certificate generation and use the
+        /// supplied options (certificate selection, digest, etc.).
         signtool_args: Option<Vec<String>>,
     },
 }
@@ -295,8 +292,8 @@ impl<'a> PackageTask<'a> {
             return Ok(());
         };
         let sign_args = match signtool_args {
-            Some(args) if !args.is_empty() => args.clone(),
-            _ => {
+            Some(args) => args.clone(),
+            None => {
                 self.generate_certificate()?;
                 self.copy(&self.src_cert_file_path, &self.dest_cert_file_path)?;
                 // Default WDR test-cert switches.
@@ -1387,6 +1384,42 @@ mod tests {
             let signtool_args = ["/f".to_string(), "cert.pfx".to_string(), "/p".to_string()];
             task.run_signtool_sign(Path::new("C:/pkg/driver.sys"), &signtool_args)
                 .expect("signing should succeed");
+        }
+
+        #[test]
+        fn sign_and_verify_with_empty_custom_args_skips_defaults() {
+            let arch = CpuArchitecture::Amd64;
+            let mut command_exec = CommandExec::default();
+            for file_name in ["driver.sys", "driver.cat"] {
+                command_exec
+                    .expect_run_with_redaction()
+                    .withf(move |command, args, redaction_indices, _env, _cwd| {
+                        command == "signtool"
+                            && args.len() == 2
+                            && args[0] == "sign"
+                            && Path::new(args[1]).ends_with(file_name)
+                            && redaction_indices.is_empty()
+                    })
+                    .once()
+                    .returning(|_, _, _, _, _| {
+                        Ok(Output {
+                            status: ExitStatus::default(),
+                            stdout: vec![],
+                            stderr: vec![],
+                        })
+                    });
+            }
+
+            let wdk_build = WdkBuild::default();
+            let fs = Fs::default();
+            let mut task = create_package_task(&wdk_build, &command_exec, &fs, &arch);
+            task.sign_mode = SignMode::Test {
+                verify_signature: false,
+                signtool_args: Some(Vec::new()),
+            };
+
+            task.sign_and_verify()
+                .expect("empty custom arguments should be forwarded without defaults");
         }
 
         #[test]
