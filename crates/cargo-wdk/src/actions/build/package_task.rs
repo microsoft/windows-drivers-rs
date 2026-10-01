@@ -48,9 +48,12 @@ pub enum SignMode {
         /// When `true`, run `signtool verify` on the signed driver binary and
         /// catalog file after signing.
         verify_signature: bool,
-        /// When `None`, use the auto-generated WDR test certificate and default
-        /// switches. When `Some`, skip certificate generation and use the
-        /// supplied options (certificate selection, digest, etc.).
+        /// Additional `signtool sign` arguments.
+        ///
+        /// When `None`, run `signtool sign` with the auto-generated WDR test
+        /// certificate and default switches. When `Some`, auto generation
+        /// is skipped and the caller owns the full signtool command line
+        /// (certificate selection, digest, etc.).
         signtool_args: Option<Vec<String>>,
     },
 }
