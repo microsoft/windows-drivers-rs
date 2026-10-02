@@ -17,8 +17,6 @@ clap = { features = ["derive"], workspace = true }
 clap-cargo = { features = ["cargo_metadata"], workspace = true }
 clap-verbosity-flag.workspace = true
 include_dir.workspace = true
-mockall.workspace = true
-mockall_double.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -33,6 +31,8 @@ windows = { features = [
 [dev-dependencies]
 assert_cmd.workspace = true
 assert_fs.workspace = true
+mockall.workspace = true
+mockall_double.workspace = true
 predicates.workspace = true
 regex.workspace = true
 sha2.workspace = true

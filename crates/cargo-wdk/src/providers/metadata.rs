@@ -13,12 +13,13 @@
 use std::path::Path;
 
 use clap_cargo::Features;
+#[cfg(test)]
 use mockall::automock;
 
 #[derive(Default)]
 pub struct Metadata {}
 
-#[automock]
+#[cfg_attr(test, automock)]
 impl Metadata {
     /// Get the Cargo metadata at a given path.
     ///

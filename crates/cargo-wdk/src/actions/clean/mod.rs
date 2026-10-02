@@ -8,10 +8,11 @@ use std::path::{Path, PathBuf, absolute};
 
 use anyhow::Result;
 use error::CleanActionError;
+#[cfg(test)]
 use mockall_double::double;
 use tracing::{debug, error as err, info};
 
-#[double]
+#[cfg_attr(test, double)]
 use crate::providers::{exec::CommandExec, fs::Fs};
 use crate::trace;
 
