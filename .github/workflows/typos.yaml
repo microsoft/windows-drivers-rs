@@ -24,7 +24,7 @@ jobs:
       # We explicitly install typos instead the typos GitHub Action due to:
       # https://github.com/crate-ci/typos/issues/1191
       - name: Install typos (taiki-e/install-action)
-        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        uses: taiki-e/install-action@5b4d68e2e660441203ab128a23676f1e4faf1532 # v2.86.3
         with:
           tool: typos
 
