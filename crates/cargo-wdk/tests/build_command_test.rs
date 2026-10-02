@@ -34,6 +34,49 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 }
 
 #[test]
+fn workspace_flag_builds_all_packages_when_run_from_workspace_member() {
+    let workspace_path = "tests/mixed-package-kmdf-workspace";
+    let member_path = format!("{workspace_path}/crates/driver");
+    with_mutex(workspace_path, || {
+        run_clean_cmd(workspace_path);
+        assert_target_dir_does_not_exist(workspace_path);
+
+        let stderr = run_build_cmd(
+            &member_path,
+            Some(&["--workspace", "--sign-mode", "off", "-v"]),
+            None,
+        );
+        assert!(
+            stderr.contains("Running: cargo [\"build\"") && stderr.contains("\"--workspace\""),
+            "expected cargo build to receive --workspace; stderr:\n{stderr}"
+        );
+        let package_dir = format!("{workspace_path}/target/debug/driver_package");
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "pdb", "sys"] {
+            assert_file_exists(&format!("{package_dir}/driver.{ext}"));
+        }
+        let deps_dir = Path::new(workspace_path).join("target/debug/deps");
+        assert!(
+            fs::read_dir(&deps_dir)
+                .expect("workspace deps directory should exist")
+                .filter_map(Result::ok)
+                .any(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("libnon_driver_crate-")
+                        && entry.path().extension().is_some_and(|ext| ext == "rlib")
+                }),
+            "expected non-driver workspace member to produce an rlib in {}",
+            deps_dir.display()
+        );
+
+        run_clean_cmd(workspace_path);
+        assert_target_dir_does_not_exist(workspace_path);
+    });
+}
+
+#[test]
 fn kmdf_driver_builds_successfully() {
     // Setup for executables
     wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");

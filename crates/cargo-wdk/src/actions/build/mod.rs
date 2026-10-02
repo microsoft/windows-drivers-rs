@@ -84,6 +84,7 @@ pub struct BuildActionParams<'a> {
     pub infverif_args: Option<Vec<String>>,
     pub is_sample_class: bool,
     pub locked: bool,
+    pub workspace: bool,
     pub target_platform: TargetPlatform,
     pub features: &'a Features,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -101,6 +102,7 @@ pub struct BuildAction<'a> {
     infverif_args: Option<Vec<String>>,
     is_sample_class: bool,
     locked: bool,
+    workspace: bool,
     target_platform: TargetPlatform,
     features: &'a Features,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -152,6 +154,7 @@ impl<'a> BuildAction<'a> {
             infverif_args: params.infverif_args.clone(),
             is_sample_class: params.is_sample_class,
             locked: params.locked,
+            workspace: params.workspace,
             target_platform: params.target_platform,
             features: params.features,
             verbosity_level: params.verbosity_level,
@@ -203,6 +206,17 @@ impl<'a> BuildAction<'a> {
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
+            if self.workspace {
+                let cargo_metadata = self.get_cargo_metadata(&self.working_dir)?;
+                let workspace_root = absolute(cargo_metadata.workspace_root.as_std_path())
+                    .map_err(|e| {
+                        BuildActionError::NotAbsolute(
+                            cargo_metadata.workspace_root.clone().into(),
+                            e,
+                        )
+                    })?;
+                return self.run_from_workspace_root(&workspace_root);
+            }
             return self.run_from_workspace_root(&self.working_dir);
         }
 
@@ -294,6 +308,11 @@ impl<'a> BuildAction<'a> {
                 "Running from standalone project or from a root of a workspace: {}",
                 working_dir.display()
             );
+            let workspace_output = if self.workspace {
+                Some(self.build_workspace(working_dir)?)
+            } else {
+                None
+            };
             let mut failed_atleast_one_workspace_member = false;
             for package in workspace_packages {
                 let package_root_path: PathBuf = package
@@ -309,7 +328,18 @@ impl<'a> BuildAction<'a> {
                     package_root_path.display()
                 );
 
-                if let Err(e) = self.build_and_package(&package_root_path, &wdk_metadata, package) {
+                let result = workspace_output.as_ref().map_or_else(
+                    || self.build_and_package(&package_root_path, &wdk_metadata, package),
+                    |output| {
+                        self.run_packaging_task(
+                            &package_root_path,
+                            &wdk_metadata,
+                            package,
+                            output.iter().cloned().map(Ok),
+                        )
+                    },
+                );
+                if let Err(e) = result {
                     failed_atleast_one_workspace_member = true;
                     err!(
                         "Error building the workspace member project: {}, error: {:?}",
@@ -405,12 +435,48 @@ impl<'a> BuildAction<'a> {
                 profile: self.profile,
                 target_arch: self.target_arch,
                 locked: self.locked,
+                workspace: false,
                 features: self.features,
                 verbosity_level: self.verbosity_level,
             },
             self.command_exec,
         );
         let output_message_iter = build_task.run()?;
+        self.run_packaging_task(working_dir, wdk_metadata, package, output_message_iter)
+    }
+
+    fn build_workspace(&self, working_dir: &Path) -> Result<Vec<Message>, BuildActionError> {
+        let build_task = BuildTask::new(
+            BuildTaskParams {
+                package_name: "",
+                working_dir,
+                profile: self.profile,
+                target_arch: self.target_arch,
+                locked: self.locked,
+                workspace: true,
+                features: self.features,
+                verbosity_level: self.verbosity_level,
+            },
+            self.command_exec,
+        );
+        build_task
+            .run()?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| {
+                BuildActionError::CannotDetermineTargetDir(format!(
+                    "Could not parse cargo build output message: {error}"
+                ))
+            })
+    }
+
+    fn run_packaging_task(
+        &self,
+        working_dir: &Path,
+        wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
+        package: &Package,
+        output_message_iter: impl Iterator<Item = Result<Message, std::io::Error>>,
+    ) -> Result<(), BuildActionError> {
+        let package_name = package.name.as_str();
 
         let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
             debug!("Found wdk metadata in package: {}", package_name);

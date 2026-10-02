@@ -1325,6 +1325,53 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 }
 
 #[test]
+fn given_a_workspace_member_when_workspace_flag_is_set_then_build_runs_from_workspace_root() {
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root_dir.join("member-1");
+    let member_1 = "member-1";
+    let member_2 = "member-2";
+    let member_1_version = "0.0.1";
+    let member_2_version = "0.0.2";
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &workspace_root_dir.join(member_1),
+        member_1,
+        member_1_version,
+        None,
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &workspace_root_dir.join(member_2),
+        member_2,
+        member_2_version,
+        None,
+    );
+    let cargo_build_output = create_cargo_build_output_json_with_manifest(
+        member_1,
+        member_1_version,
+        &workspace_root_dir,
+        &workspace_root_dir.join(member_1).join("Cargo.toml"),
+        None,
+        None,
+        false,
+    );
+
+    let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, false)
+        .with_workspace(true)
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            None,
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+            ],
+        )
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_workspace_cargo_build(&workspace_root_dir, Some(cargo_build_output));
+
+    assert_build_action_run_with_env_is_success(&cwd, None, None, false, false, test_build_action);
+}
+
+#[test]
 pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verify_signature_is_false_then_it_skips_verify_tasks()
  {
     // Input CLI args
@@ -1749,6 +1796,7 @@ fn initialize_build_action<'a>(
             infverif_args: None,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
+            workspace: test_build_action.workspace,
             target_platform: TargetPlatform::Universal,
             features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1814,6 +1862,7 @@ struct TestBuildAction {
     sample_class: bool,
     sign_mode: SignMode,
     locked: bool,
+    workspace: bool,
     features: Features,
 
     cargo_metadata: Option<CargoMetadata>,
@@ -1846,6 +1895,7 @@ impl TestBuildAction {
                 signtool_args: None,
             },
             locked: false,
+            workspace: false,
             features: Features::default(),
             mock_run_command,
             mock_wdk_build_provider,
@@ -1862,6 +1912,11 @@ impl TestBuildAction {
 
     fn with_locked(mut self, locked: bool) -> Self {
         self.locked = locked;
+        self
+    }
+
+    fn with_workspace(mut self, workspace: bool) -> Self {
+        self.workspace = workspace;
         self
     }
 
@@ -1937,7 +1992,7 @@ impl TestBuildAction {
                     *other_options == expected_options && *features == expected_features
                 },
             )
-            .once()
+            .times(1..=2)
             .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
@@ -2207,6 +2262,42 @@ impl TestBuildAction {
                     command == expected_cargo_command && args == expected_cargo_build_args
                 },
             )
+            .once()
+            .returning(move |_, _, _, _| Ok(expected_output.clone()));
+        self
+    }
+
+    fn expect_workspace_cargo_build(
+        mut self,
+        workspace_root: &Path,
+        override_output: Option<Output>,
+    ) -> Self {
+        let manifest_path = workspace_root
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .trim_start_matches("\\\\?\\")
+            .to_string();
+        let expected_args = vec![
+            "build".to_string(),
+            "--message-format=json-render-diagnostics".to_string(),
+            "--workspace".to_string(),
+            "--manifest-path".to_string(),
+            manifest_path,
+            "-v".to_string(),
+        ];
+        let expected_output = override_output.unwrap_or_else(|| Output {
+            status: ExitStatus::default(),
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        });
+        let expected_working_dir = workspace_root.to_owned();
+        self.mock_run_command
+            .expect_run()
+            .withf(move |command, args, _env, working_dir| {
+                command == "cargo"
+                    && args == expected_args
+                    && *working_dir == Some(expected_working_dir.as_path())
+            })
             .once()
             .returning(move |_, _, _, _| Ok(expected_output.clone()));
         self
