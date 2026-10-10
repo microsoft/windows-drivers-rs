@@ -18,10 +18,13 @@ use alloc::{ffi::CString, slice, string::String};
 use wdk::println;
 #[cfg(not(test))]
 use wdk_alloc::WdkAllocator;
-use wdk_sys::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS, ntddk::DbgPrint, ULONG};
+use wdk_sys::{DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS, ntddk::DbgPrint};
+#[cfg(not(test))]
+use wdk_sys::ULONG;
 
 // The value of memory tags are stored in little-endian order, so it is
 // convenient to reverse the order for readability in tooling (i.e. Windbg)
+#[cfg(not(test))]
 const POOL_TAG: ULONG = ULONG::from_ne_bytes(*b"rust");
 
 #[cfg(not(test))]
