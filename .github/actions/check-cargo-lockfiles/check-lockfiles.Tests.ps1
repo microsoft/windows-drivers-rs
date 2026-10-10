@@ -127,3 +127,6 @@ wdk-lockfile-fixture-dependency = { path = "patch-dep" }
         Remove-Item -LiteralPath $testRoot -Recurse -Force
     }
 }
+
+# Expected failing child processes must not set the suite's exit status in GitHub Actions.
+exit 0
