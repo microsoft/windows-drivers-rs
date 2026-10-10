@@ -55,11 +55,11 @@ Before build or cargo-make commands, check all tracked lockfiles from the reposi
 pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1
 ```
 
-The reusable `check-cargo-lockfiles` action and the repository-only `cargo make check-lockfiles` task use the same script. The task is included in `wdk-pre-commit-flow`; CI also runs the action before invoking cargo-make, whose startup metadata queries can refresh stale lockfiles before any task runs.
+The reusable `check-cargo-lockfiles` action and the repository-only `cargo make check-lockfiles` task use the same script. The task uses the normal inherited WDK initialization and is included in `wdk-pre-commit-flow`. Run the script directly for a strictly non-mutating preflight: cargo-make's startup metadata queries can refresh stale lockfiles before any task runs. CI runs the action before invoking cargo-make for the same reason.
 
-The checker runs `cargo +stable metadata --locked --all-features --format-version 1` from each lockfile's directory to preserve local `.cargo/config.toml` settings. It accepts valid uncommitted lockfile updates but must not change their contents. This checks manifest/lockfile agreement, not identical dependency versions across workspaces.
+By default, the checker runs `cargo +stable metadata --locked --all-features --format-version 1` from each lockfile's directory to preserve local `.cargo/config.toml` settings. It accepts valid uncommitted lockfile updates but must not change their contents. This checks manifest/lockfile agreement, not identical dependency versions across workspaces.
 
-The Lockfile Consistency Checks workflow validates each discovered lockfile on stable, beta, and nightly in separate matrix jobs. Use `-Lockfile <repository-relative-path> -Toolchain <channel>` with the script to reproduce an individual check locally; without these options, it checks all tracked lockfiles on stable.
+The Lockfile Consistency Checks workflow validates each discovered lockfile on stable, beta, and nightly in separate matrix jobs. Use `-Lockfile <repository-relative-path> -Toolchain <specifier>` with the script to reproduce an individual check locally. The specifier can be any installed Rust toolchain, including a release such as `1.93` or a dated, host-qualified nightly. Without these options, it checks all tracked lockfiles on stable.
 
 ### Lint
 

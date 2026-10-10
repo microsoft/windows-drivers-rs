@@ -139,16 +139,15 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 * Check spelling with typos-cli: `typos`
   * Auto-fix locally before committing: `typos --write-changes`
-  * CI runs `typos` on every PR to `main` and will fail on finding any typos
   * Configuration lives in `.typos.toml`; we allowlist specific Windows API identifiers flagged by typos to preserve upstream names and binding compatibility (no file-level excludes)
 
 **_Dependency Analysis:_**
 
-* Check lockfile consistency before running build or cargo-make commands: `pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1`
-  * This checks every tracked `Cargo.lock` from its own directory so Cargo loads that project's `.cargo/config.toml`. Valid uncommitted lockfile updates are allowed; validation must not modify them.
-  * The Lockfile Consistency Checks workflow runs a separate job for each tracked lockfile on stable, beta, and nightly, with a fail-closed summary check for branch protection.
-  * The repository-only `cargo make check-lockfiles` task also runs this checker and is included in `wdk-pre-commit-flow`. Run the script directly for a preflight check because cargo-make's startup metadata queries can refresh stale lockfiles before any task executes. CI runs the action before invoking cargo-make for the same reason.
-  * To repair a stale lockfile, run `cargo +stable update --workspace` from its directory and commit the updated lockfile.
+* Check that tracked `Cargo.lock` files are consistent with their `Cargo.toml` manifests: `cargo make check-lockfiles`
+  * Run this from the repository root in the usual WDK development environment. It is also included in `wdk-pre-commit-flow`.
+  * Each lockfile is checked from its own directory so Cargo loads that project's `.cargo/config.toml`. Valid uncommitted lockfile updates are allowed.
+  * Cargo-make can refresh the root lockfile during startup, before validation runs, so this task is not a strictly read-only preflight. Review any lockfile changes afterward.
+  * To repair a stale lockfile, run `cargo update --workspace` from its directory and commit the updated lockfile.
   * This checks that manifests and lockfiles agree; it does not require every workspace to use the same dependency versions.
 * Scan for security advisories in dependent crates: `cargo audit --deny warnings`
 * Scan for unused dependencies: `cargo machete --skip-target-dir`
@@ -156,30 +155,6 @@ To maintain the quality of code, tests and tools are required to pass before con
 **_Rust Documentation Build Test_**
 
 * `cargo doc --locked --all-features`
-
-### Reusing the Lockfile Check
-
-The `check-cargo-lockfiles` composite action contains its checker script, so repositories that copy `.github/actions` from windows-drivers-rs can use it without copying other repository files:
-
-```yaml
-- name: Install Rust Toolchain (Stable)
-  uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
-  with:
-    toolchain: stable
-
-- name: Check Cargo lockfiles
-  uses: ./.github/actions/check-cargo-lockfiles
-```
-
-Run it after checking out the consuming repository, copying the shared actions, and installing the selected Rust channel, before build or cargo-make commands. The action does not install toolchains. By default, it checks every tracked lockfile on stable in the consuming checkout, not the action's source repository. The checker requires a tracked root `Cargo.lock`.
-
-The action's `lockfile` input selects one repository-relative tracked path, and `toolchain` selects `stable`, `beta`, or `nightly`. The repository workflow uses both inputs for its lockfile-by-channel matrix. To reproduce an individual check locally:
-
-```shell
-pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1 -Lockfile tests/config-kmdf/Cargo.lock -Toolchain beta
-```
-
-The script's `-List` mode emits the tracked paths as a JSON array for workflow discovery without invoking Cargo.
 
 ### A Note on Code-Style
 

@@ -61,7 +61,7 @@ function New-Lockfile {
 }
 
 function Assert-Toolchain {
-    param([string]$Channel)
+    param([string]$Toolchain)
 
     $calls = [System.Collections.Generic.List[string]]::new()
     function cargo {
@@ -69,13 +69,13 @@ function Assert-Toolchain {
         $global:LASTEXITCODE = 0
     }
 
-    & (Join-Path $actionCopy 'check-lockfiles.ps1') -RepositoryPath $repository -Lockfile Cargo.lock -Toolchain $Channel
-    $expected = "+$Channel metadata --locked --all-features --format-version 1"
+    & (Join-Path $actionCopy 'check-lockfiles.ps1') -RepositoryPath $repository -Lockfile Cargo.lock -Toolchain $Toolchain
+    $expected = "+$Toolchain metadata --locked --all-features --format-version 1"
     if ($calls.Count -ne 1 -or $calls[0] -cne $expected) {
-        throw "Unexpected Cargo invocation for ${Channel}: $($calls -join '; ')"
+        throw "Unexpected Cargo invocation for ${Toolchain}: $($calls -join '; ')"
     }
     $script:passed++
-    Write-Host "PASS: selects the $Channel toolchain with locked metadata"
+    Write-Host "PASS: selects the $Toolchain toolchain with locked metadata"
 }
 
 try {
@@ -100,9 +100,10 @@ wdk-lockfile-fixture-dependency = { path = "patch-dep" }
     if ($LASTEXITCODE -ne 0) { throw 'Could not track the fixture files.' }
 
     Assert-Check 'copied action checks the consumer, including local Cargo config and spaces' (Invoke-Checker) $true 'Lockfile checks: 2 passed; 0 failed; 2 total'
-    foreach ($channel in @('stable', 'beta', 'nightly')) {
-        Assert-Toolchain $channel
+    foreach ($toolchain in @('stable', 'beta', 'nightly', '1.93', 'nightly-2026-06-01-x86_64-pc-windows-msvc')) {
+        Assert-Toolchain $toolchain
     }
+    Assert-Check 'empty toolchain is rejected before Cargo runs' (Invoke-Checker -Arguments @('-Toolchain', '')) $false 'Cannot validate argument on parameter'
 
     $untracked = Join-Path $repository 'untracked'
     Write-Package $untracked 'untracked-fixture'

@@ -8,7 +8,7 @@ param(
     [Parameter(ParameterSetName = 'Check')]
     [string]$Lockfile = '',
     [Parameter(ParameterSetName = 'Check')]
-    [ValidateSet('stable', 'beta', 'nightly')]
+    [ValidateNotNullOrEmpty()]
     [string]$Toolchain = 'stable'
 )
 

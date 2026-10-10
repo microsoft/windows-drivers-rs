@@ -1,5 +1,5 @@
 name: Check Cargo Lockfiles
-description: Validate tracked Cargo.lock files without changing them, honoring each project's Cargo configuration.
+description: Check that tracked Cargo.lock files are consistent with their Cargo.toml manifests without modifying the lockfiles.
 
 inputs:
   lockfile:
@@ -7,7 +7,7 @@ inputs:
     required: false
     default: ""
   toolchain:
-    description: Already-installed Rust channel to use (stable, beta, or nightly).
+    description: Already-installed Rust toolchain specifier to use.
     required: false
     default: stable
 

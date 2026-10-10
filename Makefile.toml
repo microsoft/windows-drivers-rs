@@ -2,7 +2,6 @@ extend = "./crates/wdk-build/rust-driver-makefile.toml"
 
 [config]
 additional_profiles = ["all-default-tasks"]
-init_task = "wdk-repo-init"
 min_version = "0.37.16"
 
 [env]
@@ -44,14 +43,7 @@ args = [
   "${CARGO_MAKE_WORKING_DIRECTORY}/.github/actions/check-cargo-lockfiles/check-lockfiles.ps1",
 ]
 command = "pwsh"
-description = "Check all tracked Cargo lockfiles without changing them"
-workspace = false
-
-[tasks.wdk-repo-init]
-# Wrap the inherited initializer without changing its script's base directory.
-condition = { env_not = { CARGO_MAKE_TASK = "check-lockfiles" } }
-private = true
-run_task = "wdk-build-init"
+description = "Check tracked Cargo.lock files for consistency with their Cargo.toml manifests"
 workspace = false
 
 [tasks.format]
