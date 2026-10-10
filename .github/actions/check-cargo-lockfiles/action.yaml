@@ -1,24 +1,24 @@
 name: Check Cargo Lockfiles
-description: Validate every tracked Cargo.lock without changing it, honoring each project's Cargo configuration.
+description: Validate tracked Cargo.lock files without changing them, honoring each project's Cargo configuration.
 
 inputs:
-  working-directory:
-    description: Repository checkout containing the tracked Cargo.lock files.
+  lockfile:
+    description: Repository-relative tracked Cargo.lock path. Checks all tracked lockfiles when omitted.
     required: false
-    default: "."
+    default: ""
+  toolchain:
+    description: Already-installed Rust channel to use (stable, beta, or nightly).
+    required: false
+    default: stable
 
 runs:
   using: composite
   steps:
-    - name: Install Rust Toolchain (Stable)
-      uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
-      with:
-        toolchain: stable
-
     - name: Check Cargo lockfiles
       shell: pwsh
-      working-directory: ${{ inputs.working-directory }}
       env:
         LOCKFILE_ACTION_PATH: ${{ github.action_path }}
+        LOCKFILE_PATH: ${{ inputs.lockfile }}
+        LOCKFILE_TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
-        & (Join-Path $env:LOCKFILE_ACTION_PATH 'check-lockfiles.ps1')
+        & (Join-Path $env:LOCKFILE_ACTION_PATH 'check-lockfiles.ps1') -Lockfile $env:LOCKFILE_PATH -Toolchain $env:LOCKFILE_TOOLCHAIN

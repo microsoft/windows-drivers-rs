@@ -43,10 +43,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      # cargo-make performs unlocked metadata queries before any task starts.
-      - name: Check Cargo lockfiles before cargo-make
-        uses: ./.github/actions/check-cargo-lockfiles
-
       - name: Install Winget
         uses: ./.github/actions/install-winget
         with:
@@ -89,6 +85,10 @@ jobs:
           targets: |
             x86_64-pc-windows-msvc
             aarch64-pc-windows-msvc
+
+      # cargo-make performs unlocked metadata queries before any task starts.
+      - name: Check Cargo lockfiles before cargo-make
+        uses: ./.github/actions/check-cargo-lockfiles
 
       - name: Install Cargo Make
         uses: ./.github/actions/install-cargo-tool

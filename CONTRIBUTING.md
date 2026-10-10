@@ -146,6 +146,7 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 * Check lockfile consistency before running build or cargo-make commands: `pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1`
   * This checks every tracked `Cargo.lock` from its own directory so Cargo loads that project's `.cargo/config.toml`. Valid uncommitted lockfile updates are allowed; validation must not modify them.
+  * The Lockfile Consistency Checks workflow runs a separate job for each tracked lockfile on stable, beta, and nightly, with a fail-closed summary check for branch protection.
   * The repository-only `cargo make check-lockfiles` task also runs this checker and is included in `wdk-pre-commit-flow`. Run the script directly for a preflight check because cargo-make's startup metadata queries can refresh stale lockfiles before any task executes. CI runs the action before invoking cargo-make for the same reason.
   * To repair a stale lockfile, run `cargo +stable update --workspace` from its directory and commit the updated lockfile.
   * This checks that manifests and lockfiles agree; it does not require every workspace to use the same dependency versions.
@@ -161,11 +162,24 @@ To maintain the quality of code, tests and tools are required to pass before con
 The `check-cargo-lockfiles` composite action contains its checker script, so repositories that copy `.github/actions` from windows-drivers-rs can use it without copying other repository files:
 
 ```yaml
+- name: Install Rust Toolchain (Stable)
+  uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+  with:
+    toolchain: stable
+
 - name: Check Cargo lockfiles
   uses: ./.github/actions/check-cargo-lockfiles
 ```
 
-Run it after checking out the consuming repository and copying the shared actions, before build or cargo-make commands. It installs stable Rust and checks the consuming checkout, not the action's source repository. For a checkout outside the default working directory, set the action's `working-directory` input. The checker requires a tracked root `Cargo.lock`; it also checks every tracked nested lockfile.
+Run it after checking out the consuming repository, copying the shared actions, and installing the selected Rust channel, before build or cargo-make commands. The action does not install toolchains. By default, it checks every tracked lockfile on stable in the consuming checkout, not the action's source repository. The checker requires a tracked root `Cargo.lock`.
+
+The action's `lockfile` input selects one repository-relative tracked path, and `toolchain` selects `stable`, `beta`, or `nightly`. The repository workflow uses both inputs for its lockfile-by-channel matrix. To reproduce an individual check locally:
+
+```shell
+pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1 -Lockfile tests/config-kmdf/Cargo.lock -Toolchain beta
+```
+
+The script's `-List` mode emits the tracked paths as a JSON array for workflow discovery without invoking Cargo.
 
 ### A Note on Code-Style
 

@@ -15,16 +15,77 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  check-lockfiles:
-    name: Summarize Lockfile Checks
+  discover-lockfiles:
+    name: Discover Lockfiles
+    runs-on: ubuntu-latest
+    outputs:
+      lockfiles: ${{ steps.discover.outputs.lockfiles }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Discover tracked Cargo lockfiles
+        id: discover
+        shell: pwsh
+        run: |
+          $lockfiles = & ./.github/actions/check-cargo-lockfiles/check-lockfiles.ps1 -List
+          "lockfiles=$lockfiles" >> $env:GITHUB_OUTPUT
+
+  test-checker:
+    name: Test Lockfile Checker
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Check Cargo lockfiles
-        uses: ./.github/actions/check-cargo-lockfiles
+      - name: Install Rust Toolchain (Stable)
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: stable
 
       - name: Test lockfile checker
         shell: pwsh
         run: ./.github/actions/check-cargo-lockfiles/check-lockfiles.Tests.ps1
+
+  check-lockfiles:
+    name: "Lockfile: ${{ matrix.lockfile }} [${{ matrix.toolchain }}]"
+    needs: discover-lockfiles
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lockfile: ${{ fromJSON(needs.discover-lockfiles.outputs.lockfiles) }}
+        toolchain: [stable, beta, nightly]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Install Rust Toolchain (${{ matrix.toolchain }})
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: Check Cargo lockfiles
+        uses: ./.github/actions/check-cargo-lockfiles
+        with:
+          lockfile: ${{ matrix.lockfile }}
+          toolchain: ${{ matrix.toolchain }}
+
+  summarize:
+    name: Summarize Lockfile Checks
+    needs: [discover-lockfiles, test-checker, check-lockfiles]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check lockfile job results
+        shell: pwsh
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          $results = $env:JOB_RESULTS | ConvertFrom-Json -AsHashtable
+          foreach ($job in $results.GetEnumerator()) {
+            if ($job.Value.result -ne 'success') {
+              throw "Lockfile job $($job.Key) did not succeed: $($job.Value.result)."
+            }
+          }
+          Write-Host 'All lockfile consistency checks passed.'

@@ -59,6 +59,8 @@ The reusable `check-cargo-lockfiles` action and the repository-only `cargo make 
 
 The checker runs `cargo +stable metadata --locked --all-features --format-version 1` from each lockfile's directory to preserve local `.cargo/config.toml` settings. It accepts valid uncommitted lockfile updates but must not change their contents. This checks manifest/lockfile agreement, not identical dependency versions across workspaces.
 
+The Lockfile Consistency Checks workflow validates each discovered lockfile on stable, beta, and nightly in separate matrix jobs. Use `-Lockfile <repository-relative-path> -Toolchain <channel>` with the script to reproduce an individual check locally; without these options, it checks all tracked lockfiles on stable.
+
 ### Lint
 
 ```shell

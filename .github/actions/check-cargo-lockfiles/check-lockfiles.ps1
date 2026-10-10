@@ -1,7 +1,15 @@
 #Requires -Version 7.0
 
+[CmdletBinding(DefaultParameterSetName = 'Check')]
 param(
-    [string]$RepositoryPath = '.'
+    [string]$RepositoryPath = '.',
+    [Parameter(Mandatory, ParameterSetName = 'List')]
+    [switch]$List,
+    [Parameter(ParameterSetName = 'Check')]
+    [string]$Lockfile = '',
+    [Parameter(ParameterSetName = 'Check')]
+    [ValidateSet('stable', 'beta', 'nightly')]
+    [string]$Toolchain = 'stable'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,35 +35,47 @@ try {
         throw 'The repository root Cargo.lock must be tracked.'
     }
 
+    if ($List) {
+        ConvertTo-Json -InputObject $lockfiles -Compress
+        return
+    }
+    if ($Lockfile) {
+        $selectedLockfile = $Lockfile.Replace('\', '/')
+        if ($selectedLockfile -cnotin $lockfiles) {
+            throw "The selected lockfile is not a tracked Cargo.lock: $Lockfile."
+        }
+        $lockfiles = @($selectedLockfile)
+    }
+
     $failed = [System.Collections.Generic.List[string]]::new()
-    foreach ($lockfile in $lockfiles) {
-        $manifest = [System.IO.Path]::ChangeExtension($lockfile, 'toml')
-        if (-not (Test-Path -LiteralPath $lockfile -PathType Leaf) -or -not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
-            Write-Error "Missing tracked lockfile or its Cargo.toml: $lockfile." -ErrorAction Continue
-            $failed.Add($lockfile)
+    foreach ($lockfilePath in $lockfiles) {
+        $manifest = [System.IO.Path]::ChangeExtension($lockfilePath, 'toml')
+        if (-not (Test-Path -LiteralPath $lockfilePath -PathType Leaf) -or -not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
+            Write-Error "Missing tracked lockfile or its Cargo.toml: $lockfilePath." -ErrorAction Continue
+            $failed.Add($lockfilePath)
             continue
         }
 
-        Write-Host "Checking $lockfile"
-        $directory = Split-Path -Parent (Join-Path $root $lockfile)
+        Write-Host "Checking $lockfilePath [$Toolchain]"
+        $directory = Split-Path -Parent (Join-Path $root $lockfilePath)
         Push-Location -LiteralPath $directory
         try {
             # Compare with the input file, not the index, so valid uncommitted updates can be checked locally.
             $before = (Get-FileHash -LiteralPath Cargo.lock -Algorithm SHA256).Hash
-            cargo +stable metadata --locked --all-features --format-version 1 > $null
+            cargo "+$Toolchain" metadata --locked --all-features --format-version 1 > $null
             $metadataExitCode = $LASTEXITCODE
             $after = (Get-FileHash -LiteralPath Cargo.lock -Algorithm SHA256).Hash
 
             if ($metadataExitCode -ne 0 -or $before -ne $after) {
-                $failed.Add($lockfile)
+                $failed.Add($lockfilePath)
                 if ($metadataExitCode -ne 0) {
-                    Write-Error "Lockfile validation failed for $lockfile. Refresh it locally and commit the result." -ErrorAction Continue
+                    Write-Error "Lockfile validation failed for $lockfilePath [$Toolchain]. Refresh it locally and commit the result." -ErrorAction Continue
                 }
                 if ($before -ne $after) {
-                    Write-Error "Lockfile validation modified $lockfile." -ErrorAction Continue
+                    Write-Error "Lockfile validation modified $lockfilePath." -ErrorAction Continue
                 }
             } else {
-                Write-Host "PASS: $lockfile"
+                Write-Host "PASS: $lockfilePath [$Toolchain]"
             }
         } finally {
             Pop-Location
