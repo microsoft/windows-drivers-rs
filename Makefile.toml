@@ -2,6 +2,7 @@ extend = "./crates/wdk-build/rust-driver-makefile.toml"
 
 [config]
 additional_profiles = ["all-default-tasks"]
+init_task = "wdk-repo-init"
 min_version = "0.37.16"
 
 [env]
@@ -15,6 +16,7 @@ RUSTFLAGS = "-D warnings"
 [tasks.wdk-pre-commit-flow]
 category = "Development"
 dependencies = [
+  "check-lockfiles",
   "fmt-toml",
   "format-flow",
   "format-toml-conditioned-flow",
@@ -33,6 +35,23 @@ dependencies = [
   "beta-docs",
 ]
 description = "Run pre-commit tasks and checks"
+workspace = false
+
+[tasks.check-lockfiles]
+args = [
+  "-NoProfile",
+  "-File",
+  "${CARGO_MAKE_WORKING_DIRECTORY}/.github/actions/check-cargo-lockfiles/check-lockfiles.ps1",
+]
+command = "pwsh"
+description = "Check all tracked Cargo lockfiles without changing them"
+workspace = false
+
+[tasks.wdk-repo-init]
+# Wrap the inherited initializer without changing its script's base directory.
+condition = { env_not = { CARGO_MAKE_TASK = "check-lockfiles" } }
+private = true
+run_task = "wdk-build-init"
 workspace = false
 
 [tasks.format]

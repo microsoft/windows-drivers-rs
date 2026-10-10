@@ -15,104 +15,16 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  discover-lockfiles:
-    name: Discover Cargo.lock Files
-    runs-on: ubuntu-latest
-    outputs:
-      lockfiles: ${{ steps.find-lockfiles.outputs.lockfiles }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - name: List tracked Cargo.lock files
-        id: find-lockfiles
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Set-StrictMode -Version Latest
-          $PSNativeCommandUseErrorActionPreference = $false
-
-          $lockfiles = @(git -c core.quotePath=false ls-files -- 'Cargo.lock' '**/Cargo.lock')
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Failed to list tracked Cargo.lock files.'
-          }
-          if ($lockfiles.Count -eq 0) {
-            throw 'No tracked Cargo.lock files found.'
-          }
-          if ('Cargo.lock' -notin $lockfiles) {
-            throw 'The repository root Cargo.lock must be tracked.'
-          }
-
-          foreach ($lockfile in $lockfiles) {
-            $manifest = [System.IO.Path]::ChangeExtension($lockfile, 'toml')
-            if (-not (Test-Path -LiteralPath $lockfile -PathType Leaf) -or -not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
-              throw "Missing tracked lockfile or its Cargo.toml: $lockfile."
-            }
-            Write-Host "Discovered $lockfile"
-          }
-          Write-Host "Discovered $($lockfiles.Count) tracked Cargo.lock file(s)."
-          $json = ConvertTo-Json -InputObject $lockfiles -Compress
-          "lockfiles=$json" >> $env:GITHUB_OUTPUT
-
   check-lockfiles:
-    name: Verify Cargo.lock works with --locked
-    needs: discover-lockfiles
+    name: Summarize Lockfile Checks
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        lockfile: ${{ fromJSON(needs.discover-lockfiles.outputs.lockfiles) }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Install Rust Toolchain (Stable)
-        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
-        with:
-          toolchain: stable
+      - name: Check Cargo lockfiles
+        uses: ./.github/actions/check-cargo-lockfiles
 
-      - name: Resolve Cargo metadata without changing the lockfile
+      - name: Test lockfile checker
         shell: pwsh
-        env:
-          LOCKFILE: ${{ matrix.lockfile }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Set-StrictMode -Version Latest
-          $PSNativeCommandUseErrorActionPreference = $false
-
-          $directory = Split-Path -Parent (Join-Path (Get-Location).Path $env:LOCKFILE)
-          Write-Host "Checking $env:LOCKFILE"
-          Push-Location $directory
-          try {
-            cargo +stable metadata --locked --all-features --format-version 1 > $null
-            if ($LASTEXITCODE -ne 0) {
-              throw "Lockfile validation failed for $env:LOCKFILE. Refresh it locally and commit the result."
-            }
-
-            git diff --exit-code -- Cargo.lock
-            if ($LASTEXITCODE -ne 0) {
-              throw "Lockfile validation modified $env:LOCKFILE."
-            }
-          } finally {
-            Pop-Location
-          }
-
-  summarize-lockfile-results:
-    name: Summarize Lockfile Checks
-    needs:
-      - discover-lockfiles
-      - check-lockfiles
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Ensure all lockfile checks succeeded
-        shell: pwsh
-        env:
-          DISCOVERY_RESULT: ${{ needs.discover-lockfiles.result }}
-          CHECKS_RESULT: ${{ needs.check-lockfiles.result }}
-        run: |
-          if ($env:DISCOVERY_RESULT -ne 'success' -or $env:CHECKS_RESULT -ne 'success') {
-            throw "Lockfile checks did not succeed: discovery=$env:DISCOVERY_RESULT, checks=$env:CHECKS_RESULT."
-          }
-
-          Write-Host 'All lockfile checks succeeded.'
+        run: ./.github/actions/check-cargo-lockfiles/check-lockfiles.Tests.ps1

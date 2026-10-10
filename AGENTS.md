@@ -49,13 +49,15 @@ cargo +nightly test --locked --features nightly
 
 ### Lockfile consistency
 
-Before build or cargo-make commands, run this from each directory containing a tracked `Cargo.lock`:
+Before build or cargo-make commands, check all tracked lockfiles from the repository root:
 
 ```shell
-cargo +stable metadata --locked --all-features --format-version 1
+pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1
 ```
 
-The Lockfile Consistency Checks workflow checks all tracked lockfiles on fresh checkouts. Running from each lockfile's directory preserves local `.cargo/config.toml` settings. This checks manifest/lockfile agreement, not identical dependency versions across workspaces.
+The reusable `check-cargo-lockfiles` action and the repository-only `cargo make check-lockfiles` task use the same script. The task is included in `wdk-pre-commit-flow`; CI also runs the action before invoking cargo-make, whose startup metadata queries can refresh stale lockfiles before any task runs.
+
+The checker runs `cargo +stable metadata --locked --all-features --format-version 1` from each lockfile's directory to preserve local `.cargo/config.toml` settings. It accepts valid uncommitted lockfile updates but must not change their contents. This checks manifest/lockfile agreement, not identical dependency versions across workspaces.
 
 ### Lint
 

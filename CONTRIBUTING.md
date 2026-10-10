@@ -144,9 +144,10 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 **_Dependency Analysis:_**
 
-* Check lockfile consistency before running build or cargo-make commands: `cargo +stable metadata --locked --all-features --format-version 1`
-  * Run this from each directory containing a tracked `Cargo.lock` so Cargo loads that project's `.cargo/config.toml`. The Lockfile Consistency Checks workflow does this on fresh checkouts for the root workspace, examples, and test fixtures.
-  * Run this before cargo-make because its metadata queries can refresh stale lockfiles. To repair a stale lockfile, run `cargo +stable update --workspace` from that directory and commit the updated lockfile.
+* Check lockfile consistency before running build or cargo-make commands: `pwsh -NoProfile -File .github/actions/check-cargo-lockfiles/check-lockfiles.ps1`
+  * This checks every tracked `Cargo.lock` from its own directory so Cargo loads that project's `.cargo/config.toml`. Valid uncommitted lockfile updates are allowed; validation must not modify them.
+  * The repository-only `cargo make check-lockfiles` task also runs this checker and is included in `wdk-pre-commit-flow`. Run the script directly for a preflight check because cargo-make's startup metadata queries can refresh stale lockfiles before any task executes. CI runs the action before invoking cargo-make for the same reason.
+  * To repair a stale lockfile, run `cargo +stable update --workspace` from its directory and commit the updated lockfile.
   * This checks that manifests and lockfiles agree; it does not require every workspace to use the same dependency versions.
 * Scan for security advisories in dependent crates: `cargo audit --deny warnings`
 * Scan for unused dependencies: `cargo machete --skip-target-dir`
@@ -154,6 +155,17 @@ To maintain the quality of code, tests and tools are required to pass before con
 **_Rust Documentation Build Test_**
 
 * `cargo doc --locked --all-features`
+
+### Reusing the Lockfile Check
+
+The `check-cargo-lockfiles` composite action contains its checker script, so repositories that copy `.github/actions` from windows-drivers-rs can use it without copying other repository files:
+
+```yaml
+- name: Check Cargo lockfiles
+  uses: ./.github/actions/check-cargo-lockfiles
+```
+
+Run it after checking out the consuming repository and copying the shared actions, before build or cargo-make commands. It installs stable Rust and checks the consuming checkout, not the action's source repository. For a checkout outside the default working directory, set the action's `working-directory` input. The checker requires a tracked root `Cargo.lock`; it also checks every tracked nested lockfile.
 
 ### A Note on Code-Style
 
