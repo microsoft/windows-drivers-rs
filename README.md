@@ -110,10 +110,12 @@ The crates in this repository are available from [`crates.io`](https://crates.io
    ```rust
    #[cfg(not(test))]
    use wdk_alloc::WdkAllocator;
+   #[cfg(not(test))]
    use wdk_sys::ULONG;
 
    // The value of memory tags are stored in little-endian order, so it is
    // convenient to reverse the order for readability in tooling (i.e. Windbg)
+   #[cfg(not(test))]
    const POOL_TAG: ULONG = ULONG::from_ne_bytes(*b"rust");
 
    #[cfg(not(test))]

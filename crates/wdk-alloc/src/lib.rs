@@ -16,8 +16,14 @@
 //!     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
 //!     not(test)
 //! ))]
+//! const POOL_TAG: ULONG = ULONG::from_ne_bytes(*b"rust");
+//!
+//! #[cfg(all(
+//!     any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
+//!     not(test)
+//! ))]
 //! #[global_allocator]
-//! static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
+//! static GLOBAL_ALLOCATOR: WdkAllocator<POOL_TAG> = WdkAllocator;
 //! ```
 
 #![no_std]
