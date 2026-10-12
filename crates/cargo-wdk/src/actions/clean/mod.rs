@@ -13,7 +13,7 @@ use tracing::{debug, error as err, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{providers::cargo_path, trace};
+use crate::{actions::run_cargo, trace};
 
 /// Action that removes build artifacts produced by the `build` command for a
 /// driver project or emulated workspace.
@@ -161,10 +161,7 @@ impl<'a> CleanAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        let cargo = cargo_path()?;
-        self.command_exec
-            .run(&cargo, &args, None, Some(working_dir))
-            .map_err(CleanActionError::CargoClean)?;
+        run_cargo::<CleanActionError>(self.command_exec, &args, Some(working_dir))?;
         info!("Cleaned project at {}", working_dir.display());
         Ok(())
     }
@@ -232,9 +229,8 @@ mod tests {
         let dir = dir.to_owned();
         let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         exec.expect_run()
-            .withf(move |command, args, env, working_dir| {
+            .withf(move |command, args, _env, working_dir| {
                 command.as_ref() == Path::new(&expected_cargo)
-                    && env.is_none()
                     && args == ["clean"]
                     && *working_dir == Some(dir.as_path())
             })

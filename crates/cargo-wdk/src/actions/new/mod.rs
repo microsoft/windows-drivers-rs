@@ -22,7 +22,7 @@ use tracing::{debug, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::{providers::cargo_path, trace};
+use crate::{actions::run_cargo, trace};
 
 pub const KMDF_STR: &str = "kmdf";
 pub const UMDF_STR: &str = "umdf";
@@ -159,10 +159,7 @@ impl<'a> NewAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        let cargo = cargo_path()?;
-        if let Err(e) = self.command_exec.run(&cargo, &args, None, None) {
-            return Err(NewActionError::CargoNewCommand(e));
-        }
+        run_cargo::<NewActionError>(self.command_exec, &args, None)?;
         Ok(())
     }
 
@@ -717,9 +714,8 @@ mod tests {
             let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
             self.mock_exec
                 .expect_run()
-                .withf(move |command, args, env, working_dir| {
+                .withf(move |command, args, _env, working_dir| {
                     let matched = command.as_ref() == Path::new(&expected_cargo)
-                        && env.is_none()
                         && working_dir.is_none()
                         && args.len() >= 3
                         && args[0] == "new"

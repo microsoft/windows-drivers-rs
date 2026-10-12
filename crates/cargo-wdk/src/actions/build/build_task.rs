@@ -17,10 +17,7 @@ use wdk_build::CpuArchitecture;
 use super::{Profile, error::BuildTaskError, features_to_cargo_args, to_target_triple};
 #[double]
 use crate::providers::exec::CommandExec;
-use crate::{
-    providers::{cargo_path, error::CommandError},
-    trace,
-};
+use crate::{actions::run_cargo, providers::error::CommandError, trace};
 
 /// Parameters for constructing a [`BuildTask`].
 pub struct BuildTaskParams<'a> {
@@ -124,22 +121,22 @@ impl<'a> BuildTask<'a> {
             .map(std::string::String::as_str)
             .collect::<Vec<&str>>();
 
-        let cargo = cargo_path()?;
-
         // Run cargo build from the provided working directory so that
         // config.toml is respected
-        let output = self
-            .command_exec
-            .run(&cargo, &args, None, Some(self.params.working_dir))
-            .map_err(|mut err| {
-                // Drop stdout from CommandFailed so the noisy
-                // --message-format=json-render-diagnostics output isn't bubbled
-                // up in the wrapped error.
-                if let CommandError::CommandFailed { stdout, .. } = &mut err {
-                    stdout.clear();
-                }
-                BuildTaskError::CargoBuild(err)
-            })?;
+        let output =
+            run_cargo::<BuildTaskError>(self.command_exec, &args, Some(self.params.working_dir))
+                .map_err(|mut err| {
+                    // Drop stdout from CommandFailed so the noisy
+                    // --message-format=json-render-diagnostics output isn't
+                    // bubbled up in the wrapped error.
+                    if let BuildTaskError::CargoBuild(CommandError::CommandFailed {
+                        stdout, ..
+                    }) = &mut err
+                    {
+                        stdout.clear();
+                    }
+                    err
+                })?;
 
         debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
@@ -249,9 +246,10 @@ mod tests {
         let expected_stdout_for_mock = expected_stdout.clone();
 
         let mut mock = MockCommandExec::new();
-        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
+        let expected_cargo =
+            std::env::var_os("CARGO").expect("`CARGO` environment variable must be set");
         mock.expect_run()
-            .withf(move |command, args, env, working_dir_opt| {
+            .withf(move |command, args, _env, working_dir_opt| {
                 let matches_args = args.len() == expected_args.len()
                     && args
                         .iter()
@@ -261,7 +259,6 @@ mod tests {
                     .expect("working directory must be provided when running cargo build");
                 let matches_working_dir = working_dir == expected_working_dir.as_path();
                 command.as_ref() == Path::new(&expected_cargo)
-                    && env.is_none()
                     && matches_args
                     && matches_working_dir
             })

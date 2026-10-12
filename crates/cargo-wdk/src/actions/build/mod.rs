@@ -33,9 +33,9 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
-use crate::providers::{cargo_path, error::MetadataError};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
+use crate::{actions::run_cargo, providers::error::MetadataError};
 
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
@@ -579,9 +579,12 @@ impl<'a> BuildAction<'a> {
     ///   is parsed from the output
     ///
     /// # Errors
-    /// Returns [`BuildActionError::CargoPath`] for invalid Cargo configuration,
-    /// [`BuildActionError::CommandExecution`] if the command fails, or an
-    /// architecture error if its output does not identify a supported target.
+    /// * [`BuildActionError::CargoPath`] - If `CARGO` is missing or empty.
+    /// * [`BuildActionError::CommandExecution`] - If the command fails.
+    /// * [`BuildActionError::CannotDetectTargetArch`] - If the output is not
+    ///   valid UTF-8 or does not contain a nonempty target architecture.
+    /// * [`BuildActionError::UnsupportedArchitecture`] - If the reported target
+    ///   architecture is not supported.
     fn get_target_arch_from_cargo_rustc(
         &self,
         working_dir: &Path,
@@ -593,10 +596,7 @@ impl<'a> BuildAction<'a> {
         let feature_args = features_to_cargo_args(self.features);
         args.extend(feature_args.iter().map(String::as_str));
         args.extend(["--", "--print", "cfg"]);
-        let cargo = cargo_path()?;
-        let output = self
-            .command_exec
-            .run(&cargo, &args, None, Some(working_dir))?;
+        let output = run_cargo::<BuildActionError>(self.command_exec, &args, Some(working_dir))?;
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {

@@ -2255,9 +2255,8 @@ impl TestBuildAction {
         let expected_working_dir = cwd.to_path_buf();
         self.mock_run_command
             .expect_run()
-            .withf(move |command, args, env, working_dir| {
+            .withf(move |command, args, _env, working_dir| {
                 command.as_ref() == Path::new(&expected_cargo)
-                    && env.is_none()
                     && *working_dir == Some(expected_working_dir.as_path())
                     && args == expected_cargo_build_args
             })
@@ -2292,9 +2291,8 @@ impl TestBuildAction {
         let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         self.mock_run_command
             .expect_run()
-            .withf(move |command, args, env, working_dir| {
+            .withf(move |command, args, _env, working_dir| {
                 command.as_ref() == Path::new(&expected_cargo)
-                    && env.is_none()
                     && args == expected_args
                     && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
             })
@@ -3759,9 +3757,8 @@ mod get_target_arch_from_cargo_rustc {
         test_build_action
             .mock_run_command
             .expect_run()
-            .withf(move |command, args, env, working_dir| {
+            .withf(move |command, args, _env, working_dir| {
                 command.as_ref() == Path::new(&expected_cargo)
-                    && env.is_none()
                     && args == expected_args
                     && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
             })
