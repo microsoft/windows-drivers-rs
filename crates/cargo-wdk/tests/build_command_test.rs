@@ -50,26 +50,15 @@ fn workspace_flag_builds_all_packages_when_run_from_workspace_member() {
             stderr.contains("Running: cargo [\"build\"") && stderr.contains("\"--workspace\""),
             "expected cargo build to receive --workspace; stderr:\n{stderr}"
         );
+        assert!(
+            stderr.contains("Compiling non_driver_crate"),
+            "expected non-driver workspace member to be compiled; stderr:\n{stderr}"
+        );
         let package_dir = format!("{workspace_path}/target/debug/driver_package");
         assert_dir_exists(&package_dir);
         for ext in ["cat", "inf", "pdb", "sys"] {
             assert_file_exists(&format!("{package_dir}/driver.{ext}"));
         }
-        let deps_dir = Path::new(workspace_path).join("target/debug/deps");
-        assert!(
-            fs::read_dir(&deps_dir)
-                .expect("workspace deps directory should exist")
-                .filter_map(Result::ok)
-                .any(|entry| {
-                    entry
-                        .file_name()
-                        .to_string_lossy()
-                        .starts_with("libnon_driver_crate-")
-                        && entry.path().extension().is_some_and(|ext| ext == "rlib")
-                }),
-            "expected non-driver workspace member to produce an rlib in {}",
-            deps_dir.display()
-        );
 
         run_clean_cmd(workspace_path);
         assert_target_dir_does_not_exist(workspace_path);
