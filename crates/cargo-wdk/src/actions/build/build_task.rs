@@ -31,6 +31,8 @@ pub struct BuildTaskParams<'a> {
     pub target_arch: Option<CpuArchitecture>,
     /// Whether to forward `--locked` to the `cargo` invocations
     pub locked: bool,
+    /// Whether to forward `--workspace` to the `cargo` invocations
+    pub workspace: bool,
     /// The feature selection to forward to the `cargo` invocations
     pub features: &'a Features,
     /// The verbosity level for logging
@@ -92,8 +94,12 @@ impl<'a> BuildTask<'a> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json-render-diagnostics".to_string());
-        args.push("-p".to_string());
-        args.push(self.params.package_name.to_string());
+        if self.params.workspace {
+            args.push("--workspace".to_string());
+        } else {
+            args.push("-p".to_string());
+            args.push(self.params.package_name.to_string());
+        }
         if let Some(path) = self.manifest_path.to_str() {
             args.push("--manifest-path".to_string());
             args.push(path.to_string());
@@ -166,6 +172,7 @@ mod tests {
             profile: None,
             target_arch: None,
             locked: false,
+            workspace: false,
             features,
             verbosity_level: clap_verbosity_flag::Verbosity::default(),
         }
@@ -379,6 +386,43 @@ mod tests {
         let task = BuildTask::new(
             BuildTaskParams {
                 locked: true,
+                ..default_build_task_params(&working_dir, &features)
+            },
+            &mock,
+        );
+
+        task.run()
+            .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+    }
+
+    #[test]
+    fn run_forwards_workspace_to_cargo_invocation_when_workspace_is_set() {
+        let working_dir = PathBuf::from("C:/abs/workspace");
+        let features = Features::default();
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_working_dir = working_dir.clone();
+        let mut mock = MockCommandExec::new();
+        mock.expect_run()
+            .withf(move |command, args, _env, working_dir_opt| {
+                command == "cargo"
+                    && args.contains(&"--workspace")
+                    && !args.contains(&"-p")
+                    && working_dir_opt.is_some_and(|path| path == expected_working_dir.as_path())
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(
+            BuildTaskParams {
+                workspace: true,
                 ..default_build_task_params(&working_dir, &features)
             },
             &mock,
