@@ -2,6 +2,7 @@
 mod test_utils;
 use std::{
     env,
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -1038,12 +1039,16 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
     assert!(re.captures(line).is_some());
 }
 
-// Helper to hash a file
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
     let file_contents = fs::read(&path)
         .unwrap_or_else(|e| panic!("Failed to read file at {}: {}", path.as_ref().display(), e));
-    let result = Sha256::digest(&file_contents);
-    format!("{result:x}")
+
+    Sha256::digest(&file_contents)
+        .into_iter()
+        .fold(String::from("0x"), |mut hex_digest, byte| {
+            write!(&mut hex_digest, "{byte:02x}").expect("writing to a String should succeed");
+            hex_digest
+        })
 }
 
 /// Returns the `WDKContentRoot` path derived from the Nuget WDK package, if the
