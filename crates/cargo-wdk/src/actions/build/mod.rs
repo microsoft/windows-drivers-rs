@@ -33,9 +33,9 @@ use wdk_build::{
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
+use crate::actions::cargo::{cargo_path, run_cargo};
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
-use crate::{actions::run_cargo, providers::error::MetadataError};
 
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
@@ -175,17 +175,15 @@ impl<'a> BuildAction<'a> {
     ///   initializing the package task.
     /// * `BuildActionError::PackageTask` - If there is an error during the
     ///   package task process.
-    /// * `BuildActionError::CargoPath` - If `CARGO` is missing or empty during
-    ///   metadata lookup or architecture detection.
-    /// * `BuildActionError::CargoMetadata` - If `cargo metadata` fails to run
-    ///   or its output cannot be parsed.
+    /// * `BuildActionError::CargoMetadata` - If `CARGO` is missing or empty, or
+    ///   if `cargo metadata` fails to run or its output cannot be parsed.
     /// * `BuildActionError::WdkMetadataParse` - Error Parsing WDK metadata from
     ///   Cargo.toml, not a valid driver project/workspace.
     /// * `BuildActionError::WdkBuildConfig` - If there is an error setting up
     ///   Path for the tools or when failed to detect WDK build number.
     /// * `BuildActionError::Io` - Wraps all possible IO errors.
-    /// * `BuildActionError::CommandExecution` - If there is an error executing
-    ///   a command.
+    /// * `BuildActionError::CargoRustc` - If `CARGO` is missing or empty, or if
+    ///   `cargo rustc` fails while detecting the target architecture.
     /// * `BuildActionError::NoValidRustProjectsInTheDirectory` - If no valid
     ///   Rust projects are found in the working directory.
     /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
@@ -383,13 +381,16 @@ impl<'a> BuildAction<'a> {
         if self.locked {
             other_options.push("--locked".to_string());
         }
+        let cargo = cargo_path().map_err(BuildActionError::CargoMetadata)?;
         let cargo_metadata = self
             .metadata
-            .get_cargo_metadata_at_path(&working_dir_path_trimmed, other_options, self.features)
-            .map_err(|error| match error {
-                MetadataError::CargoPath(error) => BuildActionError::CargoPath(error),
-                MetadataError::CargoMetadata(error) => BuildActionError::CargoMetadata(error),
-            })?;
+            .get_cargo_metadata_at_path(
+                Path::new(&cargo),
+                &working_dir_path_trimmed,
+                other_options,
+                self.features,
+            )
+            .map_err(|error| BuildActionError::CargoMetadata(error.into()))?;
         Ok(cargo_metadata)
     }
 
@@ -579,8 +580,8 @@ impl<'a> BuildAction<'a> {
     ///   is parsed from the output
     ///
     /// # Errors
-    /// * [`BuildActionError::CargoPath`] - If `CARGO` is missing or empty.
-    /// * [`BuildActionError::CommandExecution`] - If the command fails.
+    /// * [`BuildActionError::CargoRustc`] - If `CARGO` is missing or empty, or
+    ///   if the command fails.
     /// * [`BuildActionError::CannotDetectTargetArch`] - If the output is not
     ///   valid UTF-8 or does not contain a nonempty target architecture.
     /// * [`BuildActionError::UnsupportedArchitecture`] - If the reported target
@@ -596,7 +597,8 @@ impl<'a> BuildAction<'a> {
         let feature_args = features_to_cargo_args(self.features);
         args.extend(feature_args.iter().map(String::as_str));
         args.extend(["--", "--print", "cfg"]);
-        let output = run_cargo::<BuildActionError>(self.command_exec, &args, Some(working_dir))?;
+        let output = run_cargo(self.command_exec, &args, Some(working_dir))
+            .map_err(BuildActionError::CargoRustc)?;
         let stdout = std::str::from_utf8(&output.stdout)
             .map_err(|_| BuildActionError::CannotDetectTargetArch)?;
         let arch = stdout.lines().find_map(|line| {

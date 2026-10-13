@@ -38,7 +38,7 @@ fn build_fails_when_cargo_path_does_not_exist() {
         let assertion = cmd.assert().failure();
         let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
         assert!(
-            stderr.contains("Error running cargo metadata"),
+            stderr.contains("Failed to read Cargo metadata for the project/workspace"),
             "expected a metadata error, got: {stderr}"
         );
         assert!(

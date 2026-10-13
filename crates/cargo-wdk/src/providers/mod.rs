@@ -14,46 +14,8 @@ pub mod fs;
 pub mod metadata;
 pub mod wdk_build;
 
-use std::ffi::OsString;
-
-use self::error::CargoPathError;
-
-/// Returns the Cargo executable supplied by the invoking environment.
-///
-/// # Errors
-/// Returns an error if `CARGO` is missing or empty.
-pub fn cargo_path() -> Result<OsString, CargoPathError> {
-    cargo_path_from_env(std::env::var_os("CARGO"))
-}
-
-fn cargo_path_from_env(value: Option<OsString>) -> Result<OsString, CargoPathError> {
-    match value {
-        None => Err(CargoPathError::Missing),
-        Some(path) if path.is_empty() => Err(CargoPathError::Empty),
-        Some(path) => Ok(path),
-    }
-}
-
 pub mod error {
     use std::{io, path::PathBuf, process::Output};
-
-    /// Errors validating the Cargo executable supplied by the environment.
-    #[derive(Debug, PartialEq, Eq, thiserror::Error)]
-    pub enum CargoPathError {
-        #[error("CARGO is not set; invoke through `cargo wdk ...`")]
-        Missing,
-        #[error("CARGO is empty")]
-        Empty,
-    }
-
-    /// Errors resolving Cargo or retrieving project metadata.
-    #[derive(Debug, thiserror::Error)]
-    pub enum MetadataError {
-        #[error(transparent)]
-        CargoPath(#[from] CargoPathError),
-        #[error(transparent)]
-        CargoMetadata(#[from] cargo_metadata::Error),
-    }
 
     /// Error type for `std::process::command` execution failures
     #[derive(Debug, thiserror::Error)]
@@ -113,42 +75,5 @@ pub mod error {
         ReadDirError(PathBuf, #[source] io::Error),
         #[error("Failed to read directory entries for {0}")]
         ReadDirEntriesError(PathBuf, #[source] io::Error),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
-
-    use super::{cargo_path_from_env, error::CargoPathError};
-
-    #[test]
-    fn missing_cargo_is_an_error() {
-        let error = cargo_path_from_env(None).unwrap_err();
-        assert_eq!(error, CargoPathError::Missing);
-        assert_eq!(
-            error.to_string(),
-            "CARGO is not set; invoke through `cargo wdk ...`"
-        );
-    }
-
-    #[test]
-    fn empty_cargo_is_an_error() {
-        let error = cargo_path_from_env(Some(OsString::new())).unwrap_err();
-        assert_eq!(error, CargoPathError::Empty);
-        assert_eq!(error.to_string(), "CARGO is empty");
-    }
-
-    #[test]
-    fn non_unicode_cargo_path_is_preserved() {
-        let path = OsString::from_wide(&[0x0043, 0x003A, 0x005C, 0xD800]);
-        assert_eq!(cargo_path_from_env(Some(path.clone())).unwrap(), path);
-    }
-
-    #[test]
-    fn cargo_path_is_preserved() {
-        let path = r"C:\nonexistent cargo-wdk test toolchain\bin\cargo.exe";
-        assert!(!std::path::Path::new(path).exists());
-        assert_eq!(cargo_path_from_env(Some(path.into())).unwrap(), path);
     }
 }
