@@ -3,7 +3,7 @@
 
 use std::{path::PathBuf, sync::LazyLock};
 
-use fs4::fs_std::FileExt;
+use fs4::FileExt;
 pub use macrotest::{expand, expand_args};
 pub use owo_colors::OwoColorize;
 pub use paste::paste;
@@ -241,18 +241,17 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
     )
     .expect("target file should be successfully opened");
 
-    // only create a new symlink if there isn't an existing one, or if the existing
-    // one points to the wrong place. If std::fs::read_link returns an error (ex.
-    // link was removed after link.is_symlink() check), assume the link needs update
+    // only create a new symlink if there isn't an existing one, or if the
+    // existing one points to the wrong place. If std::fs::read_link returns
+    // an error (ex. link was removed after link.is_symlink() check), assume
+    // the link needs update
     let link_needs_update = || {
         !link.is_symlink()
             || !std::fs::read_link(link).is_ok_and(|current_target| current_target == target)
     };
     if !link.exists() || link_needs_update() {
         // create flock based off target_file, so tests can run in parallel
-        target_file
-            .lock_exclusive()
-            .expect("exclusive lock should be successfully acquired");
+        FileExt::lock(&target_file).expect("exclusive lock should be successfully acquired");
 
         if !link.exists() {
             std::os::windows::fs::symlink_file(relative_target_path, link)
@@ -269,8 +268,9 @@ pub fn _create_symlink_if_nonexistent(link: &std::path::Path, target: &std::path
             // symlink already exists and points to the correct place
         }
 
-        // explicitly unlock the target_file to avoid waiting for windows to eventually
-        // automatically release the lock when target_file handle is closed
+        // explicitly unlock the target_file to avoid waiting for windows to
+        // eventually automatically release the lock when target_file
+        // handle is closed
         FileExt::unlock(&target_file).expect("file locks should be successfully released");
     }
 }

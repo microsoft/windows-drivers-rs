@@ -7,7 +7,7 @@
 
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
-use fs4::fs_std::FileExt;
+use fs4::FileExt;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -124,7 +124,7 @@ struct FileLockGuard {
 
 impl FileLockGuard {
     fn new(file: std::fs::File, span: Span) -> Result<Self> {
-        FileExt::lock_exclusive(&file).to_syn_result(span, "unable to obtain file lock")?;
+        FileExt::lock(&file).to_syn_result(span, "unable to obtain file lock")?;
         Ok(Self { file })
     }
 }
@@ -147,8 +147,8 @@ impl StringExt for String {
             .chars()
             .map(Some)
             .chain([None; MAX_PADDING_NEEDED])
-            .tuple_windows()
-            .filter_map(|(c1, c2, c3)| Some((c1?, c2, c3)))
+            .array_windows()
+            .filter_map(|[c1, c2, c3]| Some((c1?, c2, c3)))
         {
             // Handle camelCase or PascalCase word boundary (e.g. lC in
             // camelCase)
@@ -980,7 +980,7 @@ mod tests {
     {
         let test_flock: std::fs::File =
             std::fs::File::create(SCRATCH_DIR.join("test.lock")).unwrap();
-        FileExt::lock_exclusive(&test_flock).unwrap();
+        FileExt::lock(&test_flock).unwrap();
 
         let cached_function_info_map_path = SCRATCH_DIR.join(CACHE_FILE_NAME);
 

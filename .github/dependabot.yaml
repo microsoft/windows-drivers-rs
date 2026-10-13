@@ -2,30 +2,51 @@ version: 2
 updates:
   - package-ecosystem: "cargo"
     directories: ["**/*"]
+    groups:
+      # Create one repo-wide PR per Cargo dependency name,
+      # combining all its manifest and lockfile updates.
+      per-dependency:
+        group-by: dependency-name
     schedule:
       interval: "weekly"
-      day: "wednesday"
-      timezone: "America/Los_Angeles"
-      time: "06:00"
+      day: "tuesday"
+      timezone: "Etc/UTC"
+      time: "23:00"
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "chore"
-    reviewers:
-      - "microsoft/windows-drivers-rs"
     labels:
       - "type:dependabot"
       - "type:dependencies-cargo"
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    groups:
+      # Combine all CodeQL action updates into one PR, including major upgrades,
+      # keeping init and analyze on the same release across workflows.
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
+      # Combine minor and patch updates for all other actions into one PR.
+      # Leave their major upgrades ungrouped for individual review.
+      actions-minor-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "github/codeql-action/*"
+        update-types:
+          - "minor"
+          - "patch"
     schedule:
       interval: "weekly"
-      day: "wednesday"
-      timezone: "America/Los_Angeles"
-      time: "06:00"
+      day: "thursday"
+      timezone: "Etc/UTC"
+      time: "23:00"
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "chore"
-    reviewers:
-      - "microsoft/windows-drivers-rs"
     labels:
       - "type:dependabot"
       - "type:dependencies-github-actions"

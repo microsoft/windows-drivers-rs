@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Winget
         uses: ./.github/actions/install-winget
@@ -69,7 +69,7 @@ jobs:
           target: ${{ matrix.wdk.source == 'nuget' && matrix.runner.arch || '' }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }}) and LLVM tools
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
           toolchain: ${{ matrix.rust_toolchain }}
           targets: |
@@ -108,7 +108,7 @@ jobs:
 
       - name: Upload Coverage to Codecov
         if: matrix.runner.arch != 'arm64' && github.repository == 'microsoft/windows-drivers-rs' # Skip for forks because they may not have CODECOV_TOKEN
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: target/codecov.info
           token: ${{ secrets.CODECOV_TOKEN }}
