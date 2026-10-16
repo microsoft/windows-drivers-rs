@@ -17,6 +17,6 @@ pub enum CleanActionError {
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more projects failed to clean in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToClean(PathBuf),
-    #[error(transparent)]
-    CargoClean(anyhow::Error),
+    #[error("Error running cargo clean command")]
+    CargoClean(#[source] anyhow::Error),
 }
