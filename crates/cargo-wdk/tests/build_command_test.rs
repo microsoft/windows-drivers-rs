@@ -20,6 +20,35 @@ const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 #[test]
+fn build_fails_when_cargo_path_does_not_exist() {
+    let project_path = "tests/kmdf-driver";
+    with_mutex(project_path, || {
+        Command::new(
+            env::var_os("CARGO").expect("CARGO is not set; run tests through `cargo test`"),
+        )
+        .args(["metadata", "--no-deps", "--format-version", "1", "--locked"])
+        .current_dir(project_path)
+        .assert()
+        .success();
+
+        let cargo = Path::new("nonexistent-cargo.exe");
+        let mut cmd = create_cargo_wdk_cmd("build", Some(&["--locked"]), None, Some(project_path));
+        cmd.env("CARGO", cargo);
+
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
+        assert!(
+            stderr.contains("Failed to read Cargo metadata for the project/workspace"),
+            "expected a metadata error, got: {stderr}"
+        );
+        assert!(
+            stderr.contains("failed to start `cargo metadata`"),
+            "expected a launch failure for the selected Cargo executable, got: {stderr}"
+        );
+    });
+}
+
+#[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
     clean_build_and_verify_project(
         "kmdf",
@@ -86,10 +115,16 @@ fn kmdf_driver_builds_successfully_with_locked_flag() {
 
     // `--locked` must be forwarded to the `cargo rustc` (target-arch probe) and
     // `cargo build` invocations.
+    let cargo = env::var_os("CARGO").expect("run integration tests through cargo test");
     for subcommand in ["rustc", "build"] {
         let invocation = stderr
             .lines()
-            .find(|line| line.contains(&format!("Running: cargo [\"{subcommand}\"")))
+            .find(|line| {
+                line.contains(&format!(
+                    "Running: {} [\"{subcommand}\"",
+                    cargo.to_string_lossy()
+                ))
+            })
             .unwrap_or_else(|| {
                 panic!("no `cargo {subcommand}` invocation found in stderr:\n{stderr}")
             });

@@ -13,7 +13,7 @@ use tracing::{debug, error as err, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::trace;
+use crate::{actions::cargo::run_cargo, trace};
 
 /// Action that removes build artifacts produced by the `build` command for a
 /// driver project or emulated workspace.
@@ -74,8 +74,8 @@ impl<'a> CleanAction<'a> {
     ///
     /// # Errors
     /// * `CleanActionError::FileIo` - If there is an IO error.
-    /// * `CleanActionError::CargoClean` - If there is an error running the
-    ///   `cargo clean` command.
+    /// * `CleanActionError::CargoClean` - If `CARGO` is missing or empty, or if
+    ///   there is an error running the `cargo clean` command.
     /// * `CleanActionError::NoValidRustProjectsInTheDirectory` - If no valid
     ///   Rust projects are found in the working directory.
     /// * `CleanActionError::OneOrMoreRustProjectsFailedToClean` - If one or
@@ -160,8 +160,7 @@ impl<'a> CleanAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        self.command_exec
-            .run("cargo", &args, None, Some(working_dir))
+        run_cargo(self.command_exec, &args, Some(working_dir))
             .map_err(CleanActionError::CargoClean)?;
         info!("Cleaned project at {}", working_dir.display());
         Ok(())
@@ -228,9 +227,12 @@ mod tests {
     /// Sets up an expectation for `cargo clean` invoked at `dir`.
     fn mock_cargo_clean(exec: &mut CommandExec, dir: &Path, ok: bool) {
         let dir = dir.to_owned();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         exec.expect_run()
-            .withf(move |cmd, args, _env, working_dir| {
-                cmd == "cargo" && args == ["clean"] && *working_dir == Some(dir.as_path())
+            .withf(move |command, args, _env, working_dir| {
+                command.as_ref() == Path::new(&expected_cargo)
+                    && args == ["clean"]
+                    && *working_dir == Some(dir.as_path())
             })
             .returning(move |_, _, _, _| {
                 if ok {

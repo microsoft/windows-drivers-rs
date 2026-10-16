@@ -261,6 +261,11 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 
     sanitize_env_vars(&mut cmd);
 
+    cmd.env(
+        "CARGO",
+        env::var_os("CARGO").expect("CARGO is not set; run integration tests through `cargo test`"),
+    );
+
     if let Some(env_vars) = env_vars {
         for (key, value) in env_vars {
             match value {
@@ -298,8 +303,8 @@ pub fn create_cargo_wdk_cmd<P: AsRef<Path>>(
 /// the child runs in a clean environment.
 ///
 /// In particular, this function removes:
-/// - All env vars starting with `CARGO` or `RUST` except `CARGO_HOME` and
-///   `RUSTUP_HOME`
+/// - All env vars starting with `CARGO` or `RUST` except `CARGO_HOME`,
+///   `RUSTUP_HOME`, and `RUSTUP_TOOLCHAIN`
 /// - Entries added to the "PATH" variable by cargo
 fn sanitize_env_vars(cmd: &mut Command) {
     const PATH_VAR: &str = "PATH";
@@ -308,11 +313,10 @@ fn sanitize_env_vars(cmd: &mut Command) {
     let vars_to_remove = env::vars().filter_map(|(var, _)| {
         let var_upper = var.to_uppercase();
         if (var_upper.starts_with("CARGO") || var_upper.starts_with("RUST"))
-            // Leaving these two in as removing them can cause
-            // issues with finding toolchains installed at 
-            // non-default locations
+            // Preserve toolchain selection and non-default installation roots.
             && var_upper != "CARGO_HOME"
             && var_upper != "RUSTUP_HOME"
+            && var_upper != "RUSTUP_TOOLCHAIN"
         {
             Some(var)
         } else {
@@ -346,4 +350,37 @@ fn sanitize_env_vars(cmd: &mut Command) {
     let new_value = env::join_paths(paths_to_keep).expect("unable to join PATH entries");
 
     cmd.env(PATH_VAR, new_value);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{ffi::OsStr, process::Command};
+
+    use super::sanitize_env_vars;
+
+    #[test]
+    fn sanitize_env_vars_preserves_excluded_variables() {
+        const PRESERVED_VALUE: &str = "preserved-value";
+
+        let preserved_vars = ["CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"];
+        let mut command = Command::new("cmd");
+        for var in preserved_vars {
+            command.env(var, PRESERVED_VALUE);
+        }
+        sanitize_env_vars(&mut command);
+        let env_value = |name: &str| {
+            command
+                .get_envs()
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                .map(|(_, value)| value)
+        };
+        for var in preserved_vars {
+            assert_eq!(
+                env_value(var),
+                Some(Some(OsStr::new(PRESERVED_VALUE))),
+                "{var} must be preserved"
+            );
+        }
+        assert_eq!(env_value("CARGO"), Some(None), "CARGO must be removed");
+    }
 }
