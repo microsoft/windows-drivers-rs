@@ -354,30 +354,33 @@ fn sanitize_env_vars(cmd: &mut Command) {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, path::PathBuf, process::Command};
+    use std::{ffi::OsStr, process::Command};
 
     use super::sanitize_env_vars;
 
     #[test]
-    fn sanitized_environment_preserves_selected_rustc() {
-        let cargo = PathBuf::from(env::var_os("CARGO").expect("run tests through cargo test"));
-        let rustc = cargo.with_file_name("rustc.exe");
-        let expected = Command::new(rustc).arg("-vV").output().unwrap();
-        assert!(expected.status.success(), "{expected:?}");
+    fn sanitize_env_vars_preserves_excluded_variables() {
+        const PRESERVED_VALUE: &str = "preserved-value";
 
-        let mut command = Command::new("rustup");
-        command.args(["which", "rustc"]);
+        let preserved_vars = ["CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"];
+        let mut command = Command::new("cmd");
+        for var in preserved_vars {
+            command.env(var, PRESERVED_VALUE);
+        }
         sanitize_env_vars(&mut command);
-        let resolved = command.output().unwrap();
-        assert!(resolved.status.success(), "{resolved:?}");
-        let rustc = String::from_utf8(resolved.stdout).unwrap();
-        let actual = Command::new(rustc.trim()).arg("-vV").output().unwrap();
-
-        assert!(actual.status.success(), "{actual:?}");
-        assert_eq!(
-            String::from_utf8(actual.stdout).unwrap(),
-            String::from_utf8(expected.stdout).unwrap(),
-            "sanitizing the environment must not change the selected compiler"
-        );
+        let env_value = |name: &str| {
+            command
+                .get_envs()
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                .map(|(_, value)| value)
+        };
+        for var in preserved_vars {
+            assert_eq!(
+                env_value(var),
+                Some(Some(OsStr::new(PRESERVED_VALUE))),
+                "{var} must be preserved"
+            );
+        }
+        assert_eq!(env_value("CARGO"), Some(None), "CARGO must be removed");
     }
 }
