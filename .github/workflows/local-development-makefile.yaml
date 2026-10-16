@@ -89,6 +89,10 @@ jobs:
             x86_64-pc-windows-msvc
             aarch64-pc-windows-msvc
 
+      # cargo-make performs unlocked metadata queries before any task starts.
+      - name: Check Cargo lockfiles before cargo-make
+        uses: ./.github/actions/check-cargo-lockfiles
+
       - name: Install Cargo Make
         uses: ./.github/actions/install-cargo-tool
         with:

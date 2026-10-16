@@ -144,6 +144,12 @@ To maintain the quality of code, tests and tools are required to pass before con
 
 **_Dependency Analysis:_**
 
+* Check that tracked `Cargo.lock` files are consistent with their `Cargo.toml` manifests: `cargo make check-lockfiles`
+  * Run this from the repository root in the usual WDK development environment. It is also included in `wdk-pre-commit-flow`.
+  * Each lockfile is checked from its own directory so Cargo loads that project's `.cargo/config.toml`. Valid uncommitted lockfile updates are allowed.
+  * Cargo-make can refresh the root lockfile during startup, before validation runs, so this task is not a strictly read-only preflight. Review any lockfile changes afterward.
+  * To repair a stale lockfile, run `cargo update --workspace` from its directory and commit the updated lockfile.
+  * This checks that manifests and lockfiles agree; it does not require every workspace to use the same dependency versions.
 * Scan for security advisories in dependent crates: `cargo audit --deny warnings`
 * Scan for unused dependencies: `cargo machete --skip-target-dir`
 
