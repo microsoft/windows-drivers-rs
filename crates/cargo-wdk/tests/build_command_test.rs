@@ -30,10 +30,9 @@ fn build_fails_when_cargo_path_does_not_exist() {
         .assert()
         .success();
 
-        let cargo = Path::new(env!("CARGO_MANIFEST_DIR")).join("nonexistent-cargo.exe");
-        assert!(!cargo.exists(), "test Cargo path must not exist");
+        let cargo = Path::new("nonexistent-cargo.exe");
         let mut cmd = create_cargo_wdk_cmd("build", Some(&["--locked"]), None, Some(project_path));
-        cmd.env("CARGO", &cargo);
+        cmd.env("CARGO", cargo);
 
         let assertion = cmd.assert().failure();
         let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
