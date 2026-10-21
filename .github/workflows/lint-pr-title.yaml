@@ -1,0 +1,66 @@
+name: Lint PR Title
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: write
+
+jobs:
+  main:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title follows Conventional Commits
+        uses: amannn/action-semantic-pull-request@v6
+        id: lint_pr_title
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scopes: |
+            cargo-wdk
+            wdk
+            wdk-alloc
+            wdk-build
+            wdk-macros
+            wdk-panic
+            wdk-sys
+          requireScope: false
+
+      - name: Post error comment on PR
+        if: always() && (steps.lint_pr_title.outputs.error_message != null)
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: pr-title-lint-error
+          message: |
+            Thank you for opening this pull request! 👋
+
+            We require pull request titles to follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification, since we use squash-and-merge and the PR title becomes the commit message.
+
+            **Details:**
+
+            ```
+            ${{ steps.lint_pr_title.outputs.error_message }}
+            ```
+
+            **Examples of valid PR titles:**
+
+            - `fix: correct typo in wdk-build`
+            - `feat: add support for UMDF driver templates`
+            - `chore: bump serde from 1.0.219 to 1.0.228`
+            - `fix(cargo-wdk): resolve path construction issue`
+            - `ci: add ARM64 Windows runner support`
+            - `docs: update README with new installation steps`
+            - `refactor!: drop support for WDK 10.0.22621`
+
+      - name: Delete error comment when resolved
+        if: ${{ steps.lint_pr_title.outputs.error_message == null }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: pr-title-lint-error
+          delete: true
