@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - re-format .rs files with the current nightly rustfmt ([#732](https://github.com/microsoft/windows-drivers-rs/pull/732))
 - add `-fno-builtin` to bindgen builder ([#695](https://github.com/microsoft/windows-drivers-rs/pull/695))
 - *(wdk-build)* fix clippy lints  ([#655](https://github.com/microsoft/windows-drivers-rs/pull/655))
-- fix `collapsable_if` lint, rust 1.95 `assert_matches` destabilization ([#643](https://github.com/microsoft/windows-drivers-rs/pull/643))
+- fix `collapsible_if` lint, rust 1.95 `assert_matches` destabilization ([#643](https://github.com/microsoft/windows-drivers-rs/pull/643))
 - add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
 - replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
 - add new unit tests for Wdk::try_from method ([#491](https://github.com/microsoft/windows-drivers-rs/pull/491))
