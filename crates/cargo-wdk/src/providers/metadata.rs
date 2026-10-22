@@ -29,6 +29,7 @@ impl Metadata {
     ///
     /// # Arguments
     ///
+    /// * `cargo` - Path to the Cargo executable used to run `cargo metadata`.
     /// * `working_dir` - A reference to a `Path` that specifies the path to the
     ///   working directory.
     /// * `other_options` - Additional command-line options (e.g. `--locked`)
@@ -49,12 +50,15 @@ impl Metadata {
     /// to execute or if the specified path is not a valid Cargo project.
     pub fn get_cargo_metadata_at_path(
         &self,
+        cargo: &Path,
         working_dir: &Path,
         other_options: Vec<String>,
         features: &Features,
     ) -> cargo_metadata::Result<cargo_metadata::Metadata> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
-        cmd.current_dir(working_dir).other_options(other_options);
+        cmd.cargo_path(cargo)
+            .current_dir(working_dir)
+            .other_options(other_options);
         features.forward_metadata(&mut cmd);
         cmd.exec()
     }

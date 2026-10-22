@@ -17,7 +17,7 @@ use wdk_build::CpuArchitecture;
 use super::{Profile, error::BuildTaskError, features_to_cargo_args, to_target_triple};
 #[double]
 use crate::providers::exec::CommandExec;
-use crate::{providers::error::CommandError, trace};
+use crate::{actions::cargo::run_cargo, providers::error::CommandError, trace};
 
 /// Parameters for constructing a [`BuildTask`].
 pub struct BuildTaskParams<'a> {
@@ -86,8 +86,8 @@ impl<'a> BuildTask<'a> {
     /// # Errors
     /// * `BuildTaskError::EmptyManifestPath` - If the manifest path is empty or
     ///   not a valid unicode
-    /// * `BuildTaskError::CargoBuild` - If there is an error running the `cargo
-    ///   build` command
+    /// * `BuildTaskError::CargoBuild` - If `CARGO` is missing or empty, or if
+    ///   there is an error running the `cargo build` command
     pub fn run(
         &self,
     ) -> Result<impl Iterator<Item = Result<Message, std::io::Error>>, BuildTaskError> {
@@ -128,18 +128,19 @@ impl<'a> BuildTask<'a> {
 
         // Run cargo build from the provided working directory so that
         // config.toml is respected
-        let output = self
-            .command_exec
-            .run("cargo", &args, None, Some(self.params.working_dir))
-            .map_err(|mut err| {
+        let output = run_cargo(self.command_exec, &args, Some(self.params.working_dir)).map_err(
+            |mut err| {
                 // Drop stdout from CommandFailed so the noisy
-                // --message-format=json-render-diagnostics output isn't bubbled
-                // up in the wrapped error.
-                if let CommandError::CommandFailed { stdout, .. } = &mut err {
+                // --message-format=json-render-diagnostics output isn't
+                // bubbled up in the wrapped error.
+                if let Some(CommandError::CommandFailed { stdout, .. }) =
+                    err.downcast_mut::<CommandError>()
+                {
                     stdout.clear();
                 }
                 BuildTaskError::CargoBuild(err)
-            })?;
+            },
+        )?;
 
         debug!("cargo build done");
         Ok(Message::parse_stream(std::io::Cursor::new(output.stdout)))
@@ -250,9 +251,10 @@ mod tests {
         let expected_stdout_for_mock = expected_stdout.clone();
 
         let mut mock = MockCommandExec::new();
+        let expected_cargo =
+            std::env::var_os("CARGO").expect("`CARGO` environment variable must be set");
         mock.expect_run()
             .withf(move |command, args, _env, working_dir_opt| {
-                let matches_command = command == "cargo";
                 let matches_args = args.len() == expected_args.len()
                     && args
                         .iter()
@@ -261,7 +263,9 @@ mod tests {
                 let working_dir = working_dir_opt
                     .expect("working directory must be provided when running cargo build");
                 let matches_working_dir = working_dir == expected_working_dir.as_path();
-                matches_command && matches_args && matches_working_dir
+                command.as_ref() == Path::new(&expected_cargo)
+                    && matches_args
+                    && matches_working_dir
             })
             .return_once(move |_, _, _, _| {
                 Ok(Output {
@@ -315,13 +319,16 @@ mod tests {
         let task = BuildTask::new(default_build_task_params(&working_dir, &features), &mock);
 
         let err = task.run().err().expect("expected cargo failure");
-        let BuildTaskError::CargoBuild(CommandError::CommandFailed {
+        let BuildTaskError::CargoBuild(err) = err else {
+            panic!("expected CargoBuild error, got: {err:?}");
+        };
+        let Some(CommandError::CommandFailed {
             command,
             args,
             stdout,
-        }) = err
+        }) = err.downcast_ref::<CommandError>()
         else {
-            panic!("expected CargoBuild(CommandFailed) error, got: {err:?}");
+            panic!("expected CommandFailed cause, got: {err:?}");
         };
         assert_eq!(command, "cargo");
         assert!(
@@ -353,8 +360,12 @@ mod tests {
             .run()
             .err()
             .expect("expected command invocation failure");
-        let BuildTaskError::CargoBuild(CommandError::IoError(command, args, io_err)) = err else {
-            panic!("expected CargoBuild(IoError) error, got: {err:?}");
+        let BuildTaskError::CargoBuild(err) = err else {
+            panic!("expected CargoBuild error, got: {err:?}");
+        };
+        let Some(CommandError::IoError(command, args, io_err)) = err.downcast_ref::<CommandError>()
+        else {
+            panic!("expected IoError cause, got: {err:?}");
         };
         assert_eq!(command, "cargo");
         assert!(
@@ -373,8 +384,11 @@ mod tests {
         let expected_stdout_for_mock = expected_stdout.clone();
 
         let mut mock = MockCommandExec::new();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         mock.expect_run()
-            .withf(|command, args, _env, _wd| command == "cargo" && args.contains(&"--locked"))
+            .withf(move |command, args, _env, _wd| {
+                command.as_ref() == Path::new(&expected_cargo) && args.contains(&"--locked")
+            })
             .return_once(move |_, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
@@ -405,9 +419,10 @@ mod tests {
         expected_stdout.push(b'\n');
         let expected_working_dir = working_dir.clone();
         let mut mock = MockCommandExec::new();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         mock.expect_run()
             .withf(move |command, args, _env, working_dir_opt| {
-                command == "cargo"
+                command.as_ref() == Path::new(&expected_cargo)
                     && args.contains(&"--workspace")
                     && !args.contains(&"-p")
                     && working_dir_opt.is_some_and(|path| path == expected_working_dir.as_path())
@@ -446,9 +461,10 @@ mod tests {
         let expected_stdout_for_mock = expected_stdout.clone();
 
         let mut mock = MockCommandExec::new();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         mock.expect_run()
             .withf(move |command, args, _env, _working_dir_opt| {
-                command == "cargo"
+                command.as_ref() == Path::new(&expected_cargo)
                     && args.contains(&"--all-features")
                     && args.contains(&"--no-default-features")
                     && args.windows(2).any(|w| w == ["--features", "foo"])

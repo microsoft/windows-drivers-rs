@@ -2,6 +2,7 @@
 mod test_utils;
 use std::{
     env,
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -17,6 +18,35 @@ const NUGET_PACKAGES_ROOT_ENV_VAR: &str = "NugetPackagesRoot";
 const FULL_VERSION_NUMBER_ENV_VAR: &str = "FullVersionNumber";
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
+
+#[test]
+fn build_fails_when_cargo_path_does_not_exist() {
+    let project_path = "tests/kmdf-driver";
+    with_mutex(project_path, || {
+        Command::new(
+            env::var_os("CARGO").expect("CARGO is not set; run tests through `cargo test`"),
+        )
+        .args(["metadata", "--no-deps", "--format-version", "1", "--locked"])
+        .current_dir(project_path)
+        .assert()
+        .success();
+
+        let cargo = Path::new("nonexistent-cargo.exe");
+        let mut cmd = create_cargo_wdk_cmd("build", Some(&["--locked"]), None, Some(project_path));
+        cmd.env("CARGO", cargo);
+
+        let assertion = cmd.assert().failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
+        assert!(
+            stderr.contains("Failed to read Cargo metadata for the project/workspace"),
+            "expected a metadata error, got: {stderr}"
+        );
+        assert!(
+            stderr.contains("failed to start `cargo metadata`"),
+            "expected a launch failure for the selected Cargo executable, got: {stderr}"
+        );
+    });
+}
 
 #[test]
 fn mixed_package_kmdf_workspace_builds_successfully() {
@@ -46,9 +76,14 @@ fn workspace_flag_builds_all_packages_when_run_from_workspace_member() {
             Some(&["--workspace", "--sign-mode", "off", "-v"]),
             None,
         );
+        let cargo = env::var_os("CARGO").expect("run integration tests through cargo test");
+        let build_invocation = stderr
+            .lines()
+            .find(|line| line.contains(&format!("Running: {} [\"build\"", cargo.to_string_lossy())))
+            .unwrap_or_else(|| panic!("no `cargo build` invocation found in stderr:\n{stderr}"));
         assert!(
-            stderr.contains("Running: cargo [\"build\"") && stderr.contains("\"--workspace\""),
-            "expected cargo build to receive --workspace; stderr:\n{stderr}"
+            build_invocation.contains("\"--workspace\""),
+            "expected cargo build to receive --workspace, but got:\n{build_invocation}"
         );
         assert!(
             stderr.contains("Compiling non_driver_crate"),
@@ -117,10 +152,16 @@ fn kmdf_driver_builds_successfully_with_locked_flag() {
 
     // `--locked` must be forwarded to the `cargo rustc` (target-arch probe) and
     // `cargo build` invocations.
+    let cargo = env::var_os("CARGO").expect("run integration tests through cargo test");
     for subcommand in ["rustc", "build"] {
         let invocation = stderr
             .lines()
-            .find(|line| line.contains(&format!("Running: cargo [\"{subcommand}\"")))
+            .find(|line| {
+                line.contains(&format!(
+                    "Running: {} [\"{subcommand}\"",
+                    cargo.to_string_lossy()
+                ))
+            })
             .unwrap_or_else(|| {
                 panic!("no `cargo {subcommand}` invocation found in stderr:\n{stderr}")
             });
@@ -1070,12 +1111,16 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
     assert!(re.captures(line).is_some());
 }
 
-// Helper to hash a file
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
     let file_contents = fs::read(&path)
         .unwrap_or_else(|e| panic!("Failed to read file at {}: {}", path.as_ref().display(), e));
-    let result = Sha256::digest(&file_contents);
-    format!("{result:x}")
+
+    Sha256::digest(&file_contents)
+        .into_iter()
+        .fold(String::from("0x"), |mut hex_digest, byte| {
+            write!(&mut hex_digest, "{byte:02x}").expect("writing to a String should succeed");
+            hex_digest
+        })
 }
 
 /// Returns the `WDKContentRoot` path derived from the Nuget WDK package, if the

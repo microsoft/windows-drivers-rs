@@ -22,7 +22,7 @@ use tracing::{debug, info};
 
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs};
-use crate::trace;
+use crate::{actions::cargo::run_cargo, trace};
 
 pub const KMDF_STR: &str = "kmdf";
 pub const UMDF_STR: &str = "umdf";
@@ -113,8 +113,8 @@ impl<'a> NewAction<'a> {
     ///
     /// # Errors
     ///
-    /// * `NewActionError::CargoNewCommand` - If there is an error running the
-    ///   `cargo new` command.
+    /// * `NewActionError::CargoNewCommand` - If `CARGO` is missing or empty, or
+    ///   if there is an error running the `cargo new` command.
     /// * `NewActionError::TemplateNotFound` - If a template file matching the
     ///   driver type is not found
     /// * `NewActionError::FileSystem` - If there is an error with file system
@@ -148,8 +148,8 @@ impl<'a> NewAction<'a> {
     ///
     /// # Errors
     ///
-    /// * `NewActionError::CargoNewCommand` - If there is an error running the
-    ///   `cargo new` command.
+    /// * `NewActionError::CargoNewCommand` - If `CARGO` is missing or empty, or
+    ///   if there is an error running the `cargo new` command.
     fn run_cargo_new(&self) -> Result<(), NewActionError> {
         debug!("Running cargo new command");
         let path_str = self.path.to_string_lossy().to_string();
@@ -157,7 +157,7 @@ impl<'a> NewAction<'a> {
         if let Some(flag) = trace::get_cargo_verbose_flags(self.verbosity_level) {
             args.push(flag);
         }
-        if let Err(e) = self.command_exec.run("cargo", &args, None, None) {
+        if let Err(e) = run_cargo(self.command_exec, &args, None) {
             return Err(NewActionError::CargoNewCommand(e));
         }
         Ok(())
@@ -711,10 +711,12 @@ mod tests {
             expected_flag: Option<String>,
         ) -> Self {
             let expected_path = self.path.to_string_lossy().to_string();
+            let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
             self.mock_exec
                 .expect_run()
-                .withf(move |cmd, args, _, _| {
-                    let matched = cmd == "cargo"
+                .withf(move |command, args, _env, working_dir| {
+                    let matched = command.as_ref() == Path::new(&expected_cargo)
+                        && working_dir.is_none()
                         && args.len() >= 3
                         && args[0] == "new"
                         && args[1] == "--lib"

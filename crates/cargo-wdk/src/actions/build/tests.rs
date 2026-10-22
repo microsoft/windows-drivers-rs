@@ -1480,12 +1480,14 @@ fn given_a_workspace_member_when_workspace_flag_is_set_and_cargo_metadata_fails_
 
     assert!(
         matches!(
-            run_result,
-            Err(BuildActionError::CargoMetadataParse(
-                cargo_metadata::Error::CargoMetadata { .. }
-            ))
+            &run_result,
+            Err(BuildActionError::CargoMetadata(source))
+                if matches!(
+                    source.downcast_ref::<cargo_metadata::Error>(),
+                    Some(cargo_metadata::Error::CargoMetadata { .. })
+                )
         ),
-        "Expected CargoMetadataParse error, got: {run_result:?}"
+        "Expected CargoMetadata error, got: {run_result:?}"
     );
 }
 
@@ -1507,10 +1509,12 @@ fn given_a_workspace_with_multiple_driver_projects_when_workspace_flag_is_set_an
 
     assert!(
         matches!(
-            run_result,
-            Err(BuildActionError::BuildTask(BuildTaskError::CargoBuild(
-                CommandError::CommandFailed { .. }
-            )))
+            &run_result,
+            Err(BuildActionError::BuildTask(BuildTaskError::CargoBuild(source)))
+                if matches!(
+                    source.downcast_ref::<CommandError>(),
+                    Some(CommandError::CommandFailed { .. })
+                )
         ),
         "Expected BuildTask(CargoBuild) error, got: {run_result:?}"
     );
@@ -1953,6 +1957,44 @@ pub fn given_a_workspace_only_with_non_driver_projects_when_cwd_is_workspace_mem
     );
 }
 
+////////////////////////////////////////////////////////////////////////////////
+/// Metadata error tests
+////////////////////////////////////////////////////////////////////////////////
+#[test]
+fn given_a_metadata_io_error_when_getting_metadata_then_cargo_metadata_error_is_preserved() {
+    let cwd = PathBuf::from(r"C:\tmp");
+    let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
+    test_build_action
+        .mock_metadata_provider
+        .expect_get_cargo_metadata_at_path()
+        .once()
+        .return_once(|_, _, _, _| {
+            Err(cargo_metadata::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "selected Cargo executable is missing",
+            )))
+        });
+    let action =
+        initialize_build_action(&cwd, None, None, false, false, &test_build_action).unwrap();
+
+    let error = action.get_cargo_metadata(&cwd).unwrap_err();
+
+    let BuildActionError::CargoMetadata(ref source) = error else {
+        panic!("expected CargoMetadata error, got: {error:?}");
+    };
+    assert!(matches!(
+        source.downcast_ref::<cargo_metadata::Error>(),
+        Some(cargo_metadata::Error::Io(io_error)) if io_error.kind() == std::io::ErrorKind::NotFound
+    ));
+    assert_eq!(
+        error.to_string(),
+        "Failed to read Cargo metadata for the project/workspace"
+    );
+    assert!(
+        format!("{:#}", anyhow::Error::new(error)).contains("selected Cargo executable is missing")
+    );
+}
+
 fn assert_build_action_run_is_success(
     cwd: &PathBuf,
     profile: Option<Profile>,
@@ -2152,15 +2194,16 @@ impl TestBuildAction {
             vec![]
         };
         let expected_features = self.features.clone();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
-                    *other_options == expected_options && *features == expected_features
-                },
-            )
+            .withf(move |cargo, _working_dir, other_options, features| {
+                cargo == Path::new(&expected_cargo)
+                    && *other_options == expected_options
+                    && *features == expected_features
+            })
             .once()
-            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -2192,18 +2235,19 @@ impl TestBuildAction {
             vec![]
         };
         let expected_features = self.features.clone();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         // `--workspace` resolves metadata once to find the workspace root and
         // again when building from that root.
         let expected_metadata_calls = if self.workspace { 2 } else { 1 };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
-                    *other_options == expected_options && *features == expected_features
-                },
-            )
+            .withf(move |cargo, _working_dir, other_options, features| {
+                cargo == Path::new(&expected_cargo)
+                    && *other_options == expected_options
+                    && *features == expected_features
+            })
             .times(expected_metadata_calls)
-            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -2219,15 +2263,16 @@ impl TestBuildAction {
             vec![]
         };
         let expected_features = self.features.clone();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
-            .withf(
-                move |_working_dir: &Path, other_options: &Vec<String>, features: &Features| {
-                    *other_options == expected_options && *features == expected_features
-                },
-            )
+            .withf(move |cargo, _working_dir, other_options, features| {
+                cargo == Path::new(&expected_cargo)
+                    && *other_options == expected_options
+                    && *features == expected_features
+            })
             .once()
-            .returning(move |_, _, _| Ok(cargo_toml_metadata_clone.clone()));
+            .returning(move |_, _, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
     }
@@ -2424,7 +2469,6 @@ impl TestBuildAction {
         override_output: Option<Output>,
     ) -> Self {
         // cargo build on the package
-        let expected_cargo_command: &'static str = "cargo";
         let manifest_path = cwd
             .join("Cargo.toml")
             .to_string_lossy()
@@ -2461,17 +2505,15 @@ impl TestBuildAction {
             stdout: vec![],
             stderr: vec![],
         });
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
+        let expected_working_dir = cwd.to_path_buf();
         self.mock_run_command
             .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      _working_dir: &Option<&Path>|
-                      -> bool {
-                    command == expected_cargo_command && args == expected_cargo_build_args
-                },
-            )
+            .withf(move |command, args, _env, working_dir| {
+                command.as_ref() == Path::new(&expected_cargo)
+                    && *working_dir == Some(expected_working_dir.as_path())
+                    && args == expected_cargo_build_args
+            })
             .once()
             .returning(move |_, _, _, _| Ok(expected_output.clone()));
         self
@@ -2501,19 +2543,20 @@ impl TestBuildAction {
             stderr: Vec::new(),
         });
         let expected_working_dir = workspace_root.to_owned();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         self.mock_run_command
             .expect_run()
             .withf(move |command, args, _env, working_dir| {
-                command == "cargo"
+                command.as_ref() == Path::new(&expected_cargo)
                     && args == expected_args
                     && *working_dir == Some(expected_working_dir.as_path())
             })
             .once()
-            .returning(move |command, args, _, _| {
+            .returning(move |_, args, _, _| {
                 if expected_output.status.success() {
                     Ok(expected_output.clone())
                 } else {
-                    Err(CommandError::from_output(command, args, &expected_output))
+                    Err(CommandError::from_output("cargo", args, &expected_output))
                 }
             });
         self
@@ -2524,7 +2567,7 @@ impl TestBuildAction {
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .once()
-            .returning(move |_, _, _| {
+            .returning(move |_, _, _, _| {
                 Err(cargo_metadata::Error::CargoMetadata {
                     stderr: stderr.clone(),
                 })
@@ -2555,18 +2598,14 @@ impl TestBuildAction {
         expected_args.push("--print".to_string());
         expected_args.push("cfg".to_string());
         let expected_args_for_err = expected_args.clone();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         self.mock_run_command
             .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      working_dir: &Option<&Path>| {
-                    command == "cargo"
-                        && args == expected_args
-                        && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
-                },
-            )
+            .withf(move |command, args, _env, working_dir| {
+                command.as_ref() == Path::new(&expected_cargo)
+                    && args == expected_args
+                    && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
+            })
             .once()
             .returning(move |_, _, _, _| match override_output.clone() {
                 Some(output) => {
@@ -2828,17 +2867,19 @@ impl TestBuildAction {
             self.mock_run_command
                 .expect_run()
                 .withf(
-                    move |command: &str,
+                    move |command: &dyn AsRef<Path>,
                           args: &[&str],
                           _env_vars: &Option<&HashMap<&str, &str>>,
                           _working_dir: &Option<&Path>|
                           -> bool {
-                        println!("command: {command}, args: {args:?}");
+                        let command = command.as_ref();
+                        println!("command: {command:?}, args: {args:?}");
                         println!(
                             "expected_command: {expected_stampinf_command}, expected_args: \
                              {expected_stampinf_args:?}"
                         );
-                        command == expected_stampinf_command && args == expected_stampinf_args
+                        command == Path::new(expected_stampinf_command)
+                            && args == expected_stampinf_args
                     },
                 )
                 .once()
@@ -2892,17 +2933,18 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    println!("command: {command}, args: {args:?}");
+                    let command = command.as_ref();
+                    println!("command: {command:?}, args: {args:?}");
                     println!(
                         "expected_command: {expected_inf2cat_command}, expected_args: \
                          {expected_inf2cat_args:?}"
                     );
-                    command == expected_inf2cat_command && args == expected_inf2cat_args
+                    command == Path::new(expected_inf2cat_command) && args == expected_inf2cat_args
                 },
             )
             .once()
@@ -2932,12 +2974,13 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
+                    command.as_ref() == Path::new(expected_certmgr_command)
+                        && args == expected_certmgr_args
                 },
             )
             .returning(move |_, _, _, _| match override_output.clone() {
@@ -2982,12 +3025,13 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_certmgr_command && args == expected_certmgr_args
+                    command.as_ref() == Path::new(expected_certmgr_command)
+                        && args == expected_certmgr_args
                 },
             )
             .once()
@@ -3031,12 +3075,13 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_makecert_command && args == expected_makecert_args
+                    command.as_ref() == Path::new(expected_makecert_command)
+                        && args == expected_makecert_args
                 },
             )
             .once()
@@ -3092,13 +3137,14 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run_with_redaction()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _redaction_indices: &[usize],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
+                    command.as_ref() == Path::new(expected_signtool_command)
+                        && args == expected_signtool_args
                 },
             )
             .once()
@@ -3154,13 +3200,14 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run_with_redaction()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _redaction_indices: &[usize],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_args
+                    command.as_ref() == Path::new(expected_signtool_command)
+                        && args == expected_signtool_args
                 },
             )
             .once()
@@ -3208,12 +3255,13 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
+                    command.as_ref() == Path::new(expected_signtool_command)
+                        && args == expected_signtool_verify_args
                 },
             )
             .once()
@@ -3261,12 +3309,13 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_signtool_command && args == expected_signtool_verify_args
+                    command.as_ref() == Path::new(expected_signtool_command)
+                        && args == expected_signtool_verify_args
                 },
             )
             .once()
@@ -3321,12 +3370,13 @@ impl TestBuildAction {
         self.mock_run_command
             .expect_run()
             .withf(
-                move |command: &str,
+                move |command: &dyn AsRef<Path>,
                       args: &[&str],
                       _env_vars: &Option<&HashMap<&str, &str>>,
                       _working_dir: &Option<&Path>|
                       -> bool {
-                    command == expected_infverif_command && args == expected_infverif_args
+                    command.as_ref() == Path::new(expected_infverif_command)
+                        && args == expected_infverif_args
                 },
             )
             .once()
@@ -3877,7 +3927,6 @@ mod get_target_dir_from_output {
 
 mod get_target_arch_from_cargo_rustc {
     use std::{
-        collections::HashMap,
         path::{Path, PathBuf},
         process::{ExitStatus, Output},
     };
@@ -4014,20 +4063,15 @@ mod get_target_arch_from_cargo_rustc {
         }
         expected_args.extend(features_to_cargo_args(&test_build_action.features));
         expected_args.extend(["--", "--print", "cfg"].map(String::from));
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
         test_build_action
             .mock_run_command
             .expect_run()
-            .withf(
-                move |command: &str,
-                      args: &[&str],
-                      _env_vars: &Option<&HashMap<&str, &str>>,
-                      working_dir: &Option<&Path>|
-                      -> bool {
-                    command == "cargo"
-                        && args == expected_args
-                        && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
-                },
-            )
+            .withf(move |command, args, _env, working_dir| {
+                command.as_ref() == Path::new(&expected_cargo)
+                    && args == expected_args
+                    && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
+            })
             .once()
             .returning(move |_, _, _, _| {
                 Ok(Output {

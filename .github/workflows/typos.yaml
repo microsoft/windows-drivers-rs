@@ -19,12 +19,12 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # We explicitly install typos instead the typos GitHub Action due to:
       # https://github.com/crate-ci/typos/issues/1191
       - name: Install typos (taiki-e/install-action)
-        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: typos
 

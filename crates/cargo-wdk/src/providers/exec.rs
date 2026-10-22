@@ -30,37 +30,38 @@ pub struct CommandExec {}
 
 #[automock]
 impl CommandExec {
-    // The `'a` lifetime is required by mockall's `#[automock]` to generate the
-    // mock impl
-    #[allow(clippy::extra_unused_lifetimes)]
-    pub fn run<'a>(
+    /// Runs an executable specified by a path or a bare name.
+    /// Bare names use the OS executable search rules, including the `PATH`
+    /// environment variable.
+    #[mockall::concretize]
+    pub fn run<P: AsRef<Path>>(
         &self,
-        command: &'a str,
-        args: &'a [&'a str],
-        env_vars: Option<&'a HashMap<&'a str, &'a str>>,
-        working_dir: Option<&'a Path>,
+        path: P,
+        args: &[&str],
+        env_vars: Option<&HashMap<&str, &str>>,
+        working_dir: Option<&Path>,
     ) -> Result<Output, CommandError> {
-        self.run_with_redaction(command, args, &[], env_vars, working_dir)
+        self.run_with_redaction(path, args, &[], env_vars, working_dir)
     }
 
-    /// Runs a command with the specified arguments, environment variables, and
-    /// working directory, while redacting sensitive arguments from logs and
-    /// error messages. The `redaction_indices` parameter specifies the indices
-    /// of arguments to be redacted.
+    /// Runs an executable specified by a path or a bare name with the specified
+    /// arguments, environment variables, and working directory, while redacting
+    /// sensitive arguments from logs and error messages. The
+    /// `redaction_indices` parameter specifies the indices of arguments to be
+    /// redacted.
     ///
     /// # Panics
     /// If any index in `redaction_indices` is out of bounds for `args`.
-    // The `'a` lifetime is required by mockall's `#[automock]` to generate the
-    // mock impl
-    #[allow(clippy::extra_unused_lifetimes)]
-    pub fn run_with_redaction<'a>(
+    #[mockall::concretize]
+    pub fn run_with_redaction<P: AsRef<Path>>(
         &self,
-        command: &'a str,
-        args: &'a [&'a str],
-        redaction_indices: &'a [usize],
-        env_vars: Option<&'a HashMap<&'a str, &'a str>>,
-        working_dir: Option<&'a Path>,
+        path: P,
+        args: &[&str],
+        redaction_indices: &[usize],
+        env_vars: Option<&HashMap<&str, &str>>,
+        working_dir: Option<&Path>,
     ) -> Result<Output, CommandError> {
+        let command = path.as_ref();
         assert!(
             redaction_indices.iter().all(|&i| i < args.len()),
             "redaction index out of bounds for {} argument(s): {redaction_indices:?}",
@@ -77,9 +78,10 @@ impl CommandExec {
                 }
             })
             .collect();
+        let mut cmd = Command::new(command);
+        let command = command.to_string_lossy();
         debug!("Running: {} {:?}", command, log_args);
 
-        let mut cmd = Command::new(command);
         cmd.args(args);
 
         if let Some(env) = env_vars {
@@ -96,10 +98,10 @@ impl CommandExec {
             .stdout(Stdio::piped())
             .spawn()
             .and_then(std::process::Child::wait_with_output)
-            .map_err(|e| CommandError::from_io_error(command, &log_args, e))?;
+            .map_err(|e| CommandError::from_io_error(&command, &log_args, e))?;
 
         if !output.status.success() {
-            return Err(CommandError::from_output(command, &log_args, &output));
+            return Err(CommandError::from_output(&command, &log_args, &output));
         }
 
         debug!(
@@ -115,7 +117,29 @@ impl CommandExec {
 
 #[cfg(test)]
 mod tests {
+    use std::{env, ffi::OsString, fs, os::windows::ffi::OsStringExt, path::PathBuf};
+
     use super::CommandExec;
+
+    #[test]
+    fn run_executes_non_unicode_executable_path() {
+        let dir = assert_fs::TempDir::new().unwrap();
+        let mut name = OsString::from("native ");
+        name.push(OsString::from_wide(&[0xD800]));
+        name.push(".exe");
+        let executable = dir.join(name);
+        let source = PathBuf::from(env::var_os("SystemRoot").expect("SystemRoot must be set"))
+            .join("System32")
+            .join("cmd.exe");
+        fs::copy(source, &executable).unwrap();
+        assert!(executable.to_str().is_none());
+
+        let output = CommandExec::default()
+            .run(&executable, &["/D", "/C", "exit 0"], None, None)
+            .unwrap();
+
+        assert!(output.status.success());
+    }
 
     #[test]
     fn run_with_redaction_redacts_secret_arg_in_error() {

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::providers::error::{CommandError, FileError};
+use crate::providers::error::FileError;
 
 /// Errors for the clean action layer
 #[derive(Error, Debug)]
@@ -17,6 +17,6 @@ pub enum CleanActionError {
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more projects failed to clean in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToClean(PathBuf),
-    #[error(transparent)]
-    CargoClean(#[from] CommandError),
+    #[error("Error running cargo clean command")]
+    CargoClean(#[source] anyhow::Error),
 }

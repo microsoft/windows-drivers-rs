@@ -15,16 +15,16 @@ pub enum BuildActionError {
     NotAbsolute(PathBuf, #[source] io::Error),
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
-    #[error("Error Parsing Cargo.toml, not a valid rust project/workspace")]
-    CargoMetadataParse(#[from] cargo_metadata::Error),
+    #[error("Failed to read Cargo metadata for the project/workspace")]
+    CargoMetadata(#[source] anyhow::Error),
     #[error("Error Parsing WDK metadata from Cargo.toml, not a valid driver project/workspace")]
     WdkMetadataParse(#[from] wdk_build::metadata::TryFromCargoMetadataError),
     #[error(transparent)]
     BuildTask(#[from] BuildTaskError),
     #[error(transparent)]
     FileIo(#[from] FileError),
-    #[error(transparent)]
-    CommandExecution(#[from] CommandError),
+    #[error("Error running cargo rustc for architecture detection")]
+    CargoRustc(#[source] anyhow::Error),
     #[error("Not a workspace member, working directory: {0}")]
     NotAWorkspaceMember(PathBuf),
     #[error(transparent)]
@@ -49,7 +49,7 @@ pub enum BuildTaskError {
     #[error("Empty manifest path found error")]
     EmptyManifestPath,
     #[error("Error running cargo build command")]
-    CargoBuild(#[source] CommandError),
+    CargoBuild(#[source] anyhow::Error),
     #[error(transparent)]
     FileIo(#[from] FileError),
 }
