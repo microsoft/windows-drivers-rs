@@ -7,6 +7,7 @@ The release process for this repository leverages [`release-plz`](https://github
 1. Install `cargo-semver-checks`: One option is by running `cargo install --locked cargo-semver-checks`
    1. Ensure you are running the latest version of `cargo-semver-checks`    
 1. Checkout the latest code on `main` branch
+1. From the repository root, set `$env:CARGO_TARGET_DIR = './target'` (or an absolute path to that directory). This overrides `release-plz`'s [temporary target directory](https://github.com/release-plz/release-plz/pull/3243), since windows-drivers-rs [does not yet support custom target directories outside the workspace](https://github.com/microsoft/windows-drivers-rs/issues/252).
 1. Create a release PR: `release-plz release-pr --git-token <Github Token>`
 1. In the Pull Request:
    1. Check that the new versions automatically determined by `release-plz` make sense
@@ -16,7 +17,8 @@ The release process for this repository leverages [`release-plz`](https://github
 1. Checkout the generated release branch locally in order to:
    1. Update all docs to reflect new versions
    1. Update all `cargo-make` files to use the new versions (ex. for `wdk-build` in [rust-driver-makefile.toml](./crates/wdk-build/rust-driver-makefile.toml))
-   1. Update all the [example drivers](./examples/) and [workspace-level tests](./tests/) to use new versions. These are not part of the same `cargo-workspace` as the rest of the crates, so they need to be updated manually.
+   1. Refresh the independent `Cargo.lock` files for the [example drivers](./examples/), [workspace-level tests](./tests/), and [cargo-wdk test fixtures](./crates/cargo-wdk/tests/). These use local path dependencies but are outside the root Cargo workspace, so `release-plz` does not update their lockfiles.
+   1. Update the dependency versions in all [cargo-wdk templates](./crates/cargo-wdk/templates/) to match the workspace versions; CI checks this consistency. The templates use crates.io dependencies, so release PR CI sets `SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS=1` to skip building generated drivers until those versions are published. Project-creation checks still run.
    1. Check that the release notes are correct and edit as needed
 1. Do a last sanity check of all of the [example drivers](./examples/) (i.e. install and verify that all logs are as expected)
 1. Run `release-plz release --dry-run` to check that the release will be successful
