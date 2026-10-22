@@ -8,7 +8,7 @@ name = "wdk-build"
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-version = "0.5.1"
+version = "0.6.0"
 
 [package.metadata.cargo-machete]
 ignored = [

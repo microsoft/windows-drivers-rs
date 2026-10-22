@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.2](https://github.com/microsoft/windows-drivers-rs/compare/wdk-panic-v0.4.1...wdk-panic-v0.4.2) - 2026-10-22
+
+### Added
+
+- improve user-mode and kernel-mode driver panic handlers ([#642](https://github.com/microsoft/windows-drivers-rs/pull/642))
+
+### Other
+
+- add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
+- replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
+
 ## [0.4.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-panic-v0.4.0...wdk-panic-v0.4.1) - 2025-11-13
 
 ### Other

@@ -7,7 +7,7 @@ license.workspace = true
 name = "wdk-panic"
 readme.workspace = true
 repository.workspace = true
-version = "0.4.1"
+version = "0.4.2"
 
 [lints]
 workspace = true

@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-v0.4.1...wdk-v0.5.0) - 2026-10-22
+
+### Added
+
+- [**breaking**] stack-based format buffer for `wdk` crate  ([#611](https://github.com/microsoft/windows-drivers-rs/pull/611))
+- add dbg! macro to wdk ([#610](https://github.com/microsoft/windows-drivers-rs/pull/610))
+
+### Other
+
+- re-format .rs files with the current nightly rustfmt ([#732](https://github.com/microsoft/windows-drivers-rs/pull/732))
+- fix assert_is_empty and branches_sharing_code clippy lints ([#713](https://github.com/microsoft/windows-drivers-rs/pull/713))
+- add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
+- replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
+
 ## [0.4.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-v0.4.0...wdk-v0.4.1) - 2025-11-13
 
 ### Other

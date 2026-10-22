@@ -5,6 +5,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.6.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.5.1...wdk-build-v0.6.0) - 2026-10-22
+
+### Added
+
+- add linker directive for VHF lib + move static linker directives from wdk-build to wdk-sys ([#685](https://github.com/microsoft/windows-drivers-rs/pull/685))
+
+### Fixed
+
+- [**breaking**] remove linker map file from driver packages ([#735](https://github.com/microsoft/windows-drivers-rs/pull/735))
+- unnecessary trailing commas in format! macros ([#619](https://github.com/microsoft/windows-drivers-rs/pull/619))
+- *(ci)* remove the nightly_toolchain feature gate for assert_matches ([#612](https://github.com/microsoft/windows-drivers-rs/pull/612))
+- *(ci)* use latest nightly toolchain in the Test workflow, fix `assert_matches` import and the `clippy` warning ([#604](https://github.com/microsoft/windows-drivers-rs/pull/604))
+- warn when WDK env vars are non-UTF8 ([#596](https://github.com/microsoft/windows-drivers-rs/pull/596))
+
+### Other
+
+- improve Dependabot and refresh repo-wide dependencies ([#745](https://github.com/microsoft/windows-drivers-rs/pull/745))
+- re-format .rs files with the current nightly rustfmt ([#732](https://github.com/microsoft/windows-drivers-rs/pull/732))
+- add `-fno-builtin` to bindgen builder ([#695](https://github.com/microsoft/windows-drivers-rs/pull/695))
+- *(wdk-build)* fix clippy lints  ([#655](https://github.com/microsoft/windows-drivers-rs/pull/655))
+- fix `collapsable_if` lint, rust 1.95 `assert_matches` destabilization ([#643](https://github.com/microsoft/windows-drivers-rs/pull/643))
+- add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
+- replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
+- add new unit tests for Wdk::try_from method ([#491](https://github.com/microsoft/windows-drivers-rs/pull/491))
+- add tests for setup_path function ([#578](https://github.com/microsoft/windows-drivers-rs/pull/578))
+
 ## [0.5.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-build-v0.5.0...wdk-build-v0.5.1) - 2025-11-13
 
 ### Fixed
