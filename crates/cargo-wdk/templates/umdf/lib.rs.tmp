@@ -11,5 +11,7 @@ pub unsafe extern "system" fn driver_entry(
    _driver: PDRIVER_OBJECT,
    _registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
+   wdk_panic::install_panic_hook();
+
    0
 }
