@@ -123,8 +123,9 @@ fn parse_packages_wdk_metadata(
         .iter()
         .filter_map(|package| match &package.metadata["wdk"] {
             serde_json::Value::Null => None,
-            // When wdk section is empty, treat it as if it wasn't there. This is to allow for using
-            // empty wdk metadata sections to mark the package as a driver (ex. for detection in
+            // When wdk section is empty, treat it as if it wasn't there. This
+            // is to allow for using empty wdk metadata sections to mark the
+            // package as a driver (ex. for detection in
             // `package_driver_flow_condition_script`)
             serde_json::Value::Object(map) if map.is_empty() => None,
             wdk_metadata => Some(Wdk::deserialize(wdk_metadata).map_err(|err| {
