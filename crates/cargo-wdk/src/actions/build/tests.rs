@@ -1470,8 +1470,6 @@ fn given_a_workspace_member_when_workspace_flag_is_set_and_a_cargo_step_fails_th
                         "error: failed to load manifest for workspace member",
                     )
             }
-            // `cargo build --workspace` runs before any package is inspected, so
-            // the workspace needs no packages.
             Failure::CargoBuild(output) => {
                 TestBuildAction::new(workspace_root.clone(), None, None, false)
                     .with_workspace(true)
