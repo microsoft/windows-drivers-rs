@@ -18,11 +18,12 @@ The release process for this repository leverages [`release-plz`](https://github
    1. Update all docs to reflect new versions
    1. Update all `cargo-make` files to use the new versions (ex. for `wdk-build` in [rust-driver-makefile.toml](./crates/wdk-build/rust-driver-makefile.toml))
    1. Refresh the independent `Cargo.lock` files for the [example drivers](./examples/), [workspace-level tests](./tests/), and [cargo-wdk test fixtures](./crates/cargo-wdk/tests/). These use local path dependencies but are outside the root Cargo workspace, so `release-plz` does not update their lockfiles.
-   1. Update the dependency versions in all [cargo-wdk templates](./crates/cargo-wdk/templates/) to match the workspace versions; CI checks this consistency. The templates use crates.io dependencies, so release PR CI sets `SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS=1` to skip building generated drivers until those versions are published. Project-creation checks still run.
+   1. Update the dependency versions in all [cargo-wdk templates](./crates/cargo-wdk/templates/) to match the workspace versions; CI checks this consistency. The templates use crates.io dependencies, so CI sets `SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS=1` for the release branch's PR, push, and merge queue runs to skip building generated drivers until those versions are published. Project-creation checks still run.
    1. Check that the release notes are correct and edit as needed
 1. Do a last sanity check of all of the [example drivers](./examples/) (i.e. install and verify that all logs are as expected)
 1. Run `release-plz release --dry-run` to check that the release will be successful
 1. Merge the release Pull Request
 1. Run `release-plz release`
    1. This will release the crates to crates.io and create draft releases on Github
+1. Re-run the failed `Test` and `Local Development Makefile` workflow runs for the release merge commit on `main`. They build generated drivers against crates.io, so they fail until the release is published.
 1. Publish all the Github releases
