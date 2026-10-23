@@ -1325,134 +1325,76 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 }
 
 #[test]
-fn given_a_workspace_member_when_workspace_flag_is_set_then_build_runs_from_workspace_root() {
-    let workspace_root_dir = PathBuf::from("C:\\tmp");
-    let cwd = workspace_root_dir.join("member-1");
-    let member_1 = "member-1";
-    let member_2 = "member-2";
-    let member_1_version = "0.0.1";
-    let member_2_version = "0.0.2";
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &workspace_root_dir.join(member_1),
-        member_1,
-        member_1_version,
-        None,
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &workspace_root_dir.join(member_2),
-        member_2,
-        member_2_version,
-        None,
-    );
-    let cargo_build_output = create_cargo_build_output_json_with_manifest(
-        member_1,
-        member_1_version,
-        &workspace_root_dir,
-        &workspace_root_dir.join(member_1).join("Cargo.toml"),
-        None,
-        None,
-        false,
-    );
-
-    let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, false)
-        .with_workspace(true)
-        .set_up_workspace_with_multiple_driver_projects(
-            &workspace_root_dir,
-            None,
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(&cwd, true)
-        .expect_workspace_cargo_build(&workspace_root_dir, Some(cargo_build_output));
-
-    assert_build_action_run_with_env_is_success(&cwd, None, None, false, false, test_build_action);
-}
-
-#[test]
-fn given_a_workspace_with_multiple_driver_projects_when_workspace_flag_is_set_then_it_packages_all_driver_projects()
+fn given_a_driver_workspace_member_when_workspace_flag_is_set_then_it_builds_the_workspace_once_and_packages_every_driver()
  {
-    let cwd = PathBuf::from("C:\\tmp");
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root.join("sample-kmdf-1");
     let target_arch = CpuArchitecture::Amd64;
     let verify_signature = true;
-
-    let driver_type = "KMDF";
-    let driver_name_1 = "sample-kmdf-1";
-    let driver_version_1 = "0.0.1";
-    let driver_name_2 = "sample-kmdf-2";
-    let driver_version_2 = "0.0.2";
-    let non_driver = "non-driver";
-    let non_driver_version = "0.0.3";
+    // (name, version, is_driver)
+    let packages = [
+        ("sample-kmdf-1", "0.0.1", true),
+        ("sample-kmdf-2", "0.0.2", true),
+        ("non-driver", "0.0.3", false),
+    ];
 
     // A single `cargo build --workspace` emits artifacts for every member; each
     // driver must locate its own artifact in this shared output.
     let workspace_build_output = Output {
         status: ExitStatus::default(),
-        stdout: [
-            (driver_name_1, driver_version_1, true),
-            (driver_name_2, driver_version_2, true),
-            (non_driver, non_driver_version, false),
-        ]
-        .into_iter()
-        .flat_map(|(name, version, is_driver)| {
-            create_cargo_build_output_json_with_manifest(
-                name,
-                version,
-                &cwd,
-                &cwd.join(name).join("Cargo.toml"),
-                None,
-                None,
-                is_driver,
-            )
-            .stdout
-        })
-        .collect(),
+        stdout: packages
+            .into_iter()
+            .flat_map(|(name, version, is_driver)| {
+                create_cargo_build_output_json_with_manifest(
+                    name,
+                    version,
+                    &workspace_root,
+                    &workspace_root.join(name).join("Cargo.toml"),
+                    None,
+                    None,
+                    is_driver,
+                )
+                .stdout
+            })
+            .collect(),
         stderr: vec![],
     };
-    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd.join(driver_name_1),
-        driver_name_1,
-        driver_version_1,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd.join(driver_name_2),
-        driver_name_2,
-        driver_version_2,
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_3, package_3) =
-        get_cargo_metadata_package(&cwd.join(non_driver), non_driver, non_driver_version, None);
+    let wdk_metadata = get_cargo_metadata_wdk_metadata("KMDF", 1, 33);
+    let workspace_members = packages
+        .into_iter()
+        .map(|(name, version, is_driver)| {
+            get_cargo_metadata_package(
+                &workspace_root.join(name),
+                name,
+                version,
+                is_driver.then_some(&wdk_metadata),
+            )
+        })
+        .collect::<Vec<_>>();
 
-    let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, false)
+    let mut test_build_action = TestBuildAction::new(workspace_root.clone(), None, None, false)
         .with_workspace(true)
         .set_up_workspace_with_multiple_driver_projects(
-            &cwd,
+            &workspace_root,
             Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-                (workspace_member_3, package_3),
-            ],
+            workspace_members,
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        .expect_workspace_cargo_build(&cwd, Some(workspace_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_1), target_arch, None)
-        .expect_default_package_task_steps_for_workspace(
-            driver_name_1,
-            target_arch,
-            verify_signature,
-        )
-        .expect_probe_target_arch_using_cargo_rustc(&cwd.join(driver_name_2), target_arch, None)
-        .expect_default_package_task_steps_for_workspace(
-            driver_name_2,
-            target_arch,
-            verify_signature,
-        );
+        .expect_workspace_cargo_build(&workspace_root, Some(workspace_build_output));
+    for (driver_name, ..) in packages.into_iter().filter(|(_, _, is_driver)| *is_driver) {
+        test_build_action = test_build_action
+            .expect_probe_target_arch_using_cargo_rustc(
+                &workspace_root.join(driver_name),
+                target_arch,
+                None,
+            )
+            .expect_default_package_task_steps_for_workspace(
+                driver_name,
+                target_arch,
+                verify_signature,
+            );
+    }
 
     assert_build_action_run_with_env_is_success(
         &cwd,
@@ -1460,126 +1402,95 @@ fn given_a_workspace_with_multiple_driver_projects_when_workspace_flag_is_set_th
         None,
         verify_signature,
         false,
-        test_build_action,
+        &test_build_action,
     );
 }
 
 #[test]
-fn given_a_workspace_member_when_workspace_flag_is_set_and_cargo_metadata_fails_then_it_returns_error_without_building()
+fn given_a_workspace_member_when_workspace_flag_is_set_and_a_cargo_step_fails_then_it_returns_the_error()
  {
-    let cwd = PathBuf::from("C:\\tmp\\member-1");
-    let test_build_action = &TestBuildAction::new(cwd.clone(), None, None, false)
-        .with_workspace(true)
-        .expect_cargo_metadata_failure("error: failed to load manifest for workspace member")
+    enum Failure {
+        CargoMetadata,
+        CargoBuild(Output),
+    }
+    type IsExpectedError = fn(&BuildActionError) -> bool;
+
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root.join("member");
+    let cases: [(Failure, IsExpectedError); 3] = [
+        (Failure::CargoMetadata, |error| {
+            matches!(
+                error,
+                BuildActionError::CargoMetadata(source)
+                    if matches!(
+                        source.downcast_ref::<cargo_metadata::Error>(),
+                        Some(cargo_metadata::Error::CargoMetadata { .. })
+                    )
+            )
+        }),
+        (
+            Failure::CargoBuild(Output {
+                status: ExitStatus::from_raw(101),
+                stdout: vec![],
+                stderr: vec![],
+            }),
+            |error| {
+                matches!(
+                    error,
+                    BuildActionError::BuildTask(BuildTaskError::CargoBuild(source))
+                        if matches!(
+                            source.downcast_ref::<CommandError>(),
+                            Some(CommandError::CommandFailed { .. })
+                        )
+                )
+            },
+        ),
+        (
+            Failure::CargoBuild(Output {
+                status: ExitStatus::default(),
+                stdout: b"\xFF\n".to_vec(),
+                stderr: vec![],
+            }),
+            |error| {
+                matches!(
+                    error,
+                    BuildActionError::CannotDetermineTargetDir(message)
+                        if message.contains("Could not parse cargo build output message")
+                )
+            },
+        ),
+    ];
+
+    for (failure, is_expected_error) in cases {
+        let test_build_action = match failure {
+            Failure::CargoMetadata => {
+                TestBuildAction::new(workspace_root.clone(), None, None, false)
+                    .with_workspace(true)
+                    .expect_cargo_metadata_failure(
+                        "error: failed to load manifest for workspace member",
+                    )
+            }
+            // `cargo build --workspace` runs before any package is inspected, so
+            // the workspace needs no packages.
+            Failure::CargoBuild(output) => {
+                TestBuildAction::new(workspace_root.clone(), None, None, false)
+                    .with_workspace(true)
+                    .set_up_workspace_with_multiple_driver_projects(&workspace_root, None, vec![])
+                    .expect_workspace_cargo_build(&workspace_root, Some(output))
+            }
+        }
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true);
 
-    let run_result = initialize_build_action(&cwd, None, None, true, false, test_build_action)
-        .expect("Failed to init build action")
-        .run();
+        let run_result = initialize_build_action(&cwd, None, None, true, false, &test_build_action)
+            .expect("Failed to init build action")
+            .run();
 
-    assert!(
-        matches!(
-            &run_result,
-            Err(BuildActionError::CargoMetadata(source))
-                if matches!(
-                    source.downcast_ref::<cargo_metadata::Error>(),
-                    Some(cargo_metadata::Error::CargoMetadata { .. })
-                )
-        ),
-        "Expected CargoMetadata error, got: {run_result:?}"
-    );
-}
-
-#[test]
-fn given_a_workspace_with_multiple_driver_projects_when_workspace_flag_is_set_and_workspace_build_fails_then_no_driver_is_packaged()
- {
-    let cwd = PathBuf::from("C:\\tmp");
-    let failed_build_output = Output {
-        status: ExitStatus::from_raw(101),
-        stdout: vec![],
-        stderr: vec![],
-    };
-    let test_build_action =
-        &set_up_two_driver_workspace_with_workspace_flag(&cwd, failed_build_output);
-
-    let run_result = initialize_build_action(&cwd, None, None, true, false, test_build_action)
-        .expect("Failed to init build action")
-        .run();
-
-    assert!(
-        matches!(
-            &run_result,
-            Err(BuildActionError::BuildTask(BuildTaskError::CargoBuild(source)))
-                if matches!(
-                    source.downcast_ref::<CommandError>(),
-                    Some(CommandError::CommandFailed { .. })
-                )
-        ),
-        "Expected BuildTask(CargoBuild) error, got: {run_result:?}"
-    );
-}
-
-#[test]
-fn given_a_workspace_with_multiple_driver_projects_when_workspace_flag_is_set_and_workspace_build_output_is_not_utf8_then_no_driver_is_packaged()
- {
-    let cwd = PathBuf::from("C:\\tmp");
-    let non_utf8_build_output = Output {
-        status: ExitStatus::default(),
-        stdout: b"\xFF\n".to_vec(),
-        stderr: vec![],
-    };
-    let test_build_action =
-        &set_up_two_driver_workspace_with_workspace_flag(&cwd, non_utf8_build_output);
-
-    let run_result = initialize_build_action(&cwd, None, None, true, false, test_build_action)
-        .expect("Failed to init build action")
-        .run();
-
-    assert!(
-        matches!(
-            run_result,
-            Err(BuildActionError::CannotDetermineTargetDir(ref message))
-                if message.contains("Could not parse cargo build output message")
-        ),
-        "Expected CannotDetermineTargetDir parse error, got: {run_result:?}"
-    );
-}
-
-/// Sets up a workspace rooted at `cwd` with two driver packages that is built
-/// with `--workspace`, where `cargo build --workspace` returns `build_output`.
-/// No packaging expectations are set, so any packaging attempt fails the test.
-fn set_up_two_driver_workspace_with_workspace_flag(
-    cwd: &Path,
-    build_output: Output,
-) -> TestBuildAction {
-    let wdk_metadata = get_cargo_metadata_wdk_metadata("KMDF", 1, 33);
-    let (workspace_member_1, package_1) = get_cargo_metadata_package(
-        &cwd.join("sample-kmdf-1"),
-        "sample-kmdf-1",
-        "0.0.1",
-        Some(&wdk_metadata),
-    );
-    let (workspace_member_2, package_2) = get_cargo_metadata_package(
-        &cwd.join("sample-kmdf-2"),
-        "sample-kmdf-2",
-        "0.0.2",
-        Some(&wdk_metadata),
-    );
-
-    TestBuildAction::new(cwd.to_path_buf(), None, None, false)
-        .with_workspace(true)
-        .set_up_workspace_with_multiple_driver_projects(
-            cwd,
-            Some(wdk_metadata),
-            vec![
-                (workspace_member_1, package_1),
-                (workspace_member_2, package_2),
-            ],
-        )
-        .expect_detect_wdk_build_number(25100u32)
-        .expect_root_manifest_exists(cwd, true)
-        .expect_workspace_cargo_build(cwd, Some(build_output))
+        assert!(
+            run_result.as_ref().is_err_and(is_expected_error),
+            "Unexpected build result: {run_result:?}"
+        );
+    }
 }
 
 #[test]
