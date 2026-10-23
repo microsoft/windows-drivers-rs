@@ -34,7 +34,7 @@ use crate::{
         Profile,
         SignMode,
         TargetPlatform,
-        error::BuildActionError,
+        error::{BuildActionError, BuildTaskError},
         to_target_triple,
     },
     providers::error::{CommandError, FileError},
@@ -1325,6 +1325,173 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
 }
 
 #[test]
+fn given_a_driver_workspace_member_when_workspace_flag_is_set_then_it_builds_the_workspace_once_and_packages_every_driver()
+ {
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root.join("sample-kmdf-1");
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = true;
+    // (name, version, is_driver)
+    let packages = [
+        ("sample-kmdf-1", "0.0.1", true),
+        ("sample-kmdf-2", "0.0.2", true),
+        ("non-driver", "0.0.3", false),
+    ];
+
+    // A single `cargo build --workspace` emits artifacts for every member; each
+    // driver must locate its own artifact in this shared output.
+    let workspace_build_output = Output {
+        status: ExitStatus::default(),
+        stdout: packages
+            .into_iter()
+            .flat_map(|(name, version, is_driver)| {
+                create_cargo_build_output_json_with_manifest(
+                    name,
+                    version,
+                    &workspace_root,
+                    &workspace_root.join(name).join("Cargo.toml"),
+                    None,
+                    None,
+                    is_driver,
+                )
+                .stdout
+            })
+            .collect(),
+        stderr: vec![],
+    };
+    let wdk_metadata = get_cargo_metadata_wdk_metadata("KMDF", 1, 33);
+    let workspace_members = packages
+        .into_iter()
+        .map(|(name, version, is_driver)| {
+            get_cargo_metadata_package(
+                &workspace_root.join(name),
+                name,
+                version,
+                is_driver.then_some(&wdk_metadata),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let mut test_build_action = TestBuildAction::new(workspace_root.clone(), None, None, false)
+        .with_workspace(true)
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root,
+            Some(wdk_metadata),
+            workspace_members,
+        )
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_workspace_cargo_build(&workspace_root, Some(workspace_build_output));
+    for (driver_name, ..) in packages.into_iter().filter(|(_, _, is_driver)| *is_driver) {
+        test_build_action = test_build_action
+            .expect_probe_target_arch_using_cargo_rustc(
+                &workspace_root.join(driver_name),
+                target_arch,
+                None,
+            )
+            .expect_default_package_task_steps_for_workspace(
+                driver_name,
+                target_arch,
+                verify_signature,
+            );
+    }
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        None,
+        None,
+        verify_signature,
+        false,
+        &test_build_action,
+    );
+}
+
+#[test]
+fn given_a_workspace_member_when_workspace_flag_is_set_and_a_cargo_step_fails_then_it_returns_the_error()
+ {
+    enum Failure {
+        CargoMetadata,
+        CargoBuild(Output),
+    }
+    type IsExpectedError = fn(&BuildActionError) -> bool;
+
+    let workspace_root = PathBuf::from("C:\\tmp");
+    let cwd = workspace_root.join("member");
+    let cases: [(Failure, IsExpectedError); 3] = [
+        (Failure::CargoMetadata, |error| {
+            matches!(
+                error,
+                BuildActionError::CargoMetadata(source)
+                    if matches!(
+                        source.downcast_ref::<cargo_metadata::Error>(),
+                        Some(cargo_metadata::Error::CargoMetadata { .. })
+                    )
+            )
+        }),
+        (
+            Failure::CargoBuild(Output {
+                status: ExitStatus::from_raw(101),
+                stdout: vec![],
+                stderr: vec![],
+            }),
+            |error| {
+                matches!(
+                    error,
+                    BuildActionError::BuildTask(BuildTaskError::CargoBuild(source))
+                        if matches!(
+                            source.downcast_ref::<CommandError>(),
+                            Some(CommandError::CommandFailed { .. })
+                        )
+                )
+            },
+        ),
+        (
+            Failure::CargoBuild(Output {
+                status: ExitStatus::default(),
+                stdout: b"\xFF\n".to_vec(),
+                stderr: vec![],
+            }),
+            |error| {
+                matches!(
+                    error,
+                    BuildActionError::CannotDetermineTargetDir(message)
+                        if message.contains("Could not parse cargo build output message")
+                )
+            },
+        ),
+    ];
+
+    for (failure, is_expected_error) in cases {
+        let test_build_action = match failure {
+            Failure::CargoMetadata => {
+                TestBuildAction::new(workspace_root.clone(), None, None, false)
+                    .with_workspace(true)
+                    .expect_cargo_metadata_failure(
+                        "error: failed to load manifest for workspace member",
+                    )
+            }
+            Failure::CargoBuild(output) => {
+                TestBuildAction::new(workspace_root.clone(), None, None, false)
+                    .with_workspace(true)
+                    .set_up_workspace_with_multiple_driver_projects(&workspace_root, None, vec![])
+                    .expect_workspace_cargo_build(&workspace_root, Some(output))
+            }
+        }
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true);
+
+        let run_result = initialize_build_action(&cwd, None, None, true, false, &test_build_action)
+            .expect("Failed to init build action")
+            .run();
+
+        assert!(
+            run_result.as_ref().is_err_and(is_expected_error),
+            "Unexpected build result: {run_result:?}"
+        );
+    }
+}
+
+#[test]
 pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verify_signature_is_false_then_it_skips_verify_tasks()
  {
     // Input CLI args
@@ -1787,6 +1954,7 @@ fn initialize_build_action<'a>(
             infverif_args: None,
             is_sample_class: sample_class,
             locked: test_build_action.locked,
+            workspace: test_build_action.workspace,
             target_platform: TargetPlatform::Universal,
             features: &test_build_action.features,
             verbosity_level: clap_verbosity_flag::Verbosity::new(1, 0),
@@ -1852,6 +2020,7 @@ struct TestBuildAction {
     sample_class: bool,
     sign_mode: SignMode,
     locked: bool,
+    workspace: bool,
     features: Features,
 
     cargo_metadata: Option<CargoMetadata>,
@@ -1884,6 +2053,7 @@ impl TestBuildAction {
                 signtool_args: None,
             },
             locked: false,
+            workspace: false,
             features: Features::default(),
             mock_run_command,
             mock_wdk_build_provider,
@@ -1900,6 +2070,11 @@ impl TestBuildAction {
 
     fn with_locked(mut self, locked: bool) -> Self {
         self.locked = locked;
+        self
+    }
+
+    fn with_workspace(mut self, workspace: bool) -> Self {
+        self.workspace = workspace;
         self
     }
 
@@ -1970,6 +2145,9 @@ impl TestBuildAction {
         };
         let expected_features = self.features.clone();
         let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
+        // `--workspace` resolves metadata once to find the workspace root and
+        // again when building from that root.
+        let expected_metadata_calls = if self.workspace { 2 } else { 1 };
         self.mock_metadata_provider
             .expect_get_cargo_metadata_at_path()
             .withf(move |cargo, _working_dir, other_options, features| {
@@ -1977,7 +2155,7 @@ impl TestBuildAction {
                     && *other_options == expected_options
                     && *features == expected_features
             })
-            .once()
+            .times(expected_metadata_calls)
             .returning(move |_, _, _, _| Ok(cargo_toml_metadata_clone.clone()));
         self.cargo_metadata = Some(cargo_toml_metadata);
         self
@@ -2247,6 +2425,62 @@ impl TestBuildAction {
             })
             .once()
             .returning(move |_, _, _, _| Ok(expected_output.clone()));
+        self
+    }
+
+    fn expect_workspace_cargo_build(
+        mut self,
+        workspace_root: &Path,
+        override_output: Option<Output>,
+    ) -> Self {
+        let manifest_path = workspace_root
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .trim_start_matches("\\\\?\\")
+            .to_string();
+        let expected_args = vec![
+            "build".to_string(),
+            "--message-format=json-render-diagnostics".to_string(),
+            "--workspace".to_string(),
+            "--manifest-path".to_string(),
+            manifest_path,
+            "-v".to_string(),
+        ];
+        let expected_output = override_output.unwrap_or_else(|| Output {
+            status: ExitStatus::default(),
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        });
+        let expected_working_dir = workspace_root.to_owned();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
+        self.mock_run_command
+            .expect_run()
+            .withf(move |command, args, _env, working_dir| {
+                command.as_ref() == Path::new(&expected_cargo)
+                    && args == expected_args
+                    && *working_dir == Some(expected_working_dir.as_path())
+            })
+            .once()
+            .returning(move |_, args, _, _| {
+                if expected_output.status.success() {
+                    Ok(expected_output.clone())
+                } else {
+                    Err(CommandError::from_output("cargo", args, &expected_output))
+                }
+            });
+        self
+    }
+
+    fn expect_cargo_metadata_failure(mut self, stderr: &str) -> Self {
+        let stderr = stderr.to_string();
+        self.mock_metadata_provider
+            .expect_get_cargo_metadata_at_path()
+            .once()
+            .returning(move |_, _, _, _| {
+                Err(cargo_metadata::Error::CargoMetadata {
+                    stderr: stderr.clone(),
+                })
+            });
         self
     }
 

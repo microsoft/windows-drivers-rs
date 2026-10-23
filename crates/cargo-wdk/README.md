@@ -73,6 +73,8 @@ Options:
           Build sample class driver project
       --locked
           Assert that `Cargo.lock` will remain unchanged
+      --workspace
+          Build all packages in the workspace
   -h, --help
           Print help (see more with '--help')
 
@@ -106,7 +108,7 @@ When the command completes the packaged driver artifacts are emitted at the path
 
 #### Workspace support
 
-`build` supports workspaces. If run at the root of a workspace, it will build and package all driver projects in it. If the workspace contains any non-driver projects they will also be built but not packaged.
+`build` supports workspaces. If run at the root of a workspace, it will build and package all driver projects in it. If the workspace contains any non-driver projects they will also be built but not packaged. When run from a workspace member, pass `--workspace` to build all packages from the workspace root instead of only the current member.
 
 #### Sample Drivers
 

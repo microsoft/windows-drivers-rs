@@ -64,6 +64,43 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
 }
 
 #[test]
+fn workspace_flag_builds_all_packages_when_run_from_workspace_member() {
+    let workspace_path = "tests/mixed-package-kmdf-workspace";
+    let member_path = format!("{workspace_path}/crates/driver");
+    with_mutex(workspace_path, || {
+        run_clean_cmd(workspace_path);
+        assert_target_dir_does_not_exist(workspace_path);
+
+        let stderr = run_build_cmd(
+            &member_path,
+            Some(&["--workspace", "--sign-mode", "off", "-v"]),
+            None,
+        );
+        let cargo = env::var_os("CARGO").expect("run integration tests through cargo test");
+        let build_invocation = stderr
+            .lines()
+            .find(|line| line.contains(&format!("Running: {} [\"build\"", cargo.to_string_lossy())))
+            .unwrap_or_else(|| panic!("no `cargo build` invocation found in stderr:\n{stderr}"));
+        assert!(
+            build_invocation.contains("\"--workspace\""),
+            "expected cargo build to receive --workspace, but got:\n{build_invocation}"
+        );
+        assert!(
+            stderr.contains("Compiling non_driver_crate"),
+            "expected non-driver workspace member to be compiled; stderr:\n{stderr}"
+        );
+        let package_dir = format!("{workspace_path}/target/debug/driver_package");
+        assert_dir_exists(&package_dir);
+        for ext in ["cat", "inf", "pdb", "sys"] {
+            assert_file_exists(&format!("{package_dir}/driver.{ext}"));
+        }
+
+        run_clean_cmd(workspace_path);
+        assert_target_dir_does_not_exist(workspace_path);
+    });
+}
+
+#[test]
 fn kmdf_driver_builds_successfully() {
     // Setup for executables
     wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
