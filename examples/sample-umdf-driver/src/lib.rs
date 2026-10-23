@@ -31,6 +31,9 @@ use wdk_sys::{
 /// # Panics
 /// Can panic from unwraps of `CStrings` used internally
 ///
+/// # Abort
+/// Panics are logged to the debugger and abort the UMDF host process.
+///
 /// # Safety
 /// Function is unsafe since it dereferences raw pointers passed to it from WDF
 // SAFETY: "DriverEntry" is the required symbol name for Windows driver entry points.
@@ -42,6 +45,9 @@ pub unsafe extern "system" fn driver_entry(
     driver: PDRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
+    // Install the wdk_panic panic hook for better panic diagnostics
+    wdk_panic::install_panic_hook();
+
     // This is an example of directly using OutputDebugStringA binding to print
     let string = CString::new("Hello World!\n").unwrap();
 

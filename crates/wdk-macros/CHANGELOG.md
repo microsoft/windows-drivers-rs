@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.2](https://github.com/microsoft/windows-drivers-rs/compare/wdk-macros-v0.5.1...wdk-macros-v0.5.2) - 2026-10-22
+
+### Fixed
+
+- unnecessary trailing commas in format! macros ([#619](https://github.com/microsoft/windows-drivers-rs/pull/619))
+
+### Other
+
+- improve Dependabot and refresh repo-wide dependencies ([#745](https://github.com/microsoft/windows-drivers-rs/pull/745))
+- re-format .rs files with the current nightly rustfmt ([#732](https://github.com/microsoft/windows-drivers-rs/pull/732))
+- add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
+- bump remaining crates to 2024 ([#634](https://github.com/microsoft/windows-drivers-rs/pull/634))
+- replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
+
 ## [0.5.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-macros-v0.5.0...wdk-macros-v0.5.1) - 2025-11-13
 
 ### Other

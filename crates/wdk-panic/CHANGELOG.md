@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0](https://github.com/microsoft/windows-drivers-rs/compare/wdk-panic-v0.4.1...wdk-panic-v0.5.0) - 2026-10-22
+
+### Added
+
+- Add `install_panic_hook()` for UMDF drivers to log panic details to the debugger and abort the host process. Call it early in `DriverEntry`. ([#642](https://github.com/microsoft/windows-drivers-rs/pull/642))
+
+### Changed
+
+- [**breaking**] WDM/KMDF panics now explicitly bugcheck instead of looping indefinitely, recording the panic source location in the bugcheck parameters. With debug assertions enabled, it breaks into the debugger first. ([#642](https://github.com/microsoft/windows-drivers-rs/pull/642))
+- Added a dependency on `wdk 0.5`. Consumers with a direct `wdk 0.4.x` dependency must upgrade it to be compatible with `wdk-panic 0.5.0`
+
+### Other
+
+- add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
+- replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
+
 ## [0.4.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-panic-v0.4.0...wdk-panic-v0.4.1) - 2025-11-13
 
 ### Other

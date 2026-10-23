@@ -114,37 +114,16 @@ Building a sample driver requires the `--sample` flag. If it is not specified, t
 
 If you have a workspace with a mix of sample and non-sample driver projects, the build will fail as that scenario is not supported yet. In the future `build` will be able to automatically detect sample projects. That will remove the need for the `--sample` flag and enable support for this scenario.
 
-#### Customizing `stampinf` arguments
-
-To customize the behaviour of `stampinf`, pass `--stampinf-args` with arguments to forward to `stampinf`. Args `-f`, `-a`, `-c`, `-k` and `-u` are not allowed because they are always supplied by `cargo-wdk` itself.
-
-#### Customizing `inf2cat` arguments
-
-To target a specific set of Windows versions or to customize the behaviour of `inf2cat` in any other way, pass `--inf2cat-args` with a string of the arguments to forward to `inf2cat`. `cargo-wdk` itself provides the `/driver` argument so do not include it or its alias `/drv`.
-
-#### Customizing `infverif` arguments
-
-To customize the behaviour of `infverif`, pass `--infverif-args` with arguments to forward to `infverif`. Args `-h`, `-w`, `-u` and paths to `.INF` files are not allowed because they are always supplied by `cargo-wdk` itself.
-
 #### Signing and Verification
 
 The `build` command has a `--sign-mode` flag that controls how driver artifacts are signed. It accepts the following values:
 
-- `test` (default): Sign with a test certificate. The command looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. If you wish to use your own certificate, add it to the same store with the same name. Otherwise a self-signed certificate will be automatically generated, added, and used for signing.
+- `test` (default): Sign with a test certificate. The command looks for a certificate called `WDRLocalTestCert` in a store called `WDRTestCertStore`. If no such certificate is found, a self-signed certificate is automatically generated and added to the store before signing. To sign with your own certificate you can add it to the same location with the same name. Alternatively, you can use the override mechanism described in [Overriding Tool Arguments](#overriding-tool-arguments).
 - `off`: Skip signing entirely. This is useful when you intend to sign the artifacts later with your own toolchain.
 
 If the `--verify-signature` flag is provided, the signatures are verified after signing. For verification to work, make sure you add a copy of the signing certificate in the `Trusted Root Certification Authorities` store. For security reasons `build` does not automatically do this even when it automatically generates the cert. You will have to always perform this step manually.
 
 `--verify-signature` cannot be combined with `--sign-mode=off` because if signing is off there is nothing to verify. Passing both will cause `build` to fail with an error.
-
-##### Customizing `signtool` arguments
-
-To sign with your own certificate or tweak any signing option, pass `--signtool-args` with a string of the arguments to forward to `signtool sign`.
-
-- When `--signtool-args` is **omitted**, cargo-wdk signs with the auto-generated WDR test certificate as described above.
-- When `--signtool-args` is **provided**, you own the full `signtool sign` option set (certificate selection, digest algorithm, etc.). `cargo-wdk` will prepend the `sign` verb to your arguments and append the trailing file operand so you should not provide them.
-
-`--signtool-args` applies only when signing is enabled; supplying it with `--sign-mode=off` is an error.
 
 #### Examples
 
@@ -171,3 +150,22 @@ To sign with your own certificate or tweak any signing option, pass `--signtool-
     ```pwsh
     cargo wdk build --sign-mode off
     ```
+
+#### Overriding Tool Arguments
+
+You can override the arguments `build` passes to the tools it invokes with an argument of the form `--<tool name>-args <TOOL ARGS>`. This can be useful if the default invocation does not fit your use-case.
+
+The following table shows how to do it for each tool:
+
+| Tool     | Override Arg      | Example                                                           | Disallowed Tool Args                              | Remarks |
+|----------|-------------------|-------------------------------------------------------------------|---------------------------------------------------|---------|
+| inf2cat  | `--inf2cat-args`  | `cargo wdk build --inf2cat-args /os:10_VB_X64,10_CO_X64`          | `/driver` (or its alias `/drv`)                   |         |
+| infverif | `--infverif-args` | `cargo wdk build --infverif-args "/rulever 10.0.22621 /stampinf"` | `/h`, `/w`, `/u`, `[file paths]`                  |         |
+| signtool | `--signtool-args` | `cargo wdk build --signtool-args "/fd SHA384 /f cert.pfx"`        | `[command]` (always set to `sign`), `[file name]` |   `--signtool-args` cannot be used with `--sign-mode=off`. When `--signtool-args` is used, `build` skips generating the test cert `WDRLocalTestCert`.|
+| stampinf | `--stampinf-args` | `cargo wdk build --stampinf-args "-d 01/01/2026"`                 | `-f`, `-a`, `-c`, `-k`, `-u`                      |         |
+
+Some tool arguments cannot be overridden because `build` needs to strictly control them. These are listed in the **Disallowed Tool Args** column.
+
+Empty values like `--inf2cat-args ""` are accepted.
+
+You are responsible for the validity of the provided args. If any args are invalid, the underlying tool might fail with the appropriate error.

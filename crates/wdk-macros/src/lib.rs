@@ -625,8 +625,8 @@ fn generate_cached_function_info(
                     .into(),
             ))
         }
-        // `types.rs` includes only a subset of types listed in _WDFFUNCENUM. Therefore, not finding
-        // a type alias definition is expected behavior.
+        // `types.rs` includes only a subset of types listed in _WDFFUNCENUM.
+        // Therefore, not finding a type alias definition is expected behavior.
         Err(_err) => Ok(None),
     }
 }
