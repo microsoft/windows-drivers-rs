@@ -510,7 +510,8 @@ mod tests {
     #[test]
     fn when_invalid_path_provided_then_run_returns_invalid_driver_crate_name() {
         set_up_and_assert(
-            // Use an empty path component so that calling file_name() on it returns None
+            // Use an empty path component so that calling file_name() on it
+            // returns None
             Path::new(""),
             DriverType::Kmdf,
             Verbosity::default(),

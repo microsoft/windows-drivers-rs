@@ -772,23 +772,25 @@ impl Config {
             "-fms-compatibility",
             "-fms-extensions",
             "-fdelayed-template-parsing",
-            // Windows SDK & DDK have non-portable paths (ex. #include "DriverSpecs.h" but the
-            // file is actually driverspecs.h)
+            // Windows SDK & DDK have non-portable paths (ex. #include
+            // "DriverSpecs.h" but the file is actually driverspecs.h)
             "--warn-=no-nonportable-include-path",
-            // Windows SDK & DDK use pshpack and poppack headers to change packing
+            // Windows SDK & DDK use pshpack and poppack headers to change
+            // packing
             "--warn-=no-pragma-pack",
             "--warn-=no-ignored-attributes",
             "--warn-=no-ignored-pragma-intrinsic",
             "--warn-=no-visibility",
             "--warn-=no-switch",
             "--warn-=no-comment",
-            // Don't warn for deprecated declarations. Deprecated items should be explicitly
-            // blocklisted (i.e. by the bindgen invocation). Any non-blocklisted function
-            // definitions will trigger a -WDeprecated warning
+            // Don't warn for deprecated declarations. Deprecated items should
+            // be explicitly blocklisted (i.e. by the bindgen invocation). Any
+            // non-blocklisted function definitions will trigger a -WDeprecated
+            // warning
             "--warn-=no-deprecated-declarations",
-            // Windows SDK & DDK contain unnecessary token pasting (ex. &##_variable: `&` and
-            // `_variable` are separate tokens already, and don't need `##` to concatenate
-            // them)
+            // Windows SDK & DDK contain unnecessary token pasting (ex.
+            // &##_variable: `&` and `_variable` are separate tokens already,
+            // and don't need `##` to concatenate them)
             "--warn-=no-invalid-token-paste",
             // Windows SDK & DDK headers rely on Microsoft extensions to C/C++
             "--warn-=no-microsoft",
