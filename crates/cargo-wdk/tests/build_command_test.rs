@@ -38,11 +38,11 @@ fn build_fails_when_cargo_path_does_not_exist() {
         let assertion = cmd.assert().failure();
         let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
         assert!(
-            stderr.contains("Failed to read Cargo metadata for the project/workspace"),
-            "expected a metadata error, got: {stderr}"
+            stderr.contains("Error running cargo build command"),
+            "expected a cargo build error, got: {stderr}"
         );
         assert!(
-            stderr.contains("failed to start `cargo metadata`"),
+            stderr.contains("Command 'nonexistent-cargo.exe'") && stderr.contains("IO error"),
             "expected a launch failure for the selected Cargo executable, got: {stderr}"
         );
     });
@@ -61,6 +61,38 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
         None,
         None,
     );
+}
+
+#[test]
+fn workspace_flag_from_member_builds_whole_workspace_once_and_packages_driver() {
+    let workspace = "tests/mixed-package-kmdf-workspace";
+    with_mutex(workspace, || {
+        run_clean_cmd(workspace);
+
+        let stderr = run_build_cmd(
+            &format!("{workspace}/crates/driver"),
+            Some(&["--workspace", "--sign-mode", "off", "-v"]),
+            None,
+        );
+
+        // A single cargo build for the whole workspace, invoked from the member
+        let builds = stderr
+            .lines()
+            .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
+            .collect::<Vec<_>>();
+        assert_eq!(builds.len(), 1, "{stderr}");
+        assert!(builds[0].contains("\"--workspace\""), "{stderr}");
+        // The driver does not depend on this member, so only `--workspace`
+        // builds it
+        assert!(stderr.contains("Compiling non_driver_crate"), "{stderr}");
+        for extension in ["cat", "inf", "pdb", "sys"] {
+            assert_file_exists(&format!(
+                "{workspace}/target/debug/driver_package/driver.{extension}"
+            ));
+        }
+
+        run_clean_cmd(workspace);
+    });
 }
 
 #[test]

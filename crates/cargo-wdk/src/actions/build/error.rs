@@ -25,8 +25,6 @@ pub enum BuildActionError {
     FileIo(#[from] FileError),
     #[error("Error running cargo rustc for architecture detection")]
     CargoRustc(#[source] anyhow::Error),
-    #[error("Not a workspace member, working directory: {0}")]
-    NotAWorkspaceMember(PathBuf),
     #[error(transparent)]
     PackageTask(#[from] PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]

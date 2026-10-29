@@ -27,7 +27,7 @@ use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
-use tracing::{debug, error as err, info, trace, warn};
+use tracing::{debug, error as err, info, trace};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -85,6 +85,7 @@ pub struct BuildActionParams<'a> {
     pub infverif_args: Option<Vec<String>>,
     pub is_sample_class: bool,
     pub locked: bool,
+    pub workspace: bool,
     pub target_platform: TargetPlatform,
     pub features: &'a Features,
     pub verbosity_level: clap_verbosity_flag::Verbosity,
@@ -102,6 +103,7 @@ pub struct BuildAction<'a> {
     infverif_args: Option<Vec<String>>,
     is_sample_class: bool,
     locked: bool,
+    workspace: bool,
     target_platform: TargetPlatform,
     features: &'a Features,
     verbosity_level: clap_verbosity_flag::Verbosity,
@@ -153,6 +155,7 @@ impl<'a> BuildAction<'a> {
             infverif_args: params.infverif_args.clone(),
             is_sample_class: params.is_sample_class,
             locked: params.locked,
+            workspace: params.workspace,
             target_platform: params.target_platform,
             features: params.features,
             verbosity_level: params.verbosity_level,
@@ -169,8 +172,6 @@ impl<'a> BuildAction<'a> {
     /// `Result<(), BuildActionError>`
     ///
     /// # Errors
-    /// * `BuildActionError::NotAWorkspaceMember` - If the working directory is
-    ///   not a workspace member.
     /// * `BuildActionError::PackageTaskInit` - If there is an error
     ///   initializing the package task.
     /// * `BuildActionError::PackageTask` - If there is an error during the
@@ -189,7 +190,7 @@ impl<'a> BuildAction<'a> {
     /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build in an emulated workspace.
     /// * `BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild` - If one or
-    ///   more workspace members fail to build inside a workspace.
+    ///   more selected workspace members fail to package after the build.
     /// * `BuildActionError::BuildTask` - If there is an error during the build
     ///   task process.
     pub fn run(&self) -> Result<(), BuildActionError> {
@@ -204,7 +205,7 @@ impl<'a> BuildAction<'a> {
 
         // Standalone driver/driver workspace support
         if self.fs.exists(&self.working_dir.join("Cargo.toml")) {
-            return self.run_from_workspace_root(&self.working_dir);
+            return self.build_and_package(&self.working_dir);
         }
 
         // Emulated workspaces support
@@ -256,7 +257,7 @@ impl<'a> BuildAction<'a> {
                 .to_string_lossy();
 
             debug!("Building package(s) in dir {package_dir_name}");
-            if let Err(e) = self.run_from_workspace_root(&cargo_package_path) {
+            if let Err(e) = self.build_and_package(&cargo_package_path) {
                 failed_atleast_one_project = true;
                 err!(
                     "Error building project: {package_dir_name}, error: {:?}",
@@ -279,89 +280,84 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Runs build for the given working directory and the cargo metadata
-    fn run_from_workspace_root(&self, working_dir: &Path) -> Result<(), BuildActionError> {
+    // Runs the build task from the given working directory and then runs the
+    // package task for each driver package. The drivers to package are
+    // determined based on the cargo build output.
+    fn build_and_package(&self, working_dir: &Path) -> Result<(), BuildActionError> {
+        let build_output = BuildTask::new(
+            BuildTaskParams {
+                working_dir,
+                profile: self.profile,
+                target_arch: self.target_arch,
+                locked: self.locked,
+                workspace: self.workspace,
+                features: self.features,
+                verbosity_level: self.verbosity_level,
+            },
+            self.command_exec,
+        )
+        .run()?
+        .collect::<Vec<_>>();
+
         let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
-        let wdk_metadata = Wdk::try_from(cargo_metadata);
-        let workspace_packages = cargo_metadata.workspace_packages();
-        let workspace_root =
-            absolute(cargo_metadata.workspace_root.as_std_path()).map_err(|e| {
-                BuildActionError::NotAbsolute(cargo_metadata.workspace_root.clone().into(), e)
-            })?;
-        if workspace_root.eq(&working_dir) {
-            // If the working directory is root of a standalone project or a
-            // workspace
-            debug!(
-                "Running from standalone project or from a root of a workspace: {}",
-                working_dir.display()
-            );
-            let mut failed_atleast_one_workspace_member = false;
-            for package in workspace_packages {
-                let package_root_path: PathBuf = package
-                    .manifest_path
-                    .parent()
-                    .expect("Unable to find package path from Cargo manifest path")
-                    .into();
+        let wdk_metadata = match Wdk::try_from(cargo_metadata) {
+            Ok(wdk_metadata) => wdk_metadata,
+            Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected) => {
+                debug!("No WDK metadata found. Skipping package task.");
+                return Ok(());
+            }
+            Err(e) => return Err(BuildActionError::WdkMetadataParse(e)),
+        };
 
-                let package_root_path = absolute(package_root_path.as_path())
-                    .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
+        let mut failed_to_package = false;
+        for package in cargo_metadata.workspace_packages() {
+            if package.metadata.get("wdk").is_none() {
                 debug!(
-                    "Building workspace member package: {}",
-                    package_root_path.display()
+                    "No WDK metadata found for package: {}. Skipping package task.",
+                    package.name
                 );
-
-                if let Err(e) = self.build_and_package(&package_root_path, &wdk_metadata, package) {
-                    failed_atleast_one_workspace_member = true;
-                    err!(
-                        "Error building the workspace member project: {}, error: {:?}",
-                        package_root_path.display(),
-                        anyhow::Error::new(e)
-                    );
-                }
+                continue;
             }
-            if let Err(e) = wdk_metadata {
-                // Ignore NoWdkConfigurationsDetected but propagate any other
-                // error
-                if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
-                    return Err(BuildActionError::WdkMetadataParse(e));
-                }
+            if !build_output.iter().any(|message| {
+                matches!(message, Ok(Message::CompilerArtifact(artifact)) if artifact.package_id == package.id)
+            }) {
+                debug!(
+                    "No compiler artifact found in cargo build output for package: {}. Skipping package task.",
+                    package.name
+                );
+                continue;
             }
-
-            if failed_atleast_one_workspace_member {
-                return Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(
-                    working_dir.to_owned(),
-                ));
+            if !package
+                .targets
+                .iter()
+                .any(|t| t.kind.contains(&TargetKind::CDyLib))
+            {
+                debug!(
+                    "No cdylib target found for package: {}. Skipping package task.",
+                    package.name
+                );
+                continue;
             }
-        } else {
-            // If the working directory is a workspace member directory
-            debug!(
-                "Running from a workspace member directory: {}",
-                working_dir.display()
+            let target_arch = self.target_arch.map_or_else(
+                || self.get_target_arch_from_cargo_rustc(working_dir, &package.id.repr),
+                Ok,
             );
-            let package = workspace_packages.iter().find(|p| {
-                let package_root_path: PathBuf = p
-                    .manifest_path
-                    .parent()
-                    .expect("Unable to find package path from Cargo manifest path")
-                    .into();
-                absolute(package_root_path.as_path()).is_ok_and(|p| {
-                    debug!("Processing workspace member package: {}", p.display());
-                    p.eq(&working_dir)
-                })
-            });
-
-            let package = package
-                .ok_or_else(|| BuildActionError::NotAWorkspaceMember(working_dir.to_owned()))?;
-
-            self.build_and_package(working_dir, &wdk_metadata, package)?;
-
-            if let Err(e) = wdk_metadata {
-                // Ignore NoWdkConfigurationsDetected but propagate any other
-                // error
-                if !matches!(e, TryFromCargoMetadataError::NoWdkConfigurationsDetected) {
-                    return Err(BuildActionError::WdkMetadataParse(e));
-                }
+            if let Err(e) = target_arch.and_then(|target_arch| {
+                self.package(&wdk_metadata, package, target_arch, &build_output)
+            }) {
+                failed_to_package = true;
+                err!(
+                    "Error packaging the workspace member project: {}, error: {:?}",
+                    package.name,
+                    anyhow::Error::new(e)
+                );
             }
+        }
+
+        if failed_to_package {
+            return Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(
+                working_dir.to_owned(),
+            ));
         }
 
         debug!(
@@ -394,63 +390,30 @@ impl<'a> BuildAction<'a> {
         Ok(cargo_metadata)
     }
 
-    // Method to perform the build and package tasks on the given package
-    fn build_and_package(
+    // Creates the driver package for the given package, which was built for
+    // `target_arch`, using the output of the cargo build.
+    fn package(
         &self,
-        working_dir: &Path,
-        wdk_metadata: &Result<Wdk, TryFromCargoMetadataError>,
+        wdk_metadata: &Wdk,
         package: &Package,
+        target_arch: CpuArchitecture,
+        build_output: &[Result<Message, std::io::Error>],
     ) -> Result<(), BuildActionError> {
         let package_name = package.name.as_str();
         info!("Building package {package_name}");
 
-        let build_task = BuildTask::new(
-            BuildTaskParams {
-                package_name,
-                working_dir,
-                profile: self.profile,
-                target_arch: self.target_arch,
-                locked: self.locked,
-                features: self.features,
-                verbosity_level: self.verbosity_level,
-            },
-            self.command_exec,
-        );
-        let output_message_iter = build_task.run()?;
-
-        let wdk_metadata = if let Ok(wdk_metadata) = wdk_metadata {
-            debug!("Found wdk metadata in package: {}", package_name);
-            wdk_metadata
-        } else {
-            debug!("Invalid WDK metadata. Skipping package task");
-            return Ok(());
-        };
-
-        // Identifying non driver packages
-        if package.metadata.get("wdk").is_none() {
-            debug!("Packaging task skipped for non-driver package");
-            return Ok(());
-        }
-
-        if !package
-            .targets
-            .iter()
-            .any(|t| t.kind.contains(&TargetKind::CDyLib))
-        {
-            warn!("No cdylib target found. Skipping package task");
-            return Ok(());
-        }
+        let package_root_path: PathBuf = package
+            .manifest_path
+            .parent()
+            .expect("Unable to find package path from Cargo manifest path")
+            .into();
+        let package_root_path = absolute(package_root_path.as_path())
+            .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
 
         debug!("Creating the driver package in the target directory");
         let driver_model = wdk_metadata.driver_model.clone();
-        // Resolve the target architecture for the packaging task
-        let target_arch = if let Some(arch) = self.target_arch {
-            arch
-        } else {
-            self.get_target_arch_from_cargo_rustc(working_dir)?
-        };
         debug!("Target architecture for package: {package_name} is: {target_arch}");
-        let target_dir = Self::get_target_dir_from_output(package, output_message_iter)?;
+        let target_dir = Self::get_target_dir_from_output(package, build_output)?;
         debug!(
             "Target directory for package: {} is: {}",
             package_name,
@@ -460,7 +423,7 @@ impl<'a> BuildAction<'a> {
         PackageTask::new(
             PackageTaskParams {
                 package_name,
-                working_dir,
+                working_dir: &package_root_path,
                 target_dir: &target_dir,
                 target_arch: &target_arch,
                 sign_mode: self.sign_mode.clone(),
@@ -496,7 +459,7 @@ impl<'a> BuildAction<'a> {
     ///   - a cargo message could not be parsed.
     fn get_target_dir_from_output(
         package: &Package,
-        cargo_build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
+        cargo_build_output: &[Result<Message, std::io::Error>],
     ) -> Result<PathBuf, BuildActionError> {
         for message in cargo_build_output {
             let artifact = match message {
@@ -574,6 +537,8 @@ impl<'a> BuildAction<'a> {
     /// # Arguments
     /// * `working_dir` - Working directory from which the command must be
     ///   executed
+    /// * `package_spec` - Package ID spec of the package whose target is
+    ///   probed. A spec, unlike a name, is never ambiguous.
     ///
     /// # Returns
     /// * `CpuArchitecture` - if the command succeeds and a valid architecture
@@ -589,13 +554,12 @@ impl<'a> BuildAction<'a> {
     fn get_target_arch_from_cargo_rustc(
         &self,
         working_dir: &Path,
+        package_spec: &str,
     ) -> Result<CpuArchitecture, BuildActionError> {
-        let mut args: Vec<&str> = vec!["rustc"];
+        let mut args: Vec<&str> = vec!["rustc", "-p", package_spec];
         if self.locked {
             args.push("--locked");
         }
-        let feature_args = features_to_cargo_args(self.features);
-        args.extend(feature_args.iter().map(String::as_str));
         args.extend(["--", "--print", "cfg"]);
         let output = run_cargo(self.command_exec, &args, Some(working_dir))
             .map_err(BuildActionError::CargoRustc)?;
