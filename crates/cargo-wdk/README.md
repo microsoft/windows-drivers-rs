@@ -73,6 +73,8 @@ Options:
           Build sample class driver project
       --locked
           Assert that `Cargo.lock` will remain unchanged
+      --workspace
+          Build all packages in the workspace
   -h, --help
           Print help (see more with '--help')
 
