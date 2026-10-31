@@ -31,9 +31,9 @@ HKR,,Icon,,-5
 ; ================= Install section =================
 
 [Manufacturer]
-%StdMfg%=Standard,NT$ARCH$.10.0...16299, NT$ARCH$.10.0...22000
+%StdMfg%=Standard,NT$ARCH$.10.0...17134, NT$ARCH$.10.0...22000
 
-[Standard.NT$ARCH$.10.0...16299]
+[Standard.NT$ARCH$.10.0...17134]
 %DeviceDesc%=SampleUMDFDevice_W10, root\SAMPLE_UMDF_HW_ID
 
 [Standard.NT$ARCH$.10.0...22000]
