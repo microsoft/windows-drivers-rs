@@ -36,6 +36,8 @@ jobs:
             source: winget
           - version: 10.0.26100 # GE WDK
             source: nuget
+          - version: 10.0.28000 # BR WDK
+            source: nuget
 
         llvm:
           - 17.0.6
