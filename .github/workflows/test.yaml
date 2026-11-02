@@ -104,22 +104,7 @@ jobs:
           # because the dependencies are not yet published.
           # This env var skips such builds for release-plz PRs
           SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
-        run: |
-          $attempt = 0
-          do {
-            $attempt++
-            cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
-            if ($LASTEXITCODE -eq 0) {
-              break
-            }
-            if ($attempt -lt 3) {
-              Write-Host "Test run failed; retrying in 10 seconds (attempt $($attempt + 1) of 3)..."
-              Start-Sleep -Seconds 10
-            }
-          } while ($attempt -lt 3)
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
+        run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Upload Coverage to Codecov
         if: matrix.runner.arch != 'arm64' && github.repository == 'microsoft/windows-drivers-rs' # Skip for forks because they may not have CODECOV_TOKEN
@@ -134,55 +119,10 @@ jobs:
         env:
           # Skips build in cargo-wdk new tests for release-plz PRs
           SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
-        run: |
-          $attempt = 0
-          do {
-            $attempt++
-            cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
-            if ($LASTEXITCODE -eq 0) {
-              break
-            }
-            if ($attempt -lt 3) {
-              Write-Host "Test run failed; retrying in 10 seconds (attempt $($attempt + 1) of 3)..."
-              Start-Sleep -Seconds 10
-            }
-          } while ($attempt -lt 3)
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
+        run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)
-        run: |
-          $attempt = 0
-          do {
-            $attempt++
-            cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
-            if ($LASTEXITCODE -eq 0) {
-              break
-            }
-            if ($attempt -lt 3) {
-              Write-Host "Test run failed; retrying in 10 seconds (attempt $($attempt + 1) of 3)..."
-              Start-Sleep -Seconds 10
-            }
-          } while ($attempt -lt 3)
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./tests test --locked --profile ${{ matrix.cargo_profile }}
 
       - name: Run Cargo Test (Top-level examples Folder via Cargo Make - Sample Drivers)
-        run: |
-          $attempt = 0
-          do {
-            $attempt++
-            cargo +${{ matrix.rust_toolchain }} make --cwd ./examples test --locked --profile ${{ matrix.cargo_profile }}
-            if ($LASTEXITCODE -eq 0) {
-              break
-            }
-            if ($attempt -lt 3) {
-              Write-Host "Test run failed; retrying in 10 seconds (attempt $($attempt + 1) of 3)..."
-              Start-Sleep -Seconds 10
-            }
-          } while ($attempt -lt 3)
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
+        run: cargo +${{ matrix.rust_toolchain }} make --cwd ./examples test --locked --profile ${{ matrix.cargo_profile }}
