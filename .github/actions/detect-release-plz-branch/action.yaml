@@ -1,0 +1,39 @@
+name: Detect release-plz Branch
+description: Determine whether the workflow run is for a release-plz branch, including merge queue runs of its pull request
+
+outputs:
+  is-release-plz-branch:
+    description: "'true' if the run's branch, or the queued pull request's head branch for merge queue runs, starts with 'release-plz-'; otherwise 'false'"
+    value: ${{ steps.detect.outputs.is-release-plz-branch }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect release-plz branch
+      id: detect
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        # head_ref is only set for pull_request events. ref_name is the pushed
+        # branch for push events and the merge queue ref for merge_group events.
+        BRANCH: ${{ github.head_ref || github.ref_name }}
+      run: |
+        $branch = $env:BRANCH
+        if ($env:GITHUB_EVENT_NAME -eq 'merge_group') {
+          # Merge queue runs only expose a gh-readonly-queue/<base>/pr-<number>-<base sha>
+          # ref, so look up the queued pull request's head branch.
+          if ($branch -notmatch '/pr-(?<number>\d+)-[0-9a-f]+$') {
+            throw "Failed to parse a pull request number from merge queue ref '$branch'"
+          }
+          $pullRequest = Invoke-RestMethod `
+            -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/pulls/$($Matches.number)" `
+            -Headers @{ Accept = 'application/vnd.github+json'; Authorization = "Bearer $env:GITHUB_TOKEN" }
+          $branch = $pullRequest.head.ref
+          if (-not $branch) {
+            throw "Failed to read the head branch of pull request #$($Matches.number)"
+          }
+        }
+
+        $isReleasePlzBranch = $branch.StartsWith('release-plz-')
+        Write-Output "Branch '$branch' is a release-plz branch: $isReleasePlzBranch"
+        "is-release-plz-branch=$($isReleasePlzBranch.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT

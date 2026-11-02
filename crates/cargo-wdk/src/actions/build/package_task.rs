@@ -629,7 +629,8 @@ impl<'a> PackageTask<'a> {
                     warn!("InfVerif skipped for samples class. WDK Build: {wdk_build_number}");
                     return Ok(());
                 }
-                // Use the `/samples` flag after the range and the `/msft` flag before the range
+                // Use the `/samples` flag after the range and the `/msft` flag
+                // before the range
                 n if n > *MISSING_SAMPLE_FLAG_WDK_BUILD_NUMBER_RANGE.end() => "/samples",
                 _ => "/msft",
             }

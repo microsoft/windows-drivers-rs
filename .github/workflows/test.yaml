@@ -49,6 +49,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Detect release-plz Branch
+        id: release-plz-branch
+        uses: ./.github/actions/detect-release-plz-branch
+
       - name: Install Winget
         uses: ./.github/actions/install-winget
         with:
@@ -99,11 +103,10 @@ jobs:
       - name: Run Cargo Test with Coverage (workspace)
         if: matrix.runner.arch != 'arm64'
         env:
-          # cargo-wdk new tests try to build newly generated
-          # driver projects which can fail in release-plz PRs
-          # because the dependencies are not yet published.
-          # This env var skips such builds for release-plz PRs
-          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
+          # cargo-wdk new tests build generated driver projects against
+          # crates.io, which fails for release-plz changes until they are
+          # published, so skip those builds on release-plz branches.
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ steps.release-plz-branch.outputs.is-release-plz-branch == 'true' && '1' || '' }}
         run: cargo +${{ matrix.rust_toolchain }} llvm-cov --workspace --codecov --output-path target/codecov.info --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Upload Coverage to Codecov
@@ -117,8 +120,8 @@ jobs:
       - name: Run Cargo Test (workspace)
         if: matrix.runner.arch == 'arm64'
         env:
-          # Skips build in cargo-wdk new tests for release-plz PRs
-          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
+          # See the coverage step above
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ steps.release-plz-branch.outputs.is-release-plz-branch == 'true' && '1' || '' }}
         run: cargo +${{ matrix.rust_toolchain }} test --locked --profile ${{ matrix.cargo_profile }} --all-features
 
       - name: Run Cargo Test (Top-Level tests Folder via Cargo Make)

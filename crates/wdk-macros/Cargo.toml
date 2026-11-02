@@ -12,7 +12,7 @@ license.workspace = true
 name = "wdk-macros"
 readme.workspace = true
 repository.workspace = true
-version = "0.5.1"
+version = "0.5.2"
 
 [lib]
 proc-macro = true

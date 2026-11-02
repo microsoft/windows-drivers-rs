@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.2](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.5.1...wdk-sys-v0.5.2) - 2026-10-22
+
+### Added
+
+- add linker directive for VHF lib + move static linker directives from wdk-build to wdk-sys ([#685](https://github.com/microsoft/windows-drivers-rs/pull/685))
+
+### Other
+
+- re-format .rs files with the current nightly rustfmt ([#732](https://github.com/microsoft/windows-drivers-rs/pull/732))
+- add cargo-wdk preview callout to Cargo Make section in README ([#641](https://github.com/microsoft/windows-drivers-rs/pull/641))
+- replace cargo-sort with taplo for dependency sorting ([#632](https://github.com/microsoft/windows-drivers-rs/pull/632))
+
 ## [0.5.1](https://github.com/microsoft/windows-drivers-rs/compare/wdk-sys-v0.5.0...wdk-sys-v0.5.1) - 2025-11-13
 
 ### Other

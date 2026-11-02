@@ -491,8 +491,8 @@ mod tests {
                     s!("ProgramFilesDir")
                 ),
                 Some(
-                    // SAFETY: program_files_dir pointer stays valid for reads up until and
-                    // including its terminating null
+                    // SAFETY: program_files_dir pointer stays valid for reads
+                    // up until and including its terminating null
                     unsafe { program_files_dir.to_string() }
                         .expect("Path resolved from FOLDERID_ProgramFiles should be valid UTF16.")
                 )

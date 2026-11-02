@@ -7,7 +7,7 @@ license.workspace = true
 name = "wdk-alloc"
 readme.workspace = true
 repository.workspace = true
-version = "0.4.1"
+version = "0.4.2"
 
 [dependencies]
 wdk-sys.workspace = true

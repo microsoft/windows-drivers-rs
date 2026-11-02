@@ -9,7 +9,7 @@ private = true
 script = '''
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = ".", version = "0.6.0" }
 //! ```
 #![allow(unused_doc_comments)]
 
@@ -32,7 +32,7 @@ condition_script = '''
 
 //! ```cargo
 //! [dependencies]
-//! wdk-build = { path = ".", version = "0.5.1" }
+//! wdk-build = { path = ".", version = "0.6.0" }
 //! anyhow = "1"
 //! ```
 #![allow(unused_doc_comments)]

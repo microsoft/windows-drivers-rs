@@ -43,6 +43,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Detect release-plz Branch
+        id: release-plz-branch
+        uses: ./.github/actions/detect-release-plz-branch
+
       - name: Install Winget
         uses: ./.github/actions/install-winget
         with:
@@ -96,9 +100,8 @@ jobs:
 
       - name: Test wdk-pre-commit-flow cargo-make task
         env:
-          # cargo-wdk new tests try to build newly generated
-          # driver projects which can fail in release-plz PRs
-          # because the dependencies are not yet published.
-          # This env var skips such builds for release-plz PRs
-          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ startsWith(github.head_ref, 'release-plz-') && '1' || '' }}
+          # cargo-wdk new tests build generated driver projects against
+          # crates.io, which fails for release-plz changes until they are
+          # published, so skip those builds on release-plz branches.
+          SKIP_BUILD_IN_CARGO_WDK_NEW_TESTS: ${{ steps.release-plz-branch.outputs.is-release-plz-branch == 'true' && '1' || '' }}
         run: cargo make wdk-pre-commit-flow
