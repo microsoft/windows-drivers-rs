@@ -13,6 +13,7 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
+    collections::{BTreeMap, HashSet},
     fmt::{self, Display},
     path::{Path, PathBuf, absolute},
     result::Result::Ok,
@@ -21,13 +22,21 @@ use std::{
 
 use anyhow::Result;
 use build_task::{BuildTask, BuildTaskParams};
-use cargo_metadata::{CrateType, Message, Metadata as CargoMetadata, Package, TargetKind};
+use cargo_metadata::{
+    Artifact,
+    CrateType,
+    Message,
+    Metadata as CargoMetadata,
+    Package,
+    PackageId,
+    TargetKind,
+};
 use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
-use tracing::{debug, error as err, info, trace};
+use tracing::{debug, error, info, trace, warn};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -259,7 +268,7 @@ impl<'a> BuildAction<'a> {
             debug!("Building package(s) in dir {package_dir_name}");
             if let Err(e) = self.build_and_package(&cargo_package_path) {
                 failed_atleast_one_project = true;
-                err!(
+                error!(
                     "Error building project: {package_dir_name}, error: {:?}",
                     anyhow::Error::new(e)
                 );
@@ -280,11 +289,10 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Runs the build task from the given working directory and then runs the
-    // package task for each driver package. The drivers to package are
-    // determined based on the cargo build output.
+    // Runs the build task from the given working directory, then runs the
+    // package task for each driver package.
     fn build_and_package(&self, working_dir: &Path) -> Result<(), BuildActionError> {
-        let build_output = BuildTask::new(
+        let build_task = BuildTask::new(
             BuildTaskParams {
                 working_dir,
                 profile: self.profile,
@@ -295,21 +303,133 @@ impl<'a> BuildAction<'a> {
                 verbosity_level: self.verbosity_level,
             },
             self.command_exec,
-        )
-        .run()?
-        .collect::<Vec<_>>();
+        );
+        let build_output = build_task.run()?;
 
-        let cargo_metadata = &self.get_cargo_metadata(working_dir)?;
-        let wdk_metadata = match Wdk::try_from(cargo_metadata) {
-            Ok(wdk_metadata) => wdk_metadata,
-            Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected) => {
-                debug!("No WDK metadata found. Skipping package task.");
-                return Ok(());
+        let Some((cargo_metadata, wdk_metadata)) = self.get_cargo_and_wdk_metadata(working_dir)?
+        else {
+            debug!("No WDK metadata found. Skipping package task.");
+            return Ok(());
+        };
+        let drivers = self.drivers_to_package(&cargo_metadata)?;
+
+        let mut packaged = HashSet::new();
+        let mut failed_to_package = false;
+        for built_driver in Self::driver_artifacts(build_output, &drivers) {
+            let (package, artifact) = built_driver?;
+            if !packaged.insert(&package.id) {
+                return Err(BuildActionError::CannotDetermineTargetDir(format!(
+                    "Found more than one cdylib artifact for package {} in cargo build output.",
+                    package.name
+                )));
             }
-            Err(e) => return Err(BuildActionError::WdkMetadataParse(e)),
+
+            let package_name = package.name.as_str();
+            info!("Packaging driver {package_name}");
+            let result = Self::get_target_dir_from_artifact(&artifact).and_then(|target_dir| {
+                let target_arch = self.target_arch.map_or_else(
+                    || self.get_target_arch_from_cargo_rustc(working_dir, &package.id.repr),
+                    Ok,
+                )?;
+                debug!(
+                    "Packaging {package_name} for {target_arch} from {}",
+                    target_dir.display()
+                );
+                let package_root_path: PathBuf = package
+                    .manifest_path
+                    .parent()
+                    .expect("Unable to find package path from Cargo manifest path")
+                    .into();
+                let package_root_path = absolute(&package_root_path)
+                    .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
+                PackageTask::new(
+                    PackageTaskParams {
+                        package_name,
+                        working_dir: &package_root_path,
+                        target_dir: &target_dir,
+                        target_arch: &target_arch,
+                        sign_mode: self.sign_mode.clone(),
+                        inf2cat_args: self.inf2cat_args.clone(),
+                        stampinf_args: self.stampinf_args.clone(),
+                        infverif_args: self.infverif_args.clone(),
+                        sample_class: self.is_sample_class,
+                        driver_model: wdk_metadata.driver_model.clone(),
+                        target_platform: self.target_platform,
+                    },
+                    self.wdk_build,
+                    self.command_exec,
+                    self.fs,
+                )
+                .run()?;
+                Ok(())
+            });
+            match result {
+                Ok(()) => info!("Finished packaging driver {package_name}"),
+                Err(e) => {
+                    failed_to_package = true;
+                    error!(
+                        "Error packaging driver {package_name}: {:?}",
+                        anyhow::Error::new(e)
+                    );
+                }
+            }
+        }
+
+        for package in drivers
+            .values()
+            .filter(|package| !packaged.contains(&package.id))
+        {
+            warn!(
+                "No cdylib artifact found in cargo build output for package: {}. Skipping package \
+                 task.",
+                package.name
+            );
+        }
+
+        if failed_to_package {
+            return Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(
+                working_dir.to_owned(),
+            ));
+        }
+
+        debug!(
+            "Build completed successfully for path: {}",
+            working_dir.display()
+        );
+
+        Ok(())
+    }
+
+    // Reads cargo metadata and the WDK configuration from it. Returns `None` if
+    // the project has no WDK configuration, i.e. there is nothing to package.
+    fn get_cargo_and_wdk_metadata(
+        &self,
+        working_dir: &Path,
+    ) -> Result<Option<(CargoMetadata, Wdk)>, BuildActionError> {
+        let cargo_metadata = self.get_cargo_metadata(working_dir)?;
+        match Wdk::try_from(&cargo_metadata) {
+            Ok(wdk_metadata) => Ok(Some((cargo_metadata, wdk_metadata))),
+            Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected) => Ok(None),
+            Err(e) => Err(BuildActionError::WdkMetadataParse(e)),
+        }
+    }
+
+    // Returns the driver packages to package.
+    fn drivers_to_package<'m>(
+        &self,
+        cargo_metadata: &'m CargoMetadata,
+    ) -> Result<BTreeMap<&'m PackageId, &'m Package>, BuildActionError> {
+        let selected_members: &[PackageId] = if self.workspace {
+            &cargo_metadata.workspace_members
+        } else if cargo_metadata.workspace_default_members.is_available() {
+            &cargo_metadata.workspace_default_members
+        } else {
+            return Err(BuildActionError::CargoMetadata(anyhow::anyhow!(
+                "cargo metadata did not report the workspace default members"
+            )));
         };
 
-        let mut failed_to_package = false;
+        let mut drivers = BTreeMap::new();
         for package in cargo_metadata.workspace_packages() {
             if package.metadata.get("wdk").is_none() {
                 debug!(
@@ -318,11 +438,10 @@ impl<'a> BuildAction<'a> {
                 );
                 continue;
             }
-            if !build_output.iter().any(|message| {
-                matches!(message, Ok(Message::CompilerArtifact(artifact)) if artifact.package_id == package.id)
-            }) {
+            if !selected_members.contains(&package.id) {
                 debug!(
-                    "No compiler artifact found in cargo build output for package: {}. Skipping package task.",
+                    "Package {} was not selected for the build. Skipping package task. To package \
+                     it, run the build from its directory or pass --workspace.",
                     package.name
                 );
                 continue;
@@ -338,34 +457,31 @@ impl<'a> BuildAction<'a> {
                 );
                 continue;
             }
-            let target_arch = self.target_arch.map_or_else(
-                || self.get_target_arch_from_cargo_rustc(working_dir, &package.id.repr),
-                Ok,
-            );
-            if let Err(e) = target_arch.and_then(|target_arch| {
-                self.package(&wdk_metadata, package, target_arch, &build_output)
-            }) {
-                failed_to_package = true;
-                err!(
-                    "Error packaging the workspace member project: {}, error: {:?}",
-                    package.name,
-                    anyhow::Error::new(e)
-                );
+            drivers.insert(&package.id, package);
+        }
+        Ok(drivers)
+    }
+
+    // Reads the cargo build output and yields the cdylib artifact of each
+    // driver package to package.
+    fn driver_artifacts<'m>(
+        build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
+        drivers: &BTreeMap<&'m PackageId, &'m Package>,
+    ) -> impl Iterator<Item = Result<(&'m Package, Artifact), BuildActionError>> {
+        build_output.filter_map(move |message| match message {
+            Ok(Message::CompilerArtifact(artifact))
+                if artifact.target.kind.contains(&TargetKind::CDyLib)
+                    && artifact.target.crate_types.contains(&CrateType::CDyLib) =>
+            {
+                drivers
+                    .get(&artifact.package_id)
+                    .map(|package| Ok((*package, artifact)))
             }
-        }
-
-        if failed_to_package {
-            return Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(
-                working_dir.to_owned(),
-            ));
-        }
-
-        debug!(
-            "Build completed successfully for path: {}",
-            working_dir.display()
-        );
-
-        Ok(())
+            Ok(_) => None,
+            Err(e) => Some(Err(BuildActionError::CannotDetermineTargetDir(format!(
+                "Could not parse cargo build output message: {e}"
+            )))),
+        })
     }
 
     fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, BuildActionError> {
@@ -390,146 +506,53 @@ impl<'a> BuildAction<'a> {
         Ok(cargo_metadata)
     }
 
-    // Creates the driver package for the given package, which was built for
-    // `target_arch`, using the output of the cargo build.
-    fn package(
-        &self,
-        wdk_metadata: &Wdk,
-        package: &Package,
-        target_arch: CpuArchitecture,
-        build_output: &[Result<Message, std::io::Error>],
-    ) -> Result<(), BuildActionError> {
-        let package_name = package.name.as_str();
-        info!("Building package {package_name}");
-
-        let package_root_path: PathBuf = package
-            .manifest_path
-            .parent()
-            .expect("Unable to find package path from Cargo manifest path")
-            .into();
-        let package_root_path = absolute(package_root_path.as_path())
-            .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
-
-        debug!("Creating the driver package in the target directory");
-        let driver_model = wdk_metadata.driver_model.clone();
-        debug!("Target architecture for package: {package_name} is: {target_arch}");
-        let target_dir = Self::get_target_dir_from_output(package, build_output)?;
-        debug!(
-            "Target directory for package: {} is: {}",
-            package_name,
-            target_dir.display()
-        );
-
-        PackageTask::new(
-            PackageTaskParams {
-                package_name,
-                working_dir: &package_root_path,
-                target_dir: &target_dir,
-                target_arch: &target_arch,
-                sign_mode: self.sign_mode.clone(),
-                inf2cat_args: self.inf2cat_args.clone(),
-                stampinf_args: self.stampinf_args.clone(),
-                infverif_args: self.infverif_args.clone(),
-                sample_class: self.is_sample_class,
-                driver_model,
-                target_platform: self.target_platform,
-            },
-            self.wdk_build,
-            self.command_exec,
-            self.fs,
-        )
-        .run()?;
-
-        info!("Finished building {package_name}");
-        Ok(())
-    }
-
-    /// Determines the target directory (i.e. path where binaries are emitted)
-    /// for a cdylib package by scanning the output of the
-    /// `cargo build --message-format json` command.
-    ///
-    /// Works by locating the cdylib artifact matching the package, finding
-    /// the DLL file in it, and returning the DLL's parent folder as an
+    /// Returns the directory of the driver binary (DLL) in a cdylib compiler
+    /// artifact from the `cargo build --message-format json` output, as an
     /// absolute path.
     ///
     /// # Errors
-    /// - `BuildActionError::CannotDetermineTargetDir` - If:
-    ///   - no matching DLL file is found in the output,
-    ///   - the DLL's parent folder cannot be determined,
-    ///   - a cargo message could not be parsed.
-    fn get_target_dir_from_output(
-        package: &Package,
-        cargo_build_output: &[Result<Message, std::io::Error>],
-    ) -> Result<PathBuf, BuildActionError> {
-        for message in cargo_build_output {
-            let artifact = match message {
-                Ok(Message::CompilerArtifact(artifact)) => artifact,
-                Ok(_) => continue,
-                Err(err) => {
-                    return Err(BuildActionError::CannotDetermineTargetDir(format!(
-                        "Could not parse cargo build output message: {err}"
-                    )));
-                }
-            };
-
-            let package_matches = artifact.package_id == package.id;
-            let is_cdylib = artifact.target.crate_types.contains(&CrateType::CDyLib)
-                && artifact.target.kind.contains(&TargetKind::CDyLib);
-
-            if !(package_matches && is_cdylib) {
-                trace!(
-                    "Skipping crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
-                    artifact.target.name,
-                    &artifact.target.kind,
-                    &artifact.target.crate_types,
-                    &artifact.filenames
-                );
-                continue;
-            }
-
-            trace!(
-                "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
-                artifact.target.name,
-                &artifact.target.kind,
-                &artifact.target.crate_types,
-                &artifact.filenames
-            );
-
-            let Some(dll_path) = artifact
-                .filenames
-                .iter()
-                .find(|path| {
-                    path.extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
-                })
-                .map(|path| path.as_std_path())
-            else {
-                continue;
-            };
-
-            let parent = dll_path.parent().ok_or_else(|| {
+    /// - `BuildActionError::CannotDetermineTargetDir` - If the artifact has no
+    ///   DLL, or the DLL's parent folder cannot be determined or made absolute.
+    fn get_target_dir_from_artifact(artifact: &Artifact) -> Result<PathBuf, BuildActionError> {
+        trace!(
+            "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
+            artifact.target.name,
+            &artifact.target.kind,
+            &artifact.target.crate_types,
+            &artifact.filenames
+        );
+        let dll_path = artifact
+            .filenames
+            .iter()
+            .find(|path| {
+                path.extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
+            })
+            .map(|path| path.as_std_path())
+            .ok_or_else(|| {
                 BuildActionError::CannotDetermineTargetDir(format!(
-                    "Cannot determine parent directory for driver binary {}",
-                    dll_path.display()
+                    "Could not find driver binary (DLL) in cargo build output for {}",
+                    artifact.target.name
                 ))
             })?;
 
-            if parent.is_absolute() {
-                return Ok(parent.to_path_buf());
-            }
+        let parent = dll_path.parent().ok_or_else(|| {
+            BuildActionError::CannotDetermineTargetDir(format!(
+                "Cannot determine parent directory for driver binary {}",
+                dll_path.display()
+            ))
+        })?;
 
-            let abs_parent = std::path::absolute(parent).map_err(|err| {
-                BuildActionError::CannotDetermineTargetDir(format!(
-                    "Cannot convert target directory {} to absolute path: {err}",
-                    parent.display()
-                ))
-            })?;
-            return Ok(abs_parent);
+        if parent.is_absolute() {
+            return Ok(parent.to_path_buf());
         }
 
-        Err(BuildActionError::CannotDetermineTargetDir(String::from(
-            "Could not find matching cdylib artifact in cargo build output",
-        )))
+        std::path::absolute(parent).map_err(|err| {
+            BuildActionError::CannotDetermineTargetDir(format!(
+                "Cannot convert target directory {} to absolute path: {err}",
+                parent.display()
+            ))
+        })
     }
 
     /// Invokes `cargo rustc -- --print cfg` and finds the `target_arch` value

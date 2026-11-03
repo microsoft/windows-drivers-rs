@@ -302,8 +302,8 @@ fn emulated_workspace_builds_successfully() {
         assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
 
         let stderr = run_build_cmd(emulated_workspace_path, None, None);
-        assert!(stderr.contains("Building package driver_1"));
-        assert!(stderr.contains("Building package driver_2"));
+        assert!(stderr.contains("Packaging driver driver_1"));
+        assert!(stderr.contains("Packaging driver driver_2"));
         assert!(stderr.contains("Build completed successfully"));
 
         verify_driver_package_files(
@@ -436,8 +436,8 @@ mod sign_mode {
             run_clean_cmd(&project_path);
 
             let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-            assert!(stderr.contains(&format!("Building package {driver}")));
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Packaging driver {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let driver_name = driver.replace('-', "_");
             let target_dir = format!("{project_path}/target/debug");
@@ -542,7 +542,7 @@ mod signtool_args {
                 ]),
                 None,
             );
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let driver_name = driver.replace('-', "_");
             let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
@@ -593,7 +593,7 @@ mod signtool_args {
                 Some(&["--signtool-args", &args_with_extra]),
                 None,
             );
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let signer = authenticode_signer_subject(&extra)
                 .expect("extra file operand should be signed after build");
@@ -908,8 +908,8 @@ fn clean_build_and_verify_project(
         };
         let stderr = run_build_cmd(&project_path, cmd_args, env_overrides);
 
-        assert!(stderr.contains(&format!("Building package {driver_name}")));
-        assert!(stderr.contains(&format!("Finished building {driver_name}")));
+        assert!(stderr.contains(&format!("Packaging driver {driver_name}")));
+        assert!(stderr.contains(&format!("Finished packaging driver {driver_name}")));
 
         let driver_binary_extension = match driver_type {
             "kmdf" | "wdm" => "sys",

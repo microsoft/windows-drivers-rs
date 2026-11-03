@@ -498,10 +498,7 @@ mod tests {
                 args.push("--workspace");
             }
             let cli = Cli::try_parse_from(args).unwrap();
-            let Subcmd::Build(build) = cli.sub_cmd else {
-                panic!("expected build command");
-            };
-            assert_eq!(build.workspace, workspace);
+            assert!(matches!(cli.sub_cmd, Subcmd::Build(build) if build.workspace == workspace));
         }
     }
 
