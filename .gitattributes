@@ -4,3 +4,6 @@
 *.rs       text diff=rust
 *.toml     text diff=toml
 Cargo.lock text diff=toml
+
+# Store INX files as UTF-8 for diffs, but check them out as UTF-16LE for WDK tools
+*.inx      text diff working-tree-encoding=UTF-16LE-BOM eol=crlf
