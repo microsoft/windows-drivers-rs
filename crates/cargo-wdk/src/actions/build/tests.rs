@@ -2148,6 +2148,146 @@ pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_
     );
 }
 
+#[test]
+pub fn given_a_driver_project_when_build_output_is_unreadable_then_it_fails() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let verify_signature = false;
+    let sample_class = false;
+    // Driver project data
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata("KMDF", 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    // Invalid UTF-8 makes reading the build output fail
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .set_up_standalone_driver_project((workspace_member, package))
+        .expect_default_build_task_steps(
+            Some(Output {
+                status: ExitStatus::default(),
+                stdout: vec![0xFF, b'\n'],
+                stderr: vec![],
+            }),
+            25100u32,
+        );
+
+    let build_action = initialize_build_action(
+        &cwd,
+        profile.as_ref(),
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+    let result = run_build_action(build_action);
+    assert!(
+        matches!(
+            result,
+            Err(BuildActionError::CannotDetermineTargetDir(ref message))
+            if message.contains("Could not parse cargo build output message")
+        ),
+        "Expected CannotDetermineTargetDir parse error, got: {result:?}"
+    );
+}
+
+#[test]
+pub fn given_a_driver_project_when_cargo_metadata_fails_after_the_build_then_it_fails() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let verify_signature = false;
+    let sample_class = false;
+
+    let mut test_build_action = TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .expect_default_build_task_steps(None, 25100u32);
+    test_build_action
+        .mock_metadata_provider
+        .expect_get_cargo_metadata_at_path()
+        .once()
+        .return_once(|_, _, _, _| {
+            Err(cargo_metadata::Error::Io(std::io::Error::other(
+                "cargo metadata failed",
+            )))
+        });
+
+    let build_action = initialize_build_action(
+        &cwd,
+        profile.as_ref(),
+        None,
+        verify_signature,
+        sample_class,
+        &test_build_action,
+    );
+    let result = run_build_action(build_action);
+    assert!(
+        matches!(result, Err(BuildActionError::CargoMetadata(_))),
+        "Expected CargoMetadata error, got: {result:?}"
+    );
+}
+
+#[test]
+pub fn given_a_driver_project_when_cargo_metadata_does_not_report_default_members_then_it_fails() {
+    // Input CLI args
+    let cwd = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let verify_signature = false;
+    let sample_class = false;
+    // Driver project data
+    let driver_name = "sample-kmdf";
+    let driver_version = "0.0.1";
+    let wdk_metadata = get_cargo_metadata_wdk_metadata("KMDF", 1, 33);
+    let (workspace_member, package) =
+        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
+
+    // Cargo before 1.71 does not report `workspace_default_members`
+    let workspace_members = [workspace_member];
+    let mut metadata: serde_json::Value = serde_json::from_str(&get_cargo_metadata(
+        &cwd,
+        vec![package],
+        &workspace_members,
+        &workspace_members,
+        None,
+    ))
+    .expect("Failed to parse cargo metadata");
+    metadata
+        .as_object_mut()
+        .expect("Expected cargo metadata to be an object")
+        .remove("workspace_default_members");
+    let metadata: CargoMetadata =
+        serde_json::from_value(metadata).expect("Failed to parse cargo metadata");
+
+    // No probe or packaging expectations are set, so any packaging step fails
+    // the test
+    let mut test_build_action = TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .expect_default_build_task_steps(None, 25100u32);
+    test_build_action
+        .mock_metadata_provider
+        .expect_get_cargo_metadata_at_path()
+        .once()
+        .return_once(|_, _, _, _| Ok(metadata));
+
+    let build_action = initialize_build_action(
+        &cwd,
+        profile.as_ref(),
+        None,
+        verify_signature,
+        sample_class,
+        &test_build_action,
+    );
+    let result = run_build_action(build_action);
+    assert!(
+        matches!(
+            result,
+            Err(BuildActionError::CargoMetadata(ref source))
+            if source.to_string().contains("did not report the workspace default members")
+        ),
+        "Expected missing default members error, got: {result:?}"
+    );
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Metadata error tests
 ////////////////////////////////////////////////////////////////////////////////
