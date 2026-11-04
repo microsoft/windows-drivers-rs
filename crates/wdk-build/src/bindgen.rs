@@ -135,6 +135,17 @@ impl BuilderExt for Builder {
             .blocklist_item(".*USBDEVICE_ABORTIO")
             .blocklist_item(".*USBDEVICE_STARTIO")
             .blocklist_item(".*USBDEVICE_TREE_PURGEIO")
+            // FIXME: bindgen drops anonymous members of named record type (an MSVC extension),
+            // which the NDIS legacy-compatibility types in `ndis/nbl.h` rely on when compiled as
+            // C: `NET_BUFFER_DATA` embeds an anonymous `NET_BUFFER_DATA_LENGTH`, and
+            // `NET_BUFFER_HEADER` embeds an anonymous `NET_BUFFER_DATA` (both declare a named
+            // member only under `__cplusplus`). The dropped members leave the generated types
+            // undersized, so their own layout assertions fail to compile. Both are only reachable
+            // through `NET_BUFFER::NetBufferHeader`, which duplicates fields `NET_BUFFER` also
+            // declares inline, so making them opaque preserves the layout without losing access
+            // to anything.
+            .opaque_type(".*NET_BUFFER_DATA")
+            .opaque_type(".*NET_BUFFER_HEADER")
             // FIXME: arrays with more than 32 entries currently fail to generate a `Default`` impl: https://github.com/rust-lang/rust-bindgen/issues/2803
             .no_default(".*tagMONITORINFOEXA")
             .must_use_type("NTSTATUS")

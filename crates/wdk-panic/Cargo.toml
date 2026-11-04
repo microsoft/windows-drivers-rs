@@ -9,9 +9,6 @@ readme.workspace = true
 repository.workspace = true
 version = "0.5.0"
 
-[lints]
-workspace = true
-
 [dependencies]
 wdk.workspace = true
 
@@ -19,3 +16,6 @@ wdk.workspace = true
 tracing.workspace = true
 tracing-subscriber = { features = ["env-filter"], workspace = true }
 wdk-build.workspace = true
+
+[lints]
+workspace = true

@@ -43,7 +43,88 @@ mod wdf {
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 mod kernel_mode {
-    use crate::types::POOL_FLAGS;
+    use crate::types::{ACCESS_MASK, POOL_FLAGS, ULONG};
+
+    // `winnt.h` defines all fourteen process-specific access rights as one
+    // contiguous family, but `wdm.h` redefines only `PROCESS_DUP_HANDLE` and
+    // `PROCESS_ALL_ACCESS` from it. Kernel-mode bindgen never processes
+    // `winnt.h`, so the remaining twelve are absent from the generated
+    // constants and are ported here. The whole family is ported rather than
+    // just the rights a particular driver needs, because a partial port of a
+    // contiguous bitfield is what leaves the next caller adding the
+    // neighbouring bit as a literal at the call site.
+    //
+    // Each is typed `ACCESS_MASK` rather than left as an untyped integer so
+    // that they combine with each other, and with the generated
+    // `PROCESS_DUP_HANDLE`, without a cast at a `DesiredAccess` argument.
+    /// Access right required to terminate a process.
+    pub const PROCESS_TERMINATE: ACCESS_MASK = 0x0001;
+    /// Access right required to create a thread in a process.
+    pub const PROCESS_CREATE_THREAD: ACCESS_MASK = 0x0002;
+    /// Access right required to set a process's session id.
+    pub const PROCESS_SET_SESSIONID: ACCESS_MASK = 0x0004;
+    /// Access right required to operate on the address space of a process, such
+    /// as mapping a section into it with
+    /// [`ZwMapViewOfSection`](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwmapviewofsection).
+    pub const PROCESS_VM_OPERATION: ACCESS_MASK = 0x0008;
+    /// Access right required to read memory in a process's address space.
+    pub const PROCESS_VM_READ: ACCESS_MASK = 0x0010;
+    /// Access right required to write memory in a process's address space.
+    pub const PROCESS_VM_WRITE: ACCESS_MASK = 0x0020;
+    /// Access right required to create a process.
+    pub const PROCESS_CREATE_PROCESS: ACCESS_MASK = 0x0080;
+    /// Access right required to set a process's memory limits.
+    pub const PROCESS_SET_QUOTA: ACCESS_MASK = 0x0100;
+    /// Access right required to set information about a process.
+    pub const PROCESS_SET_INFORMATION: ACCESS_MASK = 0x0200;
+    /// Access right required to read information about a process.
+    pub const PROCESS_QUERY_INFORMATION: ACCESS_MASK = 0x0400;
+    /// Access right required to suspend or resume a process.
+    pub const PROCESS_SUSPEND_RESUME: ACCESS_MASK = 0x0800;
+    /// Access right required to read a subset of the information
+    /// [`PROCESS_QUERY_INFORMATION`] grants.
+    pub const PROCESS_QUERY_LIMITED_INFORMATION: ACCESS_MASK = 0x1000;
+    /// Access right required to set a subset of the information
+    /// [`PROCESS_SET_INFORMATION`] grants.
+    pub const PROCESS_SET_LIMITED_INFORMATION: ACCESS_MASK = 0x2000;
+
+    // `winnt.h` defines all thread-specific access rights as one contiguous
+    // family, but `wdm.h` redefines only a subset of them. Kernel-mode bindgen
+    // never processes `winnt.h`, so many thread access rights are absent from
+    // the generated constants. These three are required for object monitoring
+    // callbacks that need to check or modify thread access masks.
+    //
+    // Each is typed `ACCESS_MASK` rather than left as an untyped integer so
+    // that they combine with each other and with other generated access rights
+    // without a cast.
+    /// Access right required to directly impersonate a thread.
+    pub const THREAD_DIRECT_IMPERSONATION: ACCESS_MASK = 0x0200;
+    /// Access right required to impersonate a thread.
+    pub const THREAD_IMPERSONATE: ACCESS_MASK = 0x0100;
+    /// Access right required to set a thread's token.
+    pub const THREAD_SET_THREAD_TOKEN: ACCESS_MASK = 0x0080;
+
+    /// The memory in a region is mapped from a portion of an image file.
+    ///
+    /// The third member of the `MEMORY_BASIC_INFORMATION::Type` family, which
+    /// `winnt.h` defines contiguously with the other two. `wdm.h` redefines
+    /// only [`MEM_PRIVATE`] and [`MEM_MAPPED`] from it, so this one is absent
+    /// from the generated constants — a driver that reads `Type` therefore
+    /// cannot name the *most* interesting of the three values without a literal
+    /// at the call site. Ported here for the reason the process access rights
+    /// above are: a partial port of a contiguous family is what leaves the next
+    /// caller writing the neighbouring value out by hand.
+    ///
+    /// `wdm.h` does define [`SEC_IMAGE`], which is the same value, and that is
+    /// what a driver has had to use for this test — but the two constants are
+    /// two different families and only their coincident value made it work. A
+    /// `Type` compared against a `SEC_*` flag reads as a mistake even when it
+    /// is not.
+    ///
+    /// [`MEM_MAPPED`]: crate::MEM_MAPPED
+    /// [`MEM_PRIVATE`]: crate::MEM_PRIVATE
+    /// [`SEC_IMAGE`]: crate::SEC_IMAGE
+    pub const MEM_IMAGE: ULONG = 0x0100_0000;
 
     // Macros with MSVC C Integer Constant Suffixes are not supported by bindgen, so they must be manually ported or imported from elsewhere: https://github.com/rust-lang/rust-bindgen/issues/2600
     pub const POOL_FLAG_REQUIRED_START: POOL_FLAGS = 0x0000_0000_0000_0001;
@@ -62,6 +143,76 @@ mod kernel_mode {
     pub const POOL_FLAG_OPTIONAL_START: POOL_FLAGS = 0x0000_0001_0000_0000;
     pub const POOL_FLAG_SPECIAL_POOL: POOL_FLAGS = 0x0000_0001_0000_0000; // Make special pool allocation
     pub const POOL_FLAG_OPTIONAL_END: POOL_FLAGS = 0x8000_0000_0000_0000;
+
+    // `FILE_INFORMATION_CLASS` values from `ntifs.h` that are not generated by
+    // bindgen. These are used with `FltSetInformationFile` and
+    // IRP_MJ_SET_INFORMATION to specify the type of information being set for a
+    // file. Typed as `i32` to match the `FileInformationClass` field type in
+    // the generated structures.
+    //
+    // See: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_file_information_class
+    /// Information class for renaming a file.
+    pub const FILE_RENAME_INFORMATION: i32 = 10;
+    /// Information class for creating a hard link.
+    pub const FILE_LINK_INFORMATION: i32 = 11;
+    /// Information class for marking a file for deletion on close.
+    pub const FILE_DISPOSITION_INFORMATION: i32 = 13;
+    /// Information class for setting the file size (allocation).
+    pub const FILE_ALLOCATION_INFORMATION: i32 = 19;
+    /// Information class for setting the file size (end of file).
+    pub const FILE_END_OF_FILE_INFORMATION: i32 = 20;
+    /// Information class for setting the valid data length.
+    pub const FILE_VALID_DATA_LENGTH_INFORMATION: i32 = 39;
+    /// Information class for setting the file's short name (8.3 format).
+    pub const FILE_SHORT_NAME_INFORMATION: i32 = 40;
+    /// Extended disposition information (supports additional flags).
+    pub const FILE_DISPOSITION_INFORMATION_EX: i32 = 64;
+    /// Extended rename information (supports additional flags).
+    pub const FILE_RENAME_INFORMATION_EX: i32 = 65;
+    // The four `*_BYPASS_ACCESS_CHECK` values below are not contiguous with
+    // their non-bypass counterparts, and were previously wrong because they had
+    // been guessed as though they were: 71, 73, 74 and 75 instead of 56, 66, 57
+    // and
+    // 73. Three of those wrong values name real, unrelated, user-reachable
+    // classes — 71 is `FileCaseSensitiveInformation` and 74 is
+    // `FileStorageReserveIdInformation`, both of which take a 4-byte buffer,
+    // and 75 is `FileCaseSensitiveInformationForceAccessCheck`. A consumer that
+    // routes 71 into a rename handler and casts the buffer to
+    // `FILE_RENAME_INFO` reads a length field past the end of a 4-byte pool
+    // allocation, which is an out-of-bounds kernel read reachable from user
+    // mode via `SetFileInformationByHandle`.
+    //
+    // Values verified against two independent sources that agree: `km/wdm.h` in
+    // WDK 10.0.28000.0, which states them in its own trailing comments (lines
+    // 8204, 8205, 8219, 8226), and the DDI reference linked above.
+    // `minifilter_bindings.rs` pins each one so a future edit cannot
+    // reintroduce a guess.
+    /// Rename information that bypasses access checks (kernel mode only).
+    pub const FILE_RENAME_INFORMATION_BYPASS_ACCESS_CHECK: i32 = 56;
+    /// Link information that bypasses access checks (kernel mode only).
+    pub const FILE_LINK_INFORMATION_BYPASS_ACCESS_CHECK: i32 = 57;
+    /// Extended rename information that bypasses access checks (kernel mode
+    /// only).
+    pub const FILE_RENAME_INFORMATION_EX_BYPASS_ACCESS_CHECK: i32 = 66;
+    /// Extended link information (supports additional flags).
+    pub const FILE_LINK_INFORMATION_EX: i32 = 72;
+    /// Extended link information that bypasses access checks (kernel mode
+    /// only).
+    pub const FILE_LINK_INFORMATION_EX_BYPASS_ACCESS_CHECK: i32 = 73;
+
+    // PE Image constants (from winnt.h)
+
+    /// Native subsystem indicator for kernel drivers.
+    ///
+    /// From `IMAGE_OPTIONAL_HEADER.Subsystem` field. Value indicates the image
+    /// is a native driver that runs in kernel mode.
+    pub const IMAGE_SUBSYSTEM_NATIVE: u16 = 1;
+
+    /// High page priority for MDL mapping operations.
+    ///
+    /// Used with `MmMapLockedPagesSpecifyCache` to request high-priority page
+    /// mapping. Value from `wdm.h`.
+    pub const HIGH_PAGE_PRIORITY: u32 = 32;
 }
 
 // Due to linker issues with windows_sys, these definitions are manually

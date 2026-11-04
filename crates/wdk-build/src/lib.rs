@@ -326,6 +326,8 @@ pub enum ApiSubset {
     Gpio,
     /// API subset for HID (Human Interface Device) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_hid/>
     Hid,
+    /// API subset for File System Minifilter drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_ifsk/>
+    Minifilter,
     /// API subset for Parallel Ports drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_parports/>
     ParallelPorts,
     /// API subset for SPB (Serial Peripheral Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_spb/>
@@ -334,6 +336,8 @@ pub enum ApiSubset {
     Storage,
     /// API subset for USB (Universal Serial Bus) drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_usbref/>
     Usb,
+    /// API subset for WFP (Windows Filtering Platform) callout drivers: <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_netvista/>
+    Wfp,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -761,6 +765,31 @@ impl Config {
             .into_iter()
             .map(|(key, value)| (key.to_string(), value.map(|v| v.to_string()))),
         )
+        .chain(
+            // `fwpsk.h` describes packets with `NET_BUFFER_LIST`, which
+            // `ndis.h` only declares for drivers that have opted into an NDIS 6
+            // contract by defining one of the `NDISXX` macros. Without one,
+            // every kernel-mode WFP routine that touches a packet
+            // fails to parse with `unknown type name 'NET_BUFFER_LIST'`.
+            //
+            // NDIS 6.30 (Windows 8) is the version the WFP headers themselves
+            // test for with `NDIS_SUPPORT_NDIS630`, so declaring it exposes the
+            // full kernel-mode WFP surface. The macros are cumulative, so this
+            // also implies `NDIS_SUPPORT_NDIS620`, `NDIS_SUPPORT_NDIS61`, and
+            // `NDIS_SUPPORT_NDIS6`.
+            //
+            // This is unconditional rather than per-`ApiSubset` because the WDK
+            // headers are parsed as a single translation unit: `types.rs` and
+            // `constants.rs` are generated from the union of every enabled
+            // subset's headers, so the definition has to be in effect for those
+            // too, not just for `wfp.rs`.
+            matches!(
+                self.driver_config,
+                DriverConfig::Wdm | DriverConfig::Kmdf(_)
+            )
+            .then(|| ("NDIS630".to_string(), None))
+            .into_iter(),
+        )
     }
 
     /// Return an iterator of strings that represent compiler flags (i.e.
@@ -818,10 +847,12 @@ impl Config {
             ApiSubset::Wdf => self.wdf_headers(),
             ApiSubset::Gpio => self.gpio_headers(),
             ApiSubset::Hid => self.hid_headers(),
+            ApiSubset::Minifilter => self.minifilter_headers(),
             ApiSubset::ParallelPorts => self.parallel_ports_headers(),
             ApiSubset::Spb => self.spb_headers(),
             ApiSubset::Storage => self.storage_headers(),
             ApiSubset::Usb => return self.usb_headers().map(std::iter::IntoIterator::into_iter),
+            ApiSubset::Wfp => self.wfp_headers(),
         };
         Ok(headers
             .into_iter()
@@ -877,6 +908,19 @@ impl Config {
             headers.extend(["HidSpiCx/1.0/hidspicx.h"]);
         }
         headers
+    }
+
+    #[tracing::instrument(level = "trace")]
+    fn minifilter_headers(&self) -> Vec<&'static str> {
+        // The Filter Manager API surface is only available in kernel-mode
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            vec!["fltKernel.h"]
+        } else {
+            vec![]
+        }
     }
 
     #[tracing::instrument(level = "trace")]
@@ -996,6 +1040,27 @@ impl Config {
         Ok(headers)
     }
 
+    #[tracing::instrument(level = "trace")]
+    fn wfp_headers(&self) -> Vec<&'static str> {
+        // The kernel-mode WFP API surface (callout drivers) is only available
+        // in kernel-mode. User-mode WFP management (`fwpmu.h`) is exposed
+        // through the Windows SDK rather than the WDK, so it is out of scope
+        // here.
+        //
+        // `fwpsk.h` provides the callout registration and classification API,
+        // and `fwpmk.h` the kernel-mode filter engine management API used to
+        // add the callout's filters. `netioddk.h` is not listed: it is pulled
+        // in by `fwpsk.h` and allowlisting it would duplicate definitions.
+        if matches!(
+            self.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            vec!["fwpsk.h", "fwpmk.h"]
+        } else {
+            vec![]
+        }
+    }
+
     /// Determines whether to include the ufxclient.h header based on the Clang
     /// version used by bindgen.
     ///
@@ -1085,6 +1150,10 @@ impl Config {
         match api_subset {
             ApiSubset::Base => self.base_libraries(),
             ApiSubset::Hid => self.hid_libraries(),
+            ApiSubset::Minifilter => vec![LinkDirective::new("fltMgr")],
+            ApiSubset::Wfp => {
+                vec![LinkDirective::new("fwpkclnt"), LinkDirective::new("netio")]
+            }
             ApiSubset::Wdf
             | ApiSubset::Gpio
             | ApiSubset::ParallelPorts

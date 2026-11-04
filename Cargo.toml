@@ -4,11 +4,15 @@ members = ["crates/*"]
 exclude = [
   # Each example and test must be explicitly listed since glob is not currently supported for workspace.exclude: https://github.com/rust-lang/cargo/issues/6009
   "examples/sample-kmdf-driver",
+  "examples/sample-minifilter-driver",
   "examples/sample-umdf-driver",
   "examples/sample-wdm-driver",
+  "examples/sample-wfp-callout-driver",
   "tests/config-kmdf",
+  "tests/config-minifilter",
   "tests/config-umdf",
   "tests/config-wdm",
+  "tests/config-wfp",
   "tests/wdk-macros-tests",
   "tests/wdk-sys-tests",
 ]
@@ -104,9 +108,34 @@ cargo = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 # Individual Lints
+#
+# A panic in a kernel-mode crate is a bugcheck, not an abort: `wdk-panic`'s handler calls
+# `KeBugCheckEx`, so a reachable panic path in code that ships inside a `.sys` is a blue screen on
+# whatever machine loads the driver. The four lints below are from clippy's `restriction` group --
+# off by default -- and are enabled individually rather than as a group, since most of `restriction`
+# is stylistic.
+#
+# This table is inherited only by `wdk`, `wdk-alloc`, and `wdk-panic`, which is exactly the set of
+# crates that ends up in a driver image. `wdk-build`, `wdk-macros`, and `cargo-wdk` define their own
+# `[lints]` tables and are deliberately not covered: they run on the *host* at build time, where a
+# panic is a build failure with a message, which is often the right way to reject a bad WDK
+# configuration. Denying these there would buy nothing and would mean dozens of `#[expect]`s.
+#
+# `indexing_slicing` is the load-bearing one. The bugcheck this was added in response to was
+# `self.buffer[self.used..self.used + bytes.len()]` in `wdk::fmt` -- an index expression, which
+# `panic`, `unwrap_used`, and `expect_used` all pass clean. Use `get`/`get_mut` and handle the
+# `None`, or `split_at_checked`, instead.
+#
+# Denying these does not prove a panic is unreachable -- LLVM decides that. The binary-level check
+# is the authority: a driver built against these crates should import no `KeBugCheckEx` at all,
+# which `llvm-readobj --coff-imports` on the linked image will show.
+expect_used = "deny"
+indexing_slicing = "deny"
 multiple_unsafe_ops_per_block = "forbid"
+panic = "deny"
 undocumented_unsafe_blocks = "forbid"
 unnecessary_safety_doc = "forbid"
+unwrap_used = "deny"
 
 [workspace.lints.rustdoc]
 bare_urls = "warn"

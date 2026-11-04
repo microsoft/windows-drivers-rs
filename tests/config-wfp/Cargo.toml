@@ -1,0 +1,18 @@
+[package]
+description = "An empty package that sets the `package.metadata` required for wdk-build to generate kernel-mode Windows Filtering Platform bindings for Rust"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+name = "config-wfp"
+publish = false
+version = "0.1.0"
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"
+
+[lib]
+
+[dependencies]
+wdk-sys = { features = ["wfp"], path = "../../crates/wdk-sys" }
+
+[features]
+nightly = ["wdk-sys/nightly"]
