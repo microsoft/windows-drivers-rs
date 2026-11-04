@@ -105,7 +105,7 @@ pub unsafe extern "system" fn driver_entry(
             driver as PDRIVER_OBJECT,
             registry_path,
             driver_attributes,
-            &mut driver_config,
+            &raw mut driver_config,
             driver_handle_output,
         );
     }
@@ -172,9 +172,9 @@ extern "C" fn evt_driver_device_add(
     unsafe {
         ntstatus = call_unsafe_wdf_function_binding!(
             WdfDeviceCreate,
-            &mut device_init,
+            &raw mut device_init,
             WDF_NO_OBJECT_ATTRIBUTES,
-            &mut device_handle_output,
+            &raw mut device_handle_output,
         );
     }
 

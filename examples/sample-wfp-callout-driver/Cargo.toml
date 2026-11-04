@@ -1,0 +1,65 @@
+[package]
+categories = ["hardware-support"]
+description = "A sample WFP callout driver that demonstrates the Windows Filtering Platform in RUST"
+edition = "2024"
+keywords = ["callout", "driver", "example", "sample", "wfp", "windows"]
+license = "MIT OR Apache-2.0"
+name = "sample-wfp-callout-driver"
+publish = false
+readme = "README.md"
+repository = "https://github.com/microsoft/windows-drivers-rs"
+version = "0.0.0"
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"
+
+[lib]
+crate-type = ["cdylib"]
+
+[build-dependencies]
+wdk-build.path = "../../crates/wdk-build"
+
+[dependencies]
+wdk.path = "../../crates/wdk"
+wdk-alloc.path = "../../crates/wdk-alloc"
+wdk-panic.path = "../../crates/wdk-panic"
+wdk-sys = { features = ["wfp"], path = "../../crates/wdk-sys" }
+
+[features]
+default = []
+
+nightly = ["wdk-sys/nightly", "wdk/nightly"]
+
+[profile.dev]
+lto = true
+panic = "abort"
+
+[profile.release]
+lto = true
+panic = "abort"
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "forbid"
+
+[lints.clippy]
+# Lint Groups
+all = { level = "deny", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Individual Lints
+multiple_unsafe_ops_per_block = "forbid"
+undocumented_unsafe_blocks = "forbid"
+unnecessary_safety_doc = "forbid"
+
+[lints.rustdoc]
+bare_urls = "warn"
+broken_intra_doc_links = "warn"
+invalid_codeblock_attributes = "warn"
+invalid_html_tags = "warn"
+invalid_rust_codeblocks = "warn"
+missing_crate_level_docs = "warn"
+private_intra_doc_links = "warn"
+redundant_explicit_links = "warn"
+unescaped_backticks = "warn"

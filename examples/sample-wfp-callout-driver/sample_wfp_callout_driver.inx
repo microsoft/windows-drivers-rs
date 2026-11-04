@@ -1,0 +1,60 @@
+;===================================================================
+; Sample WFP Callout Driver
+; Copyright (c) Microsoft Corporation
+;===================================================================
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = WFPCALLOUTS
+ClassGuid   = {57465043-616C-6C6F-7574-5F636C617373}
+Provider    = %ProviderString%
+PnpLockDown = 1
+
+[DestinationDirs]
+DefaultDestDir      = 12
+Callout.DriverFiles = 12
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+sample_wfp_callout_driver.sys = 1,,
+
+; ================= Install section =================
+
+[DefaultInstall.NT$ARCH$]
+OptionDesc = %ServiceDesc%
+CopyFiles  = Callout.DriverFiles
+
+[DefaultInstall.NT$ARCH$.Services]
+AddService = %ServiceName%,,Callout.Service
+
+[DefaultUninstall.NT$ARCH$]
+LegacyUninstall = 1
+DelFiles        = Callout.DriverFiles
+
+[DefaultUninstall.NT$ARCH$.Services]
+DelService = %ServiceName%,0x200      ; SPSVCINST_STOPSERVICE
+
+; ================= Service installation =================
+
+[Callout.Service]
+DisplayName   = %ServiceName%
+Description   = %ServiceDesc%
+ServiceBinary = %12%\sample_wfp_callout_driver.sys
+ServiceType   = 1                     ; SERVICE_KERNEL_DRIVER
+StartType     = 3                     ; SERVICE_DEMAND_START
+ErrorControl  = 1                     ; SERVICE_ERROR_NORMAL
+
+; ================= Copy Files =================
+
+[Callout.DriverFiles]
+sample_wfp_callout_driver.sys
+
+; ================= Strings =================
+
+[Strings]
+ProviderString = "TODO-Set-Provider"
+ServiceName    = "SampleWfpCallout"
+ServiceDesc    = "Sample WFP Callout Rust Driver"
+DiskId1        = "Sample WFP Callout Installation Disk #1"

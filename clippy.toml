@@ -1,0 +1,12 @@
+# The `restriction` lints that `[workspace.lints.clippy]` denies exist because a panic in a
+# kernel-mode crate is a `KeBugCheckEx` call rather than an abort. That reasoning does not extend to
+# test code: a test that panics is a test that failed, which is the mechanism `#[test]` is built on,
+# and unit tests never run in kernel mode -- they are built for the host by `cargo test`.
+#
+# So the lints stay denied for shipping code and are relaxed inside `#[cfg(test)]`, which is what
+# these four options do. The alternative is an `#[expect]` on every assertion-adjacent line in every
+# test module, which would bury the exemptions that actually carry information.
+allow-expect-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-panic-in-tests = true
+allow-unwrap-in-tests = true
