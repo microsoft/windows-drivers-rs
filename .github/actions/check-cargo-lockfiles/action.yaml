@@ -1,0 +1,24 @@
+name: Check Cargo Lockfiles
+description: Check that tracked Cargo.lock files are consistent with their Cargo.toml manifests without modifying the lockfiles.
+
+inputs:
+  lockfile:
+    description: Repository-relative tracked Cargo.lock path. Checks all tracked lockfiles when omitted.
+    required: false
+    default: ""
+  toolchain:
+    description: Already-installed Rust toolchain specifier to use.
+    required: false
+    default: stable
+
+runs:
+  using: composite
+  steps:
+    - name: Check Cargo lockfiles
+      shell: pwsh
+      env:
+        LOCKFILE_ACTION_PATH: ${{ github.action_path }}
+        LOCKFILE_PATH: ${{ inputs.lockfile }}
+        LOCKFILE_TOOLCHAIN: ${{ inputs.toolchain }}
+      run: |
+        & (Join-Path $env:LOCKFILE_ACTION_PATH 'check-lockfiles.ps1') -Lockfile $env:LOCKFILE_PATH -Toolchain $env:LOCKFILE_TOOLCHAIN
