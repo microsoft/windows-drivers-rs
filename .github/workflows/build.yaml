@@ -35,6 +35,8 @@ jobs:
             source: winget
           - version: 10.0.26100 # GE WDK
             source: nuget
+          - version: 10.0.28000 # BR WDK
+            source: nuget
 
         llvm:
           - 17.0.6
@@ -79,7 +81,7 @@ jobs:
           target: ${{ matrix.wdk.source == 'nuget' && matrix.target_triple.arch || '' }}
 
       - name: Install Rust Toolchain (${{ matrix.rust_toolchain }})
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: ${{ matrix.rust_toolchain }}
           targets: |
