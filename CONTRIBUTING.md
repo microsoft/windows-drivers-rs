@@ -62,24 +62,75 @@ You can file new issues by providing the above information at the corresponding 
 
 Before you submit your Pull Request (PR) consider the following guidelines:
 
-* Search the repository (<https://github.com/microsoft/windows-drivers-rs>) for an open or closed PR
+* Search the [repository](<https://github.com/microsoft/windows-drivers-rs>) for an open or closed PR
   that relates to your submission. You don't want to duplicate effort.
 
-* Make your changes in a new git fork:
+* Fork the repository and make changes on your fork locally.
 
-* Commit your changes using a descriptive commit message
-* Push your fork to GitHub:
-* In GitHub, create a pull request
+* Commit your changes using a descriptive commit message.
+* Push your commit to your forked repository.
+* In GitHub, create a pull request to merge your fork to `main`.
 * If we suggest changes then:
   * Make the required updates.
   * Rebase your fork and force push to your GitHub repository (this will update your Pull Request):
 
     ```shell
-    git rebase master -i
+    git rebase main -i
     git push -f
     ```
 
 That's it! Thank you for your contribution!
+
+#### PR Title Format (Conventional Commits)
+
+This repository uses [squash-and-merge](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github#squashing-your-merge-commits), so the **PR title becomes the final commit message**. PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification. This is enforced automatically by CI.
+
+The format is:
+
+```text
+<type>[optional scope]: <description>
+```
+
+**Types** (all lowercase):
+
+| Type | When to use |
+|------|-------------|
+| `feat` | A new feature or user-facing capability |
+| `fix` | A bug fix |
+| `docs` | Documentation-only changes |
+| `style` | Code style/formatting changes (no logic change) |
+| `refactor` | Code restructuring that neither fixes a bug nor adds a feature |
+| `perf` | Performance improvements |
+| `test` | Adding or updating tests |
+| `build` | Build system or dependency changes |
+| `ci` | CI/CD configuration changes |
+| `chore` | Maintenance tasks (dependency bumps, releases, etc.) |
+| `revert` | Reverting a previous commit |
+
+**Scope** (optional): A single noun in parentheses identifying the affected area. For this repository, crate names are the natural scopes:
+
+* `cargo-wdk`, `wdk`, `wdk-build`, `wdk-sys`, `wdk-macros`, `wdk-alloc`, `wdk-panic`
+
+Scope should be **omitted** when a change is cross-cutting or doesn't map to a single crate. Multiple scopes are not supported by the spec — if a change touches multiple crates, just leave the scope off.
+
+**Breaking changes** are indicated with `!` after the type/scope:
+
+```text
+refactor!: drop support for WDK 10.0.22621
+feat(wdk-sys)!: redesign FFI binding generation
+```
+
+**Examples:**
+
+```text
+feat: add dbg! macro to wdk
+fix: correct path construction in wdk-build
+chore: bump serde from 1.0.219 to 1.0.228
+fix(cargo-wdk): resolve architecture detection issue
+ci: add ARM64 Windows runner support
+docs: update README with new installation steps
+refactor!: bump to Rust 2024 Edition
+```
 
 ## <a name="development"></a> Getting Started with windows-drivers-rs Development
 
