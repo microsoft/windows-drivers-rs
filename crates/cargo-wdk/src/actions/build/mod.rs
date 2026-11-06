@@ -13,7 +13,7 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::HashSet,
     fmt::{self, Display},
     io,
     path::{Path, PathBuf, absolute},
@@ -37,7 +37,7 @@ use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -309,17 +309,58 @@ impl<'a> BuildAction<'a> {
         );
         let build_output = build_task.run()?;
 
-        let Some((cargo_metadata, wdk_metadata)) = self.get_cargo_and_wdk_metadata(working_dir)?
-        else {
-            debug!("No WDK metadata found. Skipping package task.");
-            return Ok(());
+        let cargo_metadata = self.get_cargo_metadata(working_dir)?;
+        let wdk_metadata = match Wdk::try_from(&cargo_metadata) {
+            Ok(wdk_metadata) => wdk_metadata,
+            Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected) => {
+                debug!("No WDK metadata found. Skipping package task.");
+                return Ok(());
+            }
+            Err(e) => return Err(BuildActionError::WdkMetadataParse(e)),
         };
-        let drivers = self.drivers_to_package(&cargo_metadata)?;
+
+        // Without `--workspace`, cargo metadata's default members are the
+        // packages `cargo build` selects for the manifest in `working_dir`. See
+        // https://doc.rust-lang.org/cargo/commands/cargo-build.html#package-selection
+        let selected_members: &[PackageId] = if self.workspace {
+            &cargo_metadata.workspace_members
+        } else if cargo_metadata.workspace_default_members.is_available() {
+            &cargo_metadata.workspace_default_members
+        } else {
+            return Err(BuildActionError::CargoMetadata(anyhow::anyhow!(
+                "cargo metadata did not report the workspace default members"
+            )));
+        };
+
+        let artifacts = build_output
+            .filter_map(|message| match message {
+                Ok(Message::CompilerArtifact(artifact)) => Some(Ok(artifact)),
+                Ok(_) => None,
+                Err(e) => Some(Err(BuildActionError::CargoBuildOutputParse(e))),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let drivers = artifacts
+            .iter()
+            .filter(|artifact| {
+                artifact.target.kind.contains(&TargetKind::CDyLib)
+                    && artifact.target.crate_types.contains(&CrateType::CDyLib)
+                    && selected_members.contains(&artifact.package_id)
+            })
+            .map(|artifact| (&cargo_metadata[&artifact.package_id], artifact))
+            .filter(|(package, _)| {
+                let is_driver = package.metadata.get("wdk").is_some();
+                if !is_driver {
+                    debug!(
+                        "No WDK metadata found for package: {}. Skipping package task.",
+                        package.name
+                    );
+                }
+                is_driver
+            });
 
         let mut packaged = HashSet::new();
         let mut failed_to_package = false;
-        for built_driver in Self::driver_artifacts(build_output, &drivers) {
-            let (package, artifact) = built_driver?;
+        for (package, artifact) in drivers {
             if !packaged.insert(&package.id) {
                 return Err(BuildActionError::CannotDetermineDriverBinary(format!(
                     "Found more than one cdylib artifact for package {} in cargo build output.",
@@ -329,7 +370,7 @@ impl<'a> BuildAction<'a> {
 
             let package_name = package.name.as_str();
             info!("Packaging driver {package_name}");
-            match self.package_driver(package, &artifact, &wdk_metadata) {
+            match self.package_driver(package, artifact, &wdk_metadata) {
                 Ok(()) => info!("Finished packaging driver {package_name}"),
                 Err(e) => {
                     failed_to_package = true;
@@ -339,17 +380,6 @@ impl<'a> BuildAction<'a> {
                     );
                 }
             }
-        }
-
-        for package in drivers
-            .values()
-            .filter(|package| !packaged.contains(&package.id))
-        {
-            warn!(
-                "No cdylib artifact found in cargo build output for package: {}. Skipping package \
-                 task.",
-                package.name
-            );
         }
 
         if failed_to_package {
@@ -414,90 +444,6 @@ impl<'a> BuildAction<'a> {
         )
         .run()?;
         Ok(())
-    }
-
-    // Reads cargo metadata and the WDK configuration from it. Returns `None` if
-    // the project has no WDK configuration, i.e. there is nothing to package.
-    fn get_cargo_and_wdk_metadata(
-        &self,
-        working_dir: &Path,
-    ) -> Result<Option<(CargoMetadata, Wdk)>, BuildActionError> {
-        let cargo_metadata = self.get_cargo_metadata(working_dir)?;
-        match Wdk::try_from(&cargo_metadata) {
-            Ok(wdk_metadata) => Ok(Some((cargo_metadata, wdk_metadata))),
-            Err(TryFromCargoMetadataError::NoWdkConfigurationsDetected) => Ok(None),
-            Err(e) => Err(BuildActionError::WdkMetadataParse(e)),
-        }
-    }
-
-    // Returns the driver packages to package.
-    fn drivers_to_package<'m>(
-        &self,
-        cargo_metadata: &'m CargoMetadata,
-    ) -> Result<BTreeMap<&'m PackageId, &'m Package>, BuildActionError> {
-        let selected_members: &[PackageId] = if self.workspace {
-            &cargo_metadata.workspace_members
-        } else if cargo_metadata.workspace_default_members.is_available() {
-            &cargo_metadata.workspace_default_members
-        } else {
-            return Err(BuildActionError::CargoMetadata(anyhow::anyhow!(
-                "cargo metadata did not report the workspace default members"
-            )));
-        };
-
-        let mut drivers = BTreeMap::new();
-        for package in cargo_metadata.workspace_packages() {
-            if package.metadata.get("wdk").is_none() {
-                debug!(
-                    "No WDK metadata found for package: {}. Skipping package task.",
-                    package.name
-                );
-                continue;
-            }
-            if !selected_members.contains(&package.id) {
-                debug!(
-                    "Package {} was not selected for the build. Skipping package task. To package \
-                     it, run the build from its directory or pass --workspace.",
-                    package.name
-                );
-                continue;
-            }
-            if !package
-                .targets
-                .iter()
-                .any(|t| t.kind.contains(&TargetKind::CDyLib))
-            {
-                debug!(
-                    "No cdylib target found for package: {}. Skipping package task.",
-                    package.name
-                );
-                continue;
-            }
-            drivers.insert(&package.id, package);
-        }
-        Ok(drivers)
-    }
-
-    // Reads the cargo build output and yields the cdylib artifact of each
-    // driver package to package. See
-    // https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages
-    // for the format of the messages.
-    fn driver_artifacts<'m>(
-        build_output: impl Iterator<Item = Result<Message, std::io::Error>>,
-        drivers: &BTreeMap<&'m PackageId, &'m Package>,
-    ) -> impl Iterator<Item = Result<(&'m Package, Artifact), BuildActionError>> {
-        build_output.filter_map(move |message| match message {
-            Ok(Message::CompilerArtifact(artifact))
-                if artifact.target.kind.contains(&TargetKind::CDyLib)
-                    && artifact.target.crate_types.contains(&CrateType::CDyLib) =>
-            {
-                drivers
-                    .get(&artifact.package_id)
-                    .map(|package| Ok((*package, artifact)))
-            }
-            Ok(_) => None,
-            Err(e) => Some(Err(BuildActionError::CargoBuildOutputParse(e))),
-        })
     }
 
     fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, BuildActionError> {
