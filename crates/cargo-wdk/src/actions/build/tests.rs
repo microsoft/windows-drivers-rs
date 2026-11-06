@@ -31,6 +31,8 @@ use crate::{
     actions::build::{
         BuildAction,
         BuildActionParams,
+        IMAGE_FILE_MACHINE_AMD64,
+        IMAGE_FILE_MACHINE_ARM64,
         Profile,
         SignMode,
         TargetPlatform,
@@ -69,7 +71,6 @@ pub fn given_a_driver_project_when_default_values_are_provided_then_it_builds_su
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
@@ -104,7 +105,6 @@ pub fn given_a_driver_project_when_profile_is_release_then_it_builds_successfull
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
@@ -222,7 +222,6 @@ pub fn given_sample_class_is_true_and_wdk_build_is_above_range_then_infverif_run
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 26101u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
         .expect_infverif(driver_name, &cwd, Some("/samples"), None)
         .expect_detect_wdk_build_number(26101u32);
@@ -259,7 +258,6 @@ pub fn given_sample_class_is_true_and_wdk_build_below_range_then_infverif_runs_w
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25797u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
         .expect_infverif(driver_name, &cwd, Some("/msft"), None)
         .expect_detect_wdk_build_number(25797u32);
@@ -296,7 +294,6 @@ pub fn given_sample_class_is_true_and_wdk_build_within_range_then_infverif_is_sk
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 26100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_package_task_steps_without_infverif(driver_name, target_arch, verify_signature)
         .expect_detect_wdk_build_number(26100u32);
 
@@ -332,7 +329,6 @@ pub fn given_a_driver_project_when_verify_signature_is_true_then_it_builds_succe
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
@@ -369,7 +365,6 @@ pub fn given_a_driver_project_when_sign_mode_is_off_then_signing_and_verificatio
         .with_sign_mode(SignMode::Off)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_package_task_steps_with_sign_mode_off(driver_name, target_arch);
 
     assert_build_action_run_with_env_is_success(
@@ -406,7 +401,6 @@ pub fn given_a_driver_project_when_locked_is_set_then_it_is_forwarded_to_cargo_i
         .with_locked(true)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     assert_build_action_run_with_env_is_success(
@@ -472,7 +466,7 @@ pub fn given_a_driver_project_when_self_signed_exists_then_it_should_skip_callin
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -525,7 +519,7 @@ pub fn given_a_driver_project_when_package_dir_exists_then_it_is_removed_and_rec
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -575,7 +569,7 @@ pub fn given_a_driver_project_when_inx_file_do_not_exist_then_package_should_fai
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_inx_file_exists(driver_name, &cwd, false);
 
     let build_action = initialize_build_action(
@@ -624,6 +618,7 @@ pub fn given_a_driver_project_when_copy_of_an_artifact_fails_then_the_package_sh
         &TestBuildAction::new(cwd.clone(), profile, Some(target_arch), sample_class)
             .set_up_standalone_driver_project((workspace_member, package))
             .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
+            .expect_read_driver_binary(driver_name, &cwd, target_arch)
             .expect_final_package_dir_created(driver_name, &cwd, true)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -675,7 +670,7 @@ pub fn given_a_driver_project_when_stampinf_command_execution_fails_then_package
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -735,7 +730,7 @@ pub fn given_a_driver_project_when_inf2cat_command_execution_fails_then_package_
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -796,7 +791,7 @@ pub fn given_a_driver_project_when_certmgr_command_execution_fails_then_package_
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -855,7 +850,7 @@ pub fn given_a_driver_project_when_makecert_command_execution_fails_then_package
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -915,7 +910,7 @@ pub fn given_a_driver_project_when_signtool_command_execution_fails_then_package
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -977,7 +972,7 @@ pub fn given_a_driver_project_when_infverif_command_execution_fails_then_package
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name, &cwd, target_arch)
         .expect_final_package_dir_created(driver_name, &cwd, true)
         .expect_inx_file_exists(driver_name, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -1070,8 +1065,7 @@ pub fn given_a_invalid_driver_project_with_partial_wdk_metadata_when_valid_defau
 }
 
 #[test]
-pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo_rustc_fails_then_packaging_should_fail()
- {
+pub fn given_a_driver_project_when_driver_binary_cannot_be_read_then_packaging_should_fail() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
@@ -1088,21 +1082,15 @@ pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo
     let cargo_build_output =
         create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
-    let cargo_rustc_output = Output {
-        status: ExitStatus::from_raw(1),
-        stdout: vec![],
-        stderr: vec![],
-    };
-
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(Some(cargo_build_output), 25100u32)
-        .expect_probe_target_arch_using_cargo_rustc(
-            driver_name,
-            &cwd,
-            CpuArchitecture::Amd64,
-            Some(cargo_rustc_output),
-        );
+        .expect_read_driver_binary_returning(driver_name, &cwd, 1, |path, _, _| {
+            Err(FileError::OpenError(
+                path.to_owned(),
+                std::io::Error::from_raw_os_error(32),
+            ))
+        });
 
     let build_action = initialize_build_action(
         &cwd,
@@ -1119,7 +1107,6 @@ pub fn given_a_driver_project_when_target_arch_is_not_provided_and_probing_cargo
         BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(_)
     ));
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Workspace tests
 ////////////////////////////////////////////////////////////////////////////////
@@ -1207,14 +1194,12 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
                 artifact_non_driver,
             ])),
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_1, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
             target_arch,
             verify_signature,
         )
         // Second driver project
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_2, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_2,
             target_arch,
@@ -1296,7 +1281,7 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_cwd_i
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_cargo_build(&cwd, Some(cargo_build_output))
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_1, &cwd, target_arch, None)
+        .expect_read_driver_binary(driver_name_1, &workspace_root_dir, target_arch)
         .expect_final_package_dir_created(driver_name_1, &workspace_root_dir, true)
         .expect_inx_file_exists(driver_name_1, &cwd, true)
         .expect_rename_driver_binary_dll_to_sys(driver_name_1, &workspace_root_dir)
@@ -1413,14 +1398,12 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
                 artifact_non_driver,
             ])),
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_1, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
             target_arch,
             verify_signature,
         )
         // Second driver project
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_2, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_2,
             target_arch,
@@ -1760,7 +1743,6 @@ pub fn given_a_workspace_when_default_members_are_a_subset_then_only_those_drive
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
         .expect_cargo_build(&cwd, Some(artifact_1))
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_1, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
             target_arch,
@@ -1843,13 +1825,11 @@ pub fn given_a_workspace_when_workspace_flag_is_set_then_all_driver_members_are_
             &cwd,
             Some(combine_cargo_build_outputs(&[artifact_1, artifact_2])),
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_1, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
             target_arch,
             verify_signature,
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_2, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_2,
             target_arch,
@@ -2049,13 +2029,11 @@ pub fn given_a_workspace_when_build_output_order_differs_from_metadata_then_all_
             &cwd,
             Some(combine_cargo_build_outputs(&[artifact_2, artifact_1])),
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_2, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_2,
             target_arch,
             verify_signature,
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name_1, &cwd, target_arch, None)
         .expect_default_package_task_steps_for_workspace(
             driver_name_1,
             target_arch,
@@ -2126,7 +2104,6 @@ pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_
             Some(combine_cargo_build_outputs(&[artifact.clone(), artifact])),
             25100u32,
         )
-        .expect_probe_target_arch_using_cargo_rustc(driver_name, &cwd, target_arch, None)
         .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
 
     let build_action = initialize_build_action(
@@ -2141,7 +2118,7 @@ pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_
     assert!(
         matches!(
             result,
-            Err(BuildActionError::CannotDetermineTargetDir(ref message))
+            Err(BuildActionError::CannotDetermineDriverBinary(ref message))
             if message.contains("more than one cdylib artifact")
         ),
         "Expected duplicate-artifact error, got: {result:?}"
@@ -2184,12 +2161,8 @@ pub fn given_a_driver_project_when_build_output_is_unreadable_then_it_fails() {
     );
     let result = run_build_action(build_action);
     assert!(
-        matches!(
-            result,
-            Err(BuildActionError::CannotDetermineTargetDir(ref message))
-            if message.contains("Could not parse cargo build output message")
-        ),
-        "Expected CannotDetermineTargetDir parse error, got: {result:?}"
+        matches!(result, Err(BuildActionError::CargoBuildOutputParse(_))),
+        "Expected CargoBuildOutputParse error, got: {result:?}"
     );
 }
 
@@ -2350,6 +2323,42 @@ fn assert_build_action_run_is_success(
     );
 }
 
+/// Builds the minimal bytes of a PE image for `machine`: the `MZ` signature,
+/// `e_lfanew` = 0x80, the `PE\0\0` signature and `Machine`.
+fn pe_image(machine: u16) -> Vec<u8> {
+    let mut data = vec![0; 0x86];
+    data[..2].copy_from_slice(b"MZ");
+    data[0x3C..0x40].copy_from_slice(&0x80_u32.to_le_bytes());
+    data[0x80..0x84].copy_from_slice(b"PE\0\0");
+    data[0x84..0x86].copy_from_slice(&machine.to_le_bytes());
+    data
+}
+
+/// Returns a mock implementation of `Fs::seek_read_exact` that serves reads
+/// from `image`, failing with `UnexpectedEof` like a real file when a read
+/// goes past its end.
+fn read_from_image(
+    image: Vec<u8>,
+) -> impl Fn(&Path, &mut [u8], u64) -> Result<(), FileError> + Send + 'static {
+    move |path, buf, offset| {
+        let bytes = usize::try_from(offset)
+            .ok()
+            .and_then(|start| image.get(start..start.checked_add(buf.len())?));
+        bytes.map_or_else(
+            || {
+                Err(FileError::ReadError(
+                    path.to_owned(),
+                    std::io::ErrorKind::UnexpectedEof.into(),
+                ))
+            },
+            |bytes| {
+                buf.copy_from_slice(bytes);
+                Ok(())
+            },
+        )
+    }
+}
+
 fn initialize_build_action<'a>(
     cwd: &'a PathBuf,
     profile: Option<&'a Profile>,
@@ -2494,11 +2503,6 @@ impl TestBuildAction {
 
     fn with_locked(mut self, locked: bool) -> Self {
         self.locked = locked;
-        self
-    }
-
-    fn with_features(mut self, features: Features) -> Self {
-        self.features = features;
         self
     }
 
@@ -2682,6 +2686,7 @@ impl TestBuildAction {
         let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
+            .expect_read_driver_binary(driver_name, &cwd, target_arch)
             .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -2713,7 +2718,8 @@ impl TestBuildAction {
         target_arch: CpuArchitecture,
     ) -> Self {
         let cwd = self.cwd.clone();
-        self.expect_final_package_dir_created(driver_name, &cwd, false)
+        self.expect_read_driver_binary(driver_name, &cwd, target_arch)
+            .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd, true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
             .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
@@ -2733,6 +2739,7 @@ impl TestBuildAction {
         let cwd = self.cwd.clone();
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
+            .expect_read_driver_binary(driver_name, &cwd, target_arch)
             .expect_final_package_dir_created(driver_name, &cwd, false)
             .expect_inx_file_exists(driver_name, &cwd.join(driver_name), true)
             .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
@@ -2867,66 +2874,40 @@ impl TestBuildAction {
         self
     }
 
-    fn expect_probe_target_arch_using_cargo_rustc(
+    fn expect_read_driver_binary(
+        self,
+        driver_name: &str,
+        cwd: &Path,
+        built_arch: CpuArchitecture,
+    ) -> Self {
+        let machine = match built_arch {
+            CpuArchitecture::Amd64 => IMAGE_FILE_MACHINE_AMD64,
+            CpuArchitecture::Arm64 => IMAGE_FILE_MACHINE_ARM64,
+        };
+        // MZ signature, e_lfanew, PE signature and Machine
+        self.expect_read_driver_binary_returning(
+            driver_name,
+            cwd,
+            4,
+            read_from_image(pe_image(machine)),
+        )
+    }
+
+    fn expect_read_driver_binary_returning(
         mut self,
         driver_name: &str,
         cwd: &Path,
-        detected_arch: CpuArchitecture,
-        override_output: Option<Output>,
+        times: usize,
+        result: impl Fn(&Path, &mut [u8], u64) -> Result<(), FileError> + Send + 'static,
     ) -> Self {
-        if self.target_arch.is_some() {
-            println!("`cargo rustc` must not be probed when target architecture is already set");
-            return self;
-        }
-        let expected_working_dir = cwd.to_path_buf();
-        let arch_str = match detected_arch {
-            CpuArchitecture::Amd64 => "x86_64",
-            CpuArchitecture::Arm64 => "aarch64",
-        };
-        let package_spec = self
-            .cargo_metadata
-            .as_ref()
-            .and_then(|metadata| metadata.packages.iter().find(|p| p.name == driver_name))
-            .map(|package| package.id.repr.clone())
-            .expect("cargo metadata must be set up with the probed package");
-        let mut expected_args: Vec<String> =
-            vec!["rustc".to_string(), "-p".to_string(), package_spec];
-        if self.locked {
-            expected_args.push("--locked".to_string());
-        }
-        expected_args.push("--".to_string());
-        expected_args.push("--print".to_string());
-        expected_args.push("cfg".to_string());
-        let expected_args_for_err = expected_args.clone();
-        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
-        self.mock_run_command
-            .expect_run()
-            .withf(move |command, args, _env, working_dir| {
-                command.as_ref() == Path::new(&expected_cargo)
-                    && args == expected_args
-                    && working_dir.is_some_and(|d| d == expected_working_dir.as_path())
-            })
-            .once()
-            .returning(move |_, _, _, _| match override_output.clone() {
-                Some(output) => {
-                    if output.status.code() == Some(0) {
-                        Ok(Output {
-                            status: ExitStatus::from_raw(0),
-                            stdout: vec![],
-                            stderr: vec![],
-                        })
-                    } else {
-                        let err_args: Vec<&str> =
-                            expected_args_for_err.iter().map(String::as_str).collect();
-                        Err(CommandError::from_output("cargo", &err_args, &output))
-                    }
-                }
-                None => Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: format!("target_arch=\"{arch_str}\"\n").as_bytes().to_vec(),
-                    stderr: vec![],
-                }),
-            });
+        let expected_driver_binary = self
+            .setup_target_dir(cwd)
+            .join(format!("{}.dll", driver_name.replace('-', "_")));
+        self.mock_fs_provider
+            .expect_seek_read_exact()
+            .withf(move |path, _, _| path == expected_driver_binary)
+            .times(times)
+            .returning(result);
         self
     }
 
@@ -4239,10 +4220,10 @@ mod build_output {
         assert!(
             matches!(
                 result,
-                Err(BuildActionError::CannotDetermineTargetDir(ref message))
-                if message.contains("Could not parse cargo build output message")
+                Err(BuildActionError::CargoBuildOutputParse(ref e))
+                if e.kind() == io::ErrorKind::InvalidData
             ),
-            "Expected CannotDetermineTargetDir parse error, got: {result:?}"
+            "Expected CargoBuildOutputParse error, got: {result:?}"
         );
     }
 
@@ -4273,19 +4254,19 @@ mod build_output {
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("pdb"))
         });
 
-        let result = BuildAction::get_target_dir_from_artifact(&artifact);
+        let result = BuildAction::get_driver_binary_from_artifact(&artifact);
         assert!(
             matches!(
                 result,
-                Err(BuildActionError::CannotDetermineTargetDir(ref message))
+                Err(BuildActionError::CannotDetermineDriverBinary(ref message))
                 if message.contains("Could not find driver binary (DLL)")
             ),
-            "Expected CannotDetermineTargetDir no-dll error, got: {result:?}"
+            "Expected CannotDetermineDriverBinary no-dll error, got: {result:?}"
         );
     }
 
     #[test]
-    fn artifact_dll_resolves_target_dir() {
+    fn artifact_dll_resolves_driver_binary() {
         let artifact = artifact("sample-kmdf", "0.0.1");
         let dll_path = artifact
             .filenames
@@ -4297,172 +4278,209 @@ mod build_output {
             .map(|path| Path::new(path.as_str()))
             .expect("Expected a DLL path in compiler-artifact filenames");
 
-        let result = BuildAction::get_target_dir_from_artifact(&artifact)
-            .expect("expected target dir to be resolved");
+        let result = BuildAction::get_driver_binary_from_artifact(&artifact)
+            .expect("expected driver binary to be resolved");
 
-        let expected_target_dir =
-            std::path::absolute(dll_path.parent().expect("expected dll parent"))
-                .expect("absolute path failed");
-        assert_eq!(result, expected_target_dir);
+        let expected_driver_binary = std::path::absolute(dll_path).expect("absolute path failed");
+        assert_eq!(result, expected_driver_binary);
     }
 }
 
-mod get_target_arch_from_cargo_rustc {
+mod get_arch_from_pe {
     use std::{
+        io,
         path::{Path, PathBuf},
-        process::{ExitStatus, Output},
+        sync::{Arc, Mutex},
     };
 
-    use clap_cargo::Features;
     use wdk_build::CpuArchitecture;
 
-    use super::{BuildActionError, TestBuildAction};
+    use super::{
+        BuildActionError,
+        FileError,
+        IMAGE_FILE_MACHINE_AMD64,
+        IMAGE_FILE_MACHINE_ARM64,
+        TestBuildAction,
+        pe_image,
+        read_from_image,
+    };
 
-    fn run_parse_test(cfg_output: Vec<u8>, expected_arch: CpuArchitecture) {
+    const DRIVER_BINARY: &str = r"C:\tmp\target\debug\sample_kmdf_driver.dll";
+
+    fn run_with(
+        target_arch: Option<CpuArchitecture>,
+        read: impl Fn(&Path, &mut [u8], u64) -> Result<(), FileError> + Send + 'static,
+    ) -> Result<CpuArchitecture, BuildActionError> {
         let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), cfg_output);
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let arch = build_action
-            .get_target_arch_from_cargo_rustc(&cwd, "sample-kmdf")
-            .expect("Expected target arch to be detected");
-        assert_eq!(arch, expected_arch);
-    }
-
-    #[test]
-    fn parses_amd64() {
-        run_parse_test(b"target_arch=\"x86_64\"\n".to_vec(), CpuArchitecture::Amd64);
-    }
-
-    #[test]
-    fn parses_arm64_with_whitespace_and_crlf() {
-        run_parse_test(
-            b"  \ttarget_arch=\"aarch64\"\r\n".to_vec(),
-            CpuArchitecture::Arm64,
-        );
-    }
-
-    #[test]
-    fn parses_arm64_with_internal_whitespace() {
-        run_parse_test(
-            b"target_arch=  \"aarch64\"\n".to_vec(),
-            CpuArchitecture::Arm64,
-        );
-    }
-
-    #[test]
-    fn parses_target_without_forwarding_feature_flags() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut features = Features::default();
-        features.all_features = true;
-        features.no_default_features = true;
-        features.features = vec!["foo".to_string(), "bar".to_string()];
-        let mut test_build_action =
-            TestBuildAction::new(cwd.clone(), None, None, false).with_features(features);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
-            b"target_arch=\"x86_64\"\n".to_vec(),
-        );
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let arch = build_action
-            .get_target_arch_from_cargo_rustc(&cwd, "sample-kmdf")
-            .expect("Expected target arch to be detected");
-        assert_eq!(arch, CpuArchitecture::Amd64);
-    }
-
-    #[test]
-    fn unsupported_arch_returns_error() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
-            b"target_arch=\"mips\"\n".to_vec(),
-        );
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let err = build_action
-            .get_target_arch_from_cargo_rustc(&cwd, "sample-kmdf")
-            .expect_err("Expected UnsupportedArchitecture error");
-        assert!(matches!(err, BuildActionError::UnsupportedArchitecture(ref a) if a == "mips"));
-    }
-
-    #[test]
-    fn missing_target_arch_returns_error() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(
-            &mut test_build_action,
-            cwd.clone(),
-            b"some_other_cfg=\"value\"\n".to_vec(),
-        );
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let err = build_action
-            .get_target_arch_from_cargo_rustc(&cwd, "sample-kmdf")
-            .expect_err("Expected CannotDetectTargetArch error");
-        assert!(matches!(err, BuildActionError::CannotDetectTargetArch));
-    }
-
-    #[test]
-    fn invalid_utf8_returns_error() {
-        let cwd = PathBuf::from(r"C:\tmp");
-        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
-        expect_cargo_rustc_print_cfg(&mut test_build_action, cwd.clone(), vec![0xFF, 0xFE]);
-
-        let build_action =
-            super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
-                .expect("Failed to init build action");
-
-        let err = build_action
-            .get_target_arch_from_cargo_rustc(&cwd, "sample-kmdf")
-            .expect_err("Expected CannotDetectTargetArch error");
-        assert!(matches!(err, BuildActionError::CannotDetectTargetArch));
-    }
-
-    fn expect_cargo_rustc_print_cfg(
-        test_build_action: &mut TestBuildAction,
-        cwd: PathBuf,
-        stdout: Vec<u8>,
-    ) {
-        let mut expected_args: Vec<String> =
-            ["rustc", "-p", "sample-kmdf"].map(String::from).to_vec();
-        if test_build_action.locked {
-            expected_args.push("--locked".to_string());
-        }
-        // Feature flags are never forwarded to the probe
-        expected_args.extend(["--", "--print", "cfg"].map(String::from));
-        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
+        let mut test_build_action = TestBuildAction::new(cwd.clone(), None, target_arch, false);
         test_build_action
-            .mock_run_command
-            .expect_run()
-            .withf(move |command, args, _env, working_dir| {
-                command.as_ref() == Path::new(&expected_cargo)
-                    && args == expected_args
-                    && matches!(working_dir, Some(dir) if *dir == cwd.as_path())
-            })
-            .once()
-            .returning(move |_, _, _, _| {
-                Ok(Output {
-                    status: ExitStatus::default(),
-                    stdout: stdout.clone(),
-                    stderr: vec![],
-                })
-            });
+            .mock_fs_provider
+            .expect_seek_read_exact()
+            .withf(|path, _, _| path == Path::new(DRIVER_BINARY))
+            .returning(read);
+
+        let build_action = super::initialize_build_action(
+            &cwd,
+            None,
+            target_arch,
+            true,
+            false,
+            &test_build_action,
+        )
+        .expect("Failed to init build action");
+        build_action.get_arch_from_pe(Path::new(DRIVER_BINARY))
+    }
+
+    fn run(
+        target_arch: Option<CpuArchitecture>,
+        image: Vec<u8>,
+    ) -> Result<CpuArchitecture, BuildActionError> {
+        run_with(target_arch, read_from_image(image))
+    }
+
+    fn assert_not_pe(result: &Result<CpuArchitecture, BuildActionError>, expected_reason: &str) {
+        assert!(
+            matches!(
+                result,
+                Err(BuildActionError::CannotDetectTargetArch(path, reason))
+                    if path == Path::new(DRIVER_BINARY) && *reason == expected_reason
+            ),
+            "expected CannotDetectTargetArch({expected_reason:?}), got {result:?}"
+        );
+    }
+
+    #[test]
+    fn detects_amd64_and_arm64() {
+        assert_eq!(
+            run(None, pe_image(IMAGE_FILE_MACHINE_AMD64)).unwrap(),
+            CpuArchitecture::Amd64
+        );
+        assert_eq!(
+            run(None, pe_image(IMAGE_FILE_MACHINE_ARM64)).unwrap(),
+            CpuArchitecture::Arm64
+        );
+    }
+
+    #[test]
+    fn reads_only_the_four_header_fields() {
+        let reads = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&reads);
+        let serve = read_from_image(pe_image(IMAGE_FILE_MACHINE_AMD64));
+        run_with(None, move |path, buf, offset| {
+            recorded.lock().unwrap().push((offset, buf.len()));
+            serve(path, buf, offset)
+        })
+        .unwrap();
+        assert_eq!(
+            *reads.lock().unwrap(),
+            [(0, 2), (0x3C, 4), (0x80, 4), (0x84, 2)]
+        );
+    }
+
+    #[test]
+    fn matching_target_arch_succeeds() {
+        let arch = run(
+            Some(CpuArchitecture::Arm64),
+            pe_image(IMAGE_FILE_MACHINE_ARM64),
+        )
+        .unwrap();
+        assert_eq!(arch, CpuArchitecture::Arm64);
+    }
+
+    #[test]
+    fn mismatched_target_arch_returns_error() {
+        let err = run(
+            Some(CpuArchitecture::Arm64),
+            pe_image(IMAGE_FILE_MACHINE_AMD64),
+        )
+        .expect_err("Expected TargetArchMismatch error");
+        assert!(matches!(
+            err,
+            BuildActionError::TargetArchMismatch {
+                pe_arch: CpuArchitecture::Amd64,
+                target_arch: CpuArchitecture::Arm64,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn unsupported_machines_return_error() {
+        // I386, ARMNT, ARM64EC, ARM64X, RISCV64 and UNKNOWN
+        for machine in [0x014C, 0x01C4, 0xA641, 0xA64E, 0x5064, 0x0000] {
+            let err = run(None, pe_image(machine)).expect_err("Expected UnsupportedArchitecture");
+            assert!(
+                matches!(err, BuildActionError::UnsupportedArchitecture(ref a) if *a == format!("{machine:#06x}")),
+                "{err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_headers_return_error() {
+        assert_not_pe(&run(None, vec![]), "file too short for a DOS header");
+        let mut short = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        short.truncate(0x3F);
+        assert_not_pe(&run(None, short), "file too short for a DOS header");
+
+        let mut bad_mz = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        bad_mz[0] = b'X';
+        assert_not_pe(&run(None, bad_mz), "missing MZ signature");
+
+        let mut bad_pe = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        bad_pe[0x80] = b'X';
+        assert_not_pe(&run(None, bad_pe), "missing PE signature");
+
+        for e_lfanew in [0x1000, u32::MAX] {
+            let mut data = pe_image(IMAGE_FILE_MACHINE_AMD64);
+            data[0x3C..0x40].copy_from_slice(&e_lfanew.to_le_bytes());
+            assert_not_pe(&run(None, data), "PE header beyond end of file");
+        }
+
+        let mut no_machine = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        no_machine.truncate(0x85);
+        assert_not_pe(&run(None, no_machine), "PE header beyond end of file");
+    }
+
+    #[test]
+    fn every_truncation_is_rejected() {
+        let data = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        for end in 0..data.len() {
+            let result = run(None, data[..end].to_vec());
+            assert!(
+                matches!(result, Err(BuildActionError::CannotDetectTargetArch(..))),
+                "truncated to {end} bytes: {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn open_error_is_propagated() {
+        let err = run_with(None, |path, _, _| {
+            Err(FileError::OpenError(
+                path.to_owned(),
+                io::Error::from_raw_os_error(32),
+            ))
+        })
+        .expect_err("Expected FileIo error");
+        assert!(matches!(
+            err,
+            BuildActionError::FileIo(FileError::OpenError(..))
+        ));
+    }
+
+    #[test]
+    fn read_error_other_than_eof_is_propagated() {
+        let err = run_with(None, |path, _, _| {
+            Err(FileError::ReadError(
+                path.to_owned(),
+                io::Error::from_raw_os_error(5),
+            ))
+        })
+        .expect_err("Expected FileIo error");
+        assert!(matches!(
+            err,
+            BuildActionError::FileIo(FileError::ReadError(..))
+        ));
     }
 }
