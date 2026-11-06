@@ -292,6 +292,28 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
+    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, BuildActionError> {
+        let working_dir_path_trimmed: PathBuf = working_dir
+            .to_string_lossy()
+            .trim_start_matches("\\\\?\\")
+            .into();
+        let mut other_options: Vec<String> = Vec::new();
+        if self.locked {
+            other_options.push("--locked".to_string());
+        }
+        let cargo = cargo_path().map_err(BuildActionError::CargoMetadata)?;
+        let cargo_metadata = self
+            .metadata
+            .get_cargo_metadata_at_path(
+                Path::new(&cargo),
+                &working_dir_path_trimmed,
+                other_options,
+                self.features,
+            )
+            .map_err(|error| BuildActionError::CargoMetadata(error.into()))?;
+        Ok(cargo_metadata)
+    }
+
     // Runs the build task from the given working directory, then runs the
     // package task for each driver package.
     fn build_and_package(&self, working_dir: &Path) -> Result<(), BuildActionError> {
@@ -444,28 +466,6 @@ impl<'a> BuildAction<'a> {
         )
         .run()?;
         Ok(())
-    }
-
-    fn get_cargo_metadata(&self, working_dir: &Path) -> Result<CargoMetadata, BuildActionError> {
-        let working_dir_path_trimmed: PathBuf = working_dir
-            .to_string_lossy()
-            .trim_start_matches("\\\\?\\")
-            .into();
-        let mut other_options: Vec<String> = Vec::new();
-        if self.locked {
-            other_options.push("--locked".to_string());
-        }
-        let cargo = cargo_path().map_err(BuildActionError::CargoMetadata)?;
-        let cargo_metadata = self
-            .metadata
-            .get_cargo_metadata_at_path(
-                Path::new(&cargo),
-                &working_dir_path_trimmed,
-                other_options,
-                self.features,
-            )
-            .map_err(|error| BuildActionError::CargoMetadata(error.into()))?;
-        Ok(cargo_metadata)
     }
 
     /// Returns the absolute path of the driver binary (DLL) in a cdylib
