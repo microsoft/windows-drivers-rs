@@ -73,6 +73,8 @@ Options:
           Build sample class driver project
       --locked
           Assert that `Cargo.lock` will remain unchanged
+      --workspace
+          Build all packages in the workspace
   -h, --help
           Print help (see more with '--help')
 
@@ -102,11 +104,20 @@ Verbosity:
 
 `build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
+The architecture used for packaging is read from the PE header of the built driver binary. If `--target-arch` is not given, Cargo picks the target (for example from `build.target` in `.cargo/config.toml`) and packaging follows whatever was built. If `--target-arch` is given and the built binary is for a different architecture, packaging fails.
+
+Building for multiple targets at once is not supported by `windows-drivers-rs`.
+
 When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
 
 #### Workspace support
 
-`build` supports workspaces. If run at the root of a workspace, it will build and package all driver projects in it. If the workspace contains any non-driver projects they will also be built but not packaged.
+`build` supports workspaces. It builds the packages Cargo selects by default (see [Package Selection](https://doc.rust-lang.org/cargo/commands/cargo-build.html#package-selection)) and packages the drivers among them:
+
+- At the root of a workspace, it builds the workspace's default members (`workspace.default-members`). If that is not set, a virtual workspace builds all members and a non-virtual workspace builds only the root package.
+- In a member's directory, it builds only that member.
+
+Pass `--workspace` to build and package all driver projects in the workspace. Non-driver projects are built but not packaged.
 
 #### Sample Drivers
 

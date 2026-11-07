@@ -21,8 +21,6 @@ use crate::{actions::cargo::run_cargo, providers::error::CommandError, trace};
 
 /// Parameters for constructing a [`BuildTask`].
 pub struct BuildTaskParams<'a> {
-    /// The name of the package to build
-    pub package_name: &'a str,
     /// The working directory for the build
     pub working_dir: &'a Path,
     /// An optional profile for the build
@@ -31,13 +29,15 @@ pub struct BuildTaskParams<'a> {
     pub target_arch: Option<CpuArchitecture>,
     /// Whether to forward `--locked` to the `cargo` invocations
     pub locked: bool,
+    /// Whether to forward `--workspace` to the `cargo build` invocation
+    pub workspace: bool,
     /// The feature selection to forward to the `cargo` invocations
     pub features: &'a Features,
     /// The verbosity level for logging
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
-/// Builds specified package by running `cargo build`  
+/// Runs `cargo build` with the supplied parameters
 pub struct BuildTask<'a> {
     params: BuildTaskParams<'a>,
     manifest_path: PathBuf,
@@ -92,13 +92,14 @@ impl<'a> BuildTask<'a> {
         debug!("Running cargo build");
         let mut args = vec!["build".to_string()];
         args.push("--message-format=json-render-diagnostics".to_string());
-        args.push("-p".to_string());
-        args.push(self.params.package_name.to_string());
         if let Some(path) = self.manifest_path.to_str() {
             args.push("--manifest-path".to_string());
             args.push(path.to_string());
         } else {
             return Err(BuildTaskError::EmptyManifestPath);
+        }
+        if self.params.workspace {
+            args.push("--workspace".to_string());
         }
         if let Some(profile) = self.params.profile {
             args.push("--profile".to_string());
@@ -162,11 +163,11 @@ mod tests {
         features: &'a Features,
     ) -> BuildTaskParams<'a> {
         BuildTaskParams {
-            package_name: "my-driver",
             working_dir,
             profile: None,
             target_arch: None,
             locked: false,
+            workspace: false,
             features,
             verbosity_level: clap_verbosity_flag::Verbosity::default(),
         }
@@ -175,7 +176,6 @@ mod tests {
     #[test]
     fn new_succeeds_for_valid_args() {
         let working_dir = PathBuf::from("C:/absolute/path/to/working/dir");
-        let package_name = "test_package";
         let profile = Profile::Dev;
         let target_arch = Some(CpuArchitecture::Amd64);
         let features = Features::default();
@@ -183,15 +183,15 @@ mod tests {
 
         let build_task = BuildTask::new(
             BuildTaskParams {
-                package_name,
                 profile: Some(&profile),
+                workspace: true,
                 target_arch,
                 ..default_build_task_params(&working_dir, &features)
             },
             &command_exec,
         );
 
-        assert_eq!(build_task.params.package_name, package_name);
+        assert!(build_task.params.workspace);
         assert_eq!(build_task.params.profile, Some(&profile));
         assert_eq!(build_task.params.target_arch, target_arch);
         assert_eq!(build_task.manifest_path, working_dir.join("Cargo.toml"));
@@ -229,10 +229,9 @@ mod tests {
         let expected_args = vec![
             "build".to_string(),
             "--message-format=json-render-diagnostics".to_string(),
-            "-p".to_string(),
-            "my-driver".to_string(),
             "--manifest-path".to_string(),
             manifest_path_string,
+            "--workspace".to_string(),
             "--profile".to_string(),
             "release".to_string(),
             "--target".to_string(),
@@ -271,6 +270,7 @@ mod tests {
             BuildTaskParams {
                 profile: Some(&profile),
                 target_arch: Some(target_arch),
+                workspace: true,
                 ..default_build_task_params(&working_dir, &features)
             },
             &mock,

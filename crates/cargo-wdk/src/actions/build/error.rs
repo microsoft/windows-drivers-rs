@@ -5,6 +5,7 @@
 use std::{io, path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
+use wdk_build::CpuArchitecture;
 
 use crate::providers::error::{CommandError, FileError};
 
@@ -23,24 +24,31 @@ pub enum BuildActionError {
     BuildTask(#[from] BuildTaskError),
     #[error(transparent)]
     FileIo(#[from] FileError),
-    #[error("Error running cargo rustc for architecture detection")]
-    CargoRustc(#[source] anyhow::Error),
-    #[error("Not a workspace member, working directory: {0}")]
-    NotAWorkspaceMember(PathBuf),
     #[error(transparent)]
     PackageTask(#[from] PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more packages failed to build in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
-    #[error("One or more workspace members failed to build in the workspace: {0}")]
-    OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+    #[error("One or more drivers failed to package in: {0}")]
+    OneOrMoreDriversFailedToPackage(PathBuf),
     #[error("Unsupported target arch: {0}")]
     UnsupportedArchitecture(String),
-    #[error("Failed to detect target arch")]
-    CannotDetectTargetArch,
-    #[error("Could not determine target directory for packaging. Cause: {0}")]
-    CannotDetermineTargetDir(String),
+    #[error("Failed to detect target arch for driver binary {}. Cause: {}", .0.display(), .1)]
+    CannotDetectTargetArch(PathBuf, String),
+    #[error(
+        "Driver binary {} was built for {pe_arch}, but the target architecture is {target_arch}",
+        .driver_bin_path.display()
+    )]
+    TargetArchMismatch {
+        driver_bin_path: PathBuf,
+        pe_arch: CpuArchitecture,
+        target_arch: CpuArchitecture,
+    },
+    #[error("Could not determine driver binary for packaging. Cause: {0}")]
+    CannotDetermineDriverBinary(String),
+    #[error("Failed to parse cargo build output")]
+    CargoBuildOutputParse(#[source] io::Error),
 }
 
 /// Errors for the low level build task layer

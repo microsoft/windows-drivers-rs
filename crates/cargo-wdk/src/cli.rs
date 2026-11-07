@@ -110,6 +110,7 @@ impl NewArgs {
 
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct BuildArgs {
     /// Build artifacts with the specified profile
     #[arg(long, ignore_case = true)]
@@ -193,6 +194,10 @@ pub struct BuildArgs {
     /// Assert that `Cargo.lock` will remain unchanged
     #[arg(long)]
     pub locked: bool,
+
+    /// Build all packages in the workspace
+    #[arg(long)]
+    pub workspace: bool,
 
     #[command(flatten)]
     #[clap(next_help_heading = "Feature Selection")]
@@ -456,6 +461,7 @@ impl Cli {
                         infverif_args,
                         is_sample_class: cli_args.sample,
                         locked: cli_args.locked,
+                        workspace: cli_args.workspace,
                         target_platform: cli_args.target_platform.into(),
                         features: &cli_args.features,
                         verbosity_level: self.verbose,
@@ -483,6 +489,18 @@ mod tests {
         actions::{build::SignMode, new::DriverType},
         cli::{BuildArgs, Cli, NewArgs, Subcmd},
     };
+
+    #[test]
+    fn build_workspace_flag_is_opt_in() {
+        for workspace in [false, true] {
+            let mut args = vec!["cargo-wdk", "wdk", "build"];
+            if workspace {
+                args.push("--workspace");
+            }
+            let cli = Cli::try_parse_from(args).unwrap();
+            assert!(matches!(cli.sub_cmd, Subcmd::Build(build) if build.workspace == workspace));
+        }
+    }
 
     #[test]
     fn new_args_driver_type_kmdf() {
