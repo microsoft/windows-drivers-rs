@@ -70,21 +70,18 @@ fn workspace_flag_from_member_builds_whole_workspace_once_and_packages_driver() 
         run_clean_cmd(workspace);
 
         let stderr = run_build_cmd(
-            &format!("{workspace}/crates/driver"),
+            &format!("{workspace}/crates/non_driver_crate"),
             Some(&["--workspace", "--sign-mode", "off", "-v"]),
             None,
         );
 
-        // A single cargo build for the whole workspace, invoked from the member
         let builds = stderr
             .lines()
             .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
             .collect::<Vec<_>>();
         assert_eq!(builds.len(), 1, "{stderr}");
         assert!(builds[0].contains("\"--workspace\""), "{stderr}");
-        // The driver does not depend on this member, so only `--workspace`
-        // builds it
-        assert!(stderr.contains("Compiling non_driver_crate"), "{stderr}");
+        assert!(stderr.contains("Packaging driver driver"), "{stderr}");
         for extension in ["cat", "inf", "pdb", "sys"] {
             assert_file_exists(&format!(
                 "{workspace}/target/debug/driver_package/driver.{extension}"

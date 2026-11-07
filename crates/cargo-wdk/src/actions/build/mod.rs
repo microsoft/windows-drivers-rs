@@ -37,7 +37,7 @@ use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -201,8 +201,8 @@ impl<'a> BuildAction<'a> {
     ///   Rust projects are found in the working directory.
     /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build in an emulated workspace.
-    /// * `BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild` - If one or
-    ///   more selected workspace members fail to package after the build.
+    /// * `BuildActionError::OneOrMoreDriversFailedToPackage` - If one or more
+    ///   selected drivers fail to package after the build.
     /// * `BuildActionError::BuildTask` - If there is an error during the build
     ///   task process.
     pub fn run(&self) -> Result<(), BuildActionError> {
@@ -404,8 +404,17 @@ impl<'a> BuildAction<'a> {
             }
         }
 
+        for package in selected_members.iter().map(|id| &cargo_metadata[id]) {
+            if package.metadata.get("wdk").is_some() && !packaged.contains(&package.id) {
+                warn!(
+                    "Could not package driver {} as no cdylib artifact was found.",
+                    package.name
+                );
+            }
+        }
+
         if failed_to_package {
-            return Err(BuildActionError::OneOrMoreWorkspaceMembersFailedToBuild(
+            return Err(BuildActionError::OneOrMoreDriversFailedToPackage(
                 working_dir.to_owned(),
             ));
         }

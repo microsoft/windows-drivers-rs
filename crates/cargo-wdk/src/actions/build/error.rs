@@ -30,8 +30,8 @@ pub enum BuildActionError {
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more packages failed to build in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
-    #[error("One or more workspace members failed to build in the workspace: {0}")]
-    OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
+    #[error("One or more drivers failed to package in: {0}")]
+    OneOrMoreDriversFailedToPackage(PathBuf),
     #[error("Unsupported target arch: {0}")]
     UnsupportedArchitecture(String),
     #[error("Failed to detect target arch for driver binary {}. Cause: {}", .0.display(), .1)]
