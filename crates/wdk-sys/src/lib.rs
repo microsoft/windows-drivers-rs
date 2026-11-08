@@ -49,6 +49,13 @@ pub mod gpio;
 ))]
 pub mod hid;
 
+// The Filter Manager API surface is only available in kernel-mode
+#[cfg(all(
+    any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
+    feature = "minifilter"
+))]
+pub mod minifilter;
+
 #[cfg(all(
     any(
         driver_model__driver_type = "WDM",
@@ -88,6 +95,13 @@ pub mod storage;
     feature = "usb"
 ))]
 pub mod usb;
+
+// The kernel-mode WFP API surface is only available in kernel-mode
+#[cfg(all(
+    any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"),
+    feature = "wfp"
+))]
+pub mod wfp;
 
 #[cfg(feature = "test-stubs")]
 pub mod test_stubs;
@@ -227,6 +241,62 @@ pub const fn NT_WARNING(nt_status: NTSTATUS) -> bool {
 pub const fn NT_ERROR(nt_status: NTSTATUS) -> bool {
     (nt_status as u32 >> 30) == 3
 }
+
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+#[must_use]
+#[allow(non_snake_case)]
+/// Returns an [`OBJECT_ATTRIBUTES`] initialized with the supplied object name,
+/// attributes, root directory, and security descriptor, with `Length` set to
+/// the size of the structure and `SecurityQualityOfService` set to null.
+///
+/// This is a port of the `InitializeObjectAttributes` macro from `ntdef.h` in
+/// the WDK, which bindgen cannot generate because it is function-like: <https://github.com/rust-lang/rust-bindgen/issues/316>.
+/// The C macro writes through a caller-supplied `POBJECT_ATTRIBUTES`; this
+/// returns the structure by value instead, since that is both safe and how a
+/// caller in Rust would initialize a local.
+///
+/// Note that the returned structure borrows `ObjectName`, `RootDirectory`, and
+/// `SecurityDescriptor` as raw pointers: all three must remain valid for as
+/// long as the routine the [`OBJECT_ATTRIBUTES`] is passed to may dereference
+/// them.
+pub const fn InitializeObjectAttributes(
+    ObjectName: PUNICODE_STRING,
+    Attributes: ULONG,
+    RootDirectory: HANDLE,
+    SecurityDescriptor: PVOID,
+) -> OBJECT_ATTRIBUTES {
+    OBJECT_ATTRIBUTES {
+        Length: OBJECT_ATTRIBUTES_LENGTH,
+        RootDirectory,
+        ObjectName,
+        Attributes,
+        SecurityDescriptor,
+        SecurityQualityOfService: core::ptr::null_mut(),
+    }
+}
+
+/// `size_of::<OBJECT_ATTRIBUTES>()` narrowed to the [`ULONG`] that
+/// `OBJECT_ATTRIBUTES::Length` expects.
+///
+/// `TryFrom` is not callable in a `const` context, so the value is narrowed via
+/// its little-endian bytes and the build fails if any discarded byte is
+/// non-zero. `OBJECT_ATTRIBUTES` is 48 bytes on every supported target, so this
+/// is a guard against a future change rather than a live concern.
+#[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
+const OBJECT_ATTRIBUTES_LENGTH: ULONG = {
+    let bytes = size_of::<OBJECT_ATTRIBUTES>().to_le_bytes();
+
+    let mut index = size_of::<ULONG>();
+    while index < bytes.len() {
+        assert!(
+            bytes[index] == 0,
+            "size_of::<OBJECT_ATTRIBUTES>() should fit in OBJECT_ATTRIBUTES::Length"
+        );
+        index += 1;
+    }
+
+    ULONG::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+};
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]
 #[allow(missing_docs)]
