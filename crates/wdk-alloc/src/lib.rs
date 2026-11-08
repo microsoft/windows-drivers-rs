@@ -80,22 +80,34 @@ pub mod fallible;
 mod test_allocator {
     use core::{
         alloc::{GlobalAlloc, Layout},
-        sync::atomic::{AtomicBool, Ordering},
+        cell::Cell,
     };
 
-    /// A test-only global allocator that forwards to the system allocator but
-    /// can be told to fail the next allocation, so the fallible APIs' failure
-    /// paths are exercised deterministically.
-    pub struct FailingAllocator {
-        pub fail_next: AtomicBool,
+    /// A test-only global allocator that forwards allocations to the system
+    /// allocator but can be told to fail the next allocation on the calling
+    /// thread, so the fallible APIs' failure paths are exercised
+    /// deterministically.
+    pub struct FailingAllocator;
+
+    std::thread_local! {
+        /// When set, the next allocation on this thread fails by returning null.
+        static FAIL_NEXT: Cell<bool> = const { Cell::new(false) };
     }
 
-    // SAFETY: Successful allocations and all deallocations/reallocations are delegated
-    // to `System` with the caller's layout; injected failures return null.
-    // The methods do not unwind, and the failure flag is accessed atomically.
+    /// Arm the allocator so the next allocation on the calling thread fails.
+    pub fn fail_next_allocation() {
+        FAIL_NEXT.with(|flag| flag.set(true));
+    }
+
+    // SAFETY: Successful allocations and all deallocations/reallocations are
+    // delegated to `System` with the caller's layout; injected failures return
+    // null. The methods do not unwind, and the failure flag is thread-local, so
+    // a test arms and consumes the failure on a single thread without racing
+    // the harness or other tests.
     unsafe impl GlobalAlloc for FailingAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            if self.fail_next.swap(false, Ordering::SeqCst) {
+            let fail = FAIL_NEXT.with(|flag| flag.replace(false));
+            if fail {
                 core::ptr::null_mut()
             } else {
                 // SAFETY: forwarding the caller's layout to the system
@@ -121,9 +133,7 @@ mod test_allocator {
     }
 
     #[global_allocator]
-    pub static GLOBAL: FailingAllocator = FailingAllocator {
-        fail_next: AtomicBool::new(false),
-    };
+    pub static GLOBAL: FailingAllocator = FailingAllocator;
 }
 
 #[cfg(any(driver_model__driver_type = "WDM", driver_model__driver_type = "KMDF"))]

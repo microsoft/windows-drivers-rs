@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn try_box_reports_failure_and_drops_input_once() {
         use alloc::rc::Rc;
-        use core::{cell::Cell, sync::atomic::Ordering};
+        use core::cell::Cell;
 
         // A value with drop glue so the test can observe that the input is
         // dropped exactly once on the failure path rather than leaked.
@@ -331,10 +331,9 @@ mod tests {
         let drops = Rc::new(Cell::new(0));
         let value = DropCounter(Rc::clone(&drops));
 
-        // Fail the next allocation, which is `try_box`'s box allocation.
-        crate::test_allocator::GLOBAL
-            .fail_next
-            .store(true, Ordering::SeqCst);
+        // Fail the next allocation on this thread, which is `try_box`'s box
+        // allocation.
+        crate::test_allocator::fail_next_allocation();
 
         let result: Result<Box<DropCounter>, AllocError> = try_box(value);
         assert_eq!(result.err(), Some(AllocError));
