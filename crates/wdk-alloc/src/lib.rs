@@ -90,6 +90,9 @@ mod test_allocator {
         pub fail_next: AtomicBool,
     }
 
+    // SAFETY: Successful allocations and all deallocations/reallocations are delegated
+    // to `System` with the caller's layout; injected failures return null.
+    // The methods do not unwind, and the failure flag is accessed atomically.
     unsafe impl GlobalAlloc for FailingAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
             if self.fail_next.swap(false, Ordering::SeqCst) {
