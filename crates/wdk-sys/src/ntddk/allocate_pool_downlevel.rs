@@ -372,8 +372,11 @@ pub unsafe extern "C" fn ExAllocatePool2(
     //
     // `ExAllocatePoolWithTag` cannot honour the cache-aligned, quota-charged,
     // or session-pool requests, so those are rejected rather than silently
-    // returning memory that does not match the caller's contract. Only the
-    // optional refinements (raise-on-failure, special pool) may be dropped.
+    // returning memory that does not match the caller's contract.
+    // `pool_type_from_flags` already folds `POOL_FLAG_RAISE_ON_FAILURE` into
+    // the pool type via the legacy `POOL_RAISE_IF_ALLOCATION_FAILURE` modifier,
+    // so the raise-on-failure contract survives the fallback; only special pool
+    // (unobservable here) is dropped.
     const UNSUPPORTED_REQUIRED_FLAGS: POOL_FLAGS =
         POOL_FLAG_CACHE_ALIGNED | POOL_FLAG_USE_QUOTA | POOL_FLAG_SESSION;
     if Flags & UNSUPPORTED_REQUIRED_FLAGS != 0 {
