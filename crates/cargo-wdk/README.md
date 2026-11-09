@@ -104,11 +104,9 @@ Verbosity:
 
 `build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
-The architecture used for packaging is read from the PE header of the built driver binary. If `--target-arch` is not given, Cargo picks the target (for example from `build.target` in `.cargo/config.toml`) and packaging follows whatever was built. If `--target-arch` is given and the built binary is for a different architecture, packaging fails.
+The architecture used for packaging is read from the PE header of the built driver binary. If `--target-arch` is not given, Cargo picks the target (for example from `build.target` in `.cargo/config.toml`) and packaging follows whatever was built. If `--target-arch` is given and the built binary is for a different architecture, packaging fails. Packaging for multiple targets at once is not supported.
 
-Building for multiple targets at once is not supported by `windows-drivers-rs`.
-
-When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
+When the command completes, the packaged driver artifacts are emitted at `target\<profile>\<project_name>_package`, or at `target\<target-triple>\<profile>\<project_name>_package` when a target is specified (with `--target-arch`, `build.target` in `config.toml` or `CARGO_BUILD_TARGET`).
 
 #### Workspace support
 

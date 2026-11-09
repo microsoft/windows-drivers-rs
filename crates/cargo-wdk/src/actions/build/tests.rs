@@ -2161,11 +2161,11 @@ pub fn given_a_driver_project_when_build_output_has_no_artifact_for_it_then_pack
 }
 
 #[test]
-pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_fails() {
+pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_fails_without_packaging()
+ {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
     let profile = None;
-    let target_arch = CpuArchitecture::Amd64;
     let verify_signature = false;
     let sample_class = false;
     // Driver project data
@@ -2176,15 +2176,14 @@ pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_
         get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
     let artifact = create_cargo_build_output_json(driver_name, driver_version, &cwd, None, profile);
 
-    // The first artifact is packaged; the second one for the same driver fails
-    // the run
+    // Two artifacts for the same driver (e.g. one per target) fail the run
+    // before anything is packaged.
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .set_up_standalone_driver_project((workspace_member, package))
         .expect_default_build_task_steps(
             Some(combine_cargo_build_outputs(&[artifact.clone(), artifact])),
             25100u32,
-        )
-        .expect_default_package_task_steps(driver_name, target_arch, verify_signature);
+        );
 
     let build_action = initialize_build_action(
         &cwd,
@@ -2198,10 +2197,10 @@ pub fn given_a_driver_project_when_build_output_has_duplicate_artifacts_then_it_
     assert!(
         matches!(
             result,
-            Err(BuildActionError::CannotDetermineDriverBinary(ref message))
-            if message.contains("more than one cdylib artifact")
+            Err(BuildActionError::MultipleTargetsNotSupported(ref package))
+            if package == driver_name
         ),
-        "Expected duplicate-artifact error, got: {result:?}"
+        "Expected MultipleTargetsNotSupported error, got: {result:?}"
     );
 }
 

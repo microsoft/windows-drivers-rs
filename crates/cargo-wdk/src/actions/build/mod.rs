@@ -203,6 +203,8 @@ impl<'a> BuildAction<'a> {
     ///   more Rust projects fail to build in an emulated workspace.
     /// * `BuildActionError::OneOrMoreDriversFailedToPackage` - If one or more
     ///   selected drivers fail to package after the build.
+    /// * `BuildActionError::MultipleTargetsNotSupported` - If a driver was
+    ///   built for more than one target.
     /// * `BuildActionError::BuildTask` - If there is an error during the build
     ///   task process.
     pub fn run(&self) -> Result<(), BuildActionError> {
@@ -378,18 +380,19 @@ impl<'a> BuildAction<'a> {
                     );
                 }
                 is_driver
-            });
+            })
+            .collect::<Vec<_>>();
 
-        let mut packaged = HashSet::new();
+        // Packaging for multiple targets is not supported.
+        let mut built_drivers = HashSet::new();
+        if let Some((package, _)) = drivers.iter().find(|(p, _)| !built_drivers.insert(&p.id)) {
+            return Err(BuildActionError::MultipleTargetsNotSupported(
+                package.name.to_string(),
+            ));
+        }
+
         let mut failed_to_package = false;
         for (package, artifact) in drivers {
-            if !packaged.insert(&package.id) {
-                return Err(BuildActionError::CannotDetermineDriverBinary(format!(
-                    "Found more than one cdylib artifact for package {} in cargo build output.",
-                    package.name
-                )));
-            }
-
             let package_name = package.name.as_str();
             info!("Packaging driver {package_name}");
             match self.package_driver(package, artifact, &wdk_metadata) {
@@ -405,7 +408,7 @@ impl<'a> BuildAction<'a> {
         }
 
         for package in selected_members.iter().map(|id| &cargo_metadata[id]) {
-            if package.metadata.get("wdk").is_some() && !packaged.contains(&package.id) {
+            if package.metadata.get("wdk").is_some() && !built_drivers.contains(&package.id) {
                 warn!(
                     "Could not package driver {} as no cdylib artifact was found.",
                     package.name

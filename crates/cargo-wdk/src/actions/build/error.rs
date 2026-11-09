@@ -47,6 +47,11 @@ pub enum BuildActionError {
     },
     #[error("Could not determine driver binary for packaging. Cause: {0}")]
     CannotDetermineDriverBinary(String),
+    #[error(
+        "Packaging for multiple targets is not supported, but package {0} was built for more than \
+         one target. Use --target-arch to select one."
+    )]
+    MultipleTargetsNotSupported(String),
     #[error("Failed to parse cargo build output")]
     CargoBuildOutputParse(#[source] io::Error),
 }
