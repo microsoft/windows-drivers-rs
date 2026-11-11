@@ -13,7 +13,6 @@ mod package_task;
 #[cfg(test)]
 mod tests;
 use std::{
-    collections::HashSet,
     fmt::{self, Display},
     io,
     path::{Path, PathBuf, absolute},
@@ -23,21 +22,13 @@ use std::{
 
 use anyhow::Result;
 use build_task::{BuildTask, BuildTaskParams};
-use cargo_metadata::{
-    Artifact,
-    CrateType,
-    Message,
-    Metadata as CargoMetadata,
-    Package,
-    PackageId,
-    TargetKind,
-};
+use cargo_metadata::{Message, Metadata as CargoMetadata, TargetKind};
 use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
@@ -201,10 +192,17 @@ impl<'a> BuildAction<'a> {
     ///   Rust projects are found in the working directory.
     /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
     ///   more Rust projects fail to build in an emulated workspace.
-    /// * `BuildActionError::OneOrMoreDriversFailedToPackage` - If one or more
-    ///   selected drivers fail to package after the build.
-    /// * `BuildActionError::MultipleTargetsNotSupported` - If a driver was
-    ///   built for more than one target.
+    /// * `BuildActionError::CargoBuildOutputParse` - If the cargo build output
+    ///   cannot be read.
+    /// * `BuildActionError::CannotDetermineDriverBinary` - If a driver's binary
+    ///   (DLL) cannot be found in the build output.
+    /// * `BuildActionError::CannotDetermineOutputDir` - If the directory of a
+    ///   driver's binary, where its package is created, cannot be determined.
+    /// * `BuildActionError::CannotDetectTargetArch` - If a driver binary is not
+    ///   a valid PE image.
+    /// * `BuildActionError::UnsupportedArchitecture` - If a driver binary is
+    ///   built for an unsupported architecture.
+    /// * `BuildActionError::FileIo` - If a driver binary cannot be read.
     /// * `BuildActionError::BuildTask` - If there is an error during the build
     ///   task process.
     pub fn run(&self) -> Result<(), BuildActionError> {
@@ -343,83 +341,44 @@ impl<'a> BuildAction<'a> {
             Err(e) => return Err(BuildActionError::WdkMetadataParse(e)),
         };
 
-        // Without `--workspace`, cargo metadata's default members are the
-        // packages `cargo build` selects for the manifest in `working_dir`. See
-        // https://doc.rust-lang.org/cargo/commands/cargo-build.html#package-selection
-        let selected_members: &[PackageId] = if self.workspace {
-            &cargo_metadata.workspace_members
-        } else if cargo_metadata.workspace_default_members.is_available() {
-            &cargo_metadata.workspace_default_members
-        } else {
-            return Err(BuildActionError::CargoMetadata(anyhow::anyhow!(
-                "cargo metadata did not report the workspace default members"
-            )));
-        };
-
-        let artifacts = build_output
-            .filter_map(|message| match message {
-                Ok(Message::CompilerArtifact(artifact)) => Some(Ok(artifact)),
-                Ok(_) => None,
-                Err(e) => Some(Err(BuildActionError::CargoBuildOutputParse(e))),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let drivers = artifacts
-            .iter()
-            .filter(|artifact| {
-                artifact.target.kind.contains(&TargetKind::CDyLib)
-                    && artifact.target.crate_types.contains(&CrateType::CDyLib)
-                    && selected_members.contains(&artifact.package_id)
-            })
-            .map(|artifact| (&cargo_metadata[&artifact.package_id], artifact))
-            .filter(|(package, _)| {
-                let is_driver = package.metadata.get("wdk").is_some();
-                if !is_driver {
-                    debug!(
-                        "No WDK metadata found for package: {}. Skipping package task.",
-                        package.name
-                    );
-                }
-                is_driver
-            })
-            .collect::<Vec<_>>();
-
-        // Packaging for multiple targets is not supported.
-        let mut built_drivers = HashSet::new();
-        if let Some((package, _)) = drivers.iter().find(|(p, _)| !built_drivers.insert(&p.id)) {
-            return Err(BuildActionError::MultipleTargetsNotSupported(
-                package.name.to_string(),
-            ));
-        }
-
-        let mut failed_to_package = false;
-        for (package, artifact) in drivers {
-            let package_name = package.name.as_str();
-            info!("Packaging driver {package_name}");
-            match self.package_driver(package, artifact, &wdk_metadata) {
-                Ok(()) => info!("Finished packaging driver {package_name}"),
-                Err(e) => {
-                    failed_to_package = true;
-                    error!(
-                        "Error packaging driver {package_name}: {:?}",
-                        anyhow::Error::new(e)
-                    );
-                }
+        for candidate in Self::candidates_for_packaging(build_output, &cargo_metadata) {
+            let (package_name, package_dir, is_cdylib, driver_binary) = candidate?;
+            if !is_cdylib {
+                warn!("{package_name} is not cdylib. Skipping packaging.");
+                continue;
             }
-        }
-
-        for package in selected_members.iter().map(|id| &cargo_metadata[id]) {
-            if package.metadata.get("wdk").is_some() && !built_drivers.contains(&package.id) {
-                warn!(
-                    "Could not package driver {} as no cdylib artifact was found.",
-                    package.name
-                );
-            }
-        }
-
-        if failed_to_package {
-            return Err(BuildActionError::OneOrMoreDriversFailedToPackage(
-                working_dir.to_owned(),
-            ));
+            let driver_binary = driver_binary.ok_or_else(|| {
+                BuildActionError::CannotDetermineDriverBinary(format!(
+                    "no DLL for {package_name} in cargo build output"
+                ))
+            })?;
+            let target_dir = driver_binary
+                .parent()
+                .ok_or_else(|| BuildActionError::CannotDetermineOutputDir(driver_binary.clone()))?;
+            let target_arch = self.get_arch_from_pe(&driver_binary)?;
+            info!("Packaging driver {package_name} for {target_arch}");
+            let package_root_path = absolute(package_dir)
+                .map_err(|e| BuildActionError::NotAbsolute(package_dir.into(), e))?;
+            PackageTask::new(
+                PackageTaskParams {
+                    package_name,
+                    working_dir: &package_root_path,
+                    target_dir,
+                    target_arch: &target_arch,
+                    sign_mode: self.sign_mode.clone(),
+                    inf2cat_args: self.inf2cat_args.clone(),
+                    stampinf_args: self.stampinf_args.clone(),
+                    infverif_args: self.infverif_args.clone(),
+                    sample_class: self.is_sample_class,
+                    driver_model: wdk_metadata.driver_model.clone(),
+                    target_platform: self.target_platform,
+                },
+                self.wdk_build,
+                self.command_exec,
+                self.fs,
+            )
+            .run()?;
+            info!("Finished packaging driver {package_name} for {target_arch}");
         }
 
         debug!(
@@ -430,94 +389,45 @@ impl<'a> BuildAction<'a> {
         Ok(())
     }
 
-    // Runs the package task for a driver package from its cdylib artifact in
-    // the cargo build output.
-    fn package_driver(
-        &self,
-        package: &Package,
-        artifact: &Artifact,
-        wdk_metadata: &Wdk,
-    ) -> Result<(), BuildActionError> {
-        let package_name = package.name.as_str();
-        let driver_binary = Self::get_driver_binary_from_artifact(artifact)?;
-        let target_dir = driver_binary.parent().ok_or_else(|| {
-            BuildActionError::CannotDetermineDriverBinary(format!(
-                "Driver binary {} has no parent directory",
-                driver_binary.display()
-            ))
-        })?;
-        let target_arch = self.get_arch_from_pe(&driver_binary)?;
-        debug!(
-            "Packaging {package_name} for {target_arch} from {}",
-            target_dir.display()
-        );
-        let package_root_path: PathBuf = package
-            .manifest_path
-            .parent()
-            .expect("Unable to find package path from Cargo manifest path")
-            .into();
-        let package_root_path = absolute(&package_root_path)
-            .map_err(|e| BuildActionError::NotAbsolute(package_root_path.clone(), e))?;
-        PackageTask::new(
-            PackageTaskParams {
-                package_name,
-                working_dir: &package_root_path,
-                target_dir,
-                target_arch: &target_arch,
-                sign_mode: self.sign_mode.clone(),
-                inf2cat_args: self.inf2cat_args.clone(),
-                stampinf_args: self.stampinf_args.clone(),
-                infverif_args: self.infverif_args.clone(),
-                sample_class: self.is_sample_class,
-                driver_model: wdk_metadata.driver_model.clone(),
-                target_platform: self.target_platform,
-            },
-            self.wdk_build,
-            self.command_exec,
-            self.fs,
-        )
-        .run()?;
-        Ok(())
-    }
-
-    /// Returns the absolute path of the driver binary (DLL) in a cdylib
-    /// compiler artifact from the Cargo build output.
-    ///
-    /// # Errors
-    /// - `BuildActionError::CannotDetermineDriverBinary` - If the artifact has
-    ///   no DLL, or the DLL path cannot be made absolute.
-    fn get_driver_binary_from_artifact(artifact: &Artifact) -> Result<PathBuf, BuildActionError> {
-        trace!(
-            "Matched driver crate (name={:?}, kinds={:?}, crate_types={:?}, filenames={:?})",
-            artifact.target.name,
-            &artifact.target.kind,
-            &artifact.target.crate_types,
-            &artifact.filenames
-        );
-        let dll_path = artifact
-            .filenames
-            .iter()
-            .find(|path| {
-                path.extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
-            })
-            .map(|path| path.as_std_path())
-            .ok_or_else(|| {
-                BuildActionError::CannotDetermineDriverBinary(format!(
-                    "Could not find driver binary (DLL) in cargo build output for {}",
-                    artifact.target.name
-                ))
-            })?;
-
-        if dll_path.is_absolute() {
-            return Ok(dll_path.to_path_buf());
-        }
-
-        std::path::absolute(dll_path).map_err(|err| {
-            BuildActionError::CannotDetermineDriverBinary(format!(
-                "Cannot convert driver binary path {} to absolute path: {err}",
-                dll_path.display()
-            ))
+    /// Returns an iterator over potential driver candidates for packaging from
+    /// the cargo build output and the Cargo metadata.
+    fn candidates_for_packaging<'m>(
+        build_output: impl Iterator<Item = io::Result<Message>> + 'm,
+        cargo_metadata: &'m CargoMetadata,
+    ) -> impl Iterator<Item = Result<(&'m str, &'m Path, bool, Option<PathBuf>), BuildActionError>> + 'm
+    {
+        build_output.filter_map(|message| match message {
+            Ok(Message::CompilerArtifact(artifact))
+                if !artifact.target.kind.contains(&TargetKind::CustomBuild) // Skip build scripts
+                    && cargo_metadata
+                        .workspace_members
+                        .contains(&artifact.package_id)
+                    && cargo_metadata[&artifact.package_id]
+                        .metadata
+                        .get("wdk")
+                        .is_some() =>
+            {
+                let package = &cargo_metadata[&artifact.package_id];
+                Some(Ok((
+                    package.name.as_str(),
+                    package
+                        .manifest_path
+                        .parent()
+                        .expect("Unable to find package path from Cargo manifest path")
+                        .as_std_path(),
+                    artifact.target.kind.contains(&TargetKind::CDyLib),
+                    artifact
+                        .filenames
+                        .into_iter()
+                        .find(|path| {
+                            path.extension()
+                                .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
+                        })
+                        .map(PathBuf::from),
+                )))
+            }
+            Ok(_) => None,
+            Err(e) => Some(Err(BuildActionError::CargoBuildOutputParse(e))),
         })
     }
 
@@ -530,30 +440,14 @@ impl<'a> BuildAction<'a> {
     ///   not a valid PE image.
     /// * [`BuildActionError::UnsupportedArchitecture`] - If the driver binary
     ///   is built for an unsupported architecture.
-    /// * [`BuildActionError::TargetArchMismatch`] - If the driver binary's
-    ///   architecture differs from the requested target architecture.
     fn get_arch_from_pe(&self, driver_binary: &Path) -> Result<CpuArchitecture, BuildActionError> {
-        // wdk-build's detect_cpu_architecture_in_build_script panics for any
-        // target arch other than x86_64/aarch64, so such a driver never builds.
-        let found = match self.get_pe_machine_value(driver_binary)? {
-            IMAGE_FILE_MACHINE_AMD64 => CpuArchitecture::Amd64,
-            IMAGE_FILE_MACHINE_ARM64 => CpuArchitecture::Arm64,
-            machine => {
-                return Err(BuildActionError::UnsupportedArchitecture(format!(
-                    "{machine:#06x}"
-                )));
-            }
-        };
-        if let Some(target_arch) = self.target_arch
-            && target_arch != found
-        {
-            return Err(BuildActionError::TargetArchMismatch {
-                driver_bin_path: driver_binary.to_owned(),
-                pe_arch: found,
-                target_arch,
-            });
+        match self.get_pe_machine_value(driver_binary)? {
+            IMAGE_FILE_MACHINE_AMD64 => Ok(CpuArchitecture::Amd64),
+            IMAGE_FILE_MACHINE_ARM64 => Ok(CpuArchitecture::Arm64),
+            machine => Err(BuildActionError::UnsupportedArchitecture(format!(
+                "{machine:#06x}"
+            ))),
         }
-        Ok(found)
     }
 
     /// Returns the raw `Machine` field of the PE image at `driver_binary`.

@@ -5,7 +5,6 @@
 use std::{io, path::PathBuf, string::FromUtf8Error};
 
 use thiserror::Error;
-use wdk_build::CpuArchitecture;
 
 use crate::providers::error::{CommandError, FileError};
 
@@ -30,27 +29,18 @@ pub enum BuildActionError {
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more packages failed to build in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
-    #[error("One or more drivers failed to package in: {0}")]
-    OneOrMoreDriversFailedToPackage(PathBuf),
     #[error("Unsupported target arch: {0}")]
     UnsupportedArchitecture(String),
     #[error("Failed to detect target arch for driver binary {}. Cause: {}", .0.display(), .1)]
     CannotDetectTargetArch(PathBuf, String),
-    #[error(
-        "Driver binary {} was built for {pe_arch}, but the target architecture is {target_arch}",
-        .driver_bin_path.display()
-    )]
-    TargetArchMismatch {
-        driver_bin_path: PathBuf,
-        pe_arch: CpuArchitecture,
-        target_arch: CpuArchitecture,
-    },
     #[error("Could not determine driver binary for packaging. Cause: {0}")]
     CannotDetermineDriverBinary(String),
     #[error(
-        "{0} was built for more than one target, but packaging for multiple targets is not supported. Use --target-arch to select one."
+        "Could not determine the output directory: driver binary {} has no parent \
+         directory",
+        .0.display()
     )]
-    MultipleTargetsNotSupported(String),
+    CannotDetermineOutputDir(PathBuf),
     #[error("Failed to parse cargo build output")]
     CargoBuildOutputParse(#[source] io::Error),
 }
