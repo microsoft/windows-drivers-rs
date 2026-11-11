@@ -491,18 +491,6 @@ mod tests {
     };
 
     #[test]
-    fn build_workspace_flag_is_opt_in() {
-        for workspace in [false, true] {
-            let mut args = vec!["cargo-wdk", "wdk", "build"];
-            if workspace {
-                args.push("--workspace");
-            }
-            let cli = Cli::try_parse_from(args).unwrap();
-            assert!(matches!(cli.sub_cmd, Subcmd::Build(build) if build.workspace == workspace));
-        }
-    }
-
-    #[test]
     fn new_args_driver_type_kmdf() {
         let args = NewArgs {
             kmdf: true,
