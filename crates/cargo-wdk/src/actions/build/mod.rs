@@ -41,7 +41,8 @@ use crate::{actions::cargo::cargo_path, providers::error::FileError};
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
-/// `Machine` values in the PE COFF file header
+/// `Machine` values in the PE COFF file header. See
+/// <https://learn.microsoft.com/windows/win32/debug/pe-format#machine-types>.
 const IMAGE_FILE_MACHINE_AMD64: u16 = 0x8664;
 const IMAGE_FILE_MACHINE_ARM64: u16 = 0xAA64;
 
