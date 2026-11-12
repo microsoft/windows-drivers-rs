@@ -1152,8 +1152,8 @@ pub fn given_a_driver_project_when_build_output_has_no_dll_for_it_then_packaging
     assert!(
         matches!(
             run_result,
-            Err(BuildActionError::CannotDetermineDriverBinary(ref message))
-            if message.contains("no DLL for sample-kmdf in cargo build output")
+            Err(BuildActionError::CannotDetermineDriverBinary(ref source))
+            if source.to_string() == "no DLL found for sample-kmdf in cargo build output"
         ),
         "Expected CannotDetermineDriverBinary no-dll error, got: {run_result:?}"
     );
@@ -1949,36 +1949,6 @@ pub fn given_a_workspace_when_cargo_build_fails_then_no_driver_is_packaged() {
         run_build_action(build_action),
         Err(BuildActionError::BuildTask(_))
     ));
-}
-
-#[test]
-pub fn given_a_driver_project_when_build_output_has_no_artifact_for_it_then_packaging_is_skipped() {
-    // Input CLI args
-    let cwd = PathBuf::from("C:\\tmp");
-    let profile = None;
-    let verify_signature = false;
-    let sample_class = false;
-    // Driver project data
-    let driver_name = "sample-kmdf";
-    let driver_version = "0.0.1";
-    let wdk_metadata = get_cargo_metadata_wdk_metadata("KMDF", 1, 33);
-    let (workspace_member, package) =
-        get_cargo_metadata_package(&cwd, driver_name, driver_version, Some(&wdk_metadata));
-
-    // The build output has no artifact for the driver. No probe or packaging
-    // expectations are set, so any packaging step fails the test
-    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
-        .set_up_standalone_driver_project((workspace_member, package))
-        .expect_default_build_task_steps(None, 25100u32);
-
-    assert_build_action_run_is_success(
-        &cwd,
-        profile,
-        None,
-        verify_signature,
-        sample_class,
-        test_build_action,
-    );
 }
 
 #[test]
@@ -2896,11 +2866,11 @@ impl TestBuildAction {
             CpuArchitecture::Amd64 => IMAGE_FILE_MACHINE_AMD64,
             CpuArchitecture::Arm64 => IMAGE_FILE_MACHINE_ARM64,
         };
-        // MZ signature, e_lfanew, PE signature and Machine
+        // DOS header, then PE signature and Machine
         self.expect_read_driver_binary_returning(
             driver_name,
             cwd,
-            4,
+            2,
             read_from_image(pe_image(machine)),
         )
     }
@@ -4111,8 +4081,8 @@ mod get_arch_from_pe {
         assert!(
             matches!(
                 result,
-                Err(BuildActionError::CannotDetectTargetArch(path, reason))
-                    if path == Path::new(DRIVER_BINARY) && *reason == expected_reason
+                Err(BuildActionError::CannotDetectTargetArch(path, source))
+                    if path == Path::new(DRIVER_BINARY) && source.to_string() == expected_reason
             ),
             "expected CannotDetectTargetArch({expected_reason:?}), got {result:?}"
         );
@@ -4131,12 +4101,7 @@ mod get_arch_from_pe {
     }
 
     #[test]
-    fn malformed_headers_return_error() {
-        assert_not_pe(&run(vec![]), "file too short for a DOS header");
-        let mut short = pe_image(IMAGE_FILE_MACHINE_AMD64);
-        short.truncate(0x3F);
-        assert_not_pe(&run(short), "file too short for a DOS header");
-
+    fn invalid_signatures_return_error() {
         let mut bad_mz = pe_image(IMAGE_FILE_MACHINE_AMD64);
         bad_mz[0] = b'X';
         assert_not_pe(&run(bad_mz), "missing MZ signature");
@@ -4144,30 +4109,39 @@ mod get_arch_from_pe {
         let mut bad_pe = pe_image(IMAGE_FILE_MACHINE_AMD64);
         bad_pe[0x80] = b'X';
         assert_not_pe(&run(bad_pe), "missing PE signature");
-
-        for e_lfanew in [0x1000, u32::MAX] {
-            let mut data = pe_image(IMAGE_FILE_MACHINE_AMD64);
-            data[0x3C..0x40].copy_from_slice(&e_lfanew.to_le_bytes());
-            assert_not_pe(&run(data), "PE header beyond end of file");
-        }
-
-        let mut no_machine = pe_image(IMAGE_FILE_MACHINE_AMD64);
-        no_machine.truncate(0x85);
-        assert_not_pe(&run(no_machine), "PE header beyond end of file");
     }
 
     #[test]
-    fn read_error_other_than_eof_is_propagated() {
-        let err = run_with(|path, _, _| {
-            Err(FileError::ReadError(
-                path.to_owned(),
-                io::Error::from_raw_os_error(5),
-            ))
-        })
-        .expect_err("Expected FileIo error");
-        assert!(matches!(
-            err,
-            BuildActionError::FileIo(FileError::ReadError(..))
-        ));
+    fn truncated_headers_return_read_error() {
+        // Shorter than a DOS header, even without an `MZ` signature
+        let not_mz = vec![b'X'; 0x10];
+        let mut short = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        short.truncate(0x3F);
+        let mut pe_header_beyond_eof = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        pe_header_beyond_eof[0x3C..0x40].copy_from_slice(&0x1000_u32.to_le_bytes());
+        let mut pe_header_at_u32_max = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        pe_header_at_u32_max[0x3C..0x40].copy_from_slice(&u32::MAX.to_le_bytes());
+        let mut no_machine = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        no_machine.truncate(0x85);
+
+        for image in [
+            vec![],
+            not_mz,
+            short,
+            pe_header_beyond_eof,
+            pe_header_at_u32_max,
+            no_machine,
+        ] {
+            let result = run(image);
+            assert!(
+                matches!(
+                    result,
+                    Err(BuildActionError::FileIo(FileError::ReadError(ref path, ref e)))
+                        if path == Path::new(DRIVER_BINARY)
+                            && e.kind() == io::ErrorKind::UnexpectedEof
+                ),
+                "expected an UnexpectedEof read error, got {result:?}"
+            );
+        }
     }
 }

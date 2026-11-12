@@ -22,21 +22,21 @@ use std::{
 
 use anyhow::Result;
 use build_task::{BuildTask, BuildTaskParams};
-use cargo_metadata::{Message, Metadata as CargoMetadata, TargetKind};
+use cargo_metadata::{Message, Metadata as CargoMetadata, Package, TargetKind};
 use clap_cargo::Features;
 use error::BuildActionError;
 use mockall_double::double;
 use package_task::{PackageTask, PackageTaskParams};
 pub use package_task::{SignMode, TargetPlatform};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use wdk_build::{
     CpuArchitecture,
     metadata::{TryFromCargoMetadataError, Wdk},
 };
 
+use crate::actions::cargo::cargo_path;
 #[double]
 use crate::providers::{exec::CommandExec, fs::Fs, metadata::Metadata, wdk_build::WdkBuild};
-use crate::{actions::cargo::cargo_path, providers::error::FileError};
 
 const X86_64_TARGET_TRIPLE_NAME: &str = "x86_64-pc-windows-msvc";
 const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
@@ -197,7 +197,7 @@ impl<'a> BuildAction<'a> {
     ///   cannot be read.
     /// * `BuildActionError::CannotDetermineDriverBinary` - If a driver's binary
     ///   (DLL) cannot be found in the build output.
-    /// * `BuildActionError::CannotDetermineOutputDir` - If the directory of a
+    /// * `BuildActionError::CannotDetermineTargetDir` - If the directory of a
     ///   driver's binary, where its package is created, cannot be determined.
     /// * `BuildActionError::CannotDetectTargetArch` - If a driver binary is not
     ///   a valid PE image.
@@ -343,23 +343,38 @@ impl<'a> BuildAction<'a> {
         };
 
         for candidate in Self::candidates_for_packaging(build_output, &cargo_metadata) {
-            let (package_name, package_dir, is_cdylib, driver_binary) = candidate?;
-            if !is_cdylib {
-                warn!("{package_name} is not cdylib. Skipping packaging.");
+            let (package, target_kind, driver_binary) = candidate?;
+
+            let package_name = package.name.as_str();
+
+            if !target_kind.contains(&TargetKind::CDyLib) {
+                debug!(
+                    "Skipping packaging of {package_name}: target kind {target_kind:?} is not \
+                     cdylib"
+                );
                 continue;
             }
+
             let driver_binary = driver_binary.ok_or_else(|| {
-                BuildActionError::CannotDetermineDriverBinary(format!(
-                    "no DLL for {package_name} in cargo build output"
+                BuildActionError::CannotDetermineDriverBinary(anyhow::anyhow!(
+                    "no DLL found for {package_name} in cargo build output"
                 ))
             })?;
+
             let target_dir = driver_binary
                 .parent()
-                .ok_or_else(|| BuildActionError::CannotDetermineOutputDir(driver_binary.clone()))?;
+                .ok_or_else(|| BuildActionError::CannotDetermineTargetDir(driver_binary.clone()))?;
+
             let target_arch = self.get_arch_from_pe(&driver_binary)?;
-            info!("Packaging driver {package_name} for {target_arch}");
+
+            let package_dir = package
+                .manifest_path
+                .parent()
+                .expect("Unable to find package path from Cargo manifest path");
             let package_root_path = absolute(package_dir)
                 .map_err(|e| BuildActionError::NotAbsolute(package_dir.into(), e))?;
+
+            info!("Packaging driver {package_name} for {target_arch}");
             PackageTask::new(
                 PackageTaskParams {
                     package_name,
@@ -395,8 +410,9 @@ impl<'a> BuildAction<'a> {
     fn candidates_for_packaging<'m>(
         build_output: impl Iterator<Item = io::Result<Message>> + 'm,
         cargo_metadata: &'m CargoMetadata,
-    ) -> impl Iterator<Item = Result<(&'m str, &'m Path, bool, Option<PathBuf>), BuildActionError>> + 'm
-    {
+    ) -> impl Iterator<
+        Item = Result<(&'m Package, Vec<TargetKind>, Option<PathBuf>), BuildActionError>,
+    > + 'm {
         build_output.filter_map(|message| match message {
             Ok(Message::CompilerArtifact(artifact))
                 if !artifact.target.kind.contains(&TargetKind::CustomBuild) // Skip build scripts
@@ -408,15 +424,9 @@ impl<'a> BuildAction<'a> {
                         .get("wdk")
                         .is_some() =>
             {
-                let package = &cargo_metadata[&artifact.package_id];
                 Some(Ok((
-                    package.name.as_str(),
-                    package
-                        .manifest_path
-                        .parent()
-                        .expect("Unable to find package path from Cargo manifest path")
-                        .as_std_path(),
-                    artifact.target.kind.contains(&TargetKind::CDyLib),
+                    &cargo_metadata[&artifact.package_id],
+                    artifact.target.kind,
                     artifact
                         .filenames
                         .into_iter()
@@ -453,53 +463,37 @@ impl<'a> BuildAction<'a> {
 
     /// Returns the raw `Machine` field of the PE image at `driver_binary`.
     ///
-    /// Reads the following four fields needed to locate and validate it: the
-    /// `MZ` signature, `e_lfanew` (the offset of the PE header), the `PE\0\0`
-    /// signature and `Machine`.
+    /// Reads the 64-byte DOS header, which starts with the `MZ` signature and
+    /// ends with `e_lfanew` (the offset of the PE header), then the `PE\0\0`
+    /// signature followed by the COFF file header's `Machine` field.
     /// See <https://learn.microsoft.com/windows/win32/debug/pe-format>.
     ///
     /// # Errors
     /// * [`BuildActionError::FileIo`] - If the driver binary cannot be opened
-    ///   or read.
-    /// * [`BuildActionError::CannotDetectTargetArch`] - If the driver binary is
-    ///   too short or has an invalid DOS or PE signature.
+    ///   or read, including when it ends before the header fields.
+    /// * [`BuildActionError::CannotDetectTargetArch`] - If the driver binary
+    ///   has an invalid DOS or PE signature.
     fn get_pe_machine_value(&self, driver_binary: &Path) -> Result<u16, BuildActionError> {
-        let read = |buf: &mut [u8], offset: u64, too_short: &str| {
-            self.fs
-                .seek_read_exact(driver_binary, buf, offset)
-                .map_err(|err| match err {
-                    FileError::ReadError(_, ref e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                        BuildActionError::CannotDetectTargetArch(
-                            driver_binary.to_owned(),
-                            too_short.to_string(),
-                        )
-                    }
-                    err => err.into(),
-                })
-        };
-        let not_pe = |reason: &str| {
-            Err(BuildActionError::CannotDetectTargetArch(
+        let mut dos_header = [0; 0x40];
+        self.fs.seek_read_exact(driver_binary, &mut dos_header, 0)?;
+        let [b'M', b'Z', .., l0, l1, l2, l3] = dos_header else {
+            return Err(BuildActionError::CannotDetectTargetArch(
                 driver_binary.to_owned(),
-                reason.to_string(),
-            ))
+                anyhow::anyhow!("missing MZ signature"),
+            ));
         };
+        let e_lfanew = u64::from(u32::from_le_bytes([l0, l1, l2, l3]));
 
-        let mut magic = [0; 2];
-        read(&mut magic, 0, "file too short for a DOS header")?;
-        if &magic != b"MZ" {
-            return not_pe("missing MZ signature");
-        }
-        let mut e_lfanew = [0; 4];
-        read(&mut e_lfanew, 0x3C, "file too short for a DOS header")?;
-        let pe_header = u64::from(u32::from_le_bytes(e_lfanew));
-        let mut signature = [0; 4];
-        read(&mut signature, pe_header, "PE header beyond end of file")?;
-        if &signature != b"PE\0\0" {
-            return not_pe("missing PE signature");
-        }
-        let mut machine = [0; 2];
-        read(&mut machine, pe_header + 4, "PE header beyond end of file")?;
-        Ok(u16::from_le_bytes(machine))
+        let mut pe_header = [0; 6];
+        self.fs
+            .seek_read_exact(driver_binary, &mut pe_header, e_lfanew)?;
+        let [b'P', b'E', 0, 0, m0, m1] = pe_header else {
+            return Err(BuildActionError::CannotDetectTargetArch(
+                driver_binary.to_owned(),
+                anyhow::anyhow!("missing PE signature"),
+            ));
+        };
+        Ok(u16::from_le_bytes([m0, m1]))
     }
 }
 
