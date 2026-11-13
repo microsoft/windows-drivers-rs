@@ -178,8 +178,6 @@ impl<'a> BuildAction<'a> {
     /// `Result<(), BuildActionError>`
     ///
     /// # Errors
-    /// * `BuildActionError::PackageTaskInit` - If there is an error
-    ///   initializing the package task.
     /// * `BuildActionError::PackageTask` - If there is an error during the
     ///   package task process.
     /// * `BuildActionError::CargoMetadata` - If `CARGO` is missing or empty, or
@@ -188,7 +186,6 @@ impl<'a> BuildAction<'a> {
     ///   Cargo.toml, not a valid driver project/workspace.
     /// * `BuildActionError::WdkBuildConfig` - If there is an error setting up
     ///   Path for the tools or when failed to detect WDK build number.
-    /// * `BuildActionError::Io` - Wraps all possible IO errors.
     /// * `BuildActionError::NoValidRustProjectsInTheDirectory` - If no valid
     ///   Rust projects are found in the working directory.
     /// * `BuildActionError::OneOrMoreRustProjectsFailedToBuild` - If one or
@@ -197,8 +194,6 @@ impl<'a> BuildAction<'a> {
     ///   cannot be read.
     /// * `BuildActionError::CannotDetermineDriverBinary` - If a driver's binary
     ///   (DLL) cannot be found in the build output.
-    /// * `BuildActionError::CannotDetermineTargetDir` - If the directory of a
-    ///   driver's binary, where its package is created, cannot be determined.
     /// * `BuildActionError::CannotDetectTargetArch` - If a driver binary is not
     ///   a valid PE image.
     /// * `BuildActionError::UnsupportedArchitecture` - If a driver binary is
@@ -363,7 +358,7 @@ impl<'a> BuildAction<'a> {
 
             let target_dir = driver_binary
                 .parent()
-                .ok_or_else(|| BuildActionError::CannotDetermineTargetDir(driver_binary.clone()))?;
+                .expect("A path with a `.dll` extension always has a parent directory");
 
             let target_arch = self.get_arch_from_pe(&driver_binary)?;
 
@@ -371,14 +366,12 @@ impl<'a> BuildAction<'a> {
                 .manifest_path
                 .parent()
                 .expect("Unable to find package path from Cargo manifest path");
-            let package_root_path = absolute(package_dir)
-                .map_err(|e| BuildActionError::NotAbsolute(package_dir.into(), e))?;
 
             info!("Packaging driver {package_name} for {target_arch}");
             PackageTask::new(
                 PackageTaskParams {
                     package_name,
-                    working_dir: &package_root_path,
+                    working_dir: package_dir.as_std_path(),
                     target_dir,
                     target_arch: &target_arch,
                     sign_mode: self.sign_mode.clone(),

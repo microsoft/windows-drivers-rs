@@ -11,8 +11,6 @@ use crate::providers::error::{CommandError, FileError};
 /// Errors for the build action layer
 #[derive(Error, Debug)]
 pub enum BuildActionError {
-    #[error("Provided path is not absolute: {0}")]
-    NotAbsolute(PathBuf, #[source] io::Error),
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Failed to read Cargo metadata for the project/workspace")]
@@ -35,12 +33,6 @@ pub enum BuildActionError {
     CannotDetermineDriverBinary(#[source] anyhow::Error),
     #[error("Failed to detect target arch for driver binary {}", .0.display())]
     CannotDetectTargetArch(PathBuf, #[source] anyhow::Error),
-    #[error(
-        "Could not determine the target directory: driver binary {} has no parent \
-         directory",
-        .0.display()
-    )]
-    CannotDetermineTargetDir(PathBuf),
     #[error("Failed to parse cargo build output")]
     CargoBuildOutputParse(#[source] io::Error),
 }

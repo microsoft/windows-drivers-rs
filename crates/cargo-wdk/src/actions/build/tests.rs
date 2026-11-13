@@ -2524,7 +2524,6 @@ impl TestBuildAction {
             &self.cwd,
             vec![package_metadata.1],
             &workspace_members,
-            &workspace_members,
             None,
         );
         let cargo_toml_metadata =
@@ -2562,7 +2561,6 @@ impl TestBuildAction {
         let cargo_toml_metadata = get_cargo_metadata(
             workspace_root_dir,
             packages,
-            &workspace_members,
             &workspace_members,
             workspace_additional_metadata,
         );
@@ -3778,13 +3776,18 @@ fn get_cargo_metadata(
     root_dir: &Path,
     package_list: Vec<TestMetadataPackage>,
     workspace_member_list: &[TestMetadataWorkspaceMemberId],
-    workspace_default_member_list: &[TestMetadataWorkspaceMemberId],
     metadata: Option<TestWdkMetadata>,
 ) -> String {
     let metadata_section = match metadata {
         Some(metadata) => metadata.0,
         None => String::from("null"),
     };
+    // Require quotes around each member
+    let members = workspace_member_list
+        .iter()
+        .map(|s| format!("\"{}\"", s.0))
+        .collect::<Vec<String>>()
+        .join(", ");
     format!(
         r#"
     {{
@@ -3805,17 +3808,8 @@ fn get_cargo_metadata(
             .map(|p| p.0)
             .collect::<Vec<String>>()
             .join(", "),
-        // Require quotes around each member
-        workspace_member_list
-            .iter()
-            .map(|s| format!("\"{}\"", s.0))
-            .collect::<Vec<String>>()
-            .join(", "),
-        workspace_default_member_list
-            .iter()
-            .map(|s| format!("\"{}\"", s.0))
-            .collect::<Vec<String>>()
-            .join(", "),
+        members,
+        members,
         metadata_section
     )
 }
