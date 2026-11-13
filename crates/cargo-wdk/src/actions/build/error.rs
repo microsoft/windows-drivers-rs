@@ -11,8 +11,6 @@ use crate::providers::error::{CommandError, FileError};
 /// Errors for the build action layer
 #[derive(Error, Debug)]
 pub enum BuildActionError {
-    #[error("Provided path is not absolute: {0}")]
-    NotAbsolute(PathBuf, #[source] io::Error),
     #[error(transparent)]
     WdkBuildConfig(#[from] wdk_build::ConfigError),
     #[error("Failed to read Cargo metadata for the project/workspace")]
@@ -23,24 +21,20 @@ pub enum BuildActionError {
     BuildTask(#[from] BuildTaskError),
     #[error(transparent)]
     FileIo(#[from] FileError),
-    #[error("Error running cargo rustc for architecture detection")]
-    CargoRustc(#[source] anyhow::Error),
-    #[error("Not a workspace member, working directory: {0}")]
-    NotAWorkspaceMember(PathBuf),
     #[error(transparent)]
     PackageTask(#[from] PackageTaskError),
     #[error("No valid rust projects in the current working directory: {0}")]
     NoValidRustProjectsInTheDirectory(PathBuf),
     #[error("One or more packages failed to build in the emulated workspace: {0}")]
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
-    #[error("One or more workspace members failed to build in the workspace: {0}")]
-    OneOrMoreWorkspaceMembersFailedToBuild(PathBuf),
     #[error("Unsupported target arch: {0}")]
     UnsupportedArchitecture(String),
-    #[error("Failed to detect target arch")]
-    CannotDetectTargetArch,
-    #[error("Could not determine target directory for packaging. Cause: {0}")]
-    CannotDetermineTargetDir(String),
+    #[error("Could not determine driver binary for packaging")]
+    CannotDetermineDriverBinary(#[source] anyhow::Error),
+    #[error("Failed to detect target arch for driver binary {}", .0.display())]
+    CannotDetectTargetArch(PathBuf, #[source] anyhow::Error),
+    #[error("Failed to parse cargo build output")]
+    CargoBuildOutputParse(#[source] io::Error),
 }
 
 /// Errors for the low level build task layer

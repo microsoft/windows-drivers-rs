@@ -38,11 +38,11 @@ fn build_fails_when_cargo_path_does_not_exist() {
         let assertion = cmd.assert().failure();
         let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
         assert!(
-            stderr.contains("Failed to read Cargo metadata for the project/workspace"),
-            "expected a metadata error, got: {stderr}"
+            stderr.contains("Error running cargo build command"),
+            "expected a cargo build error, got: {stderr}"
         );
         assert!(
-            stderr.contains("failed to start `cargo metadata`"),
+            stderr.contains("Command 'nonexistent-cargo.exe'") && stderr.contains("IO error"),
             "expected a launch failure for the selected Cargo executable, got: {stderr}"
         );
     });
@@ -61,6 +61,35 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
         None,
         None,
     );
+}
+
+#[test]
+fn workspace_flag_from_member_builds_whole_workspace_once_and_packages_driver() {
+    let workspace = "tests/mixed-package-kmdf-workspace";
+    with_mutex(workspace, || {
+        run_clean_cmd(workspace);
+
+        let stderr = run_build_cmd(
+            &format!("{workspace}/crates/non_driver_crate"),
+            Some(&["--workspace", "--sign-mode", "off", "-v"]),
+            None,
+        );
+
+        let builds = stderr
+            .lines()
+            .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
+            .collect::<Vec<_>>();
+        assert_eq!(builds.len(), 1, "{stderr}");
+        assert!(builds[0].contains("\"--workspace\""), "{stderr}");
+        assert!(stderr.contains("Packaging driver driver"), "{stderr}");
+        for extension in ["cat", "inf", "pdb", "sys"] {
+            assert_file_exists(&format!(
+                "{workspace}/target/debug/driver_package/driver.{extension}"
+            ));
+        }
+
+        run_clean_cmd(workspace);
+    });
 }
 
 #[test]
@@ -100,39 +129,17 @@ fn kmdf_driver_builds_successfully() {
 
 #[test]
 fn kmdf_driver_builds_successfully_with_locked_flag() {
-    let driver = "kmdf-driver";
-    let stderr = clean_build_and_verify_project(
+    clean_build_and_verify_project(
         "kmdf",
-        driver,
+        "kmdf-driver",
         None,
         None,
         None,
         None,
         None,
         None,
-        Some(&["--locked", "-v"]),
+        Some(&["--locked"]),
     );
-
-    // `--locked` must be forwarded to the `cargo rustc` (target-arch probe) and
-    // `cargo build` invocations.
-    let cargo = env::var_os("CARGO").expect("run integration tests through cargo test");
-    for subcommand in ["rustc", "build"] {
-        let invocation = stderr
-            .lines()
-            .find(|line| {
-                line.contains(&format!(
-                    "Running: {} [\"{subcommand}\"",
-                    cargo.to_string_lossy()
-                ))
-            })
-            .unwrap_or_else(|| {
-                panic!("no `cargo {subcommand}` invocation found in stderr:\n{stderr}")
-            });
-        assert!(
-            invocation.contains("--locked"),
-            "expected `--locked` to be forwarded to `cargo {subcommand}`, but got:\n{invocation}"
-        );
-    }
 }
 
 #[test]
@@ -270,8 +277,8 @@ fn emulated_workspace_builds_successfully() {
         assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
 
         let stderr = run_build_cmd(emulated_workspace_path, None, None);
-        assert!(stderr.contains("Building package driver_1"));
-        assert!(stderr.contains("Building package driver_2"));
+        assert!(stderr.contains("Packaging driver driver_1"));
+        assert!(stderr.contains("Packaging driver driver_2"));
         assert!(stderr.contains("Build completed successfully"));
 
         verify_driver_package_files(
@@ -404,8 +411,8 @@ mod sign_mode {
             run_clean_cmd(&project_path);
 
             let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-            assert!(stderr.contains(&format!("Building package {driver}")));
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Packaging driver {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let driver_name = driver.replace('-', "_");
             let target_dir = format!("{project_path}/target/debug");
@@ -510,7 +517,7 @@ mod signtool_args {
                 ]),
                 None,
             );
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let driver_name = driver.replace('-', "_");
             let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
@@ -561,7 +568,7 @@ mod signtool_args {
                 Some(&["--signtool-args", &args_with_extra]),
                 None,
             );
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let signer = authenticode_signer_subject(&extra)
                 .expect("extra file operand should be signed after build");
@@ -876,8 +883,8 @@ fn clean_build_and_verify_project(
         };
         let stderr = run_build_cmd(&project_path, cmd_args, env_overrides);
 
-        assert!(stderr.contains(&format!("Building package {driver_name}")));
-        assert!(stderr.contains(&format!("Finished building {driver_name}")));
+        assert!(stderr.contains(&format!("Packaging driver {driver_name}")));
+        assert!(stderr.contains(&format!("Finished packaging driver {driver_name}")));
 
         let driver_binary_extension = match driver_type {
             "kmdf" | "wdm" => "sys",

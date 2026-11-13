@@ -73,6 +73,8 @@ Options:
           Build sample class driver project
       --locked
           Assert that `Cargo.lock` will remain unchanged
+      --workspace
+          Build all packages in the workspace
   -h, --help
           Print help (see more with '--help')
 
@@ -102,11 +104,11 @@ Verbosity:
 
 `build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
-When the command completes the packaged driver artifacts are emitted at the path `target\<profile>\<project-name>-package`.
+When the command completes the packaged driver artifacts are emitted at the path `target\[<target-triple>\]<profile>\<package_name>_package`.
 
 #### Workspace support
 
-`build` supports workspaces. If run at the root of a workspace, it will build and package all driver projects in it. If the workspace contains any non-driver projects they will also be built but not packaged.
+`build` supports workspaces. If run at the root of a workspace or with the `--workspace` flag, it builds the packages `cargo build` selects and packages every driver among them. Non-driver projects are built but not packaged.
 
 #### Sample Drivers
 
