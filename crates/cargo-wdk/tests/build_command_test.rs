@@ -1222,7 +1222,6 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
     Some(wdk_content_root_path.to_string_lossy().into_owned())
 }
 
-
 fn nuget_multi_arch_wdk_content_root() -> Option<PathBuf> {
     let x64_root = PathBuf::from(nuget_wdk_content_root_path("x64")?);
     let arm64_root = PathBuf::from(nuget_wdk_content_root_path("ARM64")?);
