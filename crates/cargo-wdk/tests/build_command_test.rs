@@ -399,6 +399,68 @@ mod kmdf_driver_with_target_override {
     }
 }
 
+#[test]
+fn kmdf_driver_with_multiple_target_kinds_and_archs_builds_successfully() {
+    let project_path = "tests/kmdf-driver-multi-target-kind-and-arch";
+    let package_name = "kmdf-driver-multi-target-kind-and-arch";
+    let driver_name = package_name.replace('-', "_");
+    with_mutex(project_path, || {
+        run_clean_cmd(project_path);
+
+        let nuget_wdk_content_root = nuget_multi_arch_wdk_content_root();
+        let env = nuget_wdk_content_root.as_ref().map(|root| {
+            vec![(
+                WDK_CONTENT_ROOT_ENV_VAR,
+                Some(root.to_string_lossy().into_owned()),
+            )]
+        });
+        let stderr = run_build_cmd(project_path, Some(&["-v"]), env.as_deref());
+        if let Some(root) = nuget_wdk_content_root {
+            fs::remove_dir_all(root).expect("failed to remove combined WDK content root");
+        }
+
+        let builds = stderr
+            .lines()
+            .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
+            .count();
+        assert_eq!(builds, 1, "{stderr}");
+
+        let skipped_bin =
+            format!("Skipping packaging of {package_name}: target kind [Bin] is not cdylib");
+        assert_eq!(stderr.matches(&skipped_bin).count(), 2, "{stderr}");
+
+        for (target_arch, target_triple, inf_arch) in [
+            ("amd64", X86_64_TARGET_TRIPLE_NAME, "NTamd64"),
+            ("arm64", AARCH64_TARGET_TRIPLE_NAME, "NTarm64"),
+        ] {
+            assert!(
+                stderr.contains(&format!(
+                    "Packaging driver {package_name} for {target_arch}"
+                )),
+                "{stderr}"
+            );
+            verify_driver_package_files(
+                project_path,
+                package_name,
+                "sys",
+                None,
+                Some(target_triple),
+                None,
+            );
+            let package_path =
+                format!("{project_path}/target/{target_triple}/debug/{driver_name}_package");
+            let inf = read_inf_file(&package_path, &driver_name);
+            assert!(
+                inf.contains(inf_arch),
+                "expected {inf_arch} in the {target_triple} INF:\n{inf}"
+            );
+        }
+
+        run_clean_cmd(project_path);
+        assert_target_dir_does_not_exist(project_path);
+    });
+}
+
 /// Functional tests for the `--sign-mode` flag.
 mod sign_mode {
     use super::*;
@@ -1039,21 +1101,7 @@ fn assert_file_hash(path1: &str, path2: &str) {
 }
 
 fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
-    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
-    let file_content =
-        fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
-    let file_content = if file_content.starts_with(&[0xFF, 0xFE]) {
-        // Handle UTF-16 LE (BOM 0xFF 0xFE).
-        let file_content = file_content
-            .chunks(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-            .collect::<Vec<u16>>();
-        String::from_utf16_lossy(&file_content)
-    } else {
-        // Otherwise, treat the content as UTF-8; our test setups do not include
-        // UTF16-BE encoded .inx files.
-        String::from_utf8_lossy(&file_content).to_string()
-    };
+    let file_content = read_inf_file(package_path, driver_name);
 
     // Example: DriverVer = 09/13/2023,1.0.0.0
     let (driver_date, driver_version) = match driver_version {
@@ -1079,6 +1127,24 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
         .find(|line| line.starts_with("DriverVer"))
         .expect("DriverVer line not found in inf file");
     assert!(re.captures(line).is_some());
+}
+
+fn read_inf_file(package_path: &str, driver_name: &str) -> String {
+    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
+    let file_content =
+        fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
+    if file_content.starts_with(&[0xFF, 0xFE]) {
+        // Handle UTF-16 LE (BOM 0xFF 0xFE).
+        let file_content = file_content
+            .chunks(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<u16>>();
+        String::from_utf16_lossy(&file_content)
+    } else {
+        // Otherwise, treat the content as UTF-8; our test setups do not include
+        // UTF16-BE encoded .inx files.
+        String::from_utf8_lossy(&file_content).to_string()
+    }
 }
 
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
@@ -1154,6 +1220,54 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
         wdk_content_root_path.display()
     );
     Some(wdk_content_root_path.to_string_lossy().into_owned())
+}
+
+
+fn nuget_multi_arch_wdk_content_root() -> Option<PathBuf> {
+    let x64_root = PathBuf::from(nuget_wdk_content_root_path("x64")?);
+    let arm64_root = PathBuf::from(nuget_wdk_content_root_path("ARM64")?);
+    let full_version_number = env::var(FULL_VERSION_NUMBER_ENV_VAR).ok()?;
+    let (sdk_version, _qfe) = full_version_number
+        .rsplit_once('.')
+        .expect("FullVersionNumber has 4 parts");
+    let sdk_version = format!("{sdk_version}.0");
+
+    let root = env::temp_dir().join("nuget-multi-arch-content-root");
+    let _ = fs::remove_dir_all(&root);
+
+    let mut junctions = vec![(root.join("Include"), x64_root.join("Include"))];
+    for (package_root, arch) in [(&x64_root, "x64"), (&arm64_root, "ARM64")] {
+        for lib_dir in [
+            Path::new(&sdk_version).join("km").join(arch),
+            Path::new("wdf").join("kmdf").join(arch),
+        ] {
+            junctions.push((
+                root.join("Lib").join(&lib_dir),
+                package_root.join("Lib").join(&lib_dir),
+            ));
+        }
+    }
+
+    for (link, target) in junctions {
+        fs::create_dir_all(link.parent().expect("link has a parent"))
+            .expect("failed to create combined WDK content root directory");
+        let output = Command::new("cmd")
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            .arg(&link)
+            .arg(&target)
+            .output()
+            .expect("failed to run mklink");
+        assert!(
+            output.status.success(),
+            "mklink /J {} {} failed: {}",
+            link.display(),
+            target.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Some(root)
 }
 
 /// Returns the cross-compilation target architecture for the current host.
