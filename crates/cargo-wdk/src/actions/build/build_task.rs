@@ -325,8 +325,8 @@ mod tests {
         };
         assert_eq!(command, "cargo");
         assert!(
-            args.contains(&"build".to_string()),
-            "expected args to contain 'build', got: {args:?}"
+            args.first().is_some_and(|arg| arg == "build"),
+            "expected first arg to be 'build', got: {args:?}"
         );
         assert!(
             stdout.is_empty(),
@@ -362,8 +362,8 @@ mod tests {
         };
         assert_eq!(command, "cargo");
         assert!(
-            args.contains(&"build".to_string()),
-            "expected args to contain 'build', got: {args:?}"
+            args.first().is_some_and(|arg| arg == "build"),
+            "expected first arg to be 'build', got: {args:?}"
         );
         assert_eq!(io_err.kind(), std::io::ErrorKind::NotFound);
     }
