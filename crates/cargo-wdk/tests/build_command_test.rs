@@ -9,6 +9,7 @@ use std::{
 };
 
 use assert_cmd::prelude::*;
+use assert_fs::TempDir;
 use sha2::{Digest, Sha256};
 use test_utils::{create_cargo_wdk_cmd, with_mutex};
 
@@ -411,13 +412,10 @@ fn kmdf_driver_with_multiple_target_kinds_and_archs_builds_successfully() {
         let env = nuget_wdk_content_root.as_ref().map(|root| {
             vec![(
                 WDK_CONTENT_ROOT_ENV_VAR,
-                Some(root.to_string_lossy().into_owned()),
+                Some(root.path().to_string_lossy().into_owned()),
             )]
         });
         let stderr = run_build_cmd(project_path, Some(&["-v"]), env.as_deref());
-        if let Some(root) = nuget_wdk_content_root {
-            fs::remove_dir_all(root).expect("failed to remove combined WDK content root");
-        }
 
         let builds = stderr
             .lines()
@@ -1222,7 +1220,7 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
     Some(wdk_content_root_path.to_string_lossy().into_owned())
 }
 
-fn nuget_multi_arch_wdk_content_root() -> Option<PathBuf> {
+fn nuget_multi_arch_wdk_content_root() -> Option<TempDir> {
     let x64_root = PathBuf::from(nuget_wdk_content_root_path("x64")?);
     let arm64_root = PathBuf::from(nuget_wdk_content_root_path("ARM64")?);
     let full_version_number = env::var(FULL_VERSION_NUMBER_ENV_VAR).ok()?;
@@ -1231,17 +1229,16 @@ fn nuget_multi_arch_wdk_content_root() -> Option<PathBuf> {
         .expect("FullVersionNumber has 4 parts");
     let sdk_version = format!("{sdk_version}.0");
 
-    let root = env::temp_dir().join("nuget-multi-arch-content-root");
-    let _ = fs::remove_dir_all(&root);
+    let root = TempDir::new().expect("failed to create combined WDK content root");
 
-    let mut junctions = vec![(root.join("Include"), x64_root.join("Include"))];
+    let mut junctions = vec![(root.path().join("Include"), x64_root.join("Include"))];
     for (package_root, arch) in [(&x64_root, "x64"), (&arm64_root, "ARM64")] {
         for lib_dir in [
             Path::new(&sdk_version).join("km").join(arch),
             Path::new("wdf").join("kmdf").join(arch),
         ] {
             junctions.push((
-                root.join("Lib").join(&lib_dir),
+                root.path().join("Lib").join(&lib_dir),
                 package_root.join("Lib").join(&lib_dir),
             ));
         }
