@@ -2,8 +2,13 @@
 *          text=auto
 
 *.rs       text diff=rust
-*.toml     text diff=toml
-Cargo.lock text diff=toml
+
+# taplo is configured with `crlf = true` (see taplo.toml), so .toml files must be
+# checked out with CRLF endings regardless of the developer's core.autocrlf
+# setting. Without an explicit eol, a clone made with `core.autocrlf=input` gets
+# LF and every .toml then fails `taplo fmt --check`.
+*.toml     text eol=crlf diff=toml
+Cargo.lock text eol=crlf diff=toml
 
 # Store INX files as UTF-8 for diffs, but check them out as UTF-16LE for WDK tools
 *.inx      text diff working-tree-encoding=UTF-16LE-BOM eol=crlf

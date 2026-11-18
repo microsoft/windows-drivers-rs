@@ -3,7 +3,9 @@ extend = "../crates/wdk-build/rust-driver-makefile.toml"
 [env]
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
   "sample-kmdf-driver",
+  "sample-minifilter-driver",
   "sample-umdf-driver",
   "sample-wdm-driver",
+  "sample-wfp-callout-driver",
 ]
 CARGO_MAKE_WORKSPACE_EMULATION = true

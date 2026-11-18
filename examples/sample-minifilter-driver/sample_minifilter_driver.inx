@@ -1,0 +1,76 @@
+;===================================================================
+; Sample Minifilter Driver
+; Copyright (c) Microsoft Corporation
+;===================================================================
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = "ActivityMonitor"
+ClassGuid   = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}
+Provider    = %ProviderString%
+PnpLockDown = 1
+
+[DestinationDirs]
+DefaultDestDir         = 12
+MiniFilter.DriverFiles = 12
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+sample_minifilter_driver.sys = 1,,
+
+; ================= Install section =================
+
+[DefaultInstall.NT$ARCH$]
+OptionDesc = %ServiceDesc%
+CopyFiles  = MiniFilter.DriverFiles
+
+[DefaultInstall.NT$ARCH$.Services]
+AddService = %ServiceName%,,MiniFilter.Service
+
+[DefaultUninstall.NT$ARCH$]
+LegacyUninstall = 1
+DelFiles        = MiniFilter.DriverFiles
+
+[DefaultUninstall.NT$ARCH$.Services]
+DelService = %ServiceName%,0x200      ; SPSVCINST_STOPSERVICE
+
+; ================= Service installation =================
+
+[MiniFilter.Service]
+DisplayName    = %ServiceName%
+Description    = %ServiceDesc%
+ServiceBinary  = %12%\sample_minifilter_driver.sys
+Dependencies   = FltMgr
+ServiceType    = 2                    ; SERVICE_FILE_SYSTEM_DRIVER
+StartType      = 3                    ; SERVICE_DEMAND_START
+ErrorControl   = 1                    ; SERVICE_ERROR_NORMAL
+LoadOrderGroup = "FSFilter Activity Monitor"
+AddReg         = MiniFilter.AddRegistry
+
+; ================= Registry Modifications =================
+
+[MiniFilter.AddRegistry]
+HKR,,"DebugFlags",0x00010001,0x0
+HKR,,"SupportedFeatures",0x00010001,0x3
+HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
+HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
+HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
+
+; ================= Copy Files =================
+
+[MiniFilter.DriverFiles]
+sample_minifilter_driver.sys
+
+; ================= Strings =================
+
+[Strings]
+ProviderString     = "TODO-Set-Provider"
+ServiceName        = "SampleMinifilter"
+ServiceDesc        = "Sample Minifilter Rust Driver"
+DiskId1            = "Sample Minifilter Installation Disk #1"
+DefaultInstance    = "Sample Minifilter Instance"
+Instance1.Name     = "Sample Minifilter Instance"
+Instance1.Altitude = "370030"
+Instance1.Flags    = 0x0              ; Allow all attachments

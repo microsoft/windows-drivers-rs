@@ -145,6 +145,21 @@ const ENABLED_API_SUBSETS: &[ApiSubset] = &[
     ApiSubset::Storage,
     #[cfg(feature = "usb")]
     ApiSubset::Usb,
+    #[cfg(feature = "wfp")]
+    ApiSubset::Wfp,
+    // `Minifilter` is deliberately last, breaking the otherwise alphabetical
+    // order. `fltKernel.h` includes `initguid.h`, which switches `DEFINE_GUID`
+    // from emitting a declaration to emitting a definition for the remainder of
+    // the translation unit. Several WDK headers (`ntddstor.h`, `ntddpar.h`)
+    // deliberately place their `DEFINE_GUID` blocks *outside* their include
+    // guards so that a driver can re-include them to instantiate the GUIDs, and
+    // other headers re-include them (`ntddchgr.h` includes `ntddstor.h`). Once
+    // `INITGUID` is defined, that second pass emits a second definition and
+    // clang fails with `redefinition of 'GUID_DEVINTERFACE_*'`. Ordering
+    // `Minifilter` after every other subset keeps `initguid.h` out of the
+    // picture until those headers have all been included.
+    #[cfg(feature = "minifilter")]
+    ApiSubset::Minifilter,
 ];
 
 type GenerateFn = fn(&Path, &Config) -> Result<(), ConfigError>;
@@ -157,6 +172,8 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("gpio.rs", generate_gpio),
     #[cfg(feature = "hid")]
     ("hid.rs", generate_hid),
+    #[cfg(feature = "minifilter")]
+    ("minifilter.rs", generate_minifilter),
     #[cfg(feature = "parallel-ports")]
     ("parallel_ports.rs", generate_parallel_ports),
     #[cfg(feature = "spb")]
@@ -165,6 +182,8 @@ const BINDGEN_FILE_GENERATORS_TUPLES: &[(&str, GenerateFn)] = &[
     ("storage.rs", generate_storage),
     #[cfg(feature = "usb")]
     ("usb.rs", generate_usb),
+    #[cfg(feature = "wfp")]
+    ("wfp.rs", generate_wfp),
 ];
 
 fn initialize_tracing() -> Result<(), ParseError> {
@@ -277,6 +296,39 @@ fn generate_base(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
         if let Some(raw_lines) = config.bindgen_library_link_raw_lines(ApiSubset::Base) {
             builder = builder.raw_line(raw_lines);
         }
+
+        // These two are `NTKERNELAPI` only under
+        // `#if (NTDDI_VERSION >= NTDDI_WIN10_NI)` (`km/wdm.h:27592`) -- Windows
+        // 11 22H2 / Server 2025 -- and `FORCEINLINE` below it. bindgen cannot
+        // inline a `FORCEINLINE`, so it emits externs, and an extern is an
+        // import the kernel's image loader must resolve before `DriverEntry`
+        // runs. Binding them therefore makes every consumer fail to load on all
+        // of Windows 10 and on Server 2016, 2019 and 2022, silently. MSVC
+        // honours the `FORCEINLINE` and emits no import, which is why C drivers
+        // built against the same WDK do not have this problem.
+        //
+        // `wdk-sys::ntddk` re-exports hand-written replacements of the same
+        // names, so consumers are unaffected. See `src/lookaside_downlevel.rs`.
+        for function in ["ExAllocateFromLookasideListEx", "ExFreeToLookasideListEx"] {
+            builder = builder.blocklist_function(function);
+        }
+
+        // `ExAllocatePool2` is `NTKERNELAPI` under `NTDDI_VERSION >=
+        // NTDDI_WIN10_VB` (Windows 10 2004 / May 2020), so a static import
+        // fails to bind on every Windows before build 19041. Resolving it
+        // dynamically through `MmGetSystemRoutineAddress` and falling back to
+        // `ExAllocatePoolWithTag` on pre-2004 kernels keeps consumers loadable
+        // on those older builds.
+        //
+        // `wdk-sys::ntddk` re-exports a hand-written `ExAllocatePool2` of the
+        // same signature that resolves through `MmGetSystemRoutineAddress` on
+        // first call, caches the answer and falls back to
+        // `ExAllocatePoolWithTag` + `RtlZeroMemory` when the routine is absent.
+        // See `src/ntddk/allocate_pool_downlevel.rs`. `wdk-alloc`'s
+        // `WdkAllocator` routes through this shim automatically because it
+        // imports `ExAllocatePool2` from `wdk_sys::ntddk`.
+        builder = builder.blocklist_function("ExAllocatePool2");
+
         builder
     };
     trace!(bindgen_builder = ?bindgen_builder);
@@ -385,6 +437,55 @@ fn generate_hid(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     trace!(bindgen_builder = ?bindgen_builder);
 
     let output_file_path = out_path.join("hid.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
+}
+
+#[cfg(feature = "minifilter")]
+fn generate_minifilter(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    // The Filter Manager API surface is only available in kernel-mode, so
+    // `minifilter_headers` is empty for UMDF. Generation must be skipped
+    // entirely rather than run with an empty allowlist: `allowlist_file` is
+    // additive, so a builder with no allowlist at all emits every item
+    // reachable from the base headers instead of nothing.
+    if !matches!(
+        config.driver_config,
+        DriverConfig::Wdm | DriverConfig::Kmdf(_)
+    ) {
+        info!(
+            "Skipping minifilter.rs generation since driver_config is {:#?}",
+            config.driver_config
+        );
+        return Ok(());
+    }
+
+    info!("Generating bindings to WDK: minifilter.rs");
+
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Minifilter])?;
+    trace!(header_contents = ?header_contents);
+
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("minifilter-input.h", &header_contents);
+
+        // Only allowlist files in the minifilter-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Minifilter)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+        }
+        if let Some(raw_lines) = config.bindgen_library_link_raw_lines(ApiSubset::Minifilter) {
+            builder = builder.raw_line(raw_lines);
+        }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("minifilter.rs");
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
@@ -520,6 +621,55 @@ fn generate_usb(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
     trace!(bindgen_builder = ?bindgen_builder);
 
     let output_file_path = out_path.join("usb.rs");
+    Ok(bindgen_builder
+        .generate()
+        .expect("Bindings should succeed to generate")
+        .write_to_file(&output_file_path)
+        .map_err(|source| IoError::with_path(output_file_path, source))?)
+}
+
+#[cfg(feature = "wfp")]
+fn generate_wfp(out_path: &Path, config: &Config) -> Result<(), ConfigError> {
+    // The kernel-mode WFP API surface is only available in kernel-mode, so
+    // `wfp_headers` is empty for UMDF. Generation must be skipped entirely
+    // rather than run with an empty allowlist: `allowlist_file` is additive, so
+    // a builder with no allowlist at all emits every item reachable from the
+    // base headers instead of nothing.
+    if !matches!(
+        config.driver_config,
+        DriverConfig::Wdm | DriverConfig::Kmdf(_)
+    ) {
+        info!(
+            "Skipping wfp.rs generation since driver_config is {:#?}",
+            config.driver_config
+        );
+        return Ok(());
+    }
+
+    info!("Generating bindings to WDK: wfp.rs");
+
+    let header_contents =
+        config.bindgen_header_contents([ApiSubset::Base, ApiSubset::Wdf, ApiSubset::Wfp])?;
+    trace!(header_contents = ?header_contents);
+
+    let bindgen_builder = {
+        let mut builder = bindgen::Builder::wdk_default(config)?
+            .with_codegen_config((CodegenConfig::TYPES | CodegenConfig::VARS).complement())
+            .header_contents("wfp-input.h", &header_contents);
+
+        // Only allowlist files in the wfp-specific files to avoid
+        // duplicate definitions
+        for header_file in config.headers(ApiSubset::Wfp)? {
+            builder = builder.allowlist_file(format!("(?i).*{header_file}.*"));
+        }
+        if let Some(raw_lines) = config.bindgen_library_link_raw_lines(ApiSubset::Wfp) {
+            builder = builder.raw_line(raw_lines);
+        }
+        builder
+    };
+    trace!(bindgen_builder = ?bindgen_builder);
+
+    let output_file_path = out_path.join("wfp.rs");
     Ok(bindgen_builder
         .generate()
         .expect("Bindings should succeed to generate")
@@ -729,6 +879,87 @@ fn start_wdf_symbol_export_tasks<'scope>(
     );
 }
 
+/// Starts a task that compiles a C shim which defines the WFP `GUID` constants
+/// that `fwpmk.h` only declares.
+///
+/// The WFP filter engine identifies layers, sublayers, conditions, and
+/// callouts by `GUID`. `fwpmk.h` declares each one with `DEFINE_GUID`, which
+/// expands to a bare `EXTERN_C const GUID name` declaration unless `INITGUID`
+/// is defined, in which case it also emits the initializer. bindgen sees only
+/// the declaration and generates an `extern` static, so a callout driver that
+/// names any layer `GUID` fails to link with `LNK2019: unresolved external
+/// symbol`. No WDK import library exports these symbols, since the intent is
+/// for exactly one translation unit per driver to define `INITGUID` and thereby
+/// own the definitions.
+///
+/// Compiling the WFP headers once with `INITGUID` defined provides those
+/// definitions here instead, so that the generated `extern` statics resolve for
+/// every consumer. This mirrors `start_wdf_symbol_export_tasks`, which exists
+/// to work around the same class of `__declspec(selectany)` problem.
+#[cfg(feature = "wfp")]
+fn start_wfp_guid_definition_tasks<'scope>(
+    thread_scope: &'scope thread::Scope<'scope, '_>,
+    out_path: &'scope Path,
+    config: &'scope Config,
+    thread_join_handles: &mut Vec<thread::ScopedJoinHandle<'scope, Result<(), ConfigError>>>,
+) {
+    let current_span = Span::current();
+
+    thread_join_handles.push(
+        thread::Builder::new()
+            .name("wfp_guids.c cc compilation".to_string())
+            .spawn_scoped(thread_scope, move || {
+                // Parent span must be manually set since spans do not persist across thread boundaries: https://github.com/tokio-rs/tracing/issues/1391
+                info_span!(parent: current_span, "cc").in_scope(|| {
+                    info!("Compiling wfp_guids.c");
+
+                    let wfp_guids_c_file_path = out_path.join("wfp_guids.c");
+                    {
+                        let mut wfp_guids_c_file = File::create(&wfp_guids_c_file_path)
+                            .map_err(|source| IoError::with_path(&wfp_guids_c_file_path, source))?;
+
+                        // `INITGUID` must be defined before the headers are
+                        // included, so it is written into the shim rather than
+                        // passed as a `cc` definition, which would place it
+                        // after `bindgen_header_contents`.
+                        wfp_guids_c_file
+                            .write_all(b"#define INITGUID\n")
+                            .map_err(|source| IoError::with_path(&wfp_guids_c_file_path, source))?;
+                        wfp_guids_c_file
+                            .write_all(
+                                config
+                                    .bindgen_header_contents([
+                                        ApiSubset::Base,
+                                        ApiSubset::Wdf,
+                                        ApiSubset::Wfp,
+                                    ])?
+                                    .as_bytes(),
+                            )
+                            .map_err(|source| IoError::with_path(&wfp_guids_c_file_path, source))?;
+
+                        // Explicitly sync_all to surface any IO errors
+                        // (File::drop silently ignores close errors)
+                        wfp_guids_c_file
+                            .sync_all()
+                            .map_err(|source| IoError::with_path(&wfp_guids_c_file_path, source))?;
+                    }
+
+                    let mut cc_builder = cc::Build::new();
+                    for (key, value) in config.preprocessor_definitions() {
+                        cc_builder.define(&key, value.as_deref());
+                    }
+
+                    cc_builder
+                        .includes(config.include_paths()?)
+                        .file(wfp_guids_c_file_path)
+                        .compile("wfp_guids");
+                    Ok::<(), ConfigError>(())
+                })
+            })
+            .expect("Scoped Thread should spawn successfully"),
+    );
+}
+
 /// Starts generation/compilation tasks for WDF-specific artifacts for driver
 /// configurations.
 ///
@@ -786,11 +1017,66 @@ fn main() -> anyhow::Result<()> {
             env::var("OUT_DIR").expect("OUT_DIR should be exist in Cargo build environment"),
         );
 
+        // Minifilters call into the Filter Manager, so `fltMgr.lib` must be
+        // linked into any binary that depends on these bindings. `fltMgr.lib`
+        // is only shipped for kernel-mode, so this is skipped for UMDF, where
+        // the minifilter bindings are empty anyway.
+        //
+        // The `#[link]` directive for `fltMgr` is emitted into the generated
+        // `minifilter.rs` (gated behind `cfg(not(any(test, feature =
+        // "suppress-wdk-linking")))`). The WDK library search paths cannot be
+        // emitted that way, so they are emitted here: `rustc` resolves `static`
+        // libraries while building `wdk-sys` itself, before the driver crate's
+        // build script contributes any search paths.
+        #[cfg(feature = "minifilter")]
+        if matches!(
+            config.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            for path in config.library_paths()? {
+                println!("cargo::rustc-link-search={}", path.display());
+            }
+        }
+
+        // WFP callout drivers call into the filter engine, so `fwpkclnt.lib`
+        // (the `Fwps*` callout and `Fwpm*` management routines) and `netio.lib`
+        // (the `Netio*` net buffer helpers used to inspect packet data) must be
+        // linked into any binary that depends on these bindings. Both are only
+        // shipped for kernel-mode, so this is skipped for UMDF, where the WFP
+        // bindings are empty anyway. As with `fltMgr`, the `#[link]` directives
+        // are emitted into the generated `wfp.rs` and the search paths are
+        // emitted here.
+        #[cfg(feature = "wfp")]
+        if matches!(
+            config.driver_config,
+            DriverConfig::Wdm | DriverConfig::Kmdf(_)
+        ) {
+            for path in config.library_paths()? {
+                println!("cargo::rustc-link-search={}", path.display());
+            }
+        }
+
         thread::scope(|thread_scope| {
             let mut thread_join_handles = Vec::new();
 
             start_bindgen_tasks(thread_scope, &out_path, &config, &mut thread_join_handles);
             start_wdf_artifact_tasks(thread_scope, &out_path, &config, &mut thread_join_handles)?;
+
+            // The WFP `GUID` definitions are only needed by, and only
+            // compilable for, the kernel-mode configurations that get WFP
+            // bindings at all.
+            #[cfg(feature = "wfp")]
+            if matches!(
+                config.driver_config,
+                DriverConfig::Wdm | DriverConfig::Kmdf(_)
+            ) {
+                start_wfp_guid_definition_tasks(
+                    thread_scope,
+                    &out_path,
+                    &config,
+                    &mut thread_join_handles,
+                );
+            }
 
             join_worker_threads(thread_join_handles)
         })?;

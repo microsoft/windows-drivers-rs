@@ -3,8 +3,10 @@ extend = "../crates/wdk-build/rust-driver-makefile.toml"
 [env]
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
   "config-kmdf",
+  "config-minifilter",
   "config-umdf",
   "config-wdm",
+  "config-wfp",
   "customized-config-toml-workspace",
   "mixed-package-kmdf-workspace",
   "umdf-driver-workspace",

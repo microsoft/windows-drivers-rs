@@ -21,10 +21,12 @@ default = []
 
 gpio = []
 hid = []
+minifilter = []
 parallel-ports = ["gpio"]
 spb = []
 storage = []
 usb = []
+wfp = []
 
 nightly = ["wdk-build/nightly", "wdk-macros/nightly"]
 test-stubs = ["suppress-wdk-linking"]

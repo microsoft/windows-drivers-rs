@@ -139,10 +139,34 @@ extend = "post-clippy"
 extend = "docs"
 toolchain = "beta"
 
+[tasks.install-pinned-taplo]
+description = "Install the pinned taplo-cli revision that taplo.toml's formatting rules require"
+private = true
+script_runner = "@duckscript"
+# cargo-make only runs a task's `install_script` when its command is missing from
+# PATH, so an already-installed unpinned taplo would silently be used instead.
+# Released taplo does not support the field-level `keys` matching that taplo.toml
+# relies on to keep positional `args`/`dependencies` arrays from being
+# alphabetized, which silently corrupts the cargo-make tasks in this repository.
+script = '''
+installed = exec --fail-on-error cargo install --list
+pinned = indexof ${installed.stdout} rev=b673b44d
+if is_empty ${pinned}
+  echo Installing pinned taplo-cli (rev b673b44d)...
+  # taplo is a host tool, so the repository's `-D warnings` and static-CRT
+  # RUSTFLAGS must not apply while building it. Save and restore them so the
+  # later tasks in `wdk-pre-commit-flow` keep their configured flags.
+  original_rustflags = get_env RUSTFLAGS
+  set_env RUSTFLAGS ""
+  exec --fail-on-error cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force
+  set_env RUSTFLAGS ${original_rustflags}
+end
+'''
+
 [tasks.fmt-toml]
 # Run only at workspace level
 args = ["fmt"]
 command = "taplo"
+dependencies = ["install-pinned-taplo"]
 description = "Format all TOML files in the repository using taplo"
-install_script = "set RUSTFLAGS= && cargo install --git https://github.com/tamasfe/taplo --rev b673b44d taplo-cli --locked --force"
 workspace = false

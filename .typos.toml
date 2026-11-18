@@ -3,6 +3,9 @@ extend-exclude = ["**/Cargo.lock", "**/target/**"]
 
 # Allow specific identifiers in code derived from WDK
 [default.extend-identifiers]
+# `PUNICODE_STRING` is the WDK's pointer-to-`UNICODE_STRING` typedef; `typos` reads the leading
+# `PUNICODE` as a misspelling of `PUNYCODE`.
+PUNICODE_STRING = "PUNICODE_STRING"
 STATUS_FVE_MOR_FAILED = "STATUS_FVE_MOR_FAILED"
 STATUS_MCA_OCCURED = "STATUS_MCA_OCCURED"
 STATUS_ND_QUEUE_OVERFLOW = "STATUS_ND_QUEUE_OVERFLOW"

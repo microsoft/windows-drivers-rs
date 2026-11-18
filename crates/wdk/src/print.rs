@@ -188,26 +188,18 @@ pub fn _print(args: fmt::Arguments) {
             writer.flush();
 
         } else if #[cfg(driver_model__driver_type = "UMDF")] {
-            match CString::new(format!("{args}")) {
-                Ok(c_string) => {
-                    // SAFETY: `CString` guarantees a valid null-terminated string
-                    unsafe {
-                        wdk_sys::windows::OutputDebugStringA(c_string.as_ptr());
-                    }
-                },
-                Err(nul_error) => {
-                    let nul_position = nul_error.nul_position();
-                    let string_vec = nul_error.into_vec();
-                    let c_string = CString::new(&string_vec[..nul_position]).expect("string_vec[..nul_position] should have no internal null bytes");
-                    let remaining_string = String::from_utf8(string_vec[nul_position+1 ..].to_vec()).expect("string_vec should always be valid UTF-8 because `format!` returns a String");
+            // `OutputDebugStringA` stops at the first null byte, so strip any
+            // interior null bytes produced by a `Display` impl before handing the
+            // string to the OS. `format!` output is normally null-free; the
+            // replacement keeps this path free of slicing and `expect` rather
+            // than splitting on the null.
+            let sanitized = format!("{args}").replace('\0', "");
+            let c_string = CString::new(sanitized).unwrap_or_default();
 
-                    // SAFETY: `CString` guarantees a valid null-terminated string
-                    unsafe {
-                        wdk_sys::windows::OutputDebugStringA(c_string.as_ptr());
-                    }
-
-                    print!("{remaining_string}");
-                }
+            // SAFETY: `sanitized` contains no null bytes, so `c_string` is a valid
+            // null-terminated string.
+            unsafe {
+                wdk_sys::windows::OutputDebugStringA(c_string.as_ptr());
             }
         }
     }
