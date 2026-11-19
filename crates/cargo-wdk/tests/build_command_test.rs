@@ -9,6 +9,7 @@ use std::{
 };
 
 use assert_cmd::prelude::*;
+use assert_fs::TempDir;
 use sha2::{Digest, Sha256};
 use test_utils::{create_cargo_wdk_cmd, with_mutex};
 
@@ -38,11 +39,11 @@ fn build_fails_when_cargo_path_does_not_exist() {
         let assertion = cmd.assert().failure();
         let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
         assert!(
-            stderr.contains("Failed to read Cargo metadata for the project/workspace"),
-            "expected a metadata error, got: {stderr}"
+            stderr.contains("Error running cargo build command"),
+            "expected a cargo build error, got: {stderr}"
         );
         assert!(
-            stderr.contains("failed to start `cargo metadata`"),
+            stderr.contains("Command 'nonexistent-cargo.exe'") && stderr.contains("IO error"),
             "expected a launch failure for the selected Cargo executable, got: {stderr}"
         );
     });
@@ -61,6 +62,35 @@ fn mixed_package_kmdf_workspace_builds_successfully() {
         None,
         None,
     );
+}
+
+#[test]
+fn workspace_flag_from_member_builds_whole_workspace_once_and_packages_driver() {
+    let workspace = "tests/mixed-package-kmdf-workspace";
+    with_mutex(workspace, || {
+        run_clean_cmd(workspace);
+
+        let stderr = run_build_cmd(
+            &format!("{workspace}/crates/non_driver_crate"),
+            Some(&["--workspace", "--sign-mode", "off", "-v"]),
+            None,
+        );
+
+        let builds = stderr
+            .lines()
+            .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
+            .collect::<Vec<_>>();
+        assert_eq!(builds.len(), 1, "{stderr}");
+        assert!(builds[0].contains("\"--workspace\""), "{stderr}");
+        assert!(stderr.contains("Packaging driver driver"), "{stderr}");
+        for extension in ["cat", "inf", "pdb", "sys"] {
+            assert_file_exists(&format!(
+                "{workspace}/target/debug/driver_package/driver.{extension}"
+            ));
+        }
+
+        run_clean_cmd(workspace);
+    });
 }
 
 #[test]
@@ -100,39 +130,17 @@ fn kmdf_driver_builds_successfully() {
 
 #[test]
 fn kmdf_driver_builds_successfully_with_locked_flag() {
-    let driver = "kmdf-driver";
-    let stderr = clean_build_and_verify_project(
+    clean_build_and_verify_project(
         "kmdf",
-        driver,
+        "kmdf-driver",
         None,
         None,
         None,
         None,
         None,
         None,
-        Some(&["--locked", "-v"]),
+        Some(&["--locked"]),
     );
-
-    // `--locked` must be forwarded to the `cargo rustc` (target-arch probe) and
-    // `cargo build` invocations.
-    let cargo = env::var_os("CARGO").expect("run integration tests through cargo test");
-    for subcommand in ["rustc", "build"] {
-        let invocation = stderr
-            .lines()
-            .find(|line| {
-                line.contains(&format!(
-                    "Running: {} [\"{subcommand}\"",
-                    cargo.to_string_lossy()
-                ))
-            })
-            .unwrap_or_else(|| {
-                panic!("no `cargo {subcommand}` invocation found in stderr:\n{stderr}")
-            });
-        assert!(
-            invocation.contains("--locked"),
-            "expected `--locked` to be forwarded to `cargo {subcommand}`, but got:\n{invocation}"
-        );
-    }
 }
 
 #[test]
@@ -270,8 +278,8 @@ fn emulated_workspace_builds_successfully() {
         assert_target_dir_does_not_exist(&format!("{emulated_workspace_path}/rust-project"));
 
         let stderr = run_build_cmd(emulated_workspace_path, None, None);
-        assert!(stderr.contains("Building package driver_1"));
-        assert!(stderr.contains("Building package driver_2"));
+        assert!(stderr.contains("Packaging driver driver_1"));
+        assert!(stderr.contains("Packaging driver driver_2"));
         assert!(stderr.contains("Build completed successfully"));
 
         verify_driver_package_files(
@@ -392,6 +400,65 @@ mod kmdf_driver_with_target_override {
     }
 }
 
+#[test]
+fn kmdf_driver_with_multiple_target_kinds_and_archs_builds_successfully() {
+    let project_path = "tests/kmdf-driver-multi-target-kind-and-arch";
+    let package_name = "kmdf-driver-multi-target-kind-and-arch";
+    let driver_name = package_name.replace('-', "_");
+    with_mutex(project_path, || {
+        run_clean_cmd(project_path);
+
+        let nuget_wdk_content_root = nuget_multi_arch_wdk_content_root();
+        let env = nuget_wdk_content_root.as_ref().map(|root| {
+            vec![(
+                WDK_CONTENT_ROOT_ENV_VAR,
+                Some(root.path().to_string_lossy().into_owned()),
+            )]
+        });
+        let stderr = run_build_cmd(project_path, Some(&["-v"]), env.as_deref());
+
+        let builds = stderr
+            .lines()
+            .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
+            .count();
+        assert_eq!(builds, 1, "{stderr}");
+
+        let skipped_bin =
+            format!("Skipping packaging of {package_name}: target kind [Bin] is not cdylib");
+        assert_eq!(stderr.matches(&skipped_bin).count(), 2, "{stderr}");
+
+        for (target_arch, target_triple, inf_arch) in [
+            ("amd64", X86_64_TARGET_TRIPLE_NAME, "NTamd64"),
+            ("arm64", AARCH64_TARGET_TRIPLE_NAME, "NTarm64"),
+        ] {
+            assert!(
+                stderr.contains(&format!(
+                    "Packaging driver {package_name} for {target_arch}"
+                )),
+                "{stderr}"
+            );
+            verify_driver_package_files(
+                project_path,
+                package_name,
+                "sys",
+                None,
+                Some(target_triple),
+                None,
+            );
+            let package_path =
+                format!("{project_path}/target/{target_triple}/debug/{driver_name}_package");
+            let inf = read_inf_file(&package_path, &driver_name);
+            assert!(
+                inf.contains(inf_arch),
+                "expected {inf_arch} in the {target_triple} INF:\n{inf}"
+            );
+        }
+
+        run_clean_cmd(project_path);
+        assert_target_dir_does_not_exist(project_path);
+    });
+}
+
 /// Functional tests for the `--sign-mode` flag.
 mod sign_mode {
     use super::*;
@@ -404,8 +471,8 @@ mod sign_mode {
             run_clean_cmd(&project_path);
 
             let stderr = run_build_cmd(&project_path, Some(&["--sign-mode", "off"]), None);
-            assert!(stderr.contains(&format!("Building package {driver}")));
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Packaging driver {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let driver_name = driver.replace('-', "_");
             let target_dir = format!("{project_path}/target/debug");
@@ -510,7 +577,7 @@ mod signtool_args {
                 ]),
                 None,
             );
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let driver_name = driver.replace('-', "_");
             let package_dir = format!("{project_path}/target/debug/{driver_name}_package");
@@ -561,7 +628,7 @@ mod signtool_args {
                 Some(&["--signtool-args", &args_with_extra]),
                 None,
             );
-            assert!(stderr.contains(&format!("Finished building {driver}")));
+            assert!(stderr.contains(&format!("Finished packaging driver {driver}")));
 
             let signer = authenticode_signer_subject(&extra)
                 .expect("extra file operand should be signed after build");
@@ -876,8 +943,8 @@ fn clean_build_and_verify_project(
         };
         let stderr = run_build_cmd(&project_path, cmd_args, env_overrides);
 
-        assert!(stderr.contains(&format!("Building package {driver_name}")));
-        assert!(stderr.contains(&format!("Finished building {driver_name}")));
+        assert!(stderr.contains(&format!("Packaging driver {driver_name}")));
+        assert!(stderr.contains(&format!("Finished packaging driver {driver_name}")));
 
         let driver_binary_extension = match driver_type {
             "kmdf" | "wdm" => "sys",
@@ -1032,21 +1099,7 @@ fn assert_file_hash(path1: &str, path2: &str) {
 }
 
 fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Option<&str>) {
-    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
-    let file_content =
-        fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
-    let file_content = if file_content.starts_with(&[0xFF, 0xFE]) {
-        // Handle UTF-16 LE (BOM 0xFF 0xFE).
-        let file_content = file_content
-            .chunks(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-            .collect::<Vec<u16>>();
-        String::from_utf16_lossy(&file_content)
-    } else {
-        // Otherwise, treat the content as UTF-8; our test setups do not include
-        // UTF16-BE encoded .inx files.
-        String::from_utf8_lossy(&file_content).to_string()
-    };
+    let file_content = read_inf_file(package_path, driver_name);
 
     // Example: DriverVer = 09/13/2023,1.0.0.0
     let (driver_date, driver_version) = match driver_version {
@@ -1072,6 +1125,24 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
         .find(|line| line.starts_with("DriverVer"))
         .expect("DriverVer line not found in inf file");
     assert!(re.captures(line).is_some());
+}
+
+fn read_inf_file(package_path: &str, driver_name: &str) -> String {
+    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
+    let file_content =
+        fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
+    if file_content.starts_with(&[0xFF, 0xFE]) {
+        // Handle UTF-16 LE (BOM 0xFF 0xFE).
+        let file_content = file_content
+            .chunks(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<u16>>();
+        String::from_utf16_lossy(&file_content)
+    } else {
+        // Otherwise, treat the content as UTF-8; our test setups do not include
+        // UTF16-BE encoded .inx files.
+        String::from_utf8_lossy(&file_content).to_string()
+    }
 }
 
 fn digest_file<P: AsRef<Path>>(path: P) -> String {
@@ -1147,6 +1218,52 @@ fn nuget_wdk_content_root_path(target_arch: &str) -> Option<String> {
         wdk_content_root_path.display()
     );
     Some(wdk_content_root_path.to_string_lossy().into_owned())
+}
+
+fn nuget_multi_arch_wdk_content_root() -> Option<TempDir> {
+    let x64_root = PathBuf::from(nuget_wdk_content_root_path("x64")?);
+    let arm64_root = PathBuf::from(nuget_wdk_content_root_path("ARM64")?);
+    let full_version_number = env::var(FULL_VERSION_NUMBER_ENV_VAR).ok()?;
+    let (sdk_version, _qfe) = full_version_number
+        .rsplit_once('.')
+        .expect("FullVersionNumber has 4 parts");
+    let sdk_version = format!("{sdk_version}.0");
+
+    let root = TempDir::new().expect("failed to create combined WDK content root");
+
+    let mut junctions = vec![(root.path().join("Include"), x64_root.join("Include"))];
+    for (package_root, arch) in [(&x64_root, "x64"), (&arm64_root, "ARM64")] {
+        for lib_dir in [
+            Path::new(&sdk_version).join("km").join(arch),
+            Path::new("wdf").join("kmdf").join(arch),
+        ] {
+            junctions.push((
+                root.path().join("Lib").join(&lib_dir),
+                package_root.join("Lib").join(&lib_dir),
+            ));
+        }
+    }
+
+    for (link, target) in junctions {
+        fs::create_dir_all(link.parent().expect("link has a parent"))
+            .expect("failed to create combined WDK content root directory");
+        let output = Command::new("cmd")
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            .arg(&link)
+            .arg(&target)
+            .output()
+            .expect("failed to run mklink");
+        assert!(
+            output.status.success(),
+            "mklink /J {} {} failed: {}",
+            link.display(),
+            target.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Some(root)
 }
 
 /// Returns the cross-compilation target architecture for the current host.

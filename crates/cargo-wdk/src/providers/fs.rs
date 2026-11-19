@@ -12,7 +12,7 @@
 
 use std::{
     fs::{File, OpenOptions, copy, create_dir, create_dir_all, read_dir, remove_dir_all, rename},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
 
@@ -91,6 +91,18 @@ impl Fs {
         file.read_to_string(&mut content)
             .map_err(|e| FileError::ReadError(path.to_owned(), e))?;
         Ok(content)
+    }
+
+    pub fn seek_read_exact(
+        &self,
+        path: &Path,
+        buf: &mut [u8],
+        offset: u64,
+    ) -> Result<(), FileError> {
+        let mut file = File::open(path).map_err(|e| FileError::OpenError(path.to_owned(), e))?;
+        file.seek(SeekFrom::Start(offset))
+            .and_then(|_| file.read_exact(buf))
+            .map_err(|e| FileError::ReadError(path.to_owned(), e))
     }
 
     pub fn write_to_file(&self, path: &Path, data: &[u8]) -> Result<(), FileError> {
