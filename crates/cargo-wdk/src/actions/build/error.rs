@@ -29,10 +29,10 @@ pub enum BuildActionError {
     OneOrMoreRustProjectsFailedToBuild(PathBuf),
     #[error("Unsupported target arch: {0}")]
     UnsupportedArchitecture(String),
-    #[error("Could not determine driver binary for packaging")]
-    CannotDetermineDriverBinary(#[source] anyhow::Error),
-    #[error("Failed to detect target arch for driver binary {}", .0.display())]
-    CannotDetectTargetArch(PathBuf, #[source] anyhow::Error),
+    #[error("No DLL found for package {0} in cargo build output")]
+    CannotDetermineDriverBinary(String),
+    #[error("Failed to detect target arch for driver binary {}: {}", .0.display(), .1)]
+    CannotDetectTargetArch(PathBuf, String),
     #[error("Failed to parse cargo build output")]
     CargoBuildOutputParse(#[source] io::Error),
 }

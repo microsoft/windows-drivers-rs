@@ -351,9 +351,7 @@ impl<'a> BuildAction<'a> {
             }
 
             let driver_binary = driver_binary.ok_or_else(|| {
-                BuildActionError::CannotDetermineDriverBinary(anyhow::anyhow!(
-                    "no DLL found for {package_name} in cargo build output"
-                ))
+                BuildActionError::CannotDetermineDriverBinary(package_name.to_string())
             })?;
 
             let target_dir = driver_binary
@@ -472,7 +470,7 @@ impl<'a> BuildAction<'a> {
         let [b'M', b'Z', .., l0, l1, l2, l3] = dos_header else {
             return Err(BuildActionError::CannotDetectTargetArch(
                 driver_binary.to_owned(),
-                anyhow::anyhow!("missing MZ signature"),
+                "missing MZ signature".to_string(),
             ));
         };
         let e_lfanew = u64::from(u32::from_le_bytes([l0, l1, l2, l3]));
@@ -483,7 +481,7 @@ impl<'a> BuildAction<'a> {
         let [b'P', b'E', 0, 0, m0, m1] = pe_header else {
             return Err(BuildActionError::CannotDetectTargetArch(
                 driver_binary.to_owned(),
-                anyhow::anyhow!("missing PE signature"),
+                "missing PE signature".to_string(),
             ));
         };
         Ok(u16::from_le_bytes([m0, m1]))

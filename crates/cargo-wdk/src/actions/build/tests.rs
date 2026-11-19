@@ -1152,8 +1152,8 @@ pub fn given_a_driver_project_when_build_output_has_no_dll_for_it_then_packaging
     assert!(
         matches!(
             run_result,
-            Err(BuildActionError::CannotDetermineDriverBinary(ref source))
-            if source.to_string() == "no DLL found for sample-kmdf in cargo build output"
+            Err(BuildActionError::CannotDetermineDriverBinary(ref package_name))
+            if package_name == "sample-kmdf"
         ),
         "Expected CannotDetermineDriverBinary no-dll error, got: {run_result:?}"
     );
@@ -4075,8 +4075,8 @@ mod get_arch_from_pe {
         assert!(
             matches!(
                 result,
-                Err(BuildActionError::CannotDetectTargetArch(path, source))
-                    if path == Path::new(DRIVER_BINARY) && source.to_string() == expected_reason
+                Err(BuildActionError::CannotDetectTargetArch(path, reason))
+                    if path == Path::new(DRIVER_BINARY) && reason == expected_reason
             ),
             "expected CannotDetectTargetArch({expected_reason:?}), got {result:?}"
         );
