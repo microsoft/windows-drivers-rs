@@ -110,7 +110,7 @@ impl NewArgs {
 
 /// Arguments for the `build` subcommand
 #[derive(Debug, Args)]
-#[allow(clippy::struct_excessive_bools)]
+#[allow(clippy::struct_excessive_bools, reason = "these bools are CLI args")]
 pub struct BuildArgs {
     /// Build artifacts with the specified profile
     #[arg(long, ignore_case = true)]
@@ -195,7 +195,7 @@ pub struct BuildArgs {
     #[arg(long)]
     pub locked: bool,
 
-    /// Build all packages in the workspace
+    /// Pass `--workspace` flag to cargo
     #[arg(long)]
     pub workspace: bool,
 

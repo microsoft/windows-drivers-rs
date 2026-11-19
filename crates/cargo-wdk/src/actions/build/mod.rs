@@ -43,8 +43,8 @@ const AARCH64_TARGET_TRIPLE_NAME: &str = "aarch64-pc-windows-msvc";
 
 /// `Machine` values in the PE COFF file header. See
 /// <https://learn.microsoft.com/windows/win32/debug/pe-format#machine-types>.
-const IMAGE_FILE_MACHINE_AMD64: u16 = 0x8664;
-const IMAGE_FILE_MACHINE_ARM64: u16 = 0xAA64;
+const PE_FILE_MACHINE_AMD64: u16 = 0x8664;
+const PE_FILE_MACHINE_ARM64: u16 = 0xAA64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Profile {
@@ -194,8 +194,8 @@ impl<'a> BuildAction<'a> {
     ///   cannot be read.
     /// * `BuildActionError::CannotDetermineDriverBinary` - If a driver's binary
     ///   (DLL) cannot be found in the build output.
-    /// * `BuildActionError::CannotDetectTargetArch` - If a driver binary is not
-    ///   a valid PE image.
+    /// * `BuildActionError::CannotDetectTargetArch` - If the target arch cannot
+    ///   be determined from the driver binary
     /// * `BuildActionError::UnsupportedArchitecture` - If a driver binary is
     ///   built for an unsupported architecture.
     /// * `BuildActionError::FileIo` - If a driver binary cannot be read.
@@ -310,8 +310,7 @@ impl<'a> BuildAction<'a> {
         Ok(cargo_metadata)
     }
 
-    // Runs the build task from the given working directory, then runs the
-    // package task for each driver package.
+    // Method to perform the build and package tasks on the given package
     fn build_and_package(&self, working_dir: &Path) -> Result<(), BuildActionError> {
         let build_task = BuildTask::new(
             BuildTaskParams {
@@ -356,14 +355,14 @@ impl<'a> BuildAction<'a> {
 
             let target_dir = driver_binary
                 .parent()
-                .expect("A path with a `.dll` extension always has a parent directory");
+                .expect("driver binary always has a parent directory");
 
             let target_arch = self.get_arch_from_pe(&driver_binary)?;
 
             let package_dir = package
                 .manifest_path
                 .parent()
-                .expect("Unable to find package path from Cargo manifest path");
+                .expect("Cargo manifest always has a parent directory");
 
             info!("Packaging driver {package_name} for {target_arch}");
             PackageTask::new(
@@ -444,8 +443,8 @@ impl<'a> BuildAction<'a> {
     ///   is built for an unsupported architecture.
     fn get_arch_from_pe(&self, driver_binary: &Path) -> Result<CpuArchitecture, BuildActionError> {
         match self.get_pe_machine_value(driver_binary)? {
-            IMAGE_FILE_MACHINE_AMD64 => Ok(CpuArchitecture::Amd64),
-            IMAGE_FILE_MACHINE_ARM64 => Ok(CpuArchitecture::Arm64),
+            PE_FILE_MACHINE_AMD64 => Ok(CpuArchitecture::Amd64),
+            PE_FILE_MACHINE_ARM64 => Ok(CpuArchitecture::Arm64),
             machine => Err(BuildActionError::UnsupportedArchitecture(format!(
                 "{machine:#06x}"
             ))),

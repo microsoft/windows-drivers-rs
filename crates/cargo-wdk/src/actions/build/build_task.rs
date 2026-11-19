@@ -37,7 +37,7 @@ pub struct BuildTaskParams<'a> {
     pub verbosity_level: clap_verbosity_flag::Verbosity,
 }
 
-/// Runs `cargo build` with the supplied parameters
+/// Builds specified package by running `cargo build`  
 pub struct BuildTask<'a> {
     params: BuildTaskParams<'a>,
     manifest_path: PathBuf,
@@ -393,6 +393,42 @@ mod tests {
         let task = BuildTask::new(
             BuildTaskParams {
                 locked: true,
+                ..default_build_task_params(&working_dir, &features)
+            },
+            &mock,
+        );
+
+        task.run()
+            .expect("expected an iterator over parsed cargo message objects")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("expected valid cargo messages");
+    }
+
+    #[test]
+    fn run_forwards_workspace_to_cargo_build_when_workspace_is_set() {
+        let working_dir = PathBuf::from("C:/abs/driver");
+        let features = Features::default();
+        let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
+        expected_stdout.push(b'\n');
+        let expected_stdout_for_mock = expected_stdout.clone();
+
+        let mut mock = MockCommandExec::new();
+        let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
+        mock.expect_run()
+            .withf(move |command, args, _env, _wd| {
+                command.as_ref() == Path::new(&expected_cargo) && args.contains(&"--workspace")
+            })
+            .return_once(move |_, _, _, _| {
+                Ok(Output {
+                    status: ExitStatus::default(),
+                    stdout: expected_stdout_for_mock,
+                    stderr: Vec::new(),
+                })
+            });
+
+        let task = BuildTask::new(
+            BuildTaskParams {
+                workspace: true,
                 ..default_build_task_params(&working_dir, &features)
             },
             &mock,

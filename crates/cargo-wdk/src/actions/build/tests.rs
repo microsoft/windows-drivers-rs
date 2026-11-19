@@ -31,8 +31,8 @@ use crate::{
     actions::build::{
         BuildAction,
         BuildActionParams,
-        IMAGE_FILE_MACHINE_AMD64,
-        IMAGE_FILE_MACHINE_ARM64,
+        PE_FILE_MACHINE_AMD64,
+        PE_FILE_MACHINE_ARM64,
         Profile,
         SignMode,
         TargetPlatform,
@@ -1872,9 +1872,6 @@ pub fn given_a_workspace_when_workspace_flag_is_set_from_a_member_then_all_drive
         Some(&wdk_metadata),
     );
 
-    // From a member directory, `--workspace` is forwarded to the member's
-    // `cargo build`, and every driver in the workspace is packaged under the
-    // workspace root's target directory
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .with_workspace(true)
         .set_up_workspace_with_multiple_driver_projects(
@@ -2423,15 +2420,15 @@ fn pe_image(machine: u16) -> Vec<u8> {
 }
 
 /// Returns a mock implementation of `Fs::seek_read_exact` that serves reads
-/// from `image`, failing with `UnexpectedEof` like a real file when a read
-/// goes past its end.
-fn read_from_image(
-    image: Vec<u8>,
+/// from the contents of `file`, failing with `UnexpectedEof` like a real file
+/// when a read goes past its end.
+fn seek_read_exact(
+    file: Vec<u8>,
 ) -> impl Fn(&Path, &mut [u8], u64) -> Result<(), FileError> + Send + 'static {
     move |path, buf, offset| {
         let bytes = usize::try_from(offset)
             .ok()
-            .and_then(|start| image.get(start..start.checked_add(buf.len())?));
+            .and_then(|start| file.get(start..start.checked_add(buf.len())?));
         bytes.map_or_else(
             || {
                 Err(FileError::ReadError(
@@ -2962,14 +2959,14 @@ impl TestBuildAction {
         built_arch: CpuArchitecture,
     ) -> Self {
         let machine = match built_arch {
-            CpuArchitecture::Amd64 => IMAGE_FILE_MACHINE_AMD64,
-            CpuArchitecture::Arm64 => IMAGE_FILE_MACHINE_ARM64,
+            CpuArchitecture::Amd64 => PE_FILE_MACHINE_AMD64,
+            CpuArchitecture::Arm64 => PE_FILE_MACHINE_ARM64,
         };
         self.expect_read_driver_binary_returning(
             driver_name,
             cwd,
             2,
-            read_from_image(pe_image(machine)),
+            seek_read_exact(pe_image(machine)),
         )
     }
 
@@ -4138,10 +4135,10 @@ mod get_arch_from_pe {
 
     use super::{
         BuildActionError,
-        IMAGE_FILE_MACHINE_AMD64,
+        PE_FILE_MACHINE_AMD64,
         TestBuildAction,
         pe_image,
-        read_from_image,
+        seek_read_exact,
     };
 
     const DRIVER_BINARY: &str = r"C:\tmp\target\debug\sample_kmdf_driver.dll";
@@ -4153,7 +4150,7 @@ mod get_arch_from_pe {
             .mock_fs_provider
             .expect_seek_read_exact()
             .withf(|path, _, _| path == Path::new(DRIVER_BINARY))
-            .returning(read_from_image(image));
+            .returning(seek_read_exact(image));
 
         let build_action =
             super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
@@ -4186,11 +4183,11 @@ mod get_arch_from_pe {
 
     #[test]
     fn invalid_signatures_return_error() {
-        let mut bad_mz = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        let mut bad_mz = pe_image(PE_FILE_MACHINE_AMD64);
         bad_mz[0] = b'X';
         assert_not_pe(&run(bad_mz), "missing MZ signature");
 
-        let mut bad_pe = pe_image(IMAGE_FILE_MACHINE_AMD64);
+        let mut bad_pe = pe_image(PE_FILE_MACHINE_AMD64);
         bad_pe[0x80] = b'X';
         assert_not_pe(&run(bad_pe), "missing PE signature");
     }
