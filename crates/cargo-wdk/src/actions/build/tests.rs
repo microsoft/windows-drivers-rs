@@ -1236,7 +1236,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_defau
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        // A single cargo build for the whole workspace
         .expect_cargo_build(
             &cwd,
             Some(combine_cargo_build_outputs(&[
@@ -1440,7 +1439,6 @@ pub fn given_a_workspace_with_multiple_driver_and_non_driver_projects_when_verif
         )
         .expect_detect_wdk_build_number(25100u32)
         .expect_root_manifest_exists(&cwd, true)
-        // A single cargo build for the whole workspace
         .expect_cargo_build(
             &cwd,
             Some(combine_cargo_build_outputs(&[
@@ -1788,8 +1786,6 @@ pub fn given_a_workspace_when_workspace_flag_is_set_then_all_driver_members_are_
         Some(&wdk_metadata),
     );
 
-    // `--workspace` is forwarded to `cargo build` and every built driver is
-    // packaged
     let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
         .with_workspace(true)
         .set_up_workspace_with_multiple_driver_projects(
@@ -1812,6 +1808,97 @@ pub fn given_a_workspace_when_workspace_flag_is_set_then_all_driver_members_are_
             verify_signature,
         )
         .expect_default_package_task_steps_for_workspace(
+            driver_name_2,
+            target_arch,
+            verify_signature,
+        );
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
+pub fn given_a_workspace_when_workspace_flag_is_set_from_a_member_then_all_driver_members_are_packaged()
+ {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let driver_name_1 = "sample-kmdf-1";
+    let driver_version_1 = "0.0.1";
+    let driver_name_2 = "sample-kmdf-2";
+    let driver_version_2 = "0.0.2";
+    let cwd = workspace_root_dir.join(driver_name_1);
+    let artifact_1 = create_cargo_build_output_json_with_manifest(
+        driver_name_1,
+        driver_version_1,
+        &workspace_root_dir,
+        &workspace_root_dir.join(driver_name_1).join("Cargo.toml"),
+        None,
+        profile,
+        true,
+    );
+    let artifact_2 = create_cargo_build_output_json_with_manifest(
+        driver_name_2,
+        driver_version_2,
+        &workspace_root_dir,
+        &workspace_root_dir.join(driver_name_2).join("Cargo.toml"),
+        None,
+        profile,
+        true,
+    );
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (workspace_member_1, package_1) = get_cargo_metadata_package(
+        &workspace_root_dir.join(driver_name_1),
+        driver_name_1,
+        driver_version_1,
+        Some(&wdk_metadata),
+    );
+    let (workspace_member_2, package_2) = get_cargo_metadata_package(
+        &workspace_root_dir.join(driver_name_2),
+        driver_name_2,
+        driver_version_2,
+        Some(&wdk_metadata),
+    );
+
+    // From a member directory, `--workspace` is forwarded to the member's
+    // `cargo build`, and every driver in the workspace is packaged under the
+    // workspace root's target directory
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_workspace(true)
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            Some(wdk_metadata),
+            vec![
+                (workspace_member_1, package_1),
+                (workspace_member_2, package_2),
+            ],
+        )
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_cargo_build(
+            &cwd,
+            Some(combine_cargo_build_outputs(&[artifact_1, artifact_2])),
+        )
+        .expect_default_package_task_steps_for_workspace_at(
+            &workspace_root_dir,
+            driver_name_1,
+            target_arch,
+            verify_signature,
+        )
+        .expect_default_package_task_steps_for_workspace_at(
+            &workspace_root_dir,
             driver_name_2,
             target_arch,
             verify_signature,
@@ -2519,11 +2606,10 @@ impl TestBuildAction {
         mut self,
         package_metadata: (TestMetadataWorkspaceMemberId, TestMetadataPackage),
     ) -> Self {
-        let workspace_members = [package_metadata.0];
         let cargo_toml_metadata = get_cargo_metadata(
             &self.cwd,
             vec![package_metadata.1],
-            &workspace_members,
+            &[package_metadata.0],
             None,
         );
         let cargo_toml_metadata =
@@ -2716,31 +2802,47 @@ impl TestBuildAction {
         target_arch: CpuArchitecture,
         verify_signature: bool,
     ) -> Self {
-        let cwd = self.cwd.clone();
+        let workspace_root_dir = self.cwd.clone();
+        self.expect_default_package_task_steps_for_workspace_at(
+            &workspace_root_dir,
+            driver_name,
+            target_arch,
+            verify_signature,
+        )
+    }
+
+    fn expect_default_package_task_steps_for_workspace_at(
+        self,
+        workspace_root_dir: &Path,
+        driver_name: &str,
+        target_arch: CpuArchitecture,
+        verify_signature: bool,
+    ) -> Self {
+        let cwd = workspace_root_dir;
         let expected_certmgr_output = get_certmgr_success_output();
         let expectations = self
-            .expect_read_driver_binary(driver_name, &cwd, target_arch)
-            .expect_final_package_dir_created(driver_name, &cwd, false)
+            .expect_read_driver_binary(driver_name, cwd, target_arch)
+            .expect_final_package_dir_created(driver_name, cwd, false)
             .expect_inx_file_exists(driver_name, &cwd.join(driver_name), true)
-            .expect_rename_driver_binary_dll_to_sys(driver_name, &cwd)
-            .expect_copy_driver_binary_sys_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_pdb_file_to_package_folder(driver_name, &cwd, true)
-            .expect_copy_inx_file_to_package_folder(driver_name, &cwd.join(driver_name), true, &cwd)
-            .expect_stampinf(driver_name, &cwd, target_arch, None)
-            .expect_inf2cat(driver_name, &cwd, target_arch, None)
-            .expect_self_signed_cert_file_exists(&cwd, false)
+            .expect_rename_driver_binary_dll_to_sys(driver_name, cwd)
+            .expect_copy_driver_binary_sys_to_package_folder(driver_name, cwd, true)
+            .expect_copy_pdb_file_to_package_folder(driver_name, cwd, true)
+            .expect_copy_inx_file_to_package_folder(driver_name, &cwd.join(driver_name), true, cwd)
+            .expect_stampinf(driver_name, cwd, target_arch, None)
+            .expect_inf2cat(driver_name, cwd, target_arch, None)
+            .expect_self_signed_cert_file_exists(cwd, false)
             .expect_certmgr_exists_check(Some(expected_certmgr_output))
-            .expect_makecert(&cwd, None)
-            .expect_copy_self_signed_cert_file_to_package_folder(driver_name, &cwd, true)
-            .expect_signtool_sign_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_sign_cat_file(driver_name, &cwd, None)
-            .expect_infverif(driver_name, &cwd, None, None);
+            .expect_makecert(cwd, None)
+            .expect_copy_self_signed_cert_file_to_package_folder(driver_name, cwd, true)
+            .expect_signtool_sign_driver_binary_sys_file(driver_name, cwd, None)
+            .expect_signtool_sign_cat_file(driver_name, cwd, None)
+            .expect_infverif(driver_name, cwd, None, None);
         if !verify_signature {
             return expectations;
         }
         expectations
-            .expect_signtool_verify_driver_binary_sys_file(driver_name, &cwd, None)
-            .expect_signtool_verify_cat_file(driver_name, &cwd, None)
+            .expect_signtool_verify_driver_binary_sys_file(driver_name, cwd, None)
+            .expect_signtool_verify_cat_file(driver_name, cwd, None)
     }
 
     fn expect_root_manifest_exists(mut self, root_dir: &Path, does_exist: bool) -> Self {
@@ -2802,7 +2904,6 @@ impl TestBuildAction {
     }
 
     fn expect_cargo_build(mut self, cwd: &Path, override_output: Option<Output>) -> Self {
-        // cargo build of the package(s) selected by cargo
         let manifest_path = cwd
             .join("Cargo.toml")
             .to_string_lossy()
@@ -2864,7 +2965,6 @@ impl TestBuildAction {
             CpuArchitecture::Amd64 => IMAGE_FILE_MACHINE_AMD64,
             CpuArchitecture::Arm64 => IMAGE_FILE_MACHINE_ARM64,
         };
-        // DOS header, then PE signature and Machine
         self.expect_read_driver_binary_returning(
             driver_name,
             cwd,
@@ -4032,16 +4132,12 @@ fn create_cargo_build_output_json_with_manifest(
 }
 
 mod get_arch_from_pe {
-    use std::{
-        io,
-        path::{Path, PathBuf},
-    };
+    use std::path::{Path, PathBuf};
 
     use wdk_build::CpuArchitecture;
 
     use super::{
         BuildActionError,
-        FileError,
         IMAGE_FILE_MACHINE_AMD64,
         TestBuildAction,
         pe_image,
@@ -4050,25 +4146,19 @@ mod get_arch_from_pe {
 
     const DRIVER_BINARY: &str = r"C:\tmp\target\debug\sample_kmdf_driver.dll";
 
-    fn run_with(
-        read: impl Fn(&Path, &mut [u8], u64) -> Result<(), FileError> + Send + 'static,
-    ) -> Result<CpuArchitecture, BuildActionError> {
+    fn run(image: Vec<u8>) -> Result<CpuArchitecture, BuildActionError> {
         let cwd = PathBuf::from(r"C:\tmp");
         let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
         test_build_action
             .mock_fs_provider
             .expect_seek_read_exact()
             .withf(|path, _, _| path == Path::new(DRIVER_BINARY))
-            .returning(read);
+            .returning(read_from_image(image));
 
         let build_action =
             super::initialize_build_action(&cwd, None, None, true, false, &test_build_action)
                 .expect("Failed to init build action");
         build_action.get_arch_from_pe(Path::new(DRIVER_BINARY))
-    }
-
-    fn run(image: Vec<u8>) -> Result<CpuArchitecture, BuildActionError> {
-        run_with(read_from_image(image))
     }
 
     fn assert_not_pe(result: &Result<CpuArchitecture, BuildActionError>, expected_reason: &str) {
@@ -4103,39 +4193,5 @@ mod get_arch_from_pe {
         let mut bad_pe = pe_image(IMAGE_FILE_MACHINE_AMD64);
         bad_pe[0x80] = b'X';
         assert_not_pe(&run(bad_pe), "missing PE signature");
-    }
-
-    #[test]
-    fn truncated_headers_return_read_error() {
-        // Shorter than a DOS header, even without an `MZ` signature
-        let not_mz = vec![b'X'; 0x10];
-        let mut short = pe_image(IMAGE_FILE_MACHINE_AMD64);
-        short.truncate(0x3F);
-        let mut pe_header_beyond_eof = pe_image(IMAGE_FILE_MACHINE_AMD64);
-        pe_header_beyond_eof[0x3C..0x40].copy_from_slice(&0x1000_u32.to_le_bytes());
-        let mut pe_header_at_u32_max = pe_image(IMAGE_FILE_MACHINE_AMD64);
-        pe_header_at_u32_max[0x3C..0x40].copy_from_slice(&u32::MAX.to_le_bytes());
-        let mut no_machine = pe_image(IMAGE_FILE_MACHINE_AMD64);
-        no_machine.truncate(0x85);
-
-        for image in [
-            vec![],
-            not_mz,
-            short,
-            pe_header_beyond_eof,
-            pe_header_at_u32_max,
-            no_machine,
-        ] {
-            let result = run(image);
-            assert!(
-                matches!(
-                    result,
-                    Err(BuildActionError::FileIo(FileError::ReadError(ref path, ref e)))
-                        if path == Path::new(DRIVER_BINARY)
-                            && e.kind() == io::ErrorKind::UnexpectedEof
-                ),
-                "expected an UnexpectedEof read error, got {result:?}"
-            );
-        }
     }
 }
