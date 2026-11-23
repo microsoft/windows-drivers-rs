@@ -2271,6 +2271,162 @@ pub fn given_a_workspace_when_a_wdk_member_is_not_a_cdylib_then_it_is_skipped() 
 }
 
 #[test]
+pub fn given_a_workspace_member_depending_on_a_driver_member_when_cwd_is_that_member_then_the_dependency_is_not_packaged()
+ {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let client = "client";
+    let cwd = workspace_root_dir.join(client);
+    let profile = None;
+    let verify_signature = false;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let wdk_dep = "wdk-dep";
+    let wdk_dep_version = "0.0.1";
+    let client_version = "0.0.2";
+    let wdk_dep_artifact = create_cargo_build_output_json_with_manifest(
+        wdk_dep,
+        wdk_dep_version,
+        &workspace_root_dir,
+        &workspace_root_dir.join(wdk_dep).join("Cargo.toml"),
+        None,
+        profile,
+        true,
+    );
+    let client_artifact = create_cargo_build_output_json_with_manifest(
+        client,
+        client_version,
+        &workspace_root_dir,
+        &cwd.join("Cargo.toml"),
+        None,
+        profile,
+        false,
+    );
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (wdk_dep_member, wdk_dep_package) = get_cargo_metadata_package(
+        &workspace_root_dir.join(wdk_dep),
+        wdk_dep,
+        wdk_dep_version,
+        Some(&wdk_metadata),
+    );
+    let (client_member, client_package) =
+        get_cargo_metadata_package(&cwd, client, client_version, None);
+
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_workspace_default_members(vec![client_member.clone()])
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            Some(wdk_metadata),
+            vec![
+                (wdk_dep_member, wdk_dep_package),
+                (client_member, client_package),
+            ],
+        )
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_cargo_build(
+            &cwd,
+            Some(combine_cargo_build_outputs(&[
+                wdk_dep_artifact,
+                client_artifact,
+            ])),
+        );
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
+pub fn given_a_workspace_member_depending_on_a_driver_member_when_workspace_flag_is_set_then_the_driver_member_is_packaged()
+ {
+    // Input CLI args
+    let workspace_root_dir = PathBuf::from("C:\\tmp");
+    let client = "client";
+    let cwd = workspace_root_dir.join(client);
+    let profile = None;
+    let target_arch = CpuArchitecture::Amd64;
+    let verify_signature = false;
+    let sample_class = false;
+
+    // Driver project data
+    let driver_type = "KMDF";
+    let wdk_dep = "wdk-dep";
+    let wdk_dep_version = "0.0.1";
+    let client_version = "0.0.2";
+    let wdk_dep_artifact = create_cargo_build_output_json_with_manifest(
+        wdk_dep,
+        wdk_dep_version,
+        &workspace_root_dir,
+        &workspace_root_dir.join(wdk_dep).join("Cargo.toml"),
+        None,
+        profile,
+        true,
+    );
+    let client_artifact = create_cargo_build_output_json_with_manifest(
+        client,
+        client_version,
+        &workspace_root_dir,
+        &cwd.join("Cargo.toml"),
+        None,
+        profile,
+        false,
+    );
+    let wdk_metadata = get_cargo_metadata_wdk_metadata(driver_type, 1, 33);
+    let (wdk_dep_member, wdk_dep_package) = get_cargo_metadata_package(
+        &workspace_root_dir.join(wdk_dep),
+        wdk_dep,
+        wdk_dep_version,
+        Some(&wdk_metadata),
+    );
+    let (client_member, client_package) =
+        get_cargo_metadata_package(&cwd, client, client_version, None);
+
+    let test_build_action = &TestBuildAction::new(cwd.clone(), profile, None, sample_class)
+        .with_workspace(true)
+        .with_workspace_default_members(vec![client_member.clone()])
+        .set_up_workspace_with_multiple_driver_projects(
+            &workspace_root_dir,
+            Some(wdk_metadata),
+            vec![
+                (wdk_dep_member, wdk_dep_package),
+                (client_member, client_package),
+            ],
+        )
+        .expect_detect_wdk_build_number(25100u32)
+        .expect_root_manifest_exists(&cwd, true)
+        .expect_cargo_build(
+            &cwd,
+            Some(combine_cargo_build_outputs(&[
+                wdk_dep_artifact,
+                client_artifact,
+            ])),
+        )
+        .expect_default_package_task_steps_for_workspace_at(
+            &workspace_root_dir,
+            wdk_dep,
+            target_arch,
+            verify_signature,
+        );
+
+    assert_build_action_run_with_env_is_success(
+        &cwd,
+        profile,
+        None,
+        verify_signature,
+        sample_class,
+        test_build_action,
+    );
+}
+
+#[test]
 pub fn given_a_driver_project_when_build_output_is_unreadable_then_it_fails() {
     // Input CLI args
     let cwd = PathBuf::from("C:\\tmp");
@@ -2538,6 +2694,7 @@ struct TestBuildAction {
     locked: bool,
     workspace: bool,
     features: Features,
+    workspace_default_members: Option<Vec<TestMetadataWorkspaceMemberId>>,
 
     cargo_metadata: Option<CargoMetadata>,
     // mocks
@@ -2571,6 +2728,7 @@ impl TestBuildAction {
             locked: false,
             workspace: false,
             features: Features::default(),
+            workspace_default_members: None,
             mock_run_command,
             mock_wdk_build_provider,
             mock_fs_provider,
@@ -2594,6 +2752,14 @@ impl TestBuildAction {
         self
     }
 
+    fn with_workspace_default_members(
+        mut self,
+        workspace_default_members: Vec<TestMetadataWorkspaceMemberId>,
+    ) -> Self {
+        self.workspace_default_members = Some(workspace_default_members);
+        self
+    }
+
     fn with_target_dir_for(mut self, target_arch: Option<CpuArchitecture>) -> Self {
         self.target_arch = target_arch;
         self
@@ -2607,6 +2773,7 @@ impl TestBuildAction {
             &self.cwd,
             vec![package_metadata.1],
             &[package_metadata.0],
+            None,
             None,
         );
         let cargo_toml_metadata =
@@ -2645,6 +2812,7 @@ impl TestBuildAction {
             workspace_root_dir,
             packages,
             &workspace_members,
+            self.workspace_default_members.as_deref(),
             workspace_additional_metadata,
         );
         let cargo_toml_metadata = serde_json::from_str::<cargo_metadata::Metadata>(
@@ -3873,18 +4041,21 @@ fn get_cargo_metadata(
     root_dir: &Path,
     package_list: Vec<TestMetadataPackage>,
     workspace_member_list: &[TestMetadataWorkspaceMemberId],
+    workspace_default_member_list: Option<&[TestMetadataWorkspaceMemberId]>,
     metadata: Option<TestWdkMetadata>,
 ) -> String {
     let metadata_section = match metadata {
         Some(metadata) => metadata.0,
         None => String::from("null"),
     };
-    // Require quotes around each member
-    let members = workspace_member_list
-        .iter()
-        .map(|s| format!("\"{}\"", s.0))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let quoted = |list: &[TestMetadataWorkspaceMemberId]| {
+        list.iter()
+            .map(|s| format!("\"{}\"", s.0))
+            .collect::<Vec<String>>()
+            .join(", ")
+    };
+    let members = quoted(workspace_member_list);
+    let default_members = quoted(workspace_default_member_list.unwrap_or(workspace_member_list));
     format!(
         r#"
     {{
@@ -3906,7 +4077,7 @@ fn get_cargo_metadata(
             .collect::<Vec<String>>()
             .join(", "),
         members,
-        members,
+        default_members,
         metadata_section
     )
 }
