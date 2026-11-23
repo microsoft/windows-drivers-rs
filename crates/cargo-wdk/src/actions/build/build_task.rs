@@ -259,6 +259,7 @@ mod tests {
                     && matches_args
                     && matches_working_dir
             })
+            .once()
             .return_once(move |_, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
@@ -295,7 +296,7 @@ mod tests {
     fn run_returns_command_failed_error_with_empty_stdout_when_cargo_build_exits_nonzero() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let mut mock = MockCommandExec::new();
-        mock.expect_run().return_once(|_, _, _, _| {
+        mock.expect_run().once().return_once(|_, _, _, _| {
             let failure_output = Output {
                 status: ExitStatus::from_raw(1),
                 stdout: b"error".to_vec(),
@@ -338,7 +339,7 @@ mod tests {
     fn run_returns_io_error_when_cargo_build_command_invocation_fails() {
         let working_dir = PathBuf::from("C:/abs/driver");
         let mut mock = MockCommandExec::new();
-        mock.expect_run().return_once(|_, _, _, _| {
+        mock.expect_run().once().return_once(|_, _, _, _| {
             Err(CommandError::from_io_error(
                 "cargo",
                 &["build"],
@@ -382,6 +383,7 @@ mod tests {
             .withf(move |command, args, _env, _wd| {
                 command.as_ref() == Path::new(&expected_cargo) && args.contains(&"--locked")
             })
+            .once()
             .return_once(move |_, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
@@ -410,7 +412,6 @@ mod tests {
         let features = Features::default();
         let mut expected_stdout = br#"{"reason":"build-finished","success":true}"#.to_vec();
         expected_stdout.push(b'\n');
-        let expected_stdout_for_mock = expected_stdout.clone();
 
         let mut mock = MockCommandExec::new();
         let expected_cargo = std::env::var_os("CARGO").expect("run tests through cargo test");
@@ -418,10 +419,11 @@ mod tests {
             .withf(move |command, args, _env, _wd| {
                 command.as_ref() == Path::new(&expected_cargo) && args.contains(&"--workspace")
             })
+            .once()
             .return_once(move |_, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),
-                    stdout: expected_stdout_for_mock,
+                    stdout: expected_stdout,
                     stderr: Vec::new(),
                 })
             });
@@ -461,6 +463,7 @@ mod tests {
                     && args.windows(2).any(|w| w == ["--features", "foo"])
                     && args.windows(2).any(|w| w == ["--features", "bar"])
             })
+            .once()
             .return_once(move |_, _, _, _| {
                 Ok(Output {
                     status: ExitStatus::default(),

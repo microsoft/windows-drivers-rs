@@ -94,6 +94,33 @@ fn workspace_flag_from_member_builds_whole_workspace_once_and_packages_driver() 
 }
 
 #[test]
+fn without_workspace_flag_when_invoked_from_a_member_dir_only_that_member_is_built() {
+    let workspace = "tests/mixed-package-kmdf-workspace";
+    with_mutex(workspace, || {
+        run_clean_cmd(workspace);
+
+        let stderr = run_build_cmd(
+            &format!("{workspace}/crates/non_driver_crate"),
+            Some(&["--sign-mode", "off", "-v"]),
+            None,
+        );
+
+        let builds = stderr
+            .lines()
+            .filter(|line| line.contains("Running: ") && line.contains("[\"build\""))
+            .collect::<Vec<_>>();
+        assert_eq!(builds.len(), 1, "{stderr}");
+        assert!(!builds[0].contains("\"--workspace\""), "{stderr}");
+        assert!(!stderr.contains("Packaging driver"), "{stderr}");
+        assert!(stderr.contains("Compiling non_driver_crate v"), "{stderr}");
+        assert!(!stderr.contains("Compiling driver v"), "{stderr}");
+        assert_package_dir_does_not_exist(workspace, "driver", None, "debug");
+
+        run_clean_cmd(workspace);
+    });
+}
+
+#[test]
 fn kmdf_driver_builds_successfully() {
     // Setup for executables
     wdk_build::cargo_make::setup_path().expect("failed to set up paths for executables");
@@ -1128,7 +1155,6 @@ fn assert_driver_ver(package_path: &str, driver_name: &str, driver_version: Opti
 }
 
 fn read_inf_file(package_path: &str, driver_name: &str) -> String {
-    // Read the INF file as raw bytes and produce a best-effort UTF-8 string.
     let file_content =
         fs::read(format!("{package_path}/{driver_name}.inf")).expect("Unable to read inf file");
     if file_content.starts_with(&[0xFF, 0xFE]) {

@@ -4143,13 +4143,14 @@ mod get_arch_from_pe {
 
     const DRIVER_BINARY: &str = r"C:\tmp\target\debug\sample_kmdf_driver.dll";
 
-    fn run(image: Vec<u8>) -> Result<CpuArchitecture, BuildActionError> {
+    fn run(image: Vec<u8>, reads: usize) -> Result<CpuArchitecture, BuildActionError> {
         let cwd = PathBuf::from(r"C:\tmp");
         let mut test_build_action = TestBuildAction::new(cwd.clone(), None, None, false);
         test_build_action
             .mock_fs_provider
             .expect_seek_read_exact()
             .withf(|path, _, _| path == Path::new(DRIVER_BINARY))
+            .times(reads)
             .returning(seek_read_exact(image));
 
         let build_action =
@@ -4173,9 +4174,9 @@ mod get_arch_from_pe {
     fn unsupported_machines_return_error() {
         // I386, ARMNT, ARM64EC, ARM64X, RISCV64 and UNKNOWN
         for machine in [0x014C, 0x01C4, 0xA641, 0xA64E, 0x5064, 0x0000] {
-            let err = run(pe_image(machine)).expect_err("Expected UnsupportedArchitecture");
+            let err = run(pe_image(machine), 2).expect_err("Expected UnsupportedArchitecture");
             assert!(
-                matches!(err, BuildActionError::UnsupportedArchitecture(ref a) if *a == format!("{machine:#06x}")),
+                matches!(err, BuildActionError::UnsupportedArchitecture(ref path, ref a) if path == Path::new(DRIVER_BINARY) && *a == format!("{machine:#06x}")),
                 "{err:?}"
             );
         }
@@ -4185,10 +4186,10 @@ mod get_arch_from_pe {
     fn invalid_signatures_return_error() {
         let mut bad_mz = pe_image(PE_FILE_MACHINE_AMD64);
         bad_mz[0] = b'X';
-        assert_not_pe(&run(bad_mz), "missing MZ signature");
+        assert_not_pe(&run(bad_mz, 1), "missing MZ signature");
 
         let mut bad_pe = pe_image(PE_FILE_MACHINE_AMD64);
         bad_pe[0x80] = b'X';
-        assert_not_pe(&run(bad_pe), "missing PE signature");
+        assert_not_pe(&run(bad_pe, 2), "missing PE signature");
     }
 }

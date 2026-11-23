@@ -445,9 +445,10 @@ impl<'a> BuildAction<'a> {
         match self.get_pe_machine_value(driver_binary)? {
             PE_FILE_MACHINE_AMD64 => Ok(CpuArchitecture::Amd64),
             PE_FILE_MACHINE_ARM64 => Ok(CpuArchitecture::Arm64),
-            machine => Err(BuildActionError::UnsupportedArchitecture(format!(
-                "{machine:#06x}"
-            ))),
+            machine => Err(BuildActionError::UnsupportedArchitecture(
+                driver_binary.to_owned(),
+                format!("{machine:#06x}"),
+            )),
         }
     }
 
