@@ -104,7 +104,7 @@ Verbosity:
 
 `build` takes a number of inputs specifying build profile (`dev` or `release`), target architecture (`amd64` or `arm64`), the driver signing mode, a flag enabling signature verification and a flag indicating a sample driver along with verbosity flags.
 
-When the command completes the packaged driver artifacts are emitted at the path `target\[<target-triple>\]<profile>\<package_name>_package`.
+When the command completes the packaged driver artifacts are emitted in the target directory, e.g. `target\<profile>\<project-name>_package`.
 
 #### Workspace support
 
