@@ -336,15 +336,7 @@ impl<'a> BuildAction<'a> {
             Err(e) => return Err(BuildActionError::WdkMetadataParse(e)),
         };
 
-        let selected_members: &[PackageId] = if self.workspace {
-            &cargo_metadata.workspace_members
-        } else {
-            &cargo_metadata.workspace_default_members
-        };
-
-        for candidate in
-            Self::candidates_for_packaging(build_output, &cargo_metadata, selected_members)
-        {
+        for candidate in self.candidates_for_packaging(build_output, &cargo_metadata) {
             let (package, target_kind, driver_binary) = candidate?;
 
             let package_name = package.name.as_str();
@@ -406,13 +398,18 @@ impl<'a> BuildAction<'a> {
     /// Returns an iterator over potential driver candidates for packaging from
     /// the cargo build output and the Cargo metadata.
     fn candidates_for_packaging<'m>(
-        build_output: impl Iterator<Item = io::Result<Message>> + 'm,
+        &self,
+        build_output: impl Iterator<Item = io::Result<Message>>,
         cargo_metadata: &'m CargoMetadata,
-        selected_members: &'m [PackageId],
-    ) -> impl Iterator<
-        Item = Result<(&'m Package, Vec<TargetKind>, Option<PathBuf>), BuildActionError>,
-    > + 'm {
-        build_output.filter_map(|message| match message {
+    ) -> impl Iterator<Item = Result<(&'m Package, Vec<TargetKind>, Option<PathBuf>), BuildActionError>>
+    {
+        let selected_members: &[PackageId] = if self.workspace {
+            &cargo_metadata.workspace_members
+        } else {
+            &cargo_metadata.workspace_default_members
+        };
+
+        build_output.filter_map(move |message| match message {
             Ok(Message::CompilerArtifact(artifact))
                 if !artifact.target.kind.contains(&TargetKind::CustomBuild) // Skip build scripts
                     && selected_members.contains(&artifact.package_id)
