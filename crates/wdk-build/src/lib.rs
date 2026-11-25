@@ -24,6 +24,7 @@ use tracing::debug;
 
 pub mod cargo_make;
 pub mod metadata;
+pub mod traits;
 
 mod utils;
 
